@@ -1,0 +1,920 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<title>MACH:INE II / MOODBOARD v0.2</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --ca: #FF4400;
+  --cb: #00AACC;
+  --cc: #E6007E;
+}
+
+body {
+  background: #000;
+  color: #fff;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  padding: 48px 40px;
+  max-width: 1360px;
+  margin: 0 auto;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  border-bottom: 1px solid #1a1a1a;
+  padding-bottom: 20px;
+  margin-bottom: 60px;
+}
+.header h1 { font-size: 12px; font-weight: normal; letter-spacing: 0.5em; }
+.header .sub { color: #333; font-size: 10px; letter-spacing: 0.25em; }
+
+.section { margin-bottom: 72px; }
+.section-label {
+  font-size: 9px; letter-spacing: 0.5em; color: #333;
+  text-transform: uppercase; margin-bottom: 28px;
+  padding-bottom: 10px; border-bottom: 1px solid #111;
+  display: flex; justify-content: space-between;
+}
+
+/* ── 01 PALETTE ── */
+.palette-band {
+  display: flex; height: 56px; margin-bottom: 40px;
+}
+.palette-band div { flex: 1; }
+
+.color-system {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+}
+.cs-block {
+  display: flex; flex-direction: column; gap: 0;
+}
+.cs-swatch {
+  height: 64px;
+  display: flex; align-items: flex-end;
+  padding: 8px 10px;
+}
+.cs-swatch span {
+  font-size: 9px; letter-spacing: 0.25em; opacity: 0.7;
+}
+.cs-label {
+  background: #0a0a0a;
+  padding: 12px 10px;
+  border: 1px solid #111;
+  border-top: none;
+}
+.cs-name { font-size: 10px; letter-spacing: 0.3em; margin-bottom: 6px; }
+.cs-desc { font-size: 9px; color: #444; letter-spacing: 0.1em; line-height: 1.7; }
+.cs-trigger {
+  display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap;
+}
+.cs-tag {
+  font-size: 8px; letter-spacing: 0.2em; color: #333;
+  border: 1px solid #1c1c1c; padding: 2px 6px;
+}
+
+/* ── TEXTURE GRID ── */
+.texture-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+.tx-cell { display: flex; flex-direction: column; gap: 8px; }
+.tx-cell canvas { width: 100%; display: block; image-rendering: pixelated; }
+.tx-name { font-size: 9px; color: #333; letter-spacing: 0.3em; }
+
+/* ── FORMA GRID ── */
+.forma-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+.fm-cell { display: flex; flex-direction: column; gap: 8px; }
+.fm-cell canvas { width: 100%; display: block; }
+.fm-name { font-size: 9px; color: #333; letter-spacing: 0.3em; }
+.fm-note { font-size: 8px; color: #252525; letter-spacing: 0.1em; line-height: 1.6; }
+
+/* ── SYNTHESIS ── */
+.synth-wrap {
+  display: grid;
+  grid-template-columns: 1fr 220px;
+  gap: 20px;
+}
+.synth-wrap canvas { width: 100%; display: block; }
+.synth-panel {
+  display: flex; flex-direction: column; gap: 0;
+  border: 1px solid #111;
+}
+.sp-section {
+  padding: 14px;
+  border-bottom: 1px solid #111;
+}
+.sp-title {
+  font-size: 8px; letter-spacing: 0.4em; color: #2a2a2a;
+  margin-bottom: 12px;
+}
+.sp-row {
+  display: flex; align-items: center; gap: 10px;
+  margin-bottom: 8px; cursor: pointer;
+}
+.sp-row:last-child { margin-bottom: 0; }
+.sp-dot {
+  width: 8px; height: 8px;
+  border: 1px solid #222; flex-shrink: 0;
+  transition: background 0.15s, border-color 0.15s;
+}
+.sp-dot.on-a { background: var(--ca); border-color: var(--ca); }
+.sp-dot.on-b { background: var(--cb); border-color: var(--cb); }
+.sp-dot.on-c { background: var(--cc); border-color: var(--cc); }
+.sp-dot.on-w { background: rgba(255,255,255,0.7); border-color: rgba(255,255,255,0.3); }
+.sp-lbl { font-size: 9px; color: #333; letter-spacing: 0.25em; }
+.state-btns {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 4px;
+}
+.state-btn {
+  font-size: 8px; letter-spacing: 0.2em; color: #2a2a2a;
+  border: 1px solid #111; padding: 6px 4px;
+  text-align: center; cursor: pointer; font-family: inherit;
+  background: #000; transition: color 0.15s, border-color 0.15s;
+}
+.state-btn.active { color: #fff; border-color: #444; }
+.synth-readout {
+  padding: 14px;
+  font-size: 8px; color: #222; letter-spacing: 0.2em; line-height: 2;
+}
+
+/* ── DECISIONS ── */
+.dec-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 32px;
+}
+.dec-col h3 {
+  font-size: 9px; letter-spacing: 0.4em; color: #333;
+  margin-bottom: 16px; font-weight: normal;
+}
+.dec-item {
+  display: flex; align-items: flex-start; gap: 10px;
+  margin-bottom: 12px;
+}
+.dec-sq {
+  width: 8px; height: 8px; border: 1px solid #1c1c1c;
+  flex-shrink: 0; margin-top: 1px;
+}
+.dec-sq.done { background: var(--ca); border-color: var(--ca); }
+.dec-sq.kill { background: #1a1a1a; border-color: #1a1a1a; }
+.dec-text { font-size: 9px; color: #555; letter-spacing: 0.1em; line-height: 1.6; }
+.dec-text.done { color: #999; }
+.dec-text.kill { color: #333; text-decoration: line-through; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>MACH:INE II &nbsp;/&nbsp; MOODBOARD &nbsp;/&nbsp; v0.2</h1>
+  <div class="sub">PRE-PRODUCTION &nbsp;·&nbsp; 2026-03-21 &nbsp;·&nbsp; DESIGN REFERENCE</div>
+</div>
+
+
+<!-- ── 01 PALETTE ── -->
+<div class="section">
+  <div class="section-label">
+    <span>01 &nbsp; SISTEMA CROMATICO</span>
+    <span style="color:#1a1a1a">BASE 90% · COLORI SEMANTICI 10%</span>
+  </div>
+
+  <!-- Gray band -->
+  <div class="palette-band" id="gray-band"></div>
+
+  <!-- 3-color semantic system -->
+  <div class="color-system">
+    <div class="cs-block">
+      <div class="cs-swatch" style="background:#FF4400">
+        <span style="color:rgba(0,0,0,0.5)">#FF4400</span>
+      </div>
+      <div class="cs-label">
+        <div class="cs-name">A / RITMO</div>
+        <div class="cs-desc">Rosso-arancio bruciato.<br>Energia percussiva, impatto fisico.</div>
+        <div class="cs-trigger">
+          <span class="cs-tag">ONSET</span>
+          <span class="cs-tag">KICK</span>
+          <span class="cs-tag">ATTACK</span>
+          <span class="cs-tag">TRANSIENT</span>
+        </div>
+      </div>
+    </div>
+    <div class="cs-block">
+      <div class="cs-swatch" style="background:#00AACC">
+        <span style="color:rgba(0,0,0,0.5)">#00AACC</span>
+      </div>
+      <div class="cs-label">
+        <div class="cs-name">B / ARMONIA</div>
+        <div class="cs-desc">Teal elettrico.<br>Informazione melodica, struttura.</div>
+        <div class="cs-trigger">
+          <span class="cs-tag">MIDI NOTE</span>
+          <span class="cs-tag">CHORD</span>
+          <span class="cs-tag">PITCH</span>
+          <span class="cs-tag">HARMONY</span>
+        </div>
+      </div>
+    </div>
+    <div class="cs-block">
+      <div class="cs-swatch" style="background:#E6007E">
+        <span style="color:rgba(0,0,0,0.5)">#E6007E</span>
+      </div>
+      <div class="cs-label">
+        <div class="cs-name">C / CLIMAX</div>
+        <div class="cs-desc">Magenta. Rarissimo.<br>Picco narrativo, rottura del sistema.</div>
+        <div class="cs-trigger">
+          <span class="cs-tag">PEAK ENERGY</span>
+          <span class="cs-tag">NARRATIVE BREAK</span>
+          <span class="cs-tag">2–3× PER SESSION</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ── 02 TEXTURE ── -->
+<div class="section">
+  <div class="section-label">
+    <span>02 &nbsp; VOCABOLARIO TEXTURE</span>
+  </div>
+  <div class="texture-grid">
+    <div class="tx-cell">
+      <canvas id="tx-dither" width="380" height="200"></canvas>
+      <div class="tx-name">DITHER ORDINATO (BAYER 8×8)</div>
+    </div>
+    <div class="tx-cell">
+      <canvas id="tx-topo" width="380" height="200"></canvas>
+      <div class="tx-name">LINEE TOPOGRAFICHE / CONTOUR</div>
+    </div>
+    <div class="tx-cell">
+      <canvas id="tx-chars" width="380" height="200"></canvas>
+      <div class="tx-name">CHARACTER GRID / SIMBOLI</div>
+    </div>
+    <div class="tx-cell">
+      <canvas id="tx-scan" width="380" height="200"></canvas>
+      <div class="tx-name">SCANLINE + BARRE FREQUENZIALI</div>
+    </div>
+    <div class="tx-cell">
+      <canvas id="tx-block" width="380" height="200"></canvas>
+      <div class="tx-name">BLOCK COLOR / ZONE PIATTE</div>
+    </div>
+    <div class="tx-cell">
+      <canvas id="tx-glitch" width="380" height="200"></canvas>
+      <div class="tx-name">GLITCH / ARTEFATTO DIGITALE</div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ── 03 FORME ── -->
+<div class="section">
+  <div class="section-label">
+    <span>03 &nbsp; VOCABOLARIO FORME (ANIMATO)</span>
+  </div>
+  <div class="forma-grid">
+    <div class="fm-cell">
+      <canvas id="fm-campo" width="400" height="240"></canvas>
+      <div class="fm-name">CAMPO DI PUNTI + DITHER</div>
+      <div class="fm-note">Base dell'ecosistema · frequenze → posizione · età → opacità</div>
+    </div>
+    <div class="fm-cell">
+      <canvas id="fm-topo" width="400" height="240"></canvas>
+      <div class="fm-name">SUPERFICIE TOPOGRAFICA</div>
+      <div class="fm-note">Griglia di altitudine · ampiezza → deformazione · memoria di forma</div>
+    </div>
+    <div class="fm-cell">
+      <canvas id="fm-ritmo" width="400" height="240"></canvas>
+      <div class="fm-name">EVENTO RITMICO (A)</div>
+      <div class="fm-note">#FF4400 · onset → esplosione geometrica · si cristallizza in traccia</div>
+    </div>
+    <div class="fm-cell">
+      <canvas id="fm-armonia" width="400" height="240"></canvas>
+      <div class="fm-name">EVENTO ARMONICO (B)</div>
+      <div class="fm-note">#00AACC · nota MIDI → linea di connessione · mapping pitch → posizione X</div>
+    </div>
+    <div class="fm-cell">
+      <canvas id="fm-strata" width="400" height="240"></canvas>
+      <div class="fm-name">STRATIFICAZIONE / PARTITURA</div>
+      <div class="fm-note">Tracce accumulate · memoria della performance · leggibile come score</div>
+    </div>
+    <div class="fm-cell">
+      <canvas id="fm-climax" width="400" height="240"></canvas>
+      <div class="fm-name">CLIMAX (C) + CAMERA</div>
+      <div class="fm-note">#E6007E · rottura · zoom macro + flood del colore · 2-3× per sessione</div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ── 04 SINTESI ── -->
+<div class="section">
+  <div class="section-label">
+    <span>04 &nbsp; SINTESI SISTEMA COMPLETO</span>
+  </div>
+  <div class="synth-wrap">
+    <canvas id="synth" width="900" height="480"></canvas>
+    <div class="synth-panel">
+      <div class="sp-section">
+        <div class="sp-title">LAYER</div>
+        <div class="sp-row" data-layer="campo">
+          <div class="sp-dot on-w" id="d-campo"></div>
+          <div class="sp-lbl">CAMPO PUNTI</div>
+        </div>
+        <div class="sp-row" data-layer="topo">
+          <div class="sp-dot on-w" id="d-topo"></div>
+          <div class="sp-lbl">SUPERFICIE TOPO</div>
+        </div>
+        <div class="sp-row" data-layer="dither">
+          <div class="sp-dot on-w" id="d-dither"></div>
+          <div class="sp-lbl">DITHER OVERLAY</div>
+        </div>
+        <div class="sp-row" data-layer="chars">
+          <div class="sp-dot" id="d-chars"></div>
+          <div class="sp-lbl">CHARACTER GRID</div>
+        </div>
+        <div class="sp-row" data-layer="ritmo">
+          <div class="sp-dot on-a" id="d-ritmo"></div>
+          <div class="sp-lbl">RITMO (A)</div>
+        </div>
+        <div class="sp-row" data-layer="armonia">
+          <div class="sp-dot on-b" id="d-armonia"></div>
+          <div class="sp-lbl">ARMONIA (B)</div>
+        </div>
+        <div class="sp-row" data-layer="climax">
+          <div class="sp-dot" id="d-climax"></div>
+          <div class="sp-lbl">CLIMAX (C)</div>
+        </div>
+      </div>
+      <div class="sp-section">
+        <div class="sp-title">STATO MUSICALE</div>
+        <div class="state-btns">
+          <div class="state-btn active" data-s="0">SILENT</div>
+          <div class="state-btn" data-s="1">BUILD</div>
+          <div class="state-btn" data-s="2">PEAK</div>
+          <div class="state-btn" data-s="3">DECAY</div>
+        </div>
+      </div>
+      <div class="synth-readout" id="readout">
+        CAMPO ········ ON<br>
+        TOPO ·········· ON<br>
+        DITHER ······· ON<br>
+        RITMO A ····· ON<br>
+        ARMONIA B ·· ON<br>
+        CLIMAX C ···· OFF<br>
+        ──────────────<br>
+        STATE: SILENT
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ── 05 DECISIONI ── -->
+<div class="section">
+  <div class="section-label"><span>05 &nbsp; DECISIONI</span></div>
+  <div class="dec-grid">
+    <div class="dec-col">
+      <h3>CONFERMATE</h3>
+      <div class="dec-item">
+        <div class="dec-sq done"></div>
+        <div class="dec-text done">Palette: grigi digitali + 3 colori semantici (A/B/C)</div>
+      </div>
+      <div class="dec-item">
+        <div class="dec-sq done"></div>
+        <div class="dec-text done">Dither Bayer come texture primaria del sistema</div>
+      </div>
+      <div class="dec-item">
+        <div class="dec-sq done"></div>
+        <div class="dec-text done">Linee topografiche come superficie/campo</div>
+      </div>
+      <div class="dec-item">
+        <div class="dec-sq done"></div>
+        <div class="dec-text done">Sistema camera (Il Direttore) ogni 8/16 battute</div>
+      </div>
+      <div class="dec-item">
+        <div class="dec-sq done"></div>
+        <div class="dec-text done">Stack: Three.js (WebGL) per v0.2+</div>
+      </div>
+      <div class="dec-item">
+        <div class="dec-sq"></div>
+        <div class="dec-text">Character grid: leggibile o solo texture?</div>
+      </div>
+      <div class="dec-item">
+        <div class="dec-sq"></div>
+        <div class="dec-text">Selettore palette: da implementare dopo v1.0</div>
+      </div>
+    </div>
+    <div class="dec-col">
+      <h3>KILL LIST</h3>
+      <div class="dec-item">
+        <div class="dec-sq kill"></div>
+        <div class="dec-text kill">Testo animato o titoli in scena</div>
+      </div>
+      <div class="dec-item">
+        <div class="dec-sq kill"></div>
+        <div class="dec-text kill">Mesh 3D complesse o modelli</div>
+      </div>
+      <div class="dec-item">
+        <div class="dec-sq kill"></div>
+        <div class="dec-text kill">Gradienti colorati (solo grigi + A/B/C)</div>
+      </div>
+      <div class="dec-item">
+        <div class="dec-sq kill"></div>
+        <div class="dec-text kill">Glow / bloom eccessivo</div>
+      </div>
+      <div class="dec-item">
+        <div class="dec-sq kill"></div>
+        <div class="dec-text kill">Più di 3 colori simultanei a schermo</div>
+      </div>
+      <div class="dec-item">
+        <div class="dec-sq kill"></div>
+        <div class="dec-text kill">Effetti di post-processing pesanti</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<script>
+// ═══════════════════════════════════════════════════════════
+//  MACH:INE II — MOODBOARD ENGINE v0.2
+// ═══════════════════════════════════════════════════════════
+
+const CA = { hex:'#FF4400', r:255, g:68,  b:0   };
+const CB = { hex:'#00AACC', r:0,   g:170, b:204 };
+const CC = { hex:'#E6007E', r:230, g:0,   b:126 };
+
+// Bayer 8×8
+const B8 = [0,32,8,40,2,34,10,42,48,16,56,24,50,18,58,26,
+            12,44,4,36,14,46,6,38,60,28,52,20,62,30,54,22,
+            3,35,11,43,1,33,9,41,51,19,59,27,49,17,57,25,
+            15,47,7,39,13,45,5,37,63,31,55,23,61,29,53,21];
+const bayer = (x,y) => B8[(y%8)*8+(x%8)]/64;
+
+// ── Gray band ──
+const band = document.getElementById('gray-band');
+['#000','#0D0D0D','#1C1C1C','#2E2E2E','#474747','#636363',
+ '#828282','#A8A8A8','#CECECE','#E8E8E8','#FFF'].forEach(c => {
+  const d = document.createElement('div');
+  d.style.background = c;
+  band.appendChild(d);
+});
+
+// ── Particles ──
+let P = [], t = 0;
+function initP() {
+  P = Array.from({length:120}, () => ({
+    x: Math.random(), y: Math.random(),
+    vx: (Math.random()-.5)*.0015, vy: (Math.random()-.5)*.0015,
+    age: Math.random(), life: .4+Math.random()*.6,
+    freq: Math.random(), size: .5+Math.random()*1.5
+  }));
+}
+function tickP() {
+  P.forEach(p => {
+    p.x+=p.vx; p.y+=p.vy;
+    if(p.x<0||p.x>1) p.vx*=-1;
+    if(p.y<0||p.y>1) p.vy*=-1;
+    p.age+=.003;
+    if(p.age>p.life){p.x=Math.random();p.y=Math.random();p.age=0;}
+  });
+}
+
+// ─────────────────────────────────────────────
+//  TEXTURE DRAWS (static)
+// ─────────────────────────────────────────────
+
+function drawDither() {
+  const c=document.getElementById('tx-dither');
+  const cx=c.getContext('2d');
+  const img=cx.createImageData(c.width,c.height);
+  for(let y=0;y<c.height;y++) for(let x=0;x<c.width;x++){
+    const g = Math.pow(x/c.width,.6) * .9;
+    const on = g > bayer(x,y);
+    const v = on ? 210 : 0;
+    const i=(y*c.width+x)*4;
+    img.data[i]=v; img.data[i+1]=v; img.data[i+2]=v; img.data[i+3]=255;
+  }
+  cx.putImageData(img,0,0);
+  // accent line
+  cx.strokeStyle=CA.hex; cx.lineWidth=1;
+  cx.beginPath(); cx.moveTo(0,c.height*.5); cx.lineTo(c.width*.4,c.height*.5); cx.stroke();
+}
+
+function drawTopo() {
+  const c=document.getElementById('tx-topo');
+  const cx=c.getContext('2d');
+  cx.fillStyle='#000'; cx.fillRect(0,0,c.width,c.height);
+  const levels=18;
+  for(let l=0;l<levels;l++){
+    const threshold = l/levels;
+    cx.beginPath();
+    for(let x=0;x<=c.width;x+=3){
+      const nx=x/c.width, ny=threshold;
+      const z = (Math.sin(nx*8+l*.4)*.3 + Math.sin(nx*3.5+l*.7)*.2 +
+                 Math.cos(nx*5.5-.5)*.15 + .5);
+      const py = (1-z)*c.height + Math.sin(nx*12+l)*(c.height*.02);
+      if(x===0) cx.moveTo(x,py); else cx.lineTo(x,py);
+    }
+    const alpha = .08 + (l/levels)*.18;
+    cx.strokeStyle=`rgba(255,255,255,${alpha})`; cx.lineWidth=.8; cx.stroke();
+  }
+  // CB accent contour
+  cx.beginPath();
+  const la=Math.floor(levels*.6);
+  for(let x=0;x<=c.width;x+=3){
+    const nx=x/c.width;
+    const z=(Math.sin(nx*8+la*.4)*.3+Math.sin(nx*3.5+la*.7)*.2+Math.cos(nx*5.5-.5)*.15+.5);
+    const py=(1-z)*c.height+Math.sin(nx*12+la)*(c.height*.02);
+    if(x===0) cx.moveTo(x,py); else cx.lineTo(x,py);
+  }
+  cx.strokeStyle=CB.hex+'99'; cx.lineWidth=1; cx.stroke();
+}
+
+function drawChars() {
+  const c=document.getElementById('tx-chars');
+  const cx=c.getContext('2d');
+  cx.fillStyle='#000'; cx.fillRect(0,0,c.width,c.height);
+  const SYMS='▲▼◆○□▸◂⊕⊗∙:;|!01·×÷∞∑∂∇≈≠±'.split('');
+  cx.font='9px Courier New';
+  for(let y=10;y<c.height;y+=11){
+    for(let x=0;x<c.width;x+=9){
+      const nx=x/c.width, ny=y/c.height;
+      const d=Math.abs(Math.sin(nx*6)*Math.cos(ny*5))*.7+.1;
+      if(Math.random()>d) continue;
+      const alpha=d*.6;
+      const sym=SYMS[Math.floor(Math.random()*SYMS.length)];
+      cx.fillStyle=`rgba(255,255,255,${alpha})`;
+      cx.fillText(sym,x,y);
+    }
+  }
+  // A accent symbol cluster
+  cx.fillStyle=CA.hex+'cc'; cx.font='11px Courier New';
+  cx.fillText('▲▲▲',140,100);
+}
+
+function drawScan() {
+  const c=document.getElementById('tx-scan');
+  const cx=c.getContext('2d');
+  cx.fillStyle='#000'; cx.fillRect(0,0,c.width,c.height);
+  const bars=32; const bw=c.width/bars;
+  for(let i=0;i<bars;i++){
+    const h=Math.random()*.7+.05;
+    const alpha=.08+Math.random()*.25;
+    cx.fillStyle=`rgba(255,255,255,${alpha})`;
+    cx.fillRect(i*bw+.5,c.height*(1-h),bw-1,c.height*h);
+  }
+  for(let y=0;y<c.height;y+=2){
+    cx.fillStyle='rgba(0,0,0,.35)';
+    cx.fillRect(0,y,c.width,1);
+  }
+  cx.strokeStyle='rgba(255,255,255,.04)'; cx.lineWidth=1;
+  for(let i=0;i<=bars;i++){cx.beginPath();cx.moveTo(i*bw,0);cx.lineTo(i*bw,c.height);cx.stroke();}
+}
+
+function drawBlock() {
+  const c=document.getElementById('tx-block');
+  const cx=c.getContext('2d');
+  cx.fillStyle='#000'; cx.fillRect(0,0,c.width,c.height);
+  const blocks=[
+    {x:0,y:0,w:200,h:100,v:12},{x:200,y:0,w:180,h:60,v:6},
+    {x:0,y:100,w:90,h:100,v:22},{x:90,y:110,w:140,h:90,v:9},
+    {x:230,y:60,w:150,h:140,v:4},{x:90,y:100,w:50,h:40,v:40},
+  ];
+  blocks.forEach(b=>{
+    cx.fillStyle=`rgb(${b.v},${b.v},${b.v})`;
+    cx.fillRect(b.x,b.y,b.w,b.h);
+    cx.strokeStyle='rgba(255,255,255,.07)'; cx.lineWidth=1;
+    cx.strokeRect(b.x,b.y,b.w,b.h);
+  });
+  cx.fillStyle=CA.hex; cx.fillRect(90,100,50,3);
+  cx.fillStyle=CB.hex+'88'; cx.fillRect(90,140,140,1);
+}
+
+function drawGlitch() {
+  const c=document.getElementById('tx-glitch');
+  const cx=c.getContext('2d');
+  cx.fillStyle='#000'; cx.fillRect(0,0,c.width,c.height);
+  for(let i=0;i<12;i++){
+    const y=Math.random()*c.height;
+    const h=Math.random()*6+1;
+    const shift=(Math.random()-.5)*30;
+    const alpha=Math.random()*.4+.1;
+    cx.fillStyle=`rgba(255,255,255,${alpha})`;
+    cx.fillRect(shift,y,c.width,h);
+  }
+  // CA channel shift
+  for(let i=0;i<4;i++){
+    const y=Math.random()*c.height;
+    cx.fillStyle=`rgba(${CA.r},${CA.g},${CA.b},.3)`;
+    cx.fillRect(Math.random()*20,y,c.width,1.5);
+  }
+  // pixel noise
+  const img=cx.getImageData(0,0,c.width,c.height);
+  for(let i=0;i<600;i++){
+    const px=Math.floor(Math.random()*c.width);
+    const py=Math.floor(Math.random()*c.height);
+    const idx=(py*c.width+px)*4;
+    const v=Math.random()>0.5?200:0;
+    img.data[idx]=v; img.data[idx+1]=v; img.data[idx+2]=v; img.data[idx+3]=255;
+  }
+  cx.putImageData(img,0,0);
+}
+
+// ─────────────────────────────────────────────
+//  FORMA ANIMATED
+// ─────────────────────────────────────────────
+
+let ritmoFlashes=[], armoniaLines=[], climaxAlpha=0, climaxDir=1;
+
+function fmCampo(now) {
+  const c=document.getElementById('fm-campo');
+  const cx=c.getContext('2d'); const W=c.width,H=c.height;
+  cx.fillStyle='rgba(0,0,0,.18)'; cx.fillRect(0,0,W,H);
+  // dither veil
+  for(let y=0;y<H;y+=4) for(let x=0;x<W;x+=4){
+    if(bayer(x/4,y/4)<.15){cx.fillStyle='rgba(255,255,255,.025)';cx.fillRect(x,y,4,4);}
+  }
+  P.forEach(p=>{
+    const life=1-p.age/p.life;
+    cx.fillStyle=`rgba(255,255,255,${life*.55})`;
+    cx.fillRect(p.x*W-p.size/2,p.y*H-p.size/2,p.size,p.size);
+  });
+}
+
+function fmTopo(now) {
+  const c=document.getElementById('fm-topo');
+  const cx=c.getContext('2d'); const W=c.width,H=c.height;
+  cx.fillStyle='rgba(0,0,0,.4)'; cx.fillRect(0,0,W,H);
+  const levels=14, pulse=Math.sin(now*.0008)*.12+.88;
+  for(let l=0;l<levels;l++){
+    cx.beginPath();
+    for(let x=0;x<=W;x+=3){
+      const nx=x/W;
+      const z=(Math.sin(nx*7+now*.001+l*.5)*.3+Math.sin(nx*3+now*.0007)*.2+.5);
+      const py=(1-z*pulse)*H;
+      if(x===0) cx.moveTo(x,py); else cx.lineTo(x,py);
+    }
+    const alpha=.05+.2*(l/levels);
+    cx.strokeStyle=`rgba(255,255,255,${alpha})`; cx.lineWidth=.7; cx.stroke();
+  }
+}
+
+function fmRitmo(now) {
+  const c=document.getElementById('fm-ritmo');
+  const cx=c.getContext('2d'); const W=c.width,H=c.height;
+  cx.fillStyle='rgba(0,0,0,.2)'; cx.fillRect(0,0,W,H);
+  P.slice(0,40).forEach(p=>{
+    cx.fillStyle=`rgba(255,255,255,${(1-p.age/p.life)*.3})`;
+    cx.fillRect(p.x*W-1,p.y*H-1,2,2);
+  });
+  // flash spawner
+  if(Math.sin(now*.003)>.85 && ritmoFlashes.length<8){
+    ritmoFlashes.push({x:Math.random(),y:Math.random(),a:1,s:0});
+  }
+  ritmoFlashes=ritmoFlashes.filter(f=>f.a>.01);
+  ritmoFlashes.forEach(f=>{
+    f.s+=2; f.a*=.88;
+    cx.strokeStyle=`rgba(${CA.r},${CA.g},${CA.b},${f.a})`;
+    cx.lineWidth=1;
+    cx.strokeRect(f.x*W-f.s,f.y*H-f.s,f.s*2,f.s*2);
+    cx.beginPath();
+    cx.moveTo(f.x*W-f.s*.4,f.y*H); cx.lineTo(f.x*W+f.s*.4,f.y*H);
+    cx.moveTo(f.x*W,f.y*H-f.s*.4); cx.lineTo(f.x*W,f.y*H+f.s*.4);
+    cx.stroke();
+  });
+}
+
+function fmArmonia(now) {
+  const c=document.getElementById('fm-armonia');
+  const cx=c.getContext('2d'); const W=c.width,H=c.height;
+  cx.fillStyle='rgba(0,0,0,.15)'; cx.fillRect(0,0,W,H);
+  if(Math.sin(now*.002+1.4)>.8 && armoniaLines.length<10){
+    const note=Math.floor(Math.random()*88);
+    armoniaLines.push({x:(note/88)*W,a:1,y:Math.random()*H});
+  }
+  armoniaLines=armoniaLines.filter(l=>l.a>.01);
+  armoniaLines.forEach(l=>{
+    l.a*=.96;
+    cx.strokeStyle=`rgba(${CB.r},${CB.g},${CB.b},${l.a*.7})`;
+    cx.lineWidth=.8;
+    cx.beginPath(); cx.moveTo(l.x,0); cx.lineTo(l.x,H); cx.stroke();
+    cx.fillStyle=`rgba(${CB.r},${CB.g},${CB.b},${l.a})`;
+    cx.fillRect(l.x-2,l.y-2,4,4);
+  });
+  P.slice(0,30).forEach(p=>{
+    cx.fillStyle=`rgba(255,255,255,${(1-p.age/p.life)*.25})`;
+    cx.fillRect(p.x*W-1,p.y*H-1,2,2);
+  });
+}
+
+function fmStrata(now) {
+  const c=document.getElementById('fm-strata');
+  const cx=c.getContext('2d'); const W=c.width,H=c.height;
+  if(now%4000<16){cx.fillStyle='#000';cx.fillRect(0,0,W,H);}
+  // draw one accumulating line
+  cx.beginPath();
+  for(let x=0;x<=W;x+=2){
+    const nx=x/W;
+    const s=Math.sin(nx*8+now*.0009)*18+Math.sin(nx*3.5+now*.0006)*10;
+    const y=H*.5+s;
+    if(x===0) cx.moveTo(x,y); else cx.lineTo(x,y);
+  }
+  cx.strokeStyle='rgba(255,255,255,.04)'; cx.lineWidth=1; cx.stroke();
+  // occasional CA mark
+  if(now%2800<16){
+    cx.strokeStyle=CA.hex+'55'; cx.lineWidth=.8;
+    cx.beginPath();
+    for(let x=0;x<=W;x+=2){
+      const nx=x/W;
+      const s=Math.sin(nx*8+now*.0009)*18+Math.sin(nx*3.5+now*.0006)*10;
+      if(x===0) cx.moveTo(x,H*.5+s); else cx.lineTo(x,H*.5+s);
+    }
+    cx.stroke();
+  }
+}
+
+function fmClimax(now) {
+  const c=document.getElementById('fm-climax');
+  const cx=c.getContext('2d'); const W=c.width,H=c.height;
+  cx.fillStyle='rgba(0,0,0,.25)'; cx.fillRect(0,0,W,H);
+  P.forEach(p=>{
+    cx.fillStyle=`rgba(255,255,255,${(1-p.age/p.life)*.25})`;
+    cx.fillRect(p.x*W-1,p.y*H-1,2,2);
+  });
+  climaxAlpha+=.006*climaxDir;
+  if(climaxAlpha>1||climaxAlpha<0) climaxDir*=-1;
+  climaxAlpha=Math.max(0,Math.min(1,climaxAlpha));
+  const a=Math.pow(climaxAlpha,.5);
+  if(a>.05){
+    for(let i=0;i<5;i++){
+      const s=(i*.18+.05)*Math.min(W,H)*a;
+      cx.strokeStyle=`rgba(${CC.r},${CC.g},${CC.b},${a*(1-i*.15)})`;
+      cx.lineWidth=1;
+      cx.strokeRect(W/2-s,H/2-s*(H/W),s*2,s*2*(H/W));
+    }
+    // camera zoom indicator
+    const zoom=1+a*.8;
+    cx.strokeStyle=`rgba(255,255,255,${a*.2})`;
+    cx.lineWidth=.5;
+    cx.strokeRect(W/2-30/zoom,H/2-20/zoom,60/zoom,40/zoom);
+    cx.fillStyle=`rgba(255,255,255,${a*.15})`;
+    cx.font='8px Courier New';
+    cx.fillText(`ZOOM ${zoom.toFixed(2)}x  CLIMAX`,8,H-8);
+  }
+}
+
+// ─────────────────────────────────────────────
+//  SYNTHESIS
+// ─────────────────────────────────────────────
+const layers = {campo:true,topo:true,dither:true,chars:false,ritmo:true,armonia:true,climax:false};
+const states = ['SILENT','BUILD','PEAK','DECAY'];
+let stateIdx=0;
+let synthRitmoFlashes=[], synthArmoniaLines=[], synthClimaxA=0;
+
+document.querySelectorAll('.sp-row[data-layer]').forEach(row=>{
+  row.addEventListener('click',()=>{
+    const l=row.dataset.layer; layers[l]=!layers[l];
+    const dot=document.getElementById('d-'+l);
+    const wasOn=['campo','topo','dither'].includes(l)?'on-w':
+                 l==='ritmo'?'on-a':l==='armonia'?'on-b':l==='climax'?'on-c':'on-w';
+    if(layers[l]) dot.classList.add(wasOn); else dot.classList.remove(wasOn);
+    updateReadout();
+  });
+});
+
+document.querySelectorAll('.state-btn').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('.state-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    stateIdx=parseInt(btn.dataset.s);
+    updateReadout();
+  });
+});
+
+function updateReadout(){
+  const r=document.getElementById('readout');
+  r.innerHTML=Object.entries(layers).map(([k,v])=>
+    `${k.padEnd(10,'·')} ${v?'ON':'<span style="color:#222">OFF</span>'}`
+  ).join('<br>')+`<br>──────────────<br>STATE: ${states[stateIdx]}`;
+}
+
+function drawSynth(now){
+  const c=document.getElementById('synth');
+  const cx=c.getContext('2d'); const W=c.width,H=c.height;
+  const energy=[.05,.45,.9,.3][stateIdx];
+
+  cx.fillStyle=`rgba(0,0,0,${.12+energy*.15})`;
+  cx.fillRect(0,0,W,H);
+
+  if(layers.dither){
+    const den=.05+energy*.2;
+    for(let y=0;y<H;y+=4) for(let x=0;x<W;x+=4){
+      if(bayer(x/4,y/4)<den){cx.fillStyle='rgba(255,255,255,.02)';cx.fillRect(x,y,4,4);}
+    }
+  }
+
+  if(layers.topo){
+    const pulse=energy*.8+.2;
+    for(let l=0;l<10;l++){
+      cx.beginPath();
+      for(let x=0;x<=W;x+=4){
+        const nx=x/W;
+        const z=(Math.sin(nx*7+now*.001+l*.5)*.3+Math.sin(nx*3+now*.0007)*.2+.5);
+        if(x===0) cx.moveTo(x,(1-z*pulse)*H); else cx.lineTo(x,(1-z*pulse)*H);
+      }
+      cx.strokeStyle=`rgba(255,255,255,${.03+.08*(l/10)*pulse})`; cx.lineWidth=.7; cx.stroke();
+    }
+  }
+
+  if(layers.chars){
+    const SYMS='▲○□·:∙'.split('');
+    cx.font='8px Courier New';
+    for(let y=10;y<H;y+=10) for(let x=0;x<W;x+=8){
+      const d=Math.abs(Math.sin(x*.04+now*.001)*Math.cos(y*.05))*.3*energy;
+      if(Math.random()>d) continue;
+      cx.fillStyle=`rgba(255,255,255,${d*.5})`;
+      cx.fillText(SYMS[Math.floor(Math.random()*SYMS.length)],x,y);
+    }
+  }
+
+  if(layers.campo){
+    P.forEach(p=>{
+      const life=1-p.age/p.life;
+      cx.fillStyle=`rgba(255,255,255,${life*.4*(0.2+energy*.8)})`;
+      const s=p.size*(0.5+energy);
+      cx.fillRect(p.x*W-s/2,p.y*H-s/2,s,s);
+    });
+  }
+
+  if(layers.ritmo){
+    if(Math.sin(now*.003+.5)>.8+.15*(1-energy) && synthRitmoFlashes.length<6){
+      synthRitmoFlashes.push({x:Math.random(),y:Math.random(),a:energy,s:0});
+    }
+    synthRitmoFlashes=synthRitmoFlashes.filter(f=>f.a>.01);
+    synthRitmoFlashes.forEach(f=>{
+      f.s+=2.5; f.a*=.9;
+      cx.strokeStyle=`rgba(${CA.r},${CA.g},${CA.b},${f.a})`;
+      cx.lineWidth=1; cx.strokeRect(f.x*W-f.s,f.y*H-f.s,f.s*2,f.s*2);
+    });
+  }
+
+  if(layers.armonia){
+    if(Math.sin(now*.0015+2)>.82 && synthArmoniaLines.length<8){
+      synthArmoniaLines.push({x:Math.random()*W,a:.7+energy*.3,y:Math.random()*H});
+    }
+    synthArmoniaLines=synthArmoniaLines.filter(l=>l.a>.01);
+    synthArmoniaLines.forEach(l=>{
+      l.a*=.97;
+      cx.strokeStyle=`rgba(${CB.r},${CB.g},${CB.b},${l.a*.6})`; cx.lineWidth=.8;
+      cx.beginPath(); cx.moveTo(l.x,0); cx.lineTo(l.x,H); cx.stroke();
+      cx.fillStyle=`rgba(${CB.r},${CB.g},${CB.b},${l.a})`;
+      cx.fillRect(l.x-2,l.y-2,4,4);
+    });
+  }
+
+  if(layers.climax){
+    synthClimaxA = Math.min(1, synthClimaxA+.01);
+    const a=synthClimaxA*energy;
+    if(a>.05){
+      for(let i=0;i<4;i++){
+        const s=(i*.2+.1)*Math.min(W,H)*.5*a;
+        cx.strokeStyle=`rgba(${CC.r},${CC.g},${CC.b},${a*(1-i*.2)})`;
+        cx.lineWidth=1; cx.strokeRect(W/2-s,H/2-s*(H/W),s*2,s*2*(H/W));
+      }
+    }
+  } else { synthClimaxA=Math.max(0,synthClimaxA-.02); }
+
+  // state label
+  cx.fillStyle='rgba(255,255,255,.07)'; cx.font='9px Courier New';
+  cx.fillText(states[stateIdx]+' / E:'+energy.toFixed(2),10,H-10);
+}
+
+// ─────────────────────────────────────────────
+//  MAIN LOOP
+// ─────────────────────────────────────────────
+function loop(now){
+  requestAnimationFrame(loop);
+  t=now; tickP();
+  fmCampo(now); fmTopo(now); fmRitmo(now); fmArmonia(now); fmStrata(now); fmClimax(now);
+  drawSynth(now);
+}
+
+// Static textures
+drawDither(); drawTopo(); drawChars(); drawScan(); drawBlock(); drawGlitch();
+initP();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

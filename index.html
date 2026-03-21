@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MACH:INE II</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: #000;
+      overflow: hidden;
+      font-family: 'Courier New', Courier, monospace;
+    }
+
+    canvas { display: block; }
+
+    /* ── Start screen ── */
+    #start {
+      position: fixed; inset: 0;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      background: #000;
+      cursor: pointer;
+      z-index: 10;
+    }
+    #start h1 {
+      font-size: clamp(28px, 6vw, 64px);
+      font-weight: 100;
+      letter-spacing: 0.35em;
+      color: #fff;
+      margin-bottom: 48px;
+    }
+    #start p {
+      font-size: 10px;
+      letter-spacing: 0.4em;
+      color: rgba(255,255,255,0.25);
+      transition: color 0.3s;
+    }
+    #start:hover p { color: rgba(255,255,255,0.7); }
+
+    /* ── HUD ── */
+    #hud {
+      display: none;
+      position: fixed;
+      bottom: 24px; left: 24px;
+      color: rgba(255,255,255,0.2);
+      font-size: 10px;
+      letter-spacing: 0.25em;
+      pointer-events: none;
+      line-height: 1.8;
+    }
+    #hud-midi-note {
+      display: none;
+      position: fixed;
+      bottom: 24px; right: 24px;
+      color: rgba(255,255,255,0.2);
+      font-size: 10px;
+      letter-spacing: 0.25em;
+      pointer-events: none;
+      text-align: right;
+      line-height: 1.8;
+    }
+    #error {
+      display: none;
+      position: fixed;
+      inset: 0;
+      align-items: center; justify-content: center;
+      background: #000;
+      color: rgba(255,80,80,0.8);
+      font-size: 11px;
+      letter-spacing: 0.3em;
+      z-index: 20;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+
+<canvas id="c"></canvas>
+
+<div id="start">
+  <h1>MACH:INE II</h1>
+  <p>CLICK TO BEGIN</p>
+</div>
+
+<div id="hud">
+  <div id="hud-amp">AMP ——</div>
+  <div id="hud-freq">PEAK ——</div>
+  <div id="hud-midi">MIDI ——</div>
+</div>
+
+<div id="hud-midi-note">
+  <div id="hud-note-val">——</div>
+  <div id="hud-onset">——</div>
+</div>
+
+<div id="error">
+  ACCESSO AL MICROFONO NEGATO<br><br>
+  <span style="opacity:0.5;font-size:9px">ABILITA IL MICROFONO NEL BROWSER E RIPROVA</span>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+//  MACH:INE II  –  Audio Visualizer
+//  Stack: Canvas 2D · Web Audio API · WebMIDI API
+// ═══════════════════════════════════════════════════════════
+
+const canvas = document.getElementById('c');
+const ctx    = canvas.getContext('2d');
+
+let W, H;
+const resize = () => {
+  W = canvas.width  = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+};
+window.addEventListener('resize', resize);
+resize();
+
+
+// ──────────────────────────────────────────────
+//  CONFIG
+// ──────────────────────────────────────────────
+const CFG = {
+  fftSize:            2048,
+  smoothing:          0.82,
+  historyLines:       80,       // quante righe di storia
+  historyIntervalMs:  30,       // ms tra un frame di storia e il next
+  maxDisplaceFrac:    0.025,    // max displace as fraction of H
+  onsetDecay:         0.88,
+  onsetThreshold:     1.45,     // energy ratio per onset
+  onsetMinEnergy:     800,
+  noteFlashDecay:     0.91,
+  trailAlphaBase:     0.12,
+  trailAlphaOnset:    0.35,
+};
+
+
+// ──────────────────────────────────────────────
+//  AUDIO ENGINE
+// ──────────────────────────────────────────────
+let audioCtx, analyser;
+let fftBuf, timeBuf;
+
+async function initAudio() {
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  analyser = audioCtx.createAnalyser();
+  analyser.fftSize              = CFG.fftSize;
+  analyser.smoothingTimeConstant = CFG.smoothing;
+
+  const stream = await navigator.mediaDevices.getUserMedia({
+    audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+    video: false
+  });
+  const src = audioCtx.createMediaStreamSource(stream);
+  src.connect(analyser);
+
+  fftBuf  = new Uint8Array(analyser.frequencyBinCount);
+  timeBuf = new Uint8Array(CFG.fftSize);
+}
+
+
+// ──────────────────────────────────────────────
+//  ONSET DETECTION
+// ──────────────────────────────────────────────
+let prevEnergy  = 0;
+let onsetAlpha  = 0;
+let onsetCount  = 0;   // how many onsets detected total
+
+function updateOnset() {
+  // focus on low-mid range (kick, snare)
+  const bands = Math.floor(fftBuf.length * 0.2);
+  let energy = 0;
+  for (let i = 0; i < bands; i++) energy += fftBuf[i] ** 2;
+  energy /= bands;
+
+  if (energy > prevEnergy * CFG.onsetThreshold && energy > CFG.onsetMinEnergy) {
+    onsetAlpha = Math.min(1, energy / 8000);
+    onsetCount++;
+    document.getElementById('hud-onset').textContent = `ONSET ${onsetCount}`;
+  }
+
+  prevEnergy  = energy * 0.25 + prevEnergy * 0.75;
+  onsetAlpha *= CFG.onsetDecay;
+}
+
+
+// ──────────────────────────────────────────────
+//  HISTORY BUFFER  (scrolling spectral strata)
+// ──────────────────────────────────────────────
+let historyBins  = 512;  // will be updated after analyser is ready
+let history      = [];   // array of Float32Array
+let historyHead  = 0;
+let lastHistTime = 0;
+
+function initHistory() {
+  historyBins = analyser.frequencyBinCount;
+  history = Array.from({ length: CFG.historyLines },
+                        () => new Float32Array(historyBins));
+  historyHead = 0;
+}
+
+function pushHistory(now) {
+  if (now - lastHistTime < CFG.historyIntervalMs) return;
+  lastHistTime = now;
+
+  analyser.getByteFrequencyData(fftBuf);
+  for (let i = 0; i < historyBins; i++) {
+    history[historyHead][i] = fftBuf[i] / 255;
+  }
+  historyHead = (historyHead + 1) % CFG.historyLines;
+}
+
+
+// ──────────────────────────────────────────────
+//  MIDI ENGINE
+// ──────────────────────────────────────────────
+let midiConnected = false;
+let noteFlashes   = [];  // { x, alpha, noteNum }
+
+function noteName(n) {
+  const names = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+  return names[n % 12] + Math.floor(n / 12 - 1);
+}
+
+function handleMIDIMessage(msg) {
+  const [status, note, vel] = msg.data;
+  const type = status & 0xF0;
+
+  if (type === 0x90 && vel > 0) {
+    // Note On
+    const x = (note / 127) * W;
+    noteFlashes.push({ x, alpha: vel / 127, noteNum: note });
+    document.getElementById('hud-note-val').textContent =
+      `${noteName(note)}  VEL ${vel}`;
+  }
+  // CC values could be used for future parameter mapping
+}
+
+async function initMIDI() {
+  if (!navigator.requestMIDIAccess) {
+    document.getElementById('hud-midi').textContent = 'MIDI NO SUPPORT';
+    return;
+  }
+  try {
+    const access = await navigator.requestMIDIAccess({ sysex: false });
+    midiConnected = true;
+    document.getElementById('hud-midi').textContent = `MIDI OK  ${access.inputs.size} IN`;
+
+    const attachListeners = () => {
+      access.inputs.forEach(input => {
+        input.onmidimessage = handleMIDIMessage;
+      });
+    };
+    attachListeners();
+    access.onstatechange = () => attachListeners();
+  } catch (e) {
+    document.getElementById('hud-midi').textContent = 'MIDI ERR';
+  }
+}
+
+
+// ──────────────────────────────────────────────
+//  RENDER LOOP
+// ──────────────────────────────────────────────
+let running = false;
+
+function render(now) {
+  if (!running) return;
+  requestAnimationFrame(render);
+
+  // Update audio data
+  analyser.getByteFrequencyData(fftBuf);
+  analyser.getByteTimeDomainData(timeBuf);
+  pushHistory(now);
+  updateOnset();
+
+  // ── Background trail
+  const bgAlpha = onsetAlpha > 0.15
+    ? CFG.trailAlphaOnset
+    : CFG.trailAlphaBase;
+  ctx.fillStyle = `rgba(0,0,0,${bgAlpha})`;
+  ctx.fillRect(0, 0, W, H);
+
+  // ── Spectral strata (Joy Division style)
+  drawSpectralLines();
+
+  // ── Onset flash (geometric)
+  if (onsetAlpha > 0.01) drawOnsetFlash();
+
+  // ── MIDI note flashes
+  drawNoteFlashes();
+
+  // ── HUD update (low frequency)
+  if ((now | 0) % 6 === 0) updateHUD();
+}
+
+function drawSpectralLines() {
+  const lineStep     = H / (CFG.historyLines + 4);
+  const maxDisplace  = H * CFG.maxDisplaceFrac;
+
+  for (let l = 0; l < CFG.historyLines; l++) {
+    // historyHead - 1 = newest frame
+    const idx   = (historyHead - 1 - l + CFG.historyLines) % CFG.historyLines;
+    const frame = history[idx];
+
+    const recency  = 1 - l / CFG.historyLines;  // 1 = newest, 0 = oldest
+    const baseY    = H - (l + 2) * lineStep;
+    const alpha    = 0.08 + recency * 0.72;
+    const lineW    = recency > 0.9 ? 1.2 : 0.8;
+
+    ctx.beginPath();
+    ctx.strokeStyle = `rgba(255,255,255,${alpha})`;
+    ctx.lineWidth   = lineW;
+
+    const segments = Math.min(frame.length, 512);
+
+    for (let x = 0; x <= W; x++) {
+      const fi  = Math.floor((x / W) * (segments - 1));
+      const amp = frame[fi] || 0;
+      // Weighted by recency so old lines are flatter
+      const py  = baseY - amp * maxDisplace * (0.3 + recency * 0.7) * (H / 800);
+
+      if (x === 0) ctx.moveTo(x, py);
+      else         ctx.lineTo(x, py);
+    }
+
+    ctx.stroke();
+  }
+}
+
+function drawOnsetFlash() {
+  const cx = W / 2, cy = H / 2;
+  ctx.lineWidth = 0.8;
+
+  // Concentric rectangles expanding outward
+  for (let i = 0; i < 5; i++) {
+    const frac  = (i / 5) + (1 - onsetAlpha) * 0.5;
+    const s     = frac * Math.min(W, H) * 0.6;
+    const ialph = onsetAlpha * (1 - i * 0.18);
+    if (ialph < 0.01) continue;
+    ctx.strokeStyle = `rgba(255,255,255,${ialph})`;
+    ctx.strokeRect(cx - s, cy - s * (H / W), s * 2, s * 2 * (H / W));
+  }
+
+  // Center cross
+  const cs = onsetAlpha * 12;
+  ctx.strokeStyle = `rgba(255,255,255,${onsetAlpha * 0.9})`;
+  ctx.beginPath();
+  ctx.moveTo(cx - cs, cy); ctx.lineTo(cx + cs, cy);
+  ctx.moveTo(cx, cy - cs); ctx.lineTo(cx, cy + cs);
+  ctx.stroke();
+}
+
+function drawNoteFlashes() {
+  for (let i = noteFlashes.length - 1; i >= 0; i--) {
+    const nf = noteFlashes[i];
+    nf.alpha *= CFG.noteFlashDecay;
+
+    if (nf.alpha < 0.008) { noteFlashes.splice(i, 1); continue; }
+
+    // Vertical line spanning full height
+    ctx.strokeStyle = `rgba(255,255,255,${nf.alpha * 0.5})`;
+    ctx.lineWidth   = 0.6;
+    ctx.beginPath();
+    ctx.moveTo(nf.x, 0);
+    ctx.lineTo(nf.x, H);
+    ctx.stroke();
+
+    // Small square at midpoint
+    const s = nf.alpha * 16;
+    ctx.strokeStyle = `rgba(255,255,255,${nf.alpha})`;
+    ctx.lineWidth   = 0.8;
+    ctx.strokeRect(nf.x - s, H * 0.5 - s, s * 2, s * 2);
+
+    // Tiny square at top
+    const ts = nf.alpha * 4;
+    ctx.strokeRect(nf.x - ts, 20 - ts, ts * 2, ts * 2);
+  }
+}
+
+function updateHUD() {
+  // Amplitude
+  let tot = 0;
+  for (let i = 0; i < fftBuf.length; i++) tot += fftBuf[i];
+  const amp = (tot / (fftBuf.length * 255) * 100).toFixed(1);
+  document.getElementById('hud-amp').textContent = `AMP ${amp}%`;
+
+  // Peak frequency
+  let peakIdx = 0, peakVal = 0;
+  for (let i = 0; i < fftBuf.length; i++) {
+    if (fftBuf[i] > peakVal) { peakVal = fftBuf[i]; peakIdx = i; }
+  }
+  const sampleRate = audioCtx.sampleRate;
+  const peakHz = Math.round(peakIdx * sampleRate / CFG.fftSize);
+  document.getElementById('hud-freq').textContent = `PEAK ${peakHz} Hz`;
+}
+
+
+// ──────────────────────────────────────────────
+//  BOOT
+// ──────────────────────────────────────────────
+document.getElementById('start').addEventListener('click', async () => {
+  try {
+    await initAudio();
+  } catch (e) {
+    document.getElementById('start').style.display = 'none';
+    document.getElementById('error').style.display = 'flex';
+    return;
+  }
+
+  initHistory();
+  await initMIDI();
+
+  document.getElementById('start').style.display    = 'none';
+  document.getElementById('hud').style.display      = 'block';
+  document.getElementById('hud-midi-note').style.display = 'block';
+
+  running = true;
+  requestAnimationFrame(render);
+});
+</script>
+</body>
+</html>
