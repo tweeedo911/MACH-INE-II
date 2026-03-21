@@ -5,6 +5,38 @@ Formato: `[versione] – data – descrizione`
 
 ---
 
+## [v0.3.0] – 2026-03-21
+
+**Sandbox narrativo con regista, scene, framing, simulazione input.**
+
+### Aggiunto
+- `sandbox.html` — strumento di design self-contained per progettare il comportamento del sistema
+- Pannello di controllo con slider per i 5 valori dello Stato (intensity, rhythmicity, brightness, trajectory, stereo width)
+- Pulsanti ONSET (spazio) e MIDI NOTE (M) per simulare eventi
+- 3 preset rapidi: AMBIENT, BUILDING, PEAK
+- Logica del Regista: timer, probabilità di cambio scena, plateau detection
+- Tipi di cambio: TEXTURE, FRAMING, COLOR, RESET
+- Scena di test: campo di punti con dither Bayer 8x8
+  - Numero particelle proporzionale a intensity (20–300)
+  - Velocità proporzionale a rhythmicity
+  - Luminosità grigi mappata da brightness
+  - Dispersione orizzontale da stereo width
+  - Moto direzionale da trajectory (+1 su, -1 giù, 0 browniano)
+- Onset flash: rettangoli concentrici in colore A (#FF4400)
+- MIDI flash: linea verticale + quadrato in colore B (#00AACC)
+- Dither overlay Bayer 8x8 (intensità inversamente proporzionale a brightness)
+- Climax: flood colore C (#E6007E) dopo 3s di intensity > 0.85
+- Framing: WIDE, MEDIUM (1.5x), MACRO (3x), PAN (drift laterale)
+- Readout in tempo reale: scene, timer, probabilità, framing, stato colori
+- Slider configurabili del Regista: base interval, rhythmic divisor, random factor
+- Modo AUTO: guida automatica degli slider attraverso fasi (silence → ambient → building → peak → climax → decay)
+
+### Stack
+- HTML + JavaScript vanilla (file unico, nessuna dipendenza)
+- Canvas 2D API
+
+---
+
 ## [v0.2.0] – 2026-03-21
 
 **Audio engine stereo con spectral flux, band-split, ES modules.**
