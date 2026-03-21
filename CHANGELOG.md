@@ -5,6 +5,37 @@ Formato: `[versione] – data – descrizione`
 
 ---
 
+## [v0.4.0] – 2026-03-21
+
+**Campo halftone con dither Bayer, dot-size dinamico, primitivi BANDA e BLOCCO.**
+
+### Aggiunto
+- Campo di densità renderizzato con matrice Bayer 8x8
+- Dot-size dinamico (1-16px) guidato da brightness (centroid simulato)
+- Densità base modulata da intensity
+- Primitivo BANDA: zona rettangolare di alta densità, bordi netti, si muove e pulsa
+- Primitivo BLOCCO: rettangolo con dot-size diverso dal campo, ciclo vita con fade in/out
+- Onset come onda di densità (non flash sovrapposto): si propaga dal campo stesso
+- MIDI come colonna verticale di densità alta a posizione random
+- Distribuzione spaziale da stereo width (centro vs uniforme)
+- Trajectory come gradiente verticale di densità
+- Brightness: modula dot-size E densità del campo (suono brillante = più visibile)
+- Rhythmicity: velocità bande, ciclo blocchi, flicker pulsante del campo
+- Inversione bianco/nero (toggle + regista)
+- Slider DOT override manuale per testing
+- Doppia strategia render: fillRect (dot >= 6px) e buffer+scale (dot < 6px)
+- Readout: dot-size, densità media, contatori elementi
+
+### Modificato
+- Sostituita scena particelle v0.3.0 con campo halftone
+- Regista ora include INVERT tra i tipi di cambio
+
+### Stack
+- HTML + JavaScript vanilla (file unico, nessuna dipendenza)
+- Canvas 2D API
+
+---
+
 ## [v0.3.0] – 2026-03-21
 
 **Sandbox narrativo con regista, scene, framing, simulazione input.**
