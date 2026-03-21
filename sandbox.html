@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>MACH:INE II — Sandbox Narrativo</title>
+  <title>MACH:INE II — Sandbox v0.4.0</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
@@ -26,22 +26,22 @@
     /* ── Control panel ── */
     #panel {
       flex: 3;
-      min-width: 300px;
-      max-width: 400px;
-      background: #0d0d0d;
-      border-left: 1px solid #2e2e2e;
-      padding: 20px;
+      min-width: 280px;
+      max-width: 360px;
+      background: #0a0a0a;
+      border-left: 1px solid #1c1c1c;
+      padding: 16px;
       overflow-y: auto;
       user-select: none;
     }
 
     .section-title {
-      color: #a8a8a8;
+      color: #636363;
       letter-spacing: 0.3em;
-      font-size: 11px;
-      margin: 24px 0 12px;
-      border-bottom: 1px solid #2e2e2e;
-      padding-bottom: 6px;
+      font-size: 10px;
+      margin: 20px 0 10px;
+      border-bottom: 1px solid #1c1c1c;
+      padding-bottom: 4px;
     }
     .section-title:first-child { margin-top: 0; }
 
@@ -49,13 +49,13 @@
     .slider-row {
       display: flex;
       align-items: center;
-      margin: 8px 0;
-      gap: 10px;
+      margin: 7px 0;
+      gap: 8px;
     }
     .slider-row label {
       width: 40px;
-      color: #cecece;
-      font-size: 11px;
+      color: #828282;
+      font-size: 10px;
       letter-spacing: 0.15em;
       flex-shrink: 0;
     }
@@ -63,53 +63,53 @@
       flex: 1;
       -webkit-appearance: none;
       appearance: none;
-      height: 4px;
+      height: 3px;
       background: #2e2e2e;
       outline: none;
     }
     .slider-row input[type="range"]::-webkit-slider-thumb {
       -webkit-appearance: none;
-      width: 14px; height: 14px;
-      background: #e8e8e8;
+      width: 12px; height: 12px;
+      background: #a8a8a8;
       border-radius: 0;
       cursor: pointer;
     }
     .slider-row .val {
-      width: 40px;
+      width: 36px;
       text-align: right;
-      color: #a8a8a8;
-      font-size: 11px;
+      color: #828282;
+      font-size: 10px;
     }
 
     /* ── Trajectory buttons ── */
     .traj-row {
       display: flex;
       align-items: center;
-      margin: 8px 0;
-      gap: 10px;
+      margin: 7px 0;
+      gap: 8px;
     }
     .traj-row label {
       width: 40px;
-      color: #cecece;
-      font-size: 11px;
+      color: #828282;
+      font-size: 10px;
       letter-spacing: 0.15em;
       flex-shrink: 0;
     }
     .traj-btn {
       flex: 1;
       background: #1c1c1c;
-      color: #828282;
+      color: #636363;
       border: 1px solid #2e2e2e;
       font-family: inherit;
-      font-size: 14px;
-      padding: 6px 0;
+      font-size: 12px;
+      padding: 5px 0;
       cursor: pointer;
       text-align: center;
     }
     .traj-btn.active {
       background: #2e2e2e;
-      color: #fff;
-      border-color: #828282;
+      color: #e8e8e8;
+      border-color: #636363;
     }
 
     /* ── Buttons ── */
@@ -121,58 +121,86 @@
     .btn {
       flex: 1;
       background: #1c1c1c;
-      color: #a8a8a8;
-      border: 1px solid #474747;
-      font-family: inherit;
-      font-size: 11px;
-      letter-spacing: 0.15em;
-      padding: 10px 0;
-      cursor: pointer;
-      text-align: center;
-      transition: background 0.15s, color 0.15s;
-    }
-    .btn:hover { background: #2e2e2e; color: #fff; }
-    .btn.onset { border-color: #FF4400; color: #FF4400; }
-    .btn.onset:hover { background: #FF4400; color: #000; }
-    .btn.midi-note { border-color: #00AACC; color: #00AACC; }
-    .btn.midi-note:hover { background: #00AACC; color: #000; }
-    .btn.auto-mode { border-color: #E6007E; color: #E6007E; }
-    .btn.auto-mode:hover { background: #E6007E; color: #000; }
-    .btn.auto-mode.active { background: #E6007E; color: #000; }
-
-    /* ── Presets ── */
-    .preset-row { display: flex; gap: 6px; margin: 10px 0; }
-    .preset {
-      flex: 1;
-      background: #0d0d0d;
       color: #828282;
       border: 1px solid #2e2e2e;
       font-family: inherit;
       font-size: 10px;
+      letter-spacing: 0.15em;
+      padding: 7px 0;
+      cursor: pointer;
+      text-align: center;
+      transition: background 0.15s, color 0.15s;
+    }
+    .btn:hover { background: #2e2e2e; color: #e8e8e8; }
+    .btn.onset { border-color: #FF4400; color: #FF4400; }
+    .btn.onset:hover { background: #FF4400; color: #000; }
+    .btn.midi-note { border-color: #00AACC; color: #00AACC; }
+    .btn.midi-note:hover { background: #00AACC; color: #000; }
+
+    /* ── Toggle ── */
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      margin: 7px 0;
+      gap: 8px;
+    }
+    .toggle-row label {
+      width: 40px;
+      color: #828282;
+      font-size: 10px;
+      letter-spacing: 0.15em;
+      flex-shrink: 0;
+    }
+    .toggle-btn {
+      background: #1c1c1c;
+      color: #474747;
+      border: 1px solid #2e2e2e;
+      font-family: inherit;
+      font-size: 10px;
+      padding: 4px 12px;
+      cursor: pointer;
+    }
+    .toggle-btn.on {
+      background: #2e2e2e;
+      color: #e8e8e8;
+      border-color: #636363;
+    }
+
+    /* ── Presets ── */
+    .preset-row { display: flex; gap: 4px; margin: 8px 0; }
+    .preset {
+      flex: 1;
+      background: #0d0d0d;
+      color: #636363;
+      border: 1px solid #1c1c1c;
+      font-family: inherit;
+      font-size: 9px;
       letter-spacing: 0.2em;
-      padding: 8px 0;
+      padding: 6px 0;
       cursor: pointer;
       text-align: center;
     }
-    .preset:hover { color: #e8e8e8; border-color: #636363; }
+    .preset:hover { color: #a8a8a8; border-color: #474747; }
 
     /* ── Readout ── */
     #readout {
-      font-size: 11px;
-      line-height: 1.8;
-      color: #828282;
+      font-size: 10px;
+      line-height: 1.7;
+      color: #636363;
       white-space: pre;
-      margin-top: 10px;
+      margin-top: 8px;
     }
-    #readout .val-highlight { color: #e8e8e8; }
+    #readout .val-highlight { color: #a8a8a8; }
 
-    /* ── Keyboard hints ── */
     .hint {
       color: #474747;
       font-size: 9px;
-      margin-top: 6px;
+      margin-top: 4px;
       letter-spacing: 0.1em;
     }
+
+    .btn.auto-btn { border-color: #636363; }
+    .btn.auto-btn.running { border-color: #a8a8a8; color: #e8e8e8; background: #2e2e2e; }
   </style>
 </head>
 <body>
@@ -196,8 +224,8 @@
   </div>
   <div class="slider-row">
     <label>BRIT</label>
-    <input type="range" id="sl-brit" min="0" max="1" step="0.01" value="0">
-    <span class="val" id="v-brit">0.00</span>
+    <input type="range" id="sl-brit" min="0" max="1" step="0.01" value="0.5">
+    <span class="val" id="v-brit">0.50</span>
   </div>
 
   <div class="traj-row">
@@ -209,23 +237,38 @@
 
   <div class="slider-row">
     <label>WIDE</label>
-    <input type="range" id="sl-wide" min="0" max="1" step="0.01" value="0">
-    <span class="val" id="v-wide">0.00</span>
+    <input type="range" id="sl-wide" min="0" max="1" step="0.01" value="0.5">
+    <span class="val" id="v-wide">0.50</span>
   </div>
 
   <div class="btn-row">
     <button class="btn onset" id="btn-onset">ONSET</button>
     <button class="btn midi-note" id="btn-midi">MIDI NOTE</button>
   </div>
-  <div class="btn-row">
-    <button class="btn auto-mode" id="btn-auto">AUTO</button>
-  </div>
-  <div class="hint">SPAZIO = onset &nbsp; M = midi &nbsp; A = auto</div>
+  <div class="hint">SPAZIO = onset &nbsp; M = midi note</div>
 
   <div class="preset-row">
+    <button class="preset" data-preset="silence">SILENCE</button>
     <button class="preset" data-preset="ambient">AMBIENT</button>
     <button class="preset" data-preset="building">BUILDING</button>
     <button class="preset" data-preset="peak">PEAK</button>
+  </div>
+
+  <div class="btn-row">
+    <button class="btn auto-btn" id="btn-auto">AUTO</button>
+  </div>
+
+  <div class="section-title">CAMPO</div>
+
+  <div class="slider-row">
+    <label>DOT</label>
+    <input type="range" id="sl-dot" min="1" max="16" step="1" value="1">
+    <span class="val" id="v-dot">auto</span>
+  </div>
+
+  <div class="toggle-row">
+    <label>INV</label>
+    <button class="toggle-btn" id="btn-invert">OFF</button>
   </div>
 
   <div class="section-title">REGISTA</div>
@@ -250,48 +293,94 @@
 
 <script>
 // ═══════════════════════════════════════════════════════════
-//  MACH:INE II — Sandbox Narrativo
-//  Self-contained: logica regista, scena, simulazione input
+//  MACH:INE II — Sandbox v0.4.0: Campo Halftone
 // ═══════════════════════════════════════════════════════════
 
 // ── CONFIG ──
 const CFG = {
-  // Particles
-  particleMin: 30,
-  particleMax: 400,
-  particleBaseSpeed: 0.4,       // px/frame at rhythmicity 0
-  particleRhythmSpeed: 3.0,     // additional px/frame at rhythmicity 1
-  particleBrownianAmp: 0.8,     // brownian motion amplitude
-  particleSpawnRate: 5,         // particles spawned per frame when needed
-  particleMaxAge: 300,          // frames before particle fades
-  particleFadeFrames: 30,       // frames to fade in/out
+  // Dot-size range (driven by brightness)
+  dotSizeMin: 1,            // at brightness 1.0
+  dotSizeMax: 16,           // at brightness 0.0
 
-  // Onset flash
-  onsetDecay: 0.88,
-  onsetRectCount: 5,
+  // Density field
+  densityBase: 0.02,        // base density at intensity 0
+  densityMax: 0.4,          // base density at intensity 1
+  densityBandHigh: 0.85,    // density inside BANDA
+  densityBandLow: 0.05,     // density outside BANDA
 
-  // MIDI flash
-  midiFlashDecay: 0.91,
+  // BANDA primitive
+  bandaCount: 2,
+  bandaWidthMin: 0.02,      // fraction of screen
+  bandaWidthMax: 0.12,
+  bandaSpeedMin: 0.05,      // speed at rhythmicity 0
+  bandaSpeedMax: 0.6,       // speed at rhythmicity 1
+  bandaPulseAmp: 0.04,      // width pulsing with intensity
 
-  // Dither
-  ditherAlphaMax: 0.08,         // max dither overlay alpha (at brightness 0)
+  // BLOCCO primitive
+  bloccoCount: 3,
+  bloccoSizeMin: 0.04,
+  bloccoSizeMax: 0.18,
+  bloccoLifeMinSlow: 6,     // life at rhythmicity 0
+  bloccoLifeMinFast: 1,     // life at rhythmicity 1
+  bloccoLifeMaxSlow: 12,
+  bloccoLifeMaxFast: 3,
+  bloccoDotSizeSmall: 0.3,  // multiplier (smaller dots)
+  bloccoDotSizeLarge: 2.5,  // multiplier (larger dots)
+
+  // Stereo width
+  widthCenterFalloff: 3.0,  // exponent for center concentration
+
+  // Onset wave
+  onsetWaveSpeed: 800,      // px/sec
+  onsetWaveDensity: 0.9,
+  onsetWaveWidth: 60,       // px width of ring
+  onsetDecayRate: 0.92,
+
+  // MIDI column
+  midiColumnWidth: 0.03,    // fraction of screen width
+  midiColumnDecay: 0.93,
 
   // Climax
-  climaxThresholdSec: 3,        // seconds of intensity > 0.85 before climax
+  climaxThresholdSec: 3,
   climaxIntensityThreshold: 0.85,
   climaxPulseSpeed: 0.03,
 
-  // Director / Regista
-  directorBPM: 120,             // simulated BPM for rhythmic timing
-  directorPlateauSec: 5,        // seconds of stable trajectory before bonus
-  directorChangeThreshold: 0.6, // probability threshold for scene change
-
   // Framing
-  framingTransitionSpeed: 0.02, // lerp speed per frame
+  framingLerpSpeed: 0.02,
   framingMacroZoom: 3,
   framingMediumZoom: 1.5,
-  framingPanSpeed: 0.3,         // px/frame
+  framingPanSpeed: 0.3,
+
+  // Director
+  directorBPM: 120,
+  directorPlateauSec: 5,
+  directorChangeThreshold: 0.6,
+
+  // Brightness: density boost (brighter sound = more visible field)
+  brightnessDensityBoost: 0.15, // added to density at brightness 1
+
+  // Rhythmicity: field flicker
+  rhythmFlickerAmp: 0.12,   // density oscillation amplitude at rhythmicity 1
+  rhythmFlickerSpeed: 8,    // oscillation Hz
+
+  // Render strategy
+  dotSizeBufferThreshold: 6, // below this use buffer+scale
 };
+
+// ═══════════════════════════════════════
+//  Bayer 8x8 matrix (normalized 0-1)
+// ═══════════════════════════════════════
+
+const BAYER8 = new Float32Array([
+   0/64, 32/64,  8/64, 40/64,  2/64, 34/64, 10/64, 42/64,
+  48/64, 16/64, 56/64, 24/64, 50/64, 18/64, 58/64, 26/64,
+  12/64, 44/64,  4/64, 36/64, 14/64, 46/64,  6/64, 38/64,
+  60/64, 28/64, 52/64, 20/64, 62/64, 30/64, 54/64, 22/64,
+   3/64, 35/64, 11/64, 43/64,  1/64, 33/64,  9/64, 41/64,
+  51/64, 19/64, 59/64, 27/64, 49/64, 17/64, 57/64, 25/64,
+  15/64, 47/64,  7/64, 39/64, 13/64, 45/64,  5/64, 37/64,
+  63/64, 31/64, 55/64, 23/64, 61/64, 29/64, 53/64, 21/64,
+]);
 
 // ═══════════════════════════════════════
 //  Canvas setup
@@ -310,269 +399,313 @@ window.addEventListener('resize', resize);
 resize();
 
 // ═══════════════════════════════════════
-//  State (driven by sliders)
+//  State
 // ═══════════════════════════════════════
 
 const state = {
   intensity: 0,
   rhythmicity: 0,
-  brightness: 0,
+  brightness: 0.5,
   trajectory: 0,
-  stereoWidth: 0,
+  stereoWidth: 0.5,
 };
 
+let inverted = false;
+let dotSizeOverride = 0; // 0 = auto
+let globalTime = 0;      // seconds, for rhythmic flicker
+
 // ═══════════════════════════════════════
-//  Bayer 8x8 dither matrix
+//  BANDA primitives
 // ═══════════════════════════════════════
 
-const BAYER8 = [
-   0,32, 8,40, 2,34,10,42,
-  48,16,56,24,50,18,58,26,
-  12,44, 4,36,14,46, 6,38,
-  60,28,52,20,62,30,54,22,
-   3,35,11,43, 1,33, 9,41,
-  51,19,59,27,49,17,57,25,
-  15,47, 7,39,13,45, 5,37,
-  63,31,55,23,61,29,53,21,
-];
+let bandas = [];
 
-let ditherImageData = null;
-
-function createDitherPattern() {
-  // Create an 8x8 ImageData for the dither tile
-  ditherImageData = ctx.createImageData(8, 8);
-  for (let i = 0; i < 64; i++) {
-    const threshold = BAYER8[i] / 64;
-    const a = threshold < 0.5 ? 255 : 0;
-    ditherImageData.data[i * 4 + 0] = 255;
-    ditherImageData.data[i * 4 + 1] = 255;
-    ditherImageData.data[i * 4 + 2] = 255;
-    ditherImageData.data[i * 4 + 3] = a;
+function initBandas() {
+  bandas = [];
+  for (let i = 0; i < CFG.bandaCount; i++) {
+    bandas.push({
+      position: Math.random(),
+      width: CFG.bandaWidthMin + Math.random() * (CFG.bandaWidthMax - CFG.bandaWidthMin),
+      direction: (Math.random() > 0.5 ? 1 : -1) * (0.5 + Math.random() * 0.5),
+      horizontal: Math.random() > 0.3,
+    });
   }
 }
-createDitherPattern();
+initBandas();
+
+function updateBandas(dt) {
+  const speed = CFG.bandaSpeedMin + (CFG.bandaSpeedMax - CFG.bandaSpeedMin) * state.rhythmicity;
+  for (const b of bandas) {
+    b.position += b.direction * speed * dt;
+    if (b.position > 1) { b.position = 1; b.direction *= -1; }
+    if (b.position < 0) { b.position = 0; b.direction *= -1; }
+  }
+}
 
 // ═══════════════════════════════════════
-//  Particle system
+//  BLOCCO primitives
 // ═══════════════════════════════════════
 
-let particles = [];
+let bloccos = [];
 
-function spawnParticle() {
-  const spreadX = 0.1 + state.stereoWidth * 0.9; // 0.1 (centered) to 1.0 (full width)
-  const centerX = W / 2;
-  const rangeX = W * spreadX;
-
+function spawnBlocco() {
   return {
-    x: centerX + (Math.random() - 0.5) * rangeX,
-    y: Math.random() * H,
-    vx: 0,
-    vy: 0,
+    x: 0.05 + Math.random() * 0.7,
+    y: 0.05 + Math.random() * 0.7,
+    w: CFG.bloccoSizeMin + Math.random() * (CFG.bloccoSizeMax - CFG.bloccoSizeMin),
+    h: CFG.bloccoSizeMin + Math.random() * (CFG.bloccoSizeMax - CFG.bloccoSizeMin),
+    dotSizeMul: Math.random() > 0.5 ? CFG.bloccoDotSizeSmall : CFG.bloccoDotSizeLarge,
+    density: 0.5 + Math.random() * 0.5,
+    life: (CFG.bloccoLifeMinSlow + (CFG.bloccoLifeMinFast - CFG.bloccoLifeMinSlow) * state.rhythmicity)
+          + Math.random() * ((CFG.bloccoLifeMaxSlow + (CFG.bloccoLifeMaxFast - CFG.bloccoLifeMaxSlow) * state.rhythmicity)
+          - (CFG.bloccoLifeMinSlow + (CFG.bloccoLifeMinFast - CFG.bloccoLifeMinSlow) * state.rhythmicity)),
     age: 0,
-    maxAge: CFG.particleMaxAge * (0.5 + Math.random() * 0.5),
-    size: 1 + Math.random() * 2,
+    alpha: 0,
   };
 }
 
-function updateParticles() {
-  const targetCount = Math.floor(CFG.particleMin + (CFG.particleMax - CFG.particleMin) * state.intensity);
-
-  // Spawn if needed
-  if (particles.length < targetCount) {
-    const toSpawn = Math.min(CFG.particleSpawnRate, targetCount - particles.length);
-    for (let i = 0; i < toSpawn; i++) {
-      particles.push(spawnParticle());
-    }
-  }
-
-  const speed = CFG.particleBaseSpeed + state.rhythmicity * CFG.particleRhythmSpeed;
-
-  for (let i = particles.length - 1; i >= 0; i--) {
-    const p = particles[i];
-    p.age++;
-
-    // Trajectory-driven motion
-    if (state.trajectory === 1) {
-      p.vy -= speed * 0.05;
-    } else if (state.trajectory === -1) {
-      p.vy += speed * 0.05;
-    }
-
-    // Brownian motion
-    p.vx += (Math.random() - 0.5) * CFG.particleBrownianAmp * speed;
-    p.vy += (Math.random() - 0.5) * CFG.particleBrownianAmp * speed;
-
-    // Damping
-    p.vx *= 0.92;
-    p.vy *= 0.92;
-
-    p.x += p.vx;
-    p.y += p.vy;
-
-    // Wrap around
-    if (p.x < 0) p.x += W;
-    if (p.x > W) p.x -= W;
-    if (p.y < 0) p.y += H;
-    if (p.y > H) p.y -= H;
-
-    // Remove old particles
-    if (p.age > p.maxAge) {
-      particles.splice(i, 1);
-      continue;
-    }
-
-    // Remove excess
-    if (particles.length > targetCount + 10 && p.age > p.maxAge * 0.7) {
-      particles.splice(i, 1);
-    }
+function initBloccos() {
+  bloccos = [];
+  for (let i = 0; i < CFG.bloccoCount; i++) {
+    const b = spawnBlocco();
+    b.age = Math.random() * b.life;
+    bloccos.push(b);
   }
 }
+initBloccos();
 
-function drawParticles() {
-  const baseLum = Math.floor(80 + state.brightness * 175); // 80-255
-
-  for (const p of particles) {
-    // Fade in/out
-    let alpha = 1;
-    if (p.age < CFG.particleFadeFrames) {
-      alpha = p.age / CFG.particleFadeFrames;
-    } else if (p.age > p.maxAge - CFG.particleFadeFrames) {
-      alpha = (p.maxAge - p.age) / CFG.particleFadeFrames;
-    }
-    alpha = Math.max(0, Math.min(1, alpha));
-
-    const lum = Math.floor(baseLum * (0.6 + Math.random() * 0.4));
-    ctx.fillStyle = `rgba(${lum},${lum},${lum},${alpha})`;
-    ctx.fillRect(Math.floor(p.x), Math.floor(p.y), p.size, p.size);
+function updateBloccos(dt) {
+  for (let i = 0; i < bloccos.length; i++) {
+    const b = bloccos[i];
+    b.age += dt;
+    const fadeIn = 0.5, fadeOut = 0.5;
+    if (b.age < fadeIn) b.alpha = b.age / fadeIn;
+    else if (b.age > b.life - fadeOut) b.alpha = Math.max(0, (b.life - b.age) / fadeOut);
+    else b.alpha = 1;
+    if (b.age >= b.life) bloccos[i] = spawnBlocco();
   }
 }
 
 // ═══════════════════════════════════════
-//  Onset flash (Color A: #FF4400)
+//  Onset waves
 // ═══════════════════════════════════════
 
-let onsetAlpha = 0;
+let onsetWaves = [];
 
 function triggerOnset() {
-  onsetAlpha = 1;
-}
-
-function drawOnsetFlash() {
-  if (onsetAlpha < 0.01) return;
-
-  const cx = W / 2, cy = H / 2;
-  ctx.lineWidth = 1;
-
-  for (let i = 0; i < CFG.onsetRectCount; i++) {
-    const frac = (i / CFG.onsetRectCount) + (1 - onsetAlpha) * 0.5;
-    const s = frac * Math.min(W, H) * 0.6;
-    const a = onsetAlpha * (1 - i * 0.18);
-    if (a < 0.01) continue;
-    ctx.strokeStyle = `rgba(255,68,0,${a})`;
-    ctx.strokeRect(cx - s, cy - s * (H / W), s * 2, s * 2 * (H / W));
-  }
-
-  // Center cross
-  const cs = onsetAlpha * 14;
-  ctx.strokeStyle = `rgba(255,68,0,${onsetAlpha * 0.9})`;
-  ctx.beginPath();
-  ctx.moveTo(cx - cs, cy); ctx.lineTo(cx + cs, cy);
-  ctx.moveTo(cx, cy - cs); ctx.lineTo(cx, cy + cs);
-  ctx.stroke();
-
-  onsetAlpha *= CFG.onsetDecay;
-}
-
-// ═══════════════════════════════════════
-//  MIDI note flash (Color B: #00AACC)
-// ═══════════════════════════════════════
-
-let midiFlashes = [];
-
-function triggerMIDI() {
-  midiFlashes.push({
-    x: Math.random() * W,
-    alpha: 0.6 + Math.random() * 0.4,
+  onsetWaves.push({
+    cx: W * (0.2 + Math.random() * 0.6),
+    cy: H * (0.2 + Math.random() * 0.6),
+    radius: 0,
+    alpha: 1,
   });
 }
 
-function drawMIDIFlashes() {
-  for (let i = midiFlashes.length - 1; i >= 0; i--) {
-    const f = midiFlashes[i];
-    f.alpha *= CFG.midiFlashDecay;
-    if (f.alpha < 0.008) { midiFlashes.splice(i, 1); continue; }
-
-    // Vertical line
-    ctx.strokeStyle = `rgba(0,170,204,${f.alpha * 0.5})`;
-    ctx.lineWidth = 0.6;
-    ctx.beginPath();
-    ctx.moveTo(f.x, 0);
-    ctx.lineTo(f.x, H);
-    ctx.stroke();
-
-    // Small square
-    const s = f.alpha * 16;
-    ctx.strokeStyle = `rgba(0,170,204,${f.alpha})`;
-    ctx.lineWidth = 0.8;
-    ctx.strokeRect(f.x - s, H * 0.5 - s, s * 2, s * 2);
-
-    // Tiny square at top
-    const ts = f.alpha * 4;
-    ctx.strokeRect(f.x - ts, 20 - ts, ts * 2, ts * 2);
+function updateOnsets(dt) {
+  for (let i = onsetWaves.length - 1; i >= 0; i--) {
+    const w = onsetWaves[i];
+    w.radius += CFG.onsetWaveSpeed * dt;
+    w.alpha *= CFG.onsetDecayRate;
+    if (w.alpha < 0.01) onsetWaves.splice(i, 1);
   }
 }
 
 // ═══════════════════════════════════════
-//  Dither overlay
+//  MIDI columns
 // ═══════════════════════════════════════
 
-function drawDither() {
-  const ditherStrength = (1 - state.brightness) * CFG.ditherAlphaMax;
-  if (ditherStrength < 0.002) return;
+let midiColumns = [];
 
-  ctx.globalAlpha = ditherStrength;
-  // Tile the 8x8 pattern across the canvas
-  const tempCanvas = document.createElement('canvas');
-  tempCanvas.width = 8;
-  tempCanvas.height = 8;
-  const tCtx = tempCanvas.getContext('2d');
-  tCtx.putImageData(ditherImageData, 0, 0);
+function triggerMIDI() {
+  midiColumns.push({ x: Math.random(), alpha: 1 });
+}
 
-  const pat = ctx.createPattern(tempCanvas, 'repeat');
-  ctx.fillStyle = pat;
-  ctx.fillRect(0, 0, W, H);
-  ctx.globalAlpha = 1;
+function updateMidi() {
+  for (let i = midiColumns.length - 1; i >= 0; i--) {
+    midiColumns[i].alpha *= CFG.midiColumnDecay;
+    if (midiColumns[i].alpha < 0.01) midiColumns.splice(i, 1);
+  }
 }
 
 // ═══════════════════════════════════════
-//  Climax (Color C: #E6007E)
+//  Density field computation
 // ═══════════════════════════════════════
 
-let climaxTimer = 0;    // seconds above threshold
+function computeDensity(nx, ny, px, py) {
+  // Base density from intensity
+  let d = CFG.densityBase + (CFG.densityMax - CFG.densityBase) * state.intensity;
+
+  // Stereo width: concentrate toward center when width is low
+  if (state.stereoWidth < 1) {
+    const centerDist = Math.abs(nx - 0.5) * 2;
+    const falloff = Math.pow(centerDist, CFG.widthCenterFalloff * (1 - state.stereoWidth));
+    d *= 1 - falloff * (1 - state.stereoWidth);
+  }
+
+  // BANDA contribution
+  for (const b of bandas) {
+    const coord = b.horizontal ? ny : nx;
+    const halfW = (b.width + CFG.bandaPulseAmp * state.intensity) * 0.5;
+    if (Math.abs(coord - b.position) < halfW) {
+      d = Math.max(d, CFG.densityBandHigh * state.intensity);
+    }
+  }
+
+  // Onset waves
+  for (const w of onsetWaves) {
+    const dx = px - w.cx;
+    const dy = py - w.cy;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    const ringDist = Math.abs(dist - w.radius);
+    if (ringDist < CFG.onsetWaveWidth) {
+      const waveDensity = (1 - ringDist / CFG.onsetWaveWidth) * CFG.onsetWaveDensity * w.alpha;
+      d = Math.max(d, waveDensity);
+    }
+  }
+
+  // MIDI columns
+  for (const m of midiColumns) {
+    const halfW = CFG.midiColumnWidth * 0.5;
+    if (Math.abs(nx - m.x) < halfW) {
+      d = Math.max(d, (1 - Math.abs(nx - m.x) / halfW) * m.alpha * 0.9);
+    }
+  }
+
+  // Brightness: brighter sound = more visible field
+  d += state.brightness * CFG.brightnessDensityBoost;
+
+  // Rhythmicity: pulsating flicker
+  if (state.rhythmicity > 0.01) {
+    const flicker = Math.sin(globalTime * CFG.rhythmFlickerSpeed * Math.PI * 2)
+                  * CFG.rhythmFlickerAmp * state.rhythmicity;
+    d += flicker;
+  }
+
+  // Trajectory: vertical gradient
+  if (state.trajectory === 1) d += (1 - ny) * 0.15 * state.intensity;
+  else if (state.trajectory === -1) d += ny * 0.15 * state.intensity;
+
+  return Math.min(1, Math.max(0, d));
+}
+
+// ═══════════════════════════════════════
+//  Blocco: check if position is inside one
+// ═══════════════════════════════════════
+
+function getBloccoAt(nx, ny) {
+  for (const b of bloccos) {
+    if (b.alpha < 0.1) continue;
+    if (nx >= b.x && nx <= b.x + b.w && ny >= b.y && ny <= b.y + b.h) return b;
+  }
+  return null;
+}
+
+// ═══════════════════════════════════════
+//  Render: fillRect strategy (dot >= threshold)
+// ═══════════════════════════════════════
+
+function renderFieldFillRect(dotSize) {
+  const cols = Math.ceil(W / dotSize);
+  const rows = Math.ceil(H / dotSize);
+  const fg = inverted ? '#000000' : '#FFFFFF';
+
+  ctx.fillStyle = fg;
+
+  for (let row = 0; row < rows; row++) {
+    const py = row * dotSize;
+    const ny = py / H;
+    for (let col = 0; col < cols; col++) {
+      const px = col * dotSize;
+      const nx = px / W;
+
+      const threshold = BAYER8[(row & 7) * 8 + (col & 7)];
+      const density = computeDensity(nx, ny, px, py);
+
+      if (density > threshold) {
+        // Check blocco for different dot-size
+        const blocco = getBloccoAt(nx, ny);
+        if (blocco) {
+          const localDot = Math.max(1, Math.min(16, Math.round(dotSize * blocco.dotSizeMul)));
+          ctx.fillRect(px, py, localDot, localDot);
+        } else {
+          ctx.fillRect(px, py, dotSize, dotSize);
+        }
+      }
+    }
+  }
+}
+
+// ═══════════════════════════════════════
+//  Render: buffer strategy (dot < threshold)
+// ═══════════════════════════════════════
+
+let bufferCanvas = null;
+let bufferCtx = null;
+
+function renderFieldBuffer(dotSize) {
+  const bw = Math.ceil(W / dotSize);
+  const bh = Math.ceil(H / dotSize);
+
+  if (!bufferCanvas || bufferCanvas.width !== bw || bufferCanvas.height !== bh) {
+    bufferCanvas = document.createElement('canvas');
+    bufferCanvas.width = bw;
+    bufferCanvas.height = bh;
+    bufferCtx = bufferCanvas.getContext('2d');
+  }
+
+  const imgData = bufferCtx.createImageData(bw, bh);
+  const data = imgData.data;
+  const fg = inverted ? 0 : 255;
+
+  for (let row = 0; row < bh; row++) {
+    const ny = row / bh;
+    const py = row * dotSize;
+    for (let col = 0; col < bw; col++) {
+      const nx = col / bw;
+      const px = col * dotSize;
+
+      const threshold = BAYER8[(row & 7) * 8 + (col & 7)];
+      const density = computeDensity(nx, ny, px, py);
+
+      const idx = (row * bw + col) * 4;
+      if (density > threshold) {
+        data[idx] = fg;
+        data[idx + 1] = fg;
+        data[idx + 2] = fg;
+        data[idx + 3] = 255;
+      }
+      // else: stays 0,0,0,0 (transparent over black bg)
+    }
+  }
+
+  bufferCtx.putImageData(imgData, 0, 0);
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(bufferCanvas, 0, 0, W, H);
+  ctx.imageSmoothingEnabled = true;
+}
+
+// ═══════════════════════════════════════
+//  Climax
+// ═══════════════════════════════════════
+
+let climaxTimer = 0;
 let inClimax = false;
 let climaxPhase = 0;
 
 function updateClimax(dt) {
-  if (state.intensity > CFG.climaxIntensityThreshold) {
-    climaxTimer += dt;
-  } else {
-    climaxTimer = 0;
-    inClimax = false;
-  }
+  if (state.intensity > CFG.climaxIntensityThreshold) climaxTimer += dt;
+  else { climaxTimer = 0; inClimax = false; }
   inClimax = climaxTimer >= CFG.climaxThresholdSec;
 }
 
 function drawClimax() {
   if (!inClimax) return;
-
   climaxPhase += CFG.climaxPulseSpeed;
   const pulse = 0.3 + Math.sin(climaxPhase) * 0.2;
 
-  // Flood overlay
-  ctx.fillStyle = `rgba(230,0,126,${pulse * 0.15})`;
+  ctx.fillStyle = `rgba(230,0,126,${pulse * 0.2})`;
   ctx.fillRect(0, 0, W, H);
 
-  // Concentric rectangles
   const cx = W / 2, cy = H / 2;
   ctx.lineWidth = 1.5;
   for (let i = 0; i < 8; i++) {
@@ -585,17 +718,13 @@ function drawClimax() {
 }
 
 // ═══════════════════════════════════════
-//  Framing (viewport transform)
+//  Framing
 // ═══════════════════════════════════════
 
 const framing = {
   current: 'WIDE',
-  targetZoom: 1,
-  targetX: 0,
-  targetY: 0,
-  zoom: 1,
-  offsetX: 0,
-  offsetY: 0,
+  targetZoom: 1, targetX: 0, targetY: 0,
+  zoom: 1, offsetX: 0, offsetY: 0,
   panDirX: 0,
 };
 
@@ -605,16 +734,11 @@ function setFraming(type) {
   framing.current = type;
   switch (type) {
     case 'WIDE':
-      framing.targetZoom = 1;
-      framing.targetX = 0;
-      framing.targetY = 0;
-      framing.panDirX = 0;
+      framing.targetZoom = 1; framing.targetX = 0; framing.targetY = 0; framing.panDirX = 0;
       break;
     case 'MEDIUM':
       framing.targetZoom = CFG.framingMediumZoom;
-      framing.targetX = 0;
-      framing.targetY = 0;
-      framing.panDirX = 0;
+      framing.targetX = 0; framing.targetY = 0; framing.panDirX = 0;
       break;
     case 'MACRO':
       framing.targetZoom = CFG.framingMacroZoom;
@@ -624,25 +748,20 @@ function setFraming(type) {
       break;
     case 'PAN':
       framing.targetZoom = 1.2;
-      framing.targetX = -W * 0.3;
-      framing.targetY = 0;
+      framing.targetX = -W * 0.3; framing.targetY = 0;
       framing.panDirX = CFG.framingPanSpeed;
       break;
   }
 }
 
 function updateFraming() {
-  const s = CFG.framingTransitionSpeed;
+  const s = CFG.framingLerpSpeed;
   framing.zoom += (framing.targetZoom - framing.zoom) * s;
   framing.offsetX += (framing.targetX - framing.offsetX) * s;
   framing.offsetY += (framing.targetY - framing.offsetY) * s;
-
-  // PAN continuous motion
   if (framing.current === 'PAN') {
     framing.targetX += framing.panDirX;
-    if (framing.targetX > W * 0.3 || framing.targetX < -W * 0.3) {
-      framing.panDirX *= -1;
-    }
+    if (framing.targetX > W * 0.3 || framing.targetX < -W * 0.3) framing.panDirX *= -1;
   }
 }
 
@@ -653,34 +772,24 @@ function applyFraming() {
   ctx.translate(-W / 2 + framing.offsetX, -H / 2 + framing.offsetY);
 }
 
-function restoreFraming() {
-  ctx.restore();
-}
+function restoreFraming() { ctx.restore(); }
 
 // ═══════════════════════════════════════
 //  Director / Regista
 // ═══════════════════════════════════════
 
-const SCENE_TYPES = ['CAMPO_PUNTI']; // v0.3.0: una sola scena
-const CHANGE_TYPES = ['TEXTURE', 'FRAMING', 'COLOR', 'RESET'];
+const CHANGE_TYPES = ['TEXTURE', 'FRAMING', 'INVERT', 'RESET'];
 
 const director = {
-  scene: 'CAMPO_PUNTI',
-  sceneTime: 0,          // seconds in current scene
-  nextCheckIn: 0,        // seconds until next check
-  changeProb: 0,
+  scene: 'CAMPO_HALFTONE',
+  sceneTime: 0, nextCheckIn: 0, changeProb: 0,
   lastChangeType: '——',
-  colorA: true,
-  colorB: false,
-  colorC: false,
-  plateauTime: 0,        // seconds of trajectory == 0
+  plateauTime: 0,
 };
 
-// Director config from sliders
 let dirBaseInterval = 30;
-let dirDivisorIdx = 1;   // index: 0=4, 1=8, 2=16, 3=32
+let dirDivisorIdx = 1;
 let dirRandomFactor = 0.3;
-
 const DIVISORS = [4, 8, 16, 32];
 
 function initDirector() {
@@ -690,12 +799,9 @@ function initDirector() {
 
 function computeNextCheck() {
   if (state.rhythmicity > 0.5) {
-    // Rhythmic: beat-based
     const beatSec = 60 / CFG.directorBPM;
-    const beats = DIVISORS[dirDivisorIdx];
-    director.nextCheckIn = beats * beatSec * (0.8 + Math.random() * 0.4);
+    director.nextCheckIn = DIVISORS[dirDivisorIdx] * beatSec * (0.8 + Math.random() * 0.4);
   } else {
-    // Non-rhythmic: time-based
     director.nextCheckIn = dirBaseInterval * (1 + dirRandomFactor * Math.random());
   }
 }
@@ -703,27 +809,15 @@ function computeNextCheck() {
 function updateDirector(dt) {
   director.sceneTime += dt;
   director.nextCheckIn -= dt;
-
-  // Track plateau
-  if (state.trajectory === 0) {
-    director.plateauTime += dt;
-  } else {
-    director.plateauTime = 0;
-  }
+  if (state.trajectory === 0) director.plateauTime += dt;
+  else director.plateauTime = 0;
 
   if (director.nextCheckIn <= 0) {
-    // Roll the dice
     let prob = 0.5;
-    if (director.plateauTime > CFG.directorPlateauSec) {
-      prob += 0.3;
-    }
+    if (director.plateauTime > CFG.directorPlateauSec) prob += 0.3;
     prob += dirRandomFactor * Math.random();
     director.changeProb = Math.min(1, prob);
-
-    if (prob > CFG.directorChangeThreshold) {
-      executeChange();
-    }
-
+    if (prob > CFG.directorChangeThreshold) executeChange();
     computeNextCheck();
   }
 }
@@ -735,52 +829,102 @@ function executeChange() {
 
   switch (type) {
     case 'TEXTURE':
-      // In v0.3.0 only one scene, so just reset particles
-      particles = [];
+      initBandas();
+      initBloccos();
       break;
     case 'FRAMING':
-      const newFraming = FRAMING_TYPES[Math.floor(Math.random() * FRAMING_TYPES.length)];
-      setFraming(newFraming);
+      setFraming(FRAMING_TYPES[Math.floor(Math.random() * FRAMING_TYPES.length)]);
       break;
-    case 'COLOR':
-      // Toggle A/B (C is climax-only)
-      if (Math.random() > 0.5) {
-        director.colorA = !director.colorA;
-      } else {
-        director.colorB = !director.colorB;
-      }
+    case 'INVERT':
+      inverted = !inverted;
+      document.getElementById('btn-invert').textContent = inverted ? 'ON' : 'OFF';
+      document.getElementById('btn-invert').classList.toggle('on', inverted);
       break;
     case 'RESET':
-      particles = [];
+      initBandas();
+      initBloccos();
+      inverted = false;
+      document.getElementById('btn-invert').textContent = 'OFF';
+      document.getElementById('btn-invert').classList.remove('on');
       setFraming('WIDE');
-      director.colorA = true;
-      director.colorB = false;
       break;
   }
 }
 
 // ═══════════════════════════════════════
-//  Readout panel
+//  Auto mode
+// ═══════════════════════════════════════
+
+let autoMode = false;
+let autoPhase = 0;
+let autoTimer = 0;
+
+const AUTO_PHASES = [
+  { name: 'SILENCE',  dur: 4,  int: 0,    rhyt: 0,    brit: 0.3,  traj: 0,  wide: 0.2 },
+  { name: 'AMBIENT',  dur: 8,  int: 0.15, rhyt: 0.05, brit: 0.35, traj: 0,  wide: 0.6 },
+  { name: 'BUILDING', dur: 6,  int: 0.45, rhyt: 0.5,  brit: 0.5,  traj: 1,  wide: 0.4 },
+  { name: 'PEAK',     dur: 5,  int: 0.85, rhyt: 0.8,  brit: 0.7,  traj: 0,  wide: 0.3 },
+  { name: 'CLIMAX',   dur: 5,  int: 0.95, rhyt: 0.9,  brit: 0.85, traj: 0,  wide: 0.2 },
+  { name: 'DECAY',    dur: 6,  int: 0.2,  rhyt: 0.1,  brit: 0.4,  traj: -1, wide: 0.5 },
+];
+
+function updateAuto(dt) {
+  if (!autoMode) return;
+  autoTimer += dt;
+  const phase = AUTO_PHASES[autoPhase];
+  if (autoTimer >= phase.dur) {
+    autoTimer = 0;
+    autoPhase = (autoPhase + 1) % AUTO_PHASES.length;
+  }
+
+  const target = AUTO_PHASES[autoPhase];
+  const lerp = 0.02;
+  state.intensity += (target.int - state.intensity) * lerp;
+  state.rhythmicity += (target.rhyt - state.rhythmicity) * lerp;
+  state.brightness += (target.brit - state.brightness) * lerp;
+  state.stereoWidth += (target.wide - state.stereoWidth) * lerp;
+  state.trajectory = target.traj;
+
+  if (target.int > 0.4 && Math.random() < target.rhyt * 0.03) triggerOnset();
+  if (target.int > 0.3 && Math.random() < 0.01) triggerMIDI();
+
+  syncSlidersToState();
+}
+
+// ═══════════════════════════════════════
+//  Readout
 // ═══════════════════════════════════════
 
 const readoutEl = document.getElementById('readout');
+let avgDensity = 0;
 
 function updateReadout() {
+  const dotSize = dotSizeOverride > 0 ? dotSizeOverride :
+    Math.max(1, Math.round(CFG.dotSizeMax - (CFG.dotSizeMax - CFG.dotSizeMin) * state.brightness));
+
   readoutEl.innerHTML =
     `SCENE        <span class="val-highlight">${director.scene}</span>\n` +
     `SCENE TIME   <span class="val-highlight">${director.sceneTime.toFixed(1)}s</span>\n` +
     `NEXT CHECK   <span class="val-highlight">${Math.max(0, director.nextCheckIn).toFixed(1)}s</span>\n` +
     `CHANGE PROB  <span class="val-highlight">${director.changeProb.toFixed(2)}</span>\n` +
     `LAST CHANGE  <span class="val-highlight">${director.lastChangeType}</span>\n` +
-    `${'─'.repeat(22)}\n` +
+    `${'─'.repeat(24)}\n` +
     `FRAMING      <span class="val-highlight">${framing.current}</span>\n` +
-    `COLOR A      <span style="color:${director.colorA ? '#FF4400' : '#2e2e2e'}">${director.colorA ? 'ON' : 'OFF'}</span>\n` +
-    `COLOR B      <span style="color:${director.colorB ? '#00AACC' : '#2e2e2e'}">${director.colorB ? 'ON' : 'OFF'}</span>\n` +
-    `COLOR C      <span style="color:${inClimax ? '#E6007E' : '#2e2e2e'}">${inClimax ? 'ON' : 'OFF'}</span>`;
+    `ZOOM         <span class="val-highlight">${framing.zoom.toFixed(2)}x</span>\n` +
+    `${'─'.repeat(24)}\n` +
+    `DOT SIZE     <span class="val-highlight">${dotSize}px</span>\n` +
+    `DENSITY AVG  <span class="val-highlight">${avgDensity.toFixed(3)}</span>\n` +
+    `BANDAS       <span class="val-highlight">${bandas.length}</span>\n` +
+    `BLOCCOS      <span class="val-highlight">${bloccos.length}</span>\n` +
+    `ONSETS       <span class="val-highlight">${onsetWaves.length}</span>\n` +
+    `MIDI COLS    <span class="val-highlight">${midiColumns.length}</span>\n` +
+    `CLIMAX       <span style="color:${inClimax ? '#E6007E' : '#2e2e2e'}">${inClimax ? 'ON' : 'OFF'}</span>\n` +
+    `INVERTED     <span class="val-highlight">${inverted ? 'YES' : 'NO'}</span>` +
+    (autoMode ? `\n${'─'.repeat(24)}\nAUTO         <span class="val-highlight">${AUTO_PHASES[autoPhase].name}</span>` : '');
 }
 
 // ═══════════════════════════════════════
-//  Slider / button wiring
+//  Slider wiring
 // ═══════════════════════════════════════
 
 function wireSlider(id, valId, stateKey, fmt) {
@@ -798,13 +942,26 @@ wireSlider('sl-rhyt', 'v-rhyt', 'rhythmicity');
 wireSlider('sl-brit', 'v-brit', 'brightness');
 wireSlider('sl-wide', 'v-wide', 'stereoWidth');
 
-// Trajectory buttons
 document.querySelectorAll('.traj-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     document.querySelectorAll('.traj-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     state.trajectory = parseInt(btn.dataset.val);
   });
+});
+
+// Dot size override
+document.getElementById('sl-dot').addEventListener('input', e => {
+  const v = parseInt(e.target.value);
+  dotSizeOverride = v <= 1 ? 0 : v;
+  document.getElementById('v-dot').textContent = v <= 1 ? 'auto' : v + 'px';
+});
+
+// Invert
+document.getElementById('btn-invert').addEventListener('click', () => {
+  inverted = !inverted;
+  document.getElementById('btn-invert').textContent = inverted ? 'ON' : 'OFF';
+  document.getElementById('btn-invert').classList.toggle('on', inverted);
 });
 
 // Director sliders
@@ -821,107 +978,31 @@ document.getElementById('sl-rnd').addEventListener('input', e => {
   document.getElementById('v-rnd').textContent = dirRandomFactor.toFixed(2);
 });
 
-// Onset + MIDI buttons
+// Onset + MIDI
 document.getElementById('btn-onset').addEventListener('click', triggerOnset);
 document.getElementById('btn-midi').addEventListener('click', triggerMIDI);
 
-// Keyboard
 document.addEventListener('keydown', e => {
   if (e.code === 'Space') { e.preventDefault(); triggerOnset(); }
-  if (e.code === 'KeyM') { triggerMIDI(); }
-  if (e.code === 'KeyA') { toggleAuto(); }
+  if (e.code === 'KeyM') triggerMIDI();
+});
+
+// Auto
+document.getElementById('btn-auto').addEventListener('click', () => {
+  autoMode = !autoMode;
+  document.getElementById('btn-auto').classList.toggle('running', autoMode);
+  if (autoMode) { autoPhase = 0; autoTimer = 0; }
 });
 
 // Presets
 const PRESETS = {
-  ambient:  { intensity: 0.1, rhythmicity: 0.05, brightness: 0.3, trajectory: 0, stereoWidth: 0.6 },
-  building: { intensity: 0.5, rhythmicity: 0.6,  brightness: 0.5, trajectory: 1, stereoWidth: 0.4 },
-  peak:     { intensity: 0.9, rhythmicity: 0.85, brightness: 0.8, trajectory: 0, stereoWidth: 0.3 },
+  silence:  { intensity: 0,    rhythmicity: 0,    brightness: 0.3, trajectory: 0,  stereoWidth: 0.2 },
+  ambient:  { intensity: 0.15, rhythmicity: 0.05, brightness: 0.35, trajectory: 0, stereoWidth: 0.6 },
+  building: { intensity: 0.5,  rhythmicity: 0.6,  brightness: 0.5,  trajectory: 1, stereoWidth: 0.4 },
+  peak:     { intensity: 0.9,  rhythmicity: 0.85, brightness: 0.8,  trajectory: 0, stereoWidth: 0.3 },
 };
 
-document.querySelectorAll('.preset').forEach(btn => {
-  btn.addEventListener('click', () => {
-    const p = PRESETS[btn.dataset.preset];
-    if (!p) return;
-
-    state.intensity = p.intensity;
-    state.rhythmicity = p.rhythmicity;
-    state.brightness = p.brightness;
-    state.trajectory = p.trajectory;
-    state.stereoWidth = p.stereoWidth;
-
-    // Sync sliders
-    document.getElementById('sl-int').value = p.intensity;
-    document.getElementById('v-int').textContent = p.intensity.toFixed(2);
-    document.getElementById('sl-rhyt').value = p.rhythmicity;
-    document.getElementById('v-rhyt').textContent = p.rhythmicity.toFixed(2);
-    document.getElementById('sl-brit').value = p.brightness;
-    document.getElementById('v-brit').textContent = p.brightness.toFixed(2);
-    document.getElementById('sl-wide').value = p.stereoWidth;
-    document.getElementById('v-wide').textContent = p.stereoWidth.toFixed(2);
-
-    // Trajectory buttons
-    document.querySelectorAll('.traj-btn').forEach(b => {
-      b.classList.toggle('active', parseInt(b.dataset.val) === p.trajectory);
-    });
-  });
-});
-
-// ═══════════════════════════════════════
-//  AUTO mode
-// ═══════════════════════════════════════
-
-let autoMode = false;
-let autoTime = 0;
-let autoPhase = 0; // 0=ambient, 1=building, 2=peak, 3=drop
-
-const AUTO_PHASES = [
-  { name: 'ambient',  dur: 8,  target: { intensity: 0.1,  rhythmicity: 0.05, brightness: 0.3, trajectory: 0,  stereoWidth: 0.6 }, onsetRate: 0.3, midiRate: 0.1 },
-  { name: 'building', dur: 10, target: { intensity: 0.5,  rhythmicity: 0.6,  brightness: 0.5, trajectory: 1,  stereoWidth: 0.4 }, onsetRate: 2,   midiRate: 1.5 },
-  { name: 'peak',     dur: 8,  target: { intensity: 0.92, rhythmicity: 0.85, brightness: 0.8, trajectory: 0,  stereoWidth: 0.3 }, onsetRate: 5,   midiRate: 3   },
-  { name: 'drop',     dur: 6,  target: { intensity: 0.05, rhythmicity: 0.1,  brightness: 0.15, trajectory: -1, stereoWidth: 0.7 }, onsetRate: 0.1, midiRate: 0   },
-];
-
-function toggleAuto() {
-  autoMode = !autoMode;
-  document.getElementById('btn-auto').classList.toggle('active', autoMode);
-  if (autoMode) {
-    autoTime = 0;
-    autoPhase = 0;
-  }
-}
-
-function updateAuto(dt) {
-  if (!autoMode) return;
-
-  autoTime += dt;
-  const phase = AUTO_PHASES[autoPhase];
-
-  // Smooth lerp toward target values
-  const lerpSpeed = 0.02;
-  for (const key of Object.keys(phase.target)) {
-    if (key === 'trajectory') {
-      state[key] = phase.target[key];
-    } else {
-      state[key] += (phase.target[key] - state[key]) * lerpSpeed;
-    }
-  }
-
-  // Sync sliders with auto state
-  syncSlidersFromState();
-
-  // Random onset/midi triggers
-  if (Math.random() < phase.onsetRate * dt) triggerOnset();
-  if (Math.random() < phase.midiRate * dt) triggerMIDI();
-
-  // Advance phase
-  if (autoTime > phase.dur) {
-    autoTime = 0;
-    autoPhase = (autoPhase + 1) % AUTO_PHASES.length;
-  }
-}
-
-function syncSlidersFromState() {
+function syncSlidersToState() {
   document.getElementById('sl-int').value = state.intensity;
   document.getElementById('v-int').textContent = state.intensity.toFixed(2);
   document.getElementById('sl-rhyt').value = state.rhythmicity;
@@ -935,7 +1016,14 @@ function syncSlidersFromState() {
   });
 }
 
-document.getElementById('btn-auto').addEventListener('click', toggleAuto);
+document.querySelectorAll('.preset').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const p = PRESETS[btn.dataset.preset];
+    if (!p) return;
+    Object.assign(state, p);
+    syncSlidersToState();
+  });
+});
 
 // ═══════════════════════════════════════
 //  Main loop
@@ -952,40 +1040,53 @@ function loop(now) {
   const dt = lastTime ? (now - lastTime) / 1000 : 0.016;
   lastTime = now;
 
-  // Update systems
+  // Update
+  globalTime += dt;
   updateAuto(dt);
   updateClimax(dt);
   updateDirector(dt);
   updateFraming();
-  updateParticles();
+  updateBandas(dt);
+  updateBloccos(dt);
+  updateOnsets(dt);
+  updateMidi();
 
   // ── Draw ──
-  // Background
-  ctx.fillStyle = '#000';
+  const bg = inverted ? '#FFFFFF' : '#000000';
+  ctx.fillStyle = bg;
   ctx.fillRect(0, 0, W, H);
 
-  // Apply framing transform
   applyFraming();
 
-  // Particles
-  drawParticles();
+  // Effective global dot-size
+  const globalDotSize = dotSizeOverride > 0 ? dotSizeOverride :
+    Math.max(1, Math.round(CFG.dotSizeMax - (CFG.dotSizeMax - CFG.dotSizeMin) * state.brightness));
 
-  // Onset flash (only if color A is on or always for direct trigger)
-  drawOnsetFlash();
-
-  // MIDI flashes (only if color B is on or always for direct trigger)
-  drawMIDIFlashes();
-
-  // Climax
-  if (inClimax) drawClimax();
+  // Render halftone field
+  if (globalDotSize >= CFG.dotSizeBufferThreshold) {
+    renderFieldFillRect(globalDotSize);
+  } else {
+    renderFieldBuffer(globalDotSize);
+  }
 
   restoreFraming();
 
-  // Dither overlay (on top, outside framing)
-  drawDither();
+  // Climax overlay (screen space)
+  if (inClimax) drawClimax();
 
-  // Readout (every ~10 frames)
+  // Sample density for readout (every 30 frames)
   readoutCounter++;
+  if (readoutCounter % 30 === 0) {
+    let sum = 0, count = 0;
+    const step = 80;
+    for (let sy = 0; sy < H; sy += step) {
+      for (let sx = 0; sx < W; sx += step) {
+        sum += computeDensity(sx / W, sy / H, sx, sy);
+        count++;
+      }
+    }
+    avgDensity = count > 0 ? sum / count : 0;
+  }
   if (readoutCounter % 10 === 0) updateReadout();
 }
 

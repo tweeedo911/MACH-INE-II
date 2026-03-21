@@ -70,7 +70,7 @@ MACH:INE II/
 
 ## Versione corrente
 
-`v0.3.0` — vedi [CHANGELOG.md](CHANGELOG.md) per i dettagli.
+`v0.4.0` — vedi [CHANGELOG.md](CHANGELOG.md) per i dettagli.
 
 ---
 
