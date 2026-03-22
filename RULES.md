@@ -36,8 +36,9 @@ Non si eseguono modifiche strutturali senza approvazione esplicita.
 
 ## 3. Snapshot obbligatori
 
-Prima di ogni modifica a `index.html`:
+Prima di ogni modifica significativa a `index.html` o `sandbox.html`:
 - si salva la versione corrente in `versions/` con il numero di versione attuale
+  (es. `versions/v0.2.0-index.html`, `versions/sandbox-v0.3.0.html`)
 - solo dopo si apporta la modifica
 
 Questo garantisce che ogni versione funzionante sia sempre recuperabile.
@@ -75,7 +76,8 @@ Ogni feature sperimentale va su un branch separato, es. `exp/particles`.
 ## 6. Parametri e configurazione
 
 Tutti i parametri numerici (soglie, velocità, intensità) vivono
-nell'oggetto `CFG` in cima a `index.html`.
+in `src/config.js` (per i moduli ES) o nell'oggetto `CFG` in cima
+allo script (per file self-contained come `sandbox.html`).
 
 Non si usano numeri "magici" sparsi nel codice.
 Se si aggiunge un parametro, va documentato con un commento inline.

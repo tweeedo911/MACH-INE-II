@@ -5,6 +5,119 @@ Formato: `[versione] – data – descrizione`
 
 ---
 
+## [v0.8.0] – 2026-03-22
+
+**Collegamento audio reale — da sandbox monolitico a ES modules modulari.**
+
+### Aggiunto
+- 6 nuovi moduli ES: `config.js`, `dna.js`, `generations.js`, `colors.js`, `director.js`, `field.js`
+- Campo halftone con Bayer 8x8 dither completamente modulare
+- Zone Voronoi (8 seed random) con lookup pre-baked 24×24 per performance
+- 8 primitivi strutturali: BANDA, BLOCCO, VETTORE, VUOTO, FRONTE, SCIAME, STRISCIA, MATRICE
+- Generazioni con ciclo vita completo e spatial hash grid (32px)
+- Sistema cromatico A/B/C con climax, inversione dissolve Bayer, shift cromatici
+- 5 mutazioni pesate + regista con timing adattivo
+- Camera 2D: WIDE/MEDIUM/MACRO/PAN con POI tracking e lerp adattivo
+- Dual HUD: minimal (bottom-left, default ON) + debug (bottom-right, toggle D)
+- Keyboard: H=HUD, D=debug, F=fullscreen, R=regen DNA, N=mutazione manuale
+
+### Modificato
+- `render.js` riscritto come orchestratore di tutti i sottosistemi
+- `main.js` riscritto: boot → initAudio → initMIDI → generateDNA → initDirector → loop
+- `index.html` riscritto: fullscreen canvas, start screen, error screen, keys hint
+
+### Stack
+- ES modules nativi (nessun build step, nessuna dipendenza)
+- Canvas 2D API
+- Web Audio API (stereo via BlackHole)
+- WebMIDI API
+
+---
+
+## [v0.7.0] – 2026-03-22
+
+**Il Direttore — camera 2D con 4 shot, lerp adattivo, POI tracking, integrazione regista.**
+
+### Aggiunto
+- Camera 2D: 4 shot (WIDE, MEDIUM, MACRO, PAN) come trasformazione del canvas context
+- Point of Interest (POI): centro di massa delle entità vive, usato come target per MEDIUM e MACRO
+- MACRO auto-return: dopo ~5s ritorna automaticamente allo shot appropriato
+- Lerp adattivo: rhythmicity > 0.5 → transizione rapida (0.08), altrimenti lenta (0.02)
+- PAN con oscillazione verticale sinusoidale
+- Auto-camera integrata col regista: 60% solo mutazione, 25% mutazione+camera, 15% solo camera
+- Scelta shot intelligente: intensity bassa → WIDE, rhythmicity alta → MACRO, plateau → PAN, default → MEDIUM
+- 4 pulsanti camera manuali nel pannello (disattivano auto-camera)
+- Toggle AUTO camera (default ON)
+- Readout: shot corrente, zoom, offset, timer ritorno MACRO
+
+### Modificato
+- Framing completamente riscritto con POI tracking e logica decisionale
+- Director ora include decisioni camera nelle mutazioni
+
+### Stack
+- HTML + JavaScript vanilla (file unico, nessuna dipendenza)
+- Canvas 2D API
+
+---
+
+## [v0.6.0] – 2026-03-22
+
+**Sistema cromatico A/B/C integrato nel campo, 5 tipi di mutazione, regista adattato.**
+
+### Aggiunto
+- Colore A (#FF4400): entità nate da onset, decadono a grigio con l'età
+- Colore B (#00AACC): entità nate da MIDI, stessa logica di decay
+- Colore C (#E6007E): climax — tutte le entità virano a magenta dopo 3s a intensity > 0.85
+- Contaminazione A su B: onset vicino a entità B le fa virare verso A
+- Climax reworked: shift graduale colore, dot-size compression, density boost, collasso al rilascio
+- 5 mutazioni pesate: PRIMITIVE (30%), INVERT (15%), RESET_PARTIAL (15%), CHROMATIC (25%), SCALE (15%)
+- Inversione con dissolve Bayer (~1s transizione cella per cella)
+- Reset parziale: kill zone rettangolare random
+- Shift cromatico: all-A / all-B / grey per 20s
+- Cambio scala: modifica range dot-size (fine o coarse)
+- Toggle colore A/B/C nel pannello
+- Pulsanti manuali per forzare ogni mutazione
+- Log ultime 5 mutazioni con timestamp
+- Readout: contatori entità A/B/C, stato chromatic shift, climax progress %
+
+### Modificato
+- Render loop color-aware: ogni dot renderizzato nel colore dell'entità più giovane nella cella
+- Entity grid ora traccia colore dominante + alpha per cella (youngest wins)
+- Climax non è più overlay — è proprietà delle entità stesse
+
+### Stack
+- HTML + JavaScript vanilla (file unico, nessuna dipendenza)
+- Canvas 2D API
+
+---
+
+## [v0.5.0] – 2026-03-22
+
+**DNA di sessione, 8 primitivi strutturali, generazioni con ciclo vita e accumulo.**
+
+### Aggiunto
+- DNA di sessione: all'avvio genera 2-3 primitivi random con parametri unici
+- Pulsante REGEN DNA per rigenerare il mondo
+- 6 nuovi primitivi oltre a BANDA e BLOCCO: VETTORE, VUOTO, FRONTE, SCIAME, STRISCIA, MATRICE
+- Generazioni complete: nascita → crescita → maturità → invecchiamento → morte → fossile
+- Spatial hash grid (32px) per densità entità efficiente
+- Entity lifecycle: dot-size degenera con l'età, densità cala in invecchiamento
+- Residui fossili delle generazioni morte (densità ~0.03 per qualche secondo)
+- Accumulo: generazioni si sovrappongono (giovani sopra, vecchie sotto)
+- Slider EVO per velocità evoluzione
+- Readout: DNA primitives, entity count, fossils, avg age, birth rate
+- Densità campo legata a intensity con curva quadratica (campo vuoto a intensity 0)
+
+### Modificato
+- Regista: mutazioni PRIMITIVE swap, FRAMING, INVERT, RESET (non cambio scene)
+- densityBase a 0: i dot emergono gradualmente con l'intensity
+
+### Stack
+- HTML + JavaScript vanilla (file unico, nessuna dipendenza)
+- Canvas 2D API
+
+---
+
 ## [v0.4.0] – 2026-03-21
 
 **Campo halftone con dither Bayer, dot-size dinamico, primitivi BANDA e BLOCCO.**

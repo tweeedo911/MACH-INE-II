@@ -201,14 +201,8 @@ const CFG = {
   densityBase: 0.0,
   densityMax: 0.45,
   brightnessDensityBoost: 0.15,
-  rhythmFlickerAmp: 0.05,
-  rhythmFlickerSpeed: 4,
-
-  // Zone seeds: irregular Voronoi-like regions
-  zoneCount: 8,                   // number of seed points
-  zoneDotSizeVariation: 0.4,
-  zoneDensityVariation: 0.25,
-  zoneFlickerPhaseSpread: 1.0,
+  rhythmFlickerAmp: 0.10,
+  rhythmFlickerSpeed: 8,
 
   // Generations
   maxEntities: 4000,
@@ -338,49 +332,6 @@ let invertTarget = false;
 // Climax progress (0 = no climax shift, 1 = full C)
 let climaxProgress = 0;
 
-// Zone seeds: Voronoi-like irregular regions
-let zoneSeeds = null; // array of {x, y, dotSizeMul, flickerPhase, densityMul}
-
-function generateZoneGrid() {
-  zoneSeeds = [];
-  for (let i = 0; i < CFG.zoneCount; i++) {
-    zoneSeeds.push({
-      x: Math.random(),
-      y: Math.random(),
-      dotSizeMul: 1 + (Math.random() * 2 - 1) * CFG.zoneDotSizeVariation,
-      flickerPhase: Math.random() * CFG.zoneFlickerPhaseSpread,
-      densityMul: 1 + (Math.random() * 2 - 1) * CFG.zoneDensityVariation,
-    });
-  }
-  // Pre-bake a lookup grid for performance (avoid per-pixel nearest search)
-  const res = 24; // 24x24 lookup
-  zoneLookup = new Uint8Array(res * res);
-  for (let r = 0; r < res; r++) {
-    const ny = (r + 0.5) / res;
-    for (let c = 0; c < res; c++) {
-      const nx = (c + 0.5) / res;
-      let best = 0, bestD = 999;
-      for (let i = 0; i < zoneSeeds.length; i++) {
-        const dx = nx - zoneSeeds[i].x, dy = ny - zoneSeeds[i].y;
-        const d = dx * dx + dy * dy;
-        if (d < bestD) { bestD = d; best = i; }
-      }
-      zoneLookup[r * res + c] = best;
-    }
-  }
-  zoneLookupRes = res;
-}
-
-let zoneLookup = null, zoneLookupRes = 24;
-const defaultZone = { dotSizeMul: 1, flickerPhase: 0, densityMul: 1 };
-
-function getZone(nx, ny) {
-  if (!zoneSeeds) return defaultZone;
-  const c = Math.min(zoneLookupRes - 1, Math.floor(nx * zoneLookupRes));
-  const r = Math.min(zoneLookupRes - 1, Math.floor(ny * zoneLookupRes));
-  return zoneSeeds[zoneLookup[r * zoneLookupRes + c]];
-}
-
 // ═══════════════════════════════════════
 //  DNA System
 // ═══════════════════════════════════════
@@ -449,7 +400,6 @@ function generateDNA() {
   entities = [];
   fossils = [];
   climaxProgress = 0;
-  generateZoneGrid();
   initPrimitiveState();
 }
 
@@ -942,18 +892,11 @@ function computeDensity(nx, ny, px, py) {
   const intCurve = state.intensity * state.intensity;
   let d = CFG.densityBase + (CFG.densityMax - CFG.densityBase) * intCurve;
 
-  // Brightness boost scales with intensity (no free dots at silence)
-  d += state.brightness * CFG.brightnessDensityBoost * Math.max(0.1, state.intensity);
+  d += state.brightness * CFG.brightnessDensityBoost;
 
-  // Zone-specific flicker: each zone pulses at its own phase
-  const zone = getZone(nx, ny);
   if (state.rhythmicity > 0.01) {
-    const flickerT = globalTime * CFG.rhythmFlickerSpeed + zone.flickerPhase * Math.PI * 2;
-    d += Math.sin(flickerT * Math.PI * 2) * CFG.rhythmFlickerAmp * state.rhythmicity;
+    d += Math.sin(globalTime * CFG.rhythmFlickerSpeed * Math.PI * 2) * CFG.rhythmFlickerAmp * state.rhythmicity;
   }
-
-  // Zone density multiplier
-  d *= zone.densityMul;
 
   if (state.stereoWidth < 1) {
     const centerDist = Math.abs(nx - 0.5) * 2;
@@ -1062,6 +1005,7 @@ function renderFieldFillRect(dotSize) {
   const cols = Math.ceil(W / dotSize);
   const rows = Math.ceil(H / dotSize);
   const fgVal = inverted ? 0 : 255;
+  const fgDefault = inverted ? '#000000' : '#FFFFFF';
   let lastFill = '';
 
   for (let row = 0; row < rows; row++) {
@@ -1071,20 +1015,16 @@ function renderFieldFillRect(dotSize) {
       const px = col * dotSize;
       const nx = px / W;
 
+      // Invert dissolve: use Bayer threshold to determine which cells have flipped
       let cellInverted = inverted;
       if (invertDissolving) {
         const bayerVal = BAYER8[(row & 7) * 8 + (col & 7)];
         cellInverted = invertDissolveProgress > bayerVal ? invertTarget : inverted;
       }
 
-      // Zone: shift threshold so different zones activate at different densities
-      const zone = getZone(nx, ny);
-      const thresholdShift = (1 - zone.dotSizeMul) * 0.3; // bigger dots = lower threshold
-      const threshold = Math.max(0, Math.min(1, BAYER8[(row & 7) * 8 + (col & 7)] + thresholdShift));
+      const threshold = BAYER8[(row & 7) * 8 + (col & 7)];
       const density = computeDensity(nx, ny, px, py);
       if (density > threshold) {
-        // Zone dot-size: draw slightly bigger or smaller rects
-        const zDot = Math.max(1, Math.round(dotSize * zone.dotSizeMul));
         const cellColor = getCellColor(nx, ny, cellInverted ? 0 : 255);
         let fill;
         if (cellColor) {
@@ -1096,7 +1036,7 @@ function renderFieldFillRect(dotSize) {
           ctx.fillStyle = fill;
           lastFill = fill;
         }
-        ctx.fillRect(px, py, zDot, zDot);
+        ctx.fillRect(px, py, dotSize, dotSize);
       }
     }
   }
@@ -1125,16 +1065,14 @@ function renderFieldBuffer(dotSize) {
       const nx = col / bw;
       const px = col * dotSize;
 
+      // Invert dissolve
       let cellFg = fgVal;
       if (invertDissolving) {
         const bayerVal = BAYER8[(row & 7) * 8 + (col & 7)];
         cellFg = invertDissolveProgress > bayerVal ? (invertTarget ? 0 : 255) : fgVal;
       }
 
-      // Zone threshold shift
-      const zone = getZone(nx, ny);
-      const thresholdShift = (1 - zone.dotSizeMul) * 0.3;
-      const threshold = Math.max(0, Math.min(1, BAYER8[(row & 7) * 8 + (col & 7)] + thresholdShift));
+      const threshold = BAYER8[(row & 7) * 8 + (col & 7)];
       const density = computeDensity(nx, ny, px, py);
       const idx = (row * bw + col) * 4;
       if (density > threshold) {

@@ -8,104 +8,105 @@ Non si passa alla milestone successiva finche' la corrente non e' solida.
 ## v0.1.0 — DONE
 
 Spettrogramma scrolling (Joy Division), onset detection basica, MIDI note flash.
-Canvas 2D, mono, soglia statica.
+
+## v0.2.0 — DONE
+
+Audio engine stereo. Band-split, spectral flux, centroid, correlazione, trajectory, BPM.
+ES modules.
+
+## v0.3.0 — DONE
+
+Sandbox narrativo con regista, scena di test, framing, simulazione input.
 
 ---
 
-## v0.2.0 — AUDIO ENGINE
+## v0.4.0 — CAMPO HALFTONE
 
-Riscrittura del motore audio. Nessun cambiamento visivo significativo:
-il rendering resta simile a v0.1.0 ma i dati sottostanti sono molto piu' ricchi.
+Il fondamento visivo: il campo di densita' con trattamento dither Bayer.
+Tutto il resto si costruisce sopra questo.
 
-- Input stereo da BlackHole via ChannelSplitterNode + 2x AnalyserNode
-- RMS per canale
-- Band-split energy su 5 bande (sub/low/mid/high/air) per canale
-- Spectral centroid (brillantezza)
-- Spectral flux (sostituisce onset detection a soglia statica)
-- Correlazione stereo
-- Energy trajectory su finestra scorrevole (~3 sec)
-- Stima BPM da intervalli onset
-- Struttura a ES modules (src/ con file separati per audio, midi, render)
-- HUD aggiornato con i nuovi dati (debug visivo)
+- Campo di densita' renderizzato con matrice Bayer 8x8
+- Dot-size dinamico (1px-16px) guidato dalla brillantezza audio simulata
+- Densita' modulata dall'intensita'
+- Almeno un primitivo strutturale funzionante (es. BANDA o BLOCCO)
+- Il primitivo risponde ai 5 valori dello Stato
+- Generazioni base: nascita (su intensita') e morte (su decay)
+- Zone con dot-size diverso che coesistono sullo schermo
+- Inversione nero/bianco come possibilita'
 
-**Test:** aprire con BlackHole da Ableton, verificare che i dati stereo
-arrivino correttamente e che l'onset detection con spectral flux sia
-piu' precisa della soglia statica. Testare con materiale ambient e ritmico.
+**Test nel sandbox:** il campo con un solo primitivo e dither dinamico
+deve essere gia' visivamente interessante da solo con slider a meta'.
+Se non lo e', non si va avanti.
 
 ---
 
-## v0.3.0 — SANDBOX NARRATIVO
+## v0.5.0 — DNA E GENERAZIONI
 
-Strumento di lavoro interattivo per progettare il comportamento del sistema.
+Il sistema di variabilita' per sessione e il ciclo vita completo.
 
-- Pagina separata (sandbox.html) con canvas + pannello di controllo
-- Slider per simulare: intensita', ritmicita', brillantezza, ampiezza stereo, traiettoria
-- Click per simulare onset e note MIDI
-- Il motore narrativo implementato: Stato, Regista, Climax
-- Visualizzazione dello stato interno (valori, soglie, timer del regista)
-- Una sola scena di test (es. campo di punti + dither) che risponde ai dati simulati
-- Tuning dei parametri del regista (soglie, probabilita', durate)
+- DNA di sessione: all'avvio, sceglie 2-3 primitivi e genera parametri unici
+- Tutti i primitivi implementati (banda, vettore, blocco, vuoto, fronte, sciame, striscia, matrice)
+- Generazioni complete: nascita, crescita, maturita', invecchiamento, morte
+- Accumulo e stratificazione (generazioni vecchie sotto, giovani sopra)
+- Frequenze audio determinano posizione di nascita (mapping dal DNA)
+- Il dot-size degenera con l'eta'
+- Residui fossili delle generazioni morte
 
-**Test:** giocare con gli slider e verificare che il comportamento
-del regista sia coerente — ambient = cambi rari e lenti, ritmico = cambi
-frequenti a tempo. Verificare che il climax si attivi solo su plateau sostenuto.
-
----
-
-## v0.4.0 — VOCABOLARIO SCENE
-
-Implementazione delle scene reali che il regista puo' scegliere.
-
-- Almeno 4 scene distinte (es. campo punti, superficie topo, character grid, scanline)
-- Ogni scena reagisce ai 5 valori dello Stato in modo diverso
-- Transizioni tra scene (dither come interpolazione)
-- Sistema cromatico attivo: A/RITMO su onset, B/ARMONIA su MIDI, regola dei 2 colori
-- Il dither Bayer come overlay sempre presente
-
-**Test:** nel sandbox, ciclare tra scene e verificare che ogni scena
-sia visivamente interessante da sola e che le transizioni funzionino.
+**Test nel sandbox:** lanciare piu' volte e verificare che ogni sessione
+produca un mondo visivamente diverso. Testare con AMBIENT e PEAK.
 
 ---
 
-## v0.5.0 — IL DIRETTORE
+## v0.6.0 — COLORE E MUTAZIONI
 
-Sistema camera 2D (framing).
+Il sistema cromatico e la logica del regista adattata al campo unico.
 
-- Viewport virtuale che mostra una porzione del campo
-- Shot: wide, medium, macro (microscopio), pan
-- Il regista sceglie lo shot in base allo stato narrativo
-- Musica ritmica: tagli precisi a tempo
-- Musica eterea: deriva lenta e continua
-- Elemento random nella scelta
+- Colore A: elementi nati da onset sono rosso-arancio, decadono a grigio
+- Colore B: elementi nati da MIDI sono teal, decadono a grigio
+- Colore C: flood climax, tutti gli elementi virano a magenta
+- Interazione: A su B, B su A, sovrapposizioni, virata graduale verso C
+- Il Regista gestisce mutazioni (non scene): cambio primitivo dominante,
+  inversione, reset parziale, shift cromatico
+- Transizioni tra stati tramite dither dissolve
 
-**Test:** con il sandbox, simulare transizioni ambient → ritmico
-e verificare che il framing cambi di conseguenza. Verificare che
-lo zoom macro mostri dettaglio interessante.
+**Test nel sandbox:** onset ripetuti = zona A visibile. Note MIDI = zona B.
+I due colori coesistono. Intensity alta 3+ sec = virata C.
 
 ---
 
-## v0.6.0 — COLLEGAMENTO AUDIO REALE
+## v0.7.0 — IL DIRETTORE
 
-Si collega tutto: il motore audio reale (v0.2.0) alimenta
-il motore narrativo (v0.3.0) che guida le scene (v0.4.0)
-inquadrate dal direttore (v0.5.0).
+Camera 2D sul campo unico.
 
+- 4 shot: wide, medium, macro, pan
+- Lerp adattivo (veloce su ritmico, lento su ambient)
+- Macro con durata limitata e ritorno automatico
+- Lo zoom macro mostra la grana del dither e le generazioni
+- Logica decisionale integrata col regista
+
+**Test nel sandbox:** simulare ambient → ritmico e verificare
+che la camera cambi coerentemente. Macro su campo halftone = effetto microscopio.
+
+---
+
+## v0.8.0 — COLLEGAMENTO AUDIO REALE
+
+Unire tutto: audio stereo reale + DNA + generazioni + colore + camera.
+
+- src/ ristrutturato con moduli per campo, DNA, generazioni, colore, camera
 - index.html diventa il sistema completo
-- MIDI CC mappabili a parametri (opzionale, se utile)
-- Test con sessioni Ableton reali (ambient, ritmico, misto)
-- Tuning finale dei parametri con musica vera
-
-**Test:** sessione live completa con Ableton. Verificare reattivita',
-coerenza narrativa, assenza di stasi visiva, climax al momento giusto.
+- MIDI CC mapping opzionale
+- HUD minimale (tasto H) e debug (tasto D)
+- Test con sessioni Ableton reali
 
 ---
 
-## v0.7.0+ — RAFFINAMENTO
+## v0.9.0+ — RAFFINAMENTO
 
-- Glitch/artefatto come evento raro
-- Stratificazione e memoria visiva (tracce persistenti)
-- Nuove scene e texture
-- Selettore palette (dopo v1.0)
+- Tuning con musica reale
+- Nuovi primitivi
+- Comportamenti anomali (glitch strutturali, errori deliberati)
+- Ottimizzazione performance
 
 ---
 

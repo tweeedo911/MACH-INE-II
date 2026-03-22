@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>MACH:INE II — Sandbox v0.7.0</title>
+  <title>MACH:INE II — Sandbox v0.6.0</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
@@ -110,14 +110,6 @@
     #mutation-log .log-a { color: #FF4400; }
     #mutation-log .log-b { color: #00AACC; }
     #mutation-log .log-c { color: #E6007E; }
-    .cam-row { display: flex; gap: 4px; margin: 6px 0; }
-    .cam-btn {
-      flex: 1; background: #0d0d0d; color: #474747; border: 1px solid #1c1c1c;
-      font-family: inherit; font-size: 9px; letter-spacing: 0.15em;
-      padding: 5px 0; cursor: pointer; text-align: center;
-    }
-    .cam-btn:hover { color: #a8a8a8; border-color: #474747; }
-    .cam-btn.active { color: #e8e8e8; border-color: #636363; background: #1c1c1c; }
   </style>
 </head>
 <body>
@@ -171,15 +163,6 @@
   </div>
   <div id="mutation-log"></div>
 
-  <div class="section-title">CAMERA</div>
-  <div class="cam-row">
-    <button class="cam-btn active" data-cam="WIDE">WIDE</button>
-    <button class="cam-btn" data-cam="MEDIUM">MED</button>
-    <button class="cam-btn" data-cam="MACRO">MACRO</button>
-    <button class="cam-btn" data-cam="PAN">PAN</button>
-  </div>
-  <div class="toggle-row"><label>AUTO</label><button class="toggle-btn on" id="btn-autocam">ON</button></div>
-
   <div class="section-title">REGISTA</div>
   <div id="readout"></div>
   <div class="slider-row"><label>BASE</label><input type="range" id="sl-base" min="10" max="60" step="1" value="30"><span class="val" id="v-base">30s</span></div>
@@ -189,7 +172,7 @@
 
 <script>
 // ═══════════════════════════════════════════════════════════
-//  MACH:INE II — Sandbox v0.7.0: Il Direttore (Camera 2D)
+//  MACH:INE II — Sandbox v0.6.0: Colore e Mutazioni
 // ═══════════════════════════════════════════════════════════
 
 const CFG = {
@@ -201,14 +184,8 @@ const CFG = {
   densityBase: 0.0,
   densityMax: 0.45,
   brightnessDensityBoost: 0.15,
-  rhythmFlickerAmp: 0.05,
-  rhythmFlickerSpeed: 4,
-
-  // Zone seeds: irregular Voronoi-like regions
-  zoneCount: 8,                   // number of seed points
-  zoneDotSizeVariation: 0.4,
-  zoneDensityVariation: 0.25,
-  zoneFlickerPhaseSpread: 1.0,
+  rhythmFlickerAmp: 0.10,
+  rhythmFlickerSpeed: 8,
 
   // Generations
   maxEntities: 4000,
@@ -249,15 +226,11 @@ const CFG = {
   colorDecayStart: 0.5,       // age fraction where color starts fading
   colorDecayEnd: 0.85,        // age fraction where color is fully grey
 
-  // Camera
-  camLerpFast: 0.08,        // lerp when rhythmic (transition ~0.5s)
-  camLerpSlow: 0.02,        // lerp when ambient (transition ~2s)
-  camMediumZoom: 1.5,
-  camMacroZoom: 3,
-  camMacroReturnSec: 5,     // MACRO auto-returns after this many seconds
-  camPanSpeed: 0.3,
-  camPanOscAmp: 0.05,       // vertical sinusoidal oscillation amplitude
-  camPanOscSpeed: 0.5,      // oscillation Hz
+  // Framing
+  framingLerpSpeed: 0.02,
+  framingMacroZoom: 3,
+  framingMediumZoom: 1.5,
+  framingPanSpeed: 0.3,
 
   // Director
   directorBPM: 120,
@@ -338,49 +311,6 @@ let invertTarget = false;
 // Climax progress (0 = no climax shift, 1 = full C)
 let climaxProgress = 0;
 
-// Zone seeds: Voronoi-like irregular regions
-let zoneSeeds = null; // array of {x, y, dotSizeMul, flickerPhase, densityMul}
-
-function generateZoneGrid() {
-  zoneSeeds = [];
-  for (let i = 0; i < CFG.zoneCount; i++) {
-    zoneSeeds.push({
-      x: Math.random(),
-      y: Math.random(),
-      dotSizeMul: 1 + (Math.random() * 2 - 1) * CFG.zoneDotSizeVariation,
-      flickerPhase: Math.random() * CFG.zoneFlickerPhaseSpread,
-      densityMul: 1 + (Math.random() * 2 - 1) * CFG.zoneDensityVariation,
-    });
-  }
-  // Pre-bake a lookup grid for performance (avoid per-pixel nearest search)
-  const res = 24; // 24x24 lookup
-  zoneLookup = new Uint8Array(res * res);
-  for (let r = 0; r < res; r++) {
-    const ny = (r + 0.5) / res;
-    for (let c = 0; c < res; c++) {
-      const nx = (c + 0.5) / res;
-      let best = 0, bestD = 999;
-      for (let i = 0; i < zoneSeeds.length; i++) {
-        const dx = nx - zoneSeeds[i].x, dy = ny - zoneSeeds[i].y;
-        const d = dx * dx + dy * dy;
-        if (d < bestD) { bestD = d; best = i; }
-      }
-      zoneLookup[r * res + c] = best;
-    }
-  }
-  zoneLookupRes = res;
-}
-
-let zoneLookup = null, zoneLookupRes = 24;
-const defaultZone = { dotSizeMul: 1, flickerPhase: 0, densityMul: 1 };
-
-function getZone(nx, ny) {
-  if (!zoneSeeds) return defaultZone;
-  const c = Math.min(zoneLookupRes - 1, Math.floor(nx * zoneLookupRes));
-  const r = Math.min(zoneLookupRes - 1, Math.floor(ny * zoneLookupRes));
-  return zoneSeeds[zoneLookup[r * zoneLookupRes + c]];
-}
-
 // ═══════════════════════════════════════
 //  DNA System
 // ═══════════════════════════════════════
@@ -449,7 +379,6 @@ function generateDNA() {
   entities = [];
   fossils = [];
   climaxProgress = 0;
-  generateZoneGrid();
   initPrimitiveState();
 }
 
@@ -942,18 +871,11 @@ function computeDensity(nx, ny, px, py) {
   const intCurve = state.intensity * state.intensity;
   let d = CFG.densityBase + (CFG.densityMax - CFG.densityBase) * intCurve;
 
-  // Brightness boost scales with intensity (no free dots at silence)
-  d += state.brightness * CFG.brightnessDensityBoost * Math.max(0.1, state.intensity);
+  d += state.brightness * CFG.brightnessDensityBoost;
 
-  // Zone-specific flicker: each zone pulses at its own phase
-  const zone = getZone(nx, ny);
   if (state.rhythmicity > 0.01) {
-    const flickerT = globalTime * CFG.rhythmFlickerSpeed + zone.flickerPhase * Math.PI * 2;
-    d += Math.sin(flickerT * Math.PI * 2) * CFG.rhythmFlickerAmp * state.rhythmicity;
+    d += Math.sin(globalTime * CFG.rhythmFlickerSpeed * Math.PI * 2) * CFG.rhythmFlickerAmp * state.rhythmicity;
   }
-
-  // Zone density multiplier
-  d *= zone.densityMul;
 
   if (state.stereoWidth < 1) {
     const centerDist = Math.abs(nx - 0.5) * 2;
@@ -1062,6 +984,7 @@ function renderFieldFillRect(dotSize) {
   const cols = Math.ceil(W / dotSize);
   const rows = Math.ceil(H / dotSize);
   const fgVal = inverted ? 0 : 255;
+  const fgDefault = inverted ? '#000000' : '#FFFFFF';
   let lastFill = '';
 
   for (let row = 0; row < rows; row++) {
@@ -1071,20 +994,16 @@ function renderFieldFillRect(dotSize) {
       const px = col * dotSize;
       const nx = px / W;
 
+      // Invert dissolve: use Bayer threshold to determine which cells have flipped
       let cellInverted = inverted;
       if (invertDissolving) {
         const bayerVal = BAYER8[(row & 7) * 8 + (col & 7)];
         cellInverted = invertDissolveProgress > bayerVal ? invertTarget : inverted;
       }
 
-      // Zone: shift threshold so different zones activate at different densities
-      const zone = getZone(nx, ny);
-      const thresholdShift = (1 - zone.dotSizeMul) * 0.3; // bigger dots = lower threshold
-      const threshold = Math.max(0, Math.min(1, BAYER8[(row & 7) * 8 + (col & 7)] + thresholdShift));
+      const threshold = BAYER8[(row & 7) * 8 + (col & 7)];
       const density = computeDensity(nx, ny, px, py);
       if (density > threshold) {
-        // Zone dot-size: draw slightly bigger or smaller rects
-        const zDot = Math.max(1, Math.round(dotSize * zone.dotSizeMul));
         const cellColor = getCellColor(nx, ny, cellInverted ? 0 : 255);
         let fill;
         if (cellColor) {
@@ -1096,7 +1015,7 @@ function renderFieldFillRect(dotSize) {
           ctx.fillStyle = fill;
           lastFill = fill;
         }
-        ctx.fillRect(px, py, zDot, zDot);
+        ctx.fillRect(px, py, dotSize, dotSize);
       }
     }
   }
@@ -1125,16 +1044,14 @@ function renderFieldBuffer(dotSize) {
       const nx = col / bw;
       const px = col * dotSize;
 
+      // Invert dissolve
       let cellFg = fgVal;
       if (invertDissolving) {
         const bayerVal = BAYER8[(row & 7) * 8 + (col & 7)];
         cellFg = invertDissolveProgress > bayerVal ? (invertTarget ? 0 : 255) : fgVal;
       }
 
-      // Zone threshold shift
-      const zone = getZone(nx, ny);
-      const thresholdShift = (1 - zone.dotSizeMul) * 0.3;
-      const threshold = Math.max(0, Math.min(1, BAYER8[(row & 7) * 8 + (col & 7)] + thresholdShift));
+      const threshold = BAYER8[(row & 7) * 8 + (col & 7)];
       const density = computeDensity(nx, ny, px, py);
       const idx = (row * bw + col) * 4;
       if (density > threshold) {
@@ -1183,113 +1100,28 @@ function drawClimaxOverlay() {
 }
 
 // ═══════════════════════════════════════
-//  Camera (Framing)
+//  Framing
 // ═══════════════════════════════════════
 
-const framing = {
-  current: 'WIDE', targetZoom: 1, targetX: 0, targetY: 0,
-  zoom: 1, offsetX: 0, offsetY: 0,
-  panDirX: 0, panTime: 0,
-  macroTimer: 0,
-};
+const framing = { current: 'WIDE', targetZoom: 1, targetX: 0, targetY: 0, zoom: 1, offsetX: 0, offsetY: 0, panDirX: 0 };
 const FRAMING_TYPES = ['WIDE', 'MEDIUM', 'MACRO', 'PAN'];
-let autoCamera = true;
-
-// Find point of interest: center of mass of entity density
-function findPOI() {
-  let sumX = 0, sumY = 0, totalD = 0;
-  for (const e of entities) {
-    const ageNorm = e.age / e.maxAge;
-    if (ageNorm > 0.8) continue; // skip dying
-    const w = e.density * (1 - ageNorm);
-    sumX += e.x * w;
-    sumY += e.y * w;
-    totalD += w;
-  }
-  if (totalD < 0.01) return { x: 0.5, y: 0.5 };
-  return { x: sumX / totalD, y: sumY / totalD };
-}
 
 function setFraming(type) {
   framing.current = type;
-  const poi = findPOI();
-  framing.macroTimer = 0;
-
-  if (type === 'WIDE') {
-    framing.targetZoom = 1;
-    framing.targetX = 0;
-    framing.targetY = 0;
-    framing.panDirX = 0;
-  } else if (type === 'MEDIUM') {
-    framing.targetZoom = CFG.camMediumZoom;
-    // Center on POI
-    framing.targetX = (0.5 - poi.x) * W * 0.5;
-    framing.targetY = (0.5 - poi.y) * H * 0.5;
-    framing.panDirX = 0;
-  } else if (type === 'MACRO') {
-    framing.targetZoom = CFG.camMacroZoom;
-    // Zoom into POI
-    framing.targetX = (0.5 - poi.x) * W;
-    framing.targetY = (0.5 - poi.y) * H;
-    framing.panDirX = 0;
-    framing.macroTimer = CFG.camMacroReturnSec;
-  } else if (type === 'PAN') {
-    framing.targetZoom = 1.2;
-    framing.targetX = -W * 0.3;
-    framing.targetY = 0;
-    framing.panDirX = CFG.camPanSpeed * (0.3 + state.rhythmicity * 0.7);
-    framing.panTime = 0;
-  }
-
-  updateCamButtons();
+  if (type === 'WIDE') { framing.targetZoom = 1; framing.targetX = 0; framing.targetY = 0; framing.panDirX = 0; }
+  else if (type === 'MEDIUM') { framing.targetZoom = CFG.framingMediumZoom; framing.targetX = 0; framing.targetY = 0; framing.panDirX = 0; }
+  else if (type === 'MACRO') { framing.targetZoom = CFG.framingMacroZoom; framing.targetX = (Math.random()-0.5)*W*0.4; framing.targetY = (Math.random()-0.5)*H*0.4; framing.panDirX = 0; }
+  else if (type === 'PAN') { framing.targetZoom = 1.2; framing.targetX = -W*0.3; framing.targetY = 0; framing.panDirX = CFG.framingPanSpeed; }
 }
 
-function updateCamButtons() {
-  document.querySelectorAll('.cam-btn').forEach(b => {
-    b.classList.toggle('active', b.dataset.cam === framing.current);
-  });
-}
-
-function updateFraming(dt) {
-  // Adaptive lerp speed
-  const s = state.rhythmicity > 0.5 ? CFG.camLerpFast : CFG.camLerpSlow;
-
+function updateFraming() {
+  const s = CFG.framingLerpSpeed;
   framing.zoom += (framing.targetZoom - framing.zoom) * s;
   framing.offsetX += (framing.targetX - framing.offsetX) * s;
   framing.offsetY += (framing.targetY - framing.offsetY) * s;
-
-  // PAN drift + vertical oscillation
   if (framing.current === 'PAN') {
-    framing.panTime += dt;
     framing.targetX += framing.panDirX;
-    if (framing.targetX > W * 0.3 || framing.targetX < -W * 0.3) framing.panDirX *= -1;
-    framing.targetY = Math.sin(framing.panTime * CFG.camPanOscSpeed * Math.PI * 2) * H * CFG.camPanOscAmp;
-  }
-
-  // MACRO auto-return
-  if (framing.current === 'MACRO' && framing.macroTimer > 0) {
-    framing.macroTimer -= dt;
-    if (framing.macroTimer <= 0) {
-      // Return to appropriate shot
-      if (autoCamera) {
-        pickAutoShot();
-      } else {
-        setFraming('WIDE');
-      }
-    }
-  }
-}
-
-// Auto camera: pick shot based on current state
-function pickAutoShot() {
-  if (state.intensity < 0.3) {
-    setFraming('WIDE');
-  } else if (state.rhythmicity > 0.6 && Math.random() < 0.4) {
-    setFraming('MACRO');
-  } else if (state.trajectory === 0) {
-    setFraming('PAN');
-  } else {
-    setFraming('MEDIUM');
+    if (framing.targetX > W*0.3 || framing.targetX < -W*0.3) framing.panDirX *= -1;
   }
 }
 
@@ -1358,19 +1190,7 @@ function updateDirector(dt) {
     if (director.plateauTime > CFG.directorPlateauSec) prob += 0.3;
     prob += dirRandomFactor * Math.random();
     director.changeProb = Math.min(1, prob);
-    if (prob > CFG.directorChangeThreshold) {
-      // Camera integration: 60% mutation only, 25% mutation+camera, 15% camera only
-      const camRoll = Math.random();
-      if (camRoll < 0.60) {
-        executeMutation();
-      } else if (camRoll < 0.85) {
-        executeMutation();
-        if (autoCamera) pickAutoShot();
-      } else {
-        if (autoCamera) pickAutoShot();
-        logMutation('CAMERA', framing.current);
-      }
-    }
+    if (prob > CFG.directorChangeThreshold) executeMutation();
     computeNextCheck();
   }
 }
@@ -1509,9 +1329,7 @@ function updateReadout() {
     `SCENE TIME   <span class="h">${director.sceneTime.toFixed(1)}s</span>\n` +
     `NEXT CHECK   <span class="h">${Math.max(0, director.nextCheckIn).toFixed(1)}s</span>\n` +
     `LAST CHANGE  <span class="h">${director.lastChangeType}</span>\n` +
-    `CAMERA       <span class="h">${framing.current}</span> ×${framing.zoom.toFixed(1)}\n` +
-    `CAM OFFSET   <span class="h">${framing.offsetX.toFixed(0)},${framing.offsetY.toFixed(0)}</span>\n` +
-    (framing.macroTimer > 0 ? `MACRO RTN    <span class="h">${framing.macroTimer.toFixed(1)}s</span>\n` : '') +
+    `FRAMING      <span class="h">${framing.current}</span>\n` +
     `DOT SIZE     <span class="h">${dotSize}px</span>\n` +
     `CLIMAX       <span style="color:${climaxProgress > 0.1 ? '#E6007E' : '#2e2e2e'}">${climaxProgress > 0.1 ? (climaxProgress * 100).toFixed(0) + '%' : 'OFF'}</span>` +
     (autoMode ? `\nAUTO         <span class="h">${AUTO_PHASES[autoPhase].name}</span>` : '');
@@ -1610,22 +1428,6 @@ document.querySelectorAll('.mut-btn').forEach(btn => {
   });
 });
 
-// Camera buttons
-document.querySelectorAll('.cam-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    autoCamera = false;
-    document.getElementById('btn-autocam').textContent = 'OFF';
-    document.getElementById('btn-autocam').classList.remove('on');
-    setFraming(btn.dataset.cam);
-  });
-});
-
-document.getElementById('btn-autocam').addEventListener('click', () => {
-  autoCamera = !autoCamera;
-  document.getElementById('btn-autocam').textContent = autoCamera ? 'ON' : 'OFF';
-  document.getElementById('btn-autocam').classList.toggle('on', autoCamera);
-});
-
 const PRESETS = {
   silence:  { intensity: 0,    rhythmicity: 0,    brightness: 0.3,  trajectory: 0,  stereoWidth: 0.2 },
   ambient:  { intensity: 0.15, rhythmicity: 0.05, brightness: 0.35, trajectory: 0,  stereoWidth: 0.6 },
@@ -1672,7 +1474,7 @@ function loop(now) {
   updateAuto(dt);
   updateClimax(dt);
   updateDirector(dt);
-  updateFraming(dt);
+  updateFraming();
   updateInvertDissolve(dt);
   updatePrimitives(dt);
   updateEntities(dt);

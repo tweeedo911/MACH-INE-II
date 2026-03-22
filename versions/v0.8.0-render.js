@@ -58,8 +58,7 @@ export function renderFrame(_now, dt) {
     const nf = midi.noteFlashes[midi.noteFlashes.length - 1];
     if (nf.alpha > 0.9) { // freshly added
       const noteNorm = midi.lastNote.note / 127;
-      const velNorm = midi.lastNote.vel / 127;
-      const x = triggerMIDI(state, colorEnabled, noteNorm, velNorm);
+      const x = triggerMIDI(state, colorEnabled, noteNorm);
       addMidiColumn(x);
     }
   }
