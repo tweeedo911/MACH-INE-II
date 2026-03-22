@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>MACH:INE II — Sandbox v0.7.0</title>
+  <title>MACH:INE II — Sandbox v0.5.0</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
@@ -84,40 +84,6 @@
     .btn.auto-btn.running { border-color: #a8a8a8; color: #e8e8e8; background: #2e2e2e; }
     .btn.regen { border-color: #828282; color: #828282; }
     .btn.regen:hover { background: #474747; color: #e8e8e8; }
-    .color-toggles { display: flex; gap: 6px; margin: 6px 0; }
-    .color-toggle {
-      flex: 1; background: #1c1c1c; border: 1px solid #2e2e2e;
-      font-family: inherit; font-size: 10px; padding: 4px 0; cursor: pointer; text-align: center;
-    }
-    .color-toggle.on { border-width: 2px; }
-    .color-toggle[data-color="A"] { color: #FF4400; }
-    .color-toggle[data-color="A"].on { border-color: #FF4400; background: #1a0800; }
-    .color-toggle[data-color="B"] { color: #00AACC; }
-    .color-toggle[data-color="B"].on { border-color: #00AACC; background: #001a22; }
-    .color-toggle[data-color="C"] { color: #E6007E; }
-    .color-toggle[data-color="C"].on { border-color: #E6007E; background: #1a0010; }
-    .mut-row { display: flex; gap: 4px; margin: 4px 0; flex-wrap: wrap; }
-    .mut-btn {
-      flex: 1; min-width: 50px; background: #0d0d0d; color: #474747; border: 1px solid #1c1c1c;
-      font-family: inherit; font-size: 8px; letter-spacing: 0.1em;
-      padding: 5px 2px; cursor: pointer; text-align: center;
-    }
-    .mut-btn:hover { color: #a8a8a8; border-color: #474747; }
-    #mutation-log {
-      font-size: 9px; color: #474747; line-height: 1.5;
-      margin-top: 4px; max-height: 60px; overflow: hidden;
-    }
-    #mutation-log .log-a { color: #FF4400; }
-    #mutation-log .log-b { color: #00AACC; }
-    #mutation-log .log-c { color: #E6007E; }
-    .cam-row { display: flex; gap: 4px; margin: 6px 0; }
-    .cam-btn {
-      flex: 1; background: #0d0d0d; color: #474747; border: 1px solid #1c1c1c;
-      font-family: inherit; font-size: 9px; letter-spacing: 0.15em;
-      padding: 5px 0; cursor: pointer; text-align: center;
-    }
-    .cam-btn:hover { color: #a8a8a8; border-color: #474747; }
-    .cam-btn.active { color: #e8e8e8; border-color: #636363; background: #1c1c1c; }
   </style>
 </head>
 <body>
@@ -154,32 +120,6 @@
   <div class="toggle-row"><label>INV</label><button class="toggle-btn" id="btn-invert">OFF</button></div>
   <div class="btn-row"><button class="btn regen" id="btn-regen">REGEN DNA</button></div>
 
-  <div class="section-title">COLORE</div>
-  <div class="color-toggles">
-    <button class="color-toggle on" data-color="A">A</button>
-    <button class="color-toggle on" data-color="B">B</button>
-    <button class="color-toggle on" data-color="C">C</button>
-  </div>
-
-  <div class="section-title">MUTAZIONI</div>
-  <div class="mut-row">
-    <button class="mut-btn" data-mut="PRIMITIVE">PRIM</button>
-    <button class="mut-btn" data-mut="INVERT">INV</button>
-    <button class="mut-btn" data-mut="RESET_PARTIAL">RESET</button>
-    <button class="mut-btn" data-mut="CHROMATIC">CHROM</button>
-    <button class="mut-btn" data-mut="SCALE">SCALE</button>
-  </div>
-  <div id="mutation-log"></div>
-
-  <div class="section-title">CAMERA</div>
-  <div class="cam-row">
-    <button class="cam-btn active" data-cam="WIDE">WIDE</button>
-    <button class="cam-btn" data-cam="MEDIUM">MED</button>
-    <button class="cam-btn" data-cam="MACRO">MACRO</button>
-    <button class="cam-btn" data-cam="PAN">PAN</button>
-  </div>
-  <div class="toggle-row"><label>AUTO</label><button class="toggle-btn on" id="btn-autocam">ON</button></div>
-
   <div class="section-title">REGISTA</div>
   <div id="readout"></div>
   <div class="slider-row"><label>BASE</label><input type="range" id="sl-base" min="10" max="60" step="1" value="30"><span class="val" id="v-base">30s</span></div>
@@ -189,7 +129,7 @@
 
 <script>
 // ═══════════════════════════════════════════════════════════
-//  MACH:INE II — Sandbox v0.7.0: Il Direttore (Camera 2D)
+//  MACH:INE II — Sandbox v0.5.0: DNA + Generazioni
 // ═══════════════════════════════════════════════════════════
 
 const CFG = {
@@ -201,33 +141,27 @@ const CFG = {
   densityBase: 0.0,
   densityMax: 0.45,
   brightnessDensityBoost: 0.15,
-  rhythmFlickerAmp: 0.05,
-  rhythmFlickerSpeed: 4,
-
-  // Zone seeds: irregular Voronoi-like regions
-  zoneCount: 8,                   // number of seed points
-  zoneDotSizeVariation: 0.4,
-  zoneDensityVariation: 0.25,
-  zoneFlickerPhaseSpread: 1.0,
+  rhythmFlickerAmp: 0.10,
+  rhythmFlickerSpeed: 8,
 
   // Generations
   maxEntities: 4000,
-  birthRateMin: 0,
-  birthRateMax: 60,
-  onsetBurstCount: 40,
-  midiBurstCount: 15,
-  entityLifeMin: 4,
+  birthRateMin: 0,          // entities/sec at intensity 0
+  birthRateMax: 60,         // entities/sec at intensity 1
+  onsetBurstCount: 40,      // entities born on onset
+  midiBurstCount: 15,       // entities born on MIDI
+  entityLifeMin: 4,         // seconds
   entityLifeMax: 20,
-  fossilDuration: 3,
+  fossilDuration: 3,        // seconds for fossil residue
   fossilDensity: 0.03,
 
   // Ageing dot-size degeneration
-  ageDotSizeGrowth: 6,
+  ageDotSizeGrowth: 6,      // dot-size increase at max age
 
   // Stereo width
   widthCenterFalloff: 3.0,
 
-  // Onset wave
+  // Onset wave (visual feedback on top of entity birth)
   onsetWaveSpeed: 800,
   onsetWaveDensity: 0.7,
   onsetWaveWidth: 50,
@@ -240,48 +174,22 @@ const CFG = {
   // Climax
   climaxThresholdSec: 3,
   climaxIntensityThreshold: 0.85,
-  climaxShiftSpeed: 0.4,      // how fast entities shift to C per second
-  climaxDotCompress: 0.3,     // dot-size multiplier during climax
-  climaxDensityBoost: 0.25,
-  climaxCollapseSpeed: 3.0,   // how fast entities die after climax ends
+  climaxPulseSpeed: 0.03,
 
-  // Color decay
-  colorDecayStart: 0.5,       // age fraction where color starts fading
-  colorDecayEnd: 0.85,        // age fraction where color is fully grey
-
-  // Camera
-  camLerpFast: 0.08,        // lerp when rhythmic (transition ~0.5s)
-  camLerpSlow: 0.02,        // lerp when ambient (transition ~2s)
-  camMediumZoom: 1.5,
-  camMacroZoom: 3,
-  camMacroReturnSec: 5,     // MACRO auto-returns after this many seconds
-  camPanSpeed: 0.3,
-  camPanOscAmp: 0.05,       // vertical sinusoidal oscillation amplitude
-  camPanOscSpeed: 0.5,      // oscillation Hz
+  // Framing
+  framingLerpSpeed: 0.02,
+  framingMacroZoom: 3,
+  framingMediumZoom: 1.5,
+  framingPanSpeed: 0.3,
 
   // Director
   directorBPM: 120,
   directorPlateauSec: 5,
   directorChangeThreshold: 0.6,
 
-  // Chromatic shift duration
-  chromaticShiftDuration: 20,
-
-  // Invert dissolve
-  invertDissolveDuration: 1.0,
-
   // Render
   dotSizeBufferThreshold: 6,
 };
-
-// ═══════════════════════════════════════
-//  Color constants
-// ═══════════════════════════════════════
-
-const COLOR_A = [255, 68, 0];     // #FF4400
-const COLOR_B = [0, 170, 204];    // #00AACC
-const COLOR_C = [230, 0, 126];    // #E6007E
-const COLOR_MAP = { A: COLOR_A, B: COLOR_B, C: COLOR_C };
 
 // ═══════════════════════════════════════
 //  Bayer 8x8
@@ -323,64 +231,6 @@ let dotSizeOverride = 0;
 let globalTime = 0;
 let evoSpeed = 1;
 
-// Color toggles
-const colorEnabled = { A: true, B: true, C: true };
-
-// Chromatic shift state
-let chromaticMode = 'normal'; // 'normal', 'all-A', 'all-B', 'grey'
-let chromaticTimer = 0;
-
-// Invert dissolve
-let invertDissolving = false;
-let invertDissolveProgress = 0; // 0-1
-let invertTarget = false;
-
-// Climax progress (0 = no climax shift, 1 = full C)
-let climaxProgress = 0;
-
-// Zone seeds: Voronoi-like irregular regions
-let zoneSeeds = null; // array of {x, y, dotSizeMul, flickerPhase, densityMul}
-
-function generateZoneGrid() {
-  zoneSeeds = [];
-  for (let i = 0; i < CFG.zoneCount; i++) {
-    zoneSeeds.push({
-      x: Math.random(),
-      y: Math.random(),
-      dotSizeMul: 1 + (Math.random() * 2 - 1) * CFG.zoneDotSizeVariation,
-      flickerPhase: Math.random() * CFG.zoneFlickerPhaseSpread,
-      densityMul: 1 + (Math.random() * 2 - 1) * CFG.zoneDensityVariation,
-    });
-  }
-  // Pre-bake a lookup grid for performance (avoid per-pixel nearest search)
-  const res = 24; // 24x24 lookup
-  zoneLookup = new Uint8Array(res * res);
-  for (let r = 0; r < res; r++) {
-    const ny = (r + 0.5) / res;
-    for (let c = 0; c < res; c++) {
-      const nx = (c + 0.5) / res;
-      let best = 0, bestD = 999;
-      for (let i = 0; i < zoneSeeds.length; i++) {
-        const dx = nx - zoneSeeds[i].x, dy = ny - zoneSeeds[i].y;
-        const d = dx * dx + dy * dy;
-        if (d < bestD) { bestD = d; best = i; }
-      }
-      zoneLookup[r * res + c] = best;
-    }
-  }
-  zoneLookupRes = res;
-}
-
-let zoneLookup = null, zoneLookupRes = 24;
-const defaultZone = { dotSizeMul: 1, flickerPhase: 0, densityMul: 1 };
-
-function getZone(nx, ny) {
-  if (!zoneSeeds) return defaultZone;
-  const c = Math.min(zoneLookupRes - 1, Math.floor(nx * zoneLookupRes));
-  const r = Math.min(zoneLookupRes - 1, Math.floor(ny * zoneLookupRes));
-  return zoneSeeds[zoneLookup[r * zoneLookupRes + c]];
-}
-
 // ═══════════════════════════════════════
 //  DNA System
 // ═══════════════════════════════════════
@@ -392,6 +242,7 @@ const ORIENTATIONS = ['horizontal', 'vertical', 'diagonal'];
 let dna = null;
 
 function generateDNA() {
+  // Pick 2-3 random primitives
   const count = 2 + Math.floor(Math.random() * 2);
   const shuffled = [...PRIM_TYPES].sort(() => Math.random() - 0.5);
   const prims = shuffled.slice(0, count);
@@ -406,6 +257,7 @@ function generateDNA() {
     evolutionSpeed: 0.4 + Math.random() * 1.2,
     invertProbability: Math.random() * 0.2,
 
+    // Per-primitive params
     banda: {
       orientation: ORIENTATIONS[Math.floor(Math.random() * ORIENTATIONS.length)],
       count: 1 + Math.floor(Math.random() * 4),
@@ -446,15 +298,14 @@ function generateDNA() {
     },
   };
 
+  // Reset all systems
   entities = [];
   fossils = [];
-  climaxProgress = 0;
-  generateZoneGrid();
   initPrimitiveState();
 }
 
 // ═══════════════════════════════════════
-//  Primitive state
+//  Primitive state (positions, etc.)
 // ═══════════════════════════════════════
 
 let primState = {};
@@ -470,18 +321,26 @@ function initPrimitiveState() {
     strisciaPhase: 0,
   };
 
+  // Init bandas
   if (dna.primitives.includes('BANDA')) {
     for (let i = 0; i < dna.banda.count; i++) {
-      primState.bandas.push({ position: Math.random(), direction: (Math.random() > 0.5 ? 1 : -1) });
+      primState.bandas.push({
+        position: Math.random(),
+        direction: (Math.random() > 0.5 ? 1 : -1),
+      });
     }
   }
+
+  // Init bloccos
   if (dna.primitives.includes('BLOCCO')) {
     for (let i = 0; i < dna.blocco.count; i++) {
       primState.bloccos.push({
-        x: 0.05 + Math.random() * 0.7, y: 0.05 + Math.random() * 0.7,
+        x: 0.05 + Math.random() * 0.7,
+        y: 0.05 + Math.random() * 0.7,
         w: dna.blocco.sizeRange[0] + Math.random() * (dna.blocco.sizeRange[1] - dna.blocco.sizeRange[0]),
         h: dna.blocco.sizeRange[0] + Math.random() * (dna.blocco.sizeRange[1] - dna.blocco.sizeRange[0]),
-        life: 3 + Math.random() * 8, age: Math.random() * 5,
+        life: 3 + Math.random() * 8,
+        age: Math.random() * 5,
       });
     }
   }
@@ -494,12 +353,14 @@ function initPrimitiveState() {
 function updatePrimitives(dt) {
   const speed = (0.05 + state.rhythmicity * 0.5) * evoSpeed;
 
+  // BANDA
   for (const b of primState.bandas) {
     b.position += b.direction * dna.banda.speed * speed * dt;
     if (b.position > 1) { b.position = 1; b.direction = -1; }
     if (b.position < 0) { b.position = 0; b.direction = 1; }
   }
 
+  // BLOCCO
   for (let i = 0; i < primState.bloccos.length; i++) {
     const b = primState.bloccos[i];
     b.age += dt * evoSpeed;
@@ -513,6 +374,7 @@ function updatePrimitives(dt) {
     }
   }
 
+  // VUOTO
   const v = primState.vuotoPos;
   v.vx += (Math.random() - 0.5) * 0.01;
   v.vy += (Math.random() - 0.5) * 0.01;
@@ -522,6 +384,7 @@ function updatePrimitives(dt) {
   v.x = Math.max(0.1, Math.min(0.9, v.x));
   v.y = Math.max(0.1, Math.min(0.9, v.y));
 
+  // FRONTE
   const fSpeed = dna.fronte.speed * speed;
   if (state.trajectory === 1) primState.fronteDir = 1;
   else if (state.trajectory === -1) primState.fronteDir = -1;
@@ -529,6 +392,7 @@ function updatePrimitives(dt) {
   if (primState.frontePos > 1) { primState.frontePos = 1; primState.fronteDir = -1; }
   if (primState.frontePos < 0) { primState.frontePos = 0; primState.fronteDir = 1; }
 
+  // SCIAME
   const sc = primState.sciameCenter;
   sc.vx += (Math.random() - 0.5) * state.rhythmicity * 0.05;
   sc.vy += (Math.random() - 0.5) * state.rhythmicity * 0.05;
@@ -539,6 +403,7 @@ function updatePrimitives(dt) {
   sc.x = Math.max(0.1, Math.min(0.9, sc.x));
   sc.y = Math.max(0.1, Math.min(0.9, sc.y));
 
+  // STRISCIA
   primState.strisciaPhase += state.rhythmicity * speed * dt * 2;
 }
 
@@ -548,15 +413,17 @@ function updatePrimitives(dt) {
 
 function primitiveDensity(nx, ny) {
   let d = 0;
+
   if (!dna) return d;
   const prims = dna.primitives;
 
+  // BANDA
   if (prims.includes('BANDA')) {
     for (const b of primState.bandas) {
       let coord;
       if (dna.banda.orientation === 'horizontal') coord = ny;
       else if (dna.banda.orientation === 'vertical') coord = nx;
-      else coord = (nx + ny) * 0.5;
+      else coord = (nx + ny) * 0.5; // diagonal
       const halfW = (dna.banda.widthRange[0] + (dna.banda.widthRange[1] - dna.banda.widthRange[0]) * state.intensity) * 0.5;
       if (Math.abs(coord - b.position) < halfW) {
         d = Math.max(d, 0.7 * state.intensity);
@@ -564,6 +431,7 @@ function primitiveDensity(nx, ny) {
     }
   }
 
+  // BLOCCO
   if (prims.includes('BLOCCO')) {
     for (const b of primState.bloccos) {
       const fadeIn = 0.5, fadeOut = 0.5;
@@ -578,13 +446,15 @@ function primitiveDensity(nx, ny) {
     }
   }
 
+  // VETTORE
   if (prims.includes('VETTORE')) {
     const a = dna.vettore.angle;
-    const proj = nx * Math.cos(a) + ny * Math.sin(a);
+    const proj = nx * Math.cos(a) + ny * Math.sin(a); // 0-~1.4
     const grad = proj * dna.vettore.strength * state.intensity;
     d += grad * 0.5;
   }
 
+  // VUOTO
   if (prims.includes('VUOTO')) {
     const vp = primState.vuotoPos;
     const vs = dna.vuoto.size;
@@ -594,22 +464,25 @@ function primitiveDensity(nx, ny) {
     } else if (dna.vuoto.shape === 'circle') {
       const dx = nx - vp.x, dy = ny - vp.y;
       inside = Math.sqrt(dx * dx + dy * dy) < vs;
-    } else {
+    } else { // band
       inside = Math.abs(ny - vp.y) < vs * 0.3;
     }
-    if (inside) d = -1;
+    if (inside) d = -1; // force zero (handled below)
   }
 
+  // FRONTE
   if (prims.includes('FRONTE')) {
     const coord = dna.fronte.orientation === 'horizontal' ? ny : nx;
     if (coord < primState.frontePos) {
       d += 0.3 * state.intensity;
     } else {
+      // Behind front: residue
       const dist = coord - primState.frontePos;
       if (dist < 0.05) d += 0.08;
     }
   }
 
+  // STRISCIA
   if (prims.includes('STRISCIA')) {
     let coord;
     if (dna.striscia.orientation === 'horizontal') coord = ny;
@@ -628,6 +501,7 @@ function primitiveDensity(nx, ny) {
   return d;
 }
 
+// Check if inside VUOTO
 function isInVuoto(nx, ny) {
   if (!dna || !dna.primitives.includes('VUOTO')) return false;
   const vp = primState.vuotoPos;
@@ -638,32 +512,39 @@ function isInVuoto(nx, ny) {
 }
 
 // ═══════════════════════════════════════
-//  Entities (generations) — with color
+//  Entities (generations)
 // ═══════════════════════════════════════
 
 let entities = [];
-let fossils = [];
+let fossils = [];  // dead entities leave residue
 let birthAccum = 0;
 
 function birthPosition() {
   let x = Math.random(), y = Math.random();
+
+  // Frequency mapping from DNA
   if (dna && dna.freqMapping === 'horizontal') {
-    x = 0.1 + Math.random() * 0.8;
+    x = 0.1 + Math.random() * 0.8; // spread
   } else if (dna && dna.freqMapping === 'radial') {
     const angle = Math.random() * Math.PI * 2;
     const r = 0.1 + Math.random() * 0.35;
     x = 0.5 + Math.cos(angle) * r;
     y = 0.5 + Math.sin(angle) * r;
   }
+
+  // Stereo width
   if (state.stereoWidth < 1) {
     x = 0.5 + (x - 0.5) * (0.2 + state.stereoWidth * 0.8);
   }
+
+  // SCIAME: birth near swarm center
   if (dna && dna.primitives.includes('SCIAME')) {
     const sc = primState.sciameCenter;
     const disp = (1 - dna.sciame.cohesion) * (0.15 + state.stereoWidth * 0.3);
     x = sc.x + (Math.random() - 0.5) * disp;
     y = sc.y + (Math.random() - 0.5) * disp;
   }
+
   return { x: Math.max(0, Math.min(1, x)), y: Math.max(0, Math.min(1, y)) };
 }
 
@@ -676,8 +557,7 @@ function spawnEntity(color) {
     age: 0,
     maxAge: life / (dna ? dna.evolutionSpeed : 1),
     dotSizeOffset: 0,
-    color: color || null,      // null, 'A', 'B', 'C'
-    colorAlpha: color ? 1.0 : 0, // color intensity (fades with age)
+    color: color || null,
   };
 }
 
@@ -688,79 +568,42 @@ function updateEntities(dt) {
   if (state.intensity > 0.01 && entities.length < CFG.maxEntities) {
     const rate = CFG.birthRateMin + (CFG.birthRateMax - CFG.birthRateMin) * state.intensity;
     birthAccum += rate * dt;
-    // Determine color for natural births based on chromatic mode
-    let birthColor = null;
-    if (chromaticMode === 'all-A' && colorEnabled.A) birthColor = 'A';
-    else if (chromaticMode === 'all-B' && colorEnabled.B) birthColor = 'B';
     while (birthAccum >= 1 && entities.length < CFG.maxEntities) {
-      entities.push(spawnEntity(birthColor));
+      entities.push(spawnEntity(null));
       birthAccum -= 1;
     }
   }
 
-  // Climax collapse: if climax just ended, accelerate death
-  const postClimax = !inClimax && climaxProgress > 0.1;
-
   // Update
   for (let i = entities.length - 1; i >= 0; i--) {
     const e = entities[i];
-
-    // Accelerate ageing during post-climax collapse
-    if (postClimax) {
-      e.age += dt * CFG.climaxCollapseSpeed;
-    }
-
     e.age += evoDt;
-    const ageNorm = e.age / e.maxAge;
+    const ageNorm = e.age / e.maxAge; // 0-1
 
+    // Kill if in VUOTO
     if (isInVuoto(e.x, e.y)) {
-      e.age = e.maxAge;
+      e.age = e.maxAge; // force death
     }
 
     // Lifecycle phases
     if (ageNorm < 0.2) {
+      // Growing
       e.dotSizeOffset = 0;
     } else if (ageNorm < 0.6) {
+      // Mature
       e.dotSizeOffset = 0;
     } else if (ageNorm < 0.9) {
+      // Ageing: dot-size grows
       const ageFrac = (ageNorm - 0.6) / 0.3;
       e.dotSizeOffset = ageFrac * CFG.ageDotSizeGrowth;
     } else {
+      // Dying
       e.dotSizeOffset = CFG.ageDotSizeGrowth;
-    }
-
-    // Color decay: fade color toward grey as entity ages
-    if (e.color) {
-      if (ageNorm < CFG.colorDecayStart) {
-        e.colorAlpha = 1.0;
-      } else if (ageNorm < CFG.colorDecayEnd) {
-        e.colorAlpha = 1.0 - (ageNorm - CFG.colorDecayStart) / (CFG.colorDecayEnd - CFG.colorDecayStart);
-      } else {
-        e.colorAlpha = 0;
-      }
-    }
-
-    // Climax: shift entity color toward C
-    if (inClimax && colorEnabled.C) {
-      if (!e.color) {
-        e.color = 'C';
-        e.colorAlpha = 0;
-      }
-      if (e.color !== 'C') {
-        // Gradually shift: blend existing color toward C
-        e.colorAlpha *= (1 - CFG.climaxShiftSpeed * dt);
-        if (e.colorAlpha < 0.1) {
-          e.color = 'C';
-          e.colorAlpha = 0.1;
-        }
-      }
-      if (e.color === 'C') {
-        e.colorAlpha = Math.min(1, e.colorAlpha + CFG.climaxShiftSpeed * dt);
-      }
     }
 
     // Remove dead
     if (ageNorm >= 1) {
+      // Leave fossil
       fossils.push({ x: e.x, y: e.y, density: CFG.fossilDensity, life: CFG.fossilDuration, age: 0 });
       entities.splice(i, 1);
     }
@@ -771,54 +614,25 @@ function updateEntities(dt) {
     fossils[i].age += dt;
     if (fossils[i].age >= fossils[i].life) fossils.splice(i, 1);
   }
-
-  // Chromatic timer
-  if (chromaticMode !== 'normal') {
-    chromaticTimer -= dt;
-    if (chromaticTimer <= 0) {
-      chromaticMode = 'normal';
-      chromaticTimer = 0;
-    }
-  }
 }
 
 function triggerOnset() {
-  const color = colorEnabled.A ? 'A' : null;
+  // Burst of entities
   for (let i = 0; i < CFG.onsetBurstCount && entities.length < CFG.maxEntities; i++) {
-    entities.push(spawnEntity(color));
+    entities.push(spawnEntity(null));
   }
-  // Color contamination: nearby B entities shift toward A
-  if (colorEnabled.A) {
-    const wave = {
-      cx: W * (0.2 + Math.random() * 0.6),
-      cy: H * (0.2 + Math.random() * 0.6),
-    };
-    const waveNx = wave.cx / W, waveNy = wave.cy / H;
-    for (const e of entities) {
-      if (e.color === 'B') {
-        const dx = e.x - waveNx, dy = e.y - waveNy;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist < 0.15) {
-          e.color = 'A';
-          e.colorAlpha = Math.max(0.3, e.colorAlpha * 0.5);
-        }
-      }
-    }
-    onsetWaves.push({ cx: wave.cx, cy: wave.cy, radius: 0, alpha: 1 });
-  } else {
-    onsetWaves.push({
-      cx: W * (0.2 + Math.random() * 0.6),
-      cy: H * (0.2 + Math.random() * 0.6),
-      radius: 0, alpha: 1,
-    });
-  }
+  // Also add wave
+  onsetWaves.push({
+    cx: W * (0.2 + Math.random() * 0.6),
+    cy: H * (0.2 + Math.random() * 0.6),
+    radius: 0, alpha: 1,
+  });
 }
 
 function triggerMIDI() {
   const x = Math.random();
-  const color = colorEnabled.B ? 'B' : null;
   for (let i = 0; i < CFG.midiBurstCount && entities.length < CFG.maxEntities; i++) {
-    const e = spawnEntity(color);
+    const e = spawnEntity(null);
     e.x = x + (Math.random() - 0.5) * 0.05;
     entities.push(e);
   }
@@ -826,62 +640,41 @@ function triggerMIDI() {
 }
 
 // ═══════════════════════════════════════
-//  Entity density + color grid
+//  Entity density contribution
 // ═══════════════════════════════════════
 
+// Spatial hash for entity density
 let entityGrid = null;
-let entityColorGrid = null;   // 0=none, 1=A, 2=B, 3=C
-let entityColorAlphaGrid = null;
 let entityGridCols = 0, entityGridRows = 0;
-const ENTITY_GRID_CELL = 32;
-
-const COLOR_ID = { A: 1, B: 2, C: 3 };
+const ENTITY_GRID_CELL = 32; // px per cell
 
 function buildEntityGrid() {
   entityGridCols = Math.ceil(W / ENTITY_GRID_CELL);
   entityGridRows = Math.ceil(H / ENTITY_GRID_CELL);
-  const cells = entityGridCols * entityGridRows;
-
-  if (!entityGrid || entityGrid.length !== cells) {
-    entityGrid = new Float32Array(cells);
-    entityColorGrid = new Uint8Array(cells);
-    entityColorAlphaGrid = new Float32Array(cells);
-  }
+  entityGrid = new Float32Array(entityGridCols * entityGridRows);
   entityGrid.fill(0);
-  entityColorGrid.fill(0);
-  entityColorAlphaGrid.fill(0);
 
-  // Track youngest entity per cell for color priority
-  const youngestAge = new Float32Array(cells);
-  youngestAge.fill(999);
-
+  // Accumulate entity density into grid
   for (const e of entities) {
     const ageNorm = e.age / e.maxAge;
     let eDensity = e.density;
 
+    // Lifecycle density curve
     if (ageNorm < 0.2) {
-      eDensity *= ageNorm / 0.2;
+      eDensity *= ageNorm / 0.2; // fade in
     } else if (ageNorm > 0.6) {
       const fadeFrac = (ageNorm - 0.6) / 0.4;
-      eDensity *= 1 - fadeFrac * 0.8;
+      eDensity *= 1 - fadeFrac * 0.8; // fade out
     }
 
     const col = Math.floor(e.x * W / ENTITY_GRID_CELL);
     const row = Math.floor(e.y * H / ENTITY_GRID_CELL);
     if (col >= 0 && col < entityGridCols && row >= 0 && row < entityGridRows) {
-      const idx = row * entityGridCols + col;
-      entityGrid[idx] += eDensity;
-
-      // Color: youngest entity wins
-      if (e.color && e.colorAlpha > 0.01 && ageNorm < youngestAge[idx]) {
-        youngestAge[idx] = ageNorm;
-        entityColorGrid[idx] = COLOR_ID[e.color] || 0;
-        entityColorAlphaGrid[idx] = e.colorAlpha;
-      }
+      entityGrid[row * entityGridCols + col] += eDensity;
     }
   }
 
-  // Fossils (no color)
+  // Fossils
   for (const f of fossils) {
     const fadeFrac = f.age / f.life;
     const col = Math.floor(f.x * W / ENTITY_GRID_CELL);
@@ -898,15 +691,6 @@ function entityDensityAt(nx, ny) {
   const row = Math.floor(ny * H / ENTITY_GRID_CELL);
   if (col < 0 || col >= entityGridCols || row < 0 || row >= entityGridRows) return 0;
   return Math.min(1, entityGrid[row * entityGridCols + col]);
-}
-
-function entityColorAt(nx, ny) {
-  if (!entityColorGrid) return [0, 0];
-  const col = Math.floor(nx * W / ENTITY_GRID_CELL);
-  const row = Math.floor(ny * H / ENTITY_GRID_CELL);
-  if (col < 0 || col >= entityGridCols || row < 0 || row >= entityGridRows) return [0, 0];
-  const idx = row * entityGridCols + col;
-  return [entityColorGrid[idx], entityColorAlphaGrid[idx]];
 }
 
 // ═══════════════════════════════════════
@@ -937,38 +721,40 @@ function updateMidi() {
 // ═══════════════════════════════════════
 
 function computeDensity(nx, ny, px, py) {
+  // VUOTO: force zero
   if (isInVuoto(nx, ny)) return 0;
 
-  const intCurve = state.intensity * state.intensity;
+  // Base — exponential curve: sparse at low intensity, fills up organically
+  const intCurve = state.intensity * state.intensity; // quadratic ramp
   let d = CFG.densityBase + (CFG.densityMax - CFG.densityBase) * intCurve;
 
-  // Brightness boost scales with intensity (no free dots at silence)
-  d += state.brightness * CFG.brightnessDensityBoost * Math.max(0.1, state.intensity);
+  // Brightness boost
+  d += state.brightness * CFG.brightnessDensityBoost;
 
-  // Zone-specific flicker: each zone pulses at its own phase
-  const zone = getZone(nx, ny);
+  // Rhythmic flicker
   if (state.rhythmicity > 0.01) {
-    const flickerT = globalTime * CFG.rhythmFlickerSpeed + zone.flickerPhase * Math.PI * 2;
-    d += Math.sin(flickerT * Math.PI * 2) * CFG.rhythmFlickerAmp * state.rhythmicity;
+    d += Math.sin(globalTime * CFG.rhythmFlickerSpeed * Math.PI * 2) * CFG.rhythmFlickerAmp * state.rhythmicity;
   }
 
-  // Zone density multiplier
-  d *= zone.densityMul;
-
+  // Stereo width
   if (state.stereoWidth < 1) {
     const centerDist = Math.abs(nx - 0.5) * 2;
     d *= 1 - Math.pow(centerDist, CFG.widthCenterFalloff * (1 - state.stereoWidth)) * (1 - state.stereoWidth);
   }
 
+  // Trajectory gradient
   if (state.trajectory === 1) d += (1 - ny) * 0.15 * state.intensity;
   else if (state.trajectory === -1) d += ny * 0.15 * state.intensity;
 
+  // Primitive density
   const pd = primitiveDensity(nx, ny);
-  if (pd === -1) return 0;
+  if (pd === -1) return 0; // VUOTO override
   d += pd;
 
+  // Entity density
   d += entityDensityAt(nx, ny);
 
+  // Onset waves
   for (const w of onsetWaves) {
     const dx = px - w.cx, dy = py - w.cy;
     const dist = Math.sqrt(dx * dx + dy * dy);
@@ -978,6 +764,7 @@ function computeDensity(nx, ny, px, py) {
     }
   }
 
+  // MIDI columns
   for (const m of midiColumns) {
     const halfW = CFG.midiColumnWidth * 0.5;
     if (Math.abs(nx - m.x) < halfW) {
@@ -985,37 +772,11 @@ function computeDensity(nx, ny, px, py) {
     }
   }
 
-  // Climax density boost
-  if (inClimax) {
-    d += CFG.climaxDensityBoost * climaxProgress;
-  }
-
   return Math.max(0, Math.min(1, d));
 }
 
 // ═══════════════════════════════════════
-//  Color computation for a cell
-// ═══════════════════════════════════════
-
-function getCellColor(nx, ny, fgVal) {
-  const [colorId, colorAlpha] = entityColorAt(nx, ny);
-  if (colorId === 0 || colorAlpha < 0.01) return null;
-
-  let rgb;
-  if (colorId === 1) rgb = COLOR_A;
-  else if (colorId === 2) rgb = COLOR_B;
-  else if (colorId === 3) rgb = COLOR_C;
-  else return null;
-
-  // Lerp between fg (white/black) and the color
-  const r = Math.round(fgVal + (rgb[0] - fgVal) * colorAlpha);
-  const g = Math.round(fgVal + (rgb[1] - fgVal) * colorAlpha);
-  const b = Math.round(fgVal + (rgb[2] - fgVal) * colorAlpha);
-  return [r, g, b];
-}
-
-// ═══════════════════════════════════════
-//  MATRICE rendering
+//  MATRICE rendering (special: uses text)
 // ═══════════════════════════════════════
 
 function drawMatrice() {
@@ -1025,6 +786,7 @@ function drawMatrice() {
   const cols = Math.ceil(W / cs);
   const rows = Math.ceil(H / cs);
   const chars = dna.matrice.chars;
+  const fg = inverted ? '#000' : '#fff';
 
   ctx.font = `${cs - 2}px 'Courier New', monospace`;
   ctx.textAlign = 'center';
@@ -1034,35 +796,31 @@ function drawMatrice() {
     const ny = row / rows;
     for (let col = 0; col < cols; col++) {
       const nx = col / cols;
+
+      // Visibility based on density
       const d = entityDensityAt(nx, ny) + state.intensity * 0.3;
       if (d < 0.15) continue;
       if (Math.random() > d) continue;
 
+      // Rhythmicity drives character change frequency
       const charIdx = Math.floor((globalTime * state.rhythmicity * 3 + col * 7 + row * 13) % chars.length);
       const alpha = Math.min(1, d) * 0.7;
 
-      // Color
-      const fgVal = inverted ? 0 : 255;
-      const cellColor = getCellColor(nx, ny, fgVal);
-      if (cellColor) {
-        ctx.fillStyle = `rgba(${cellColor[0]},${cellColor[1]},${cellColor[2]},${alpha})`;
-      } else {
-        ctx.fillStyle = inverted ? `rgba(0,0,0,${alpha})` : `rgba(255,255,255,${alpha})`;
-      }
+      ctx.fillStyle = inverted ? `rgba(0,0,0,${alpha})` : `rgba(255,255,255,${alpha})`;
       ctx.fillText(chars[charIdx], col * cs + cs / 2, row * cs + cs / 2);
     }
   }
 }
 
 // ═══════════════════════════════════════
-//  Render field — color-aware
+//  Render field
 // ═══════════════════════════════════════
 
 function renderFieldFillRect(dotSize) {
   const cols = Math.ceil(W / dotSize);
   const rows = Math.ceil(H / dotSize);
-  const fgVal = inverted ? 0 : 255;
-  let lastFill = '';
+  const fg = inverted ? '#000000' : '#FFFFFF';
+  ctx.fillStyle = fg;
 
   for (let row = 0; row < rows; row++) {
     const py = row * dotSize;
@@ -1070,33 +828,10 @@ function renderFieldFillRect(dotSize) {
     for (let col = 0; col < cols; col++) {
       const px = col * dotSize;
       const nx = px / W;
-
-      let cellInverted = inverted;
-      if (invertDissolving) {
-        const bayerVal = BAYER8[(row & 7) * 8 + (col & 7)];
-        cellInverted = invertDissolveProgress > bayerVal ? invertTarget : inverted;
-      }
-
-      // Zone: shift threshold so different zones activate at different densities
-      const zone = getZone(nx, ny);
-      const thresholdShift = (1 - zone.dotSizeMul) * 0.3; // bigger dots = lower threshold
-      const threshold = Math.max(0, Math.min(1, BAYER8[(row & 7) * 8 + (col & 7)] + thresholdShift));
+      const threshold = BAYER8[(row & 7) * 8 + (col & 7)];
       const density = computeDensity(nx, ny, px, py);
       if (density > threshold) {
-        // Zone dot-size: draw slightly bigger or smaller rects
-        const zDot = Math.max(1, Math.round(dotSize * zone.dotSizeMul));
-        const cellColor = getCellColor(nx, ny, cellInverted ? 0 : 255);
-        let fill;
-        if (cellColor) {
-          fill = `rgb(${cellColor[0]},${cellColor[1]},${cellColor[2]})`;
-        } else {
-          fill = cellInverted ? '#000000' : '#FFFFFF';
-        }
-        if (fill !== lastFill) {
-          ctx.fillStyle = fill;
-          lastFill = fill;
-        }
-        ctx.fillRect(px, py, zDot, zDot);
+        ctx.fillRect(px, py, dotSize, dotSize);
       }
     }
   }
@@ -1116,7 +851,7 @@ function renderFieldBuffer(dotSize) {
 
   const imgData = bufferCtx.createImageData(bw, bh);
   const data = imgData.data;
-  const fgVal = inverted ? 0 : 255;
+  const fg = inverted ? 0 : 255;
 
   for (let row = 0; row < bh; row++) {
     const ny = row / bh;
@@ -1124,27 +859,11 @@ function renderFieldBuffer(dotSize) {
     for (let col = 0; col < bw; col++) {
       const nx = col / bw;
       const px = col * dotSize;
-
-      let cellFg = fgVal;
-      if (invertDissolving) {
-        const bayerVal = BAYER8[(row & 7) * 8 + (col & 7)];
-        cellFg = invertDissolveProgress > bayerVal ? (invertTarget ? 0 : 255) : fgVal;
-      }
-
-      // Zone threshold shift
-      const zone = getZone(nx, ny);
-      const thresholdShift = (1 - zone.dotSizeMul) * 0.3;
-      const threshold = Math.max(0, Math.min(1, BAYER8[(row & 7) * 8 + (col & 7)] + thresholdShift));
+      const threshold = BAYER8[(row & 7) * 8 + (col & 7)];
       const density = computeDensity(nx, ny, px, py);
       const idx = (row * bw + col) * 4;
       if (density > threshold) {
-        const cellColor = getCellColor(nx, ny, cellFg);
-        if (cellColor) {
-          data[idx] = cellColor[0]; data[idx+1] = cellColor[1]; data[idx+2] = cellColor[2];
-        } else {
-          data[idx] = cellFg; data[idx+1] = cellFg; data[idx+2] = cellFg;
-        }
-        data[idx+3] = 255;
+        data[idx] = fg; data[idx+1] = fg; data[idx+2] = fg; data[idx+3] = 255;
       }
     }
   }
@@ -1159,185 +878,64 @@ function renderFieldBuffer(dotSize) {
 //  Climax
 // ═══════════════════════════════════════
 
-let climaxTimer = 0, inClimax = false;
+let climaxTimer = 0, inClimax = false, climaxPhase = 0;
 
 function updateClimax(dt) {
   if (state.intensity > CFG.climaxIntensityThreshold) climaxTimer += dt;
   else { climaxTimer = 0; inClimax = false; }
   inClimax = climaxTimer >= CFG.climaxThresholdSec;
-
-  // Climax progress ramp
-  if (inClimax && colorEnabled.C) {
-    climaxProgress = Math.min(1, climaxProgress + CFG.climaxShiftSpeed * dt);
-  } else {
-    climaxProgress = Math.max(0, climaxProgress - CFG.climaxShiftSpeed * dt * 0.5);
-  }
 }
 
-function drawClimaxOverlay() {
-  if (climaxProgress < 0.01) return;
-  // Subtle C-colored vignette during climax
-  const alpha = climaxProgress * 0.08;
-  ctx.fillStyle = `rgba(230,0,126,${alpha})`;
+function drawClimax() {
+  if (!inClimax) return;
+  climaxPhase += CFG.climaxPulseSpeed;
+  const pulse = 0.3 + Math.sin(climaxPhase) * 0.2;
+  ctx.fillStyle = `rgba(230,0,126,${pulse * 0.2})`;
   ctx.fillRect(0, 0, W, H);
-}
-
-// ═══════════════════════════════════════
-//  Camera (Framing)
-// ═══════════════════════════════════════
-
-const framing = {
-  current: 'WIDE', targetZoom: 1, targetX: 0, targetY: 0,
-  zoom: 1, offsetX: 0, offsetY: 0,
-  panDirX: 0, panTime: 0,
-  macroTimer: 0,
-};
-const FRAMING_TYPES = ['WIDE', 'MEDIUM', 'MACRO', 'PAN'];
-let autoCamera = true;
-
-// Find point of interest: center of mass of entity density
-function findPOI() {
-  let sumX = 0, sumY = 0, totalD = 0;
-  for (const e of entities) {
-    const ageNorm = e.age / e.maxAge;
-    if (ageNorm > 0.8) continue; // skip dying
-    const w = e.density * (1 - ageNorm);
-    sumX += e.x * w;
-    sumY += e.y * w;
-    totalD += w;
+  const cx = W / 2, cy = H / 2;
+  ctx.lineWidth = 1.5;
+  for (let i = 0; i < 8; i++) {
+    const t = (i / 8 + climaxPhase * 0.5) % 1;
+    const s = t * Math.max(W, H) * 0.7;
+    ctx.strokeStyle = `rgba(230,0,126,${(1 - t) * 0.6})`;
+    ctx.strokeRect(cx - s, cy - s * (H / W), s * 2, s * 2 * (H / W));
   }
-  if (totalD < 0.01) return { x: 0.5, y: 0.5 };
-  return { x: sumX / totalD, y: sumY / totalD };
 }
+
+// ═══════════════════════════════════════
+//  Framing
+// ═══════════════════════════════════════
+
+const framing = { current: 'WIDE', targetZoom: 1, targetX: 0, targetY: 0, zoom: 1, offsetX: 0, offsetY: 0, panDirX: 0 };
+const FRAMING_TYPES = ['WIDE', 'MEDIUM', 'MACRO', 'PAN'];
 
 function setFraming(type) {
   framing.current = type;
-  const poi = findPOI();
-  framing.macroTimer = 0;
-
-  if (type === 'WIDE') {
-    framing.targetZoom = 1;
-    framing.targetX = 0;
-    framing.targetY = 0;
-    framing.panDirX = 0;
-  } else if (type === 'MEDIUM') {
-    framing.targetZoom = CFG.camMediumZoom;
-    // Center on POI
-    framing.targetX = (0.5 - poi.x) * W * 0.5;
-    framing.targetY = (0.5 - poi.y) * H * 0.5;
-    framing.panDirX = 0;
-  } else if (type === 'MACRO') {
-    framing.targetZoom = CFG.camMacroZoom;
-    // Zoom into POI
-    framing.targetX = (0.5 - poi.x) * W;
-    framing.targetY = (0.5 - poi.y) * H;
-    framing.panDirX = 0;
-    framing.macroTimer = CFG.camMacroReturnSec;
-  } else if (type === 'PAN') {
-    framing.targetZoom = 1.2;
-    framing.targetX = -W * 0.3;
-    framing.targetY = 0;
-    framing.panDirX = CFG.camPanSpeed * (0.3 + state.rhythmicity * 0.7);
-    framing.panTime = 0;
-  }
-
-  updateCamButtons();
+  if (type === 'WIDE') { framing.targetZoom = 1; framing.targetX = 0; framing.targetY = 0; framing.panDirX = 0; }
+  else if (type === 'MEDIUM') { framing.targetZoom = CFG.framingMediumZoom; framing.targetX = 0; framing.targetY = 0; framing.panDirX = 0; }
+  else if (type === 'MACRO') { framing.targetZoom = CFG.framingMacroZoom; framing.targetX = (Math.random()-0.5)*W*0.4; framing.targetY = (Math.random()-0.5)*H*0.4; framing.panDirX = 0; }
+  else if (type === 'PAN') { framing.targetZoom = 1.2; framing.targetX = -W*0.3; framing.targetY = 0; framing.panDirX = CFG.framingPanSpeed; }
 }
 
-function updateCamButtons() {
-  document.querySelectorAll('.cam-btn').forEach(b => {
-    b.classList.toggle('active', b.dataset.cam === framing.current);
-  });
-}
-
-function updateFraming(dt) {
-  // Adaptive lerp speed
-  const s = state.rhythmicity > 0.5 ? CFG.camLerpFast : CFG.camLerpSlow;
-
+function updateFraming() {
+  const s = CFG.framingLerpSpeed;
   framing.zoom += (framing.targetZoom - framing.zoom) * s;
   framing.offsetX += (framing.targetX - framing.offsetX) * s;
   framing.offsetY += (framing.targetY - framing.offsetY) * s;
-
-  // PAN drift + vertical oscillation
   if (framing.current === 'PAN') {
-    framing.panTime += dt;
     framing.targetX += framing.panDirX;
-    if (framing.targetX > W * 0.3 || framing.targetX < -W * 0.3) framing.panDirX *= -1;
-    framing.targetY = Math.sin(framing.panTime * CFG.camPanOscSpeed * Math.PI * 2) * H * CFG.camPanOscAmp;
-  }
-
-  // MACRO auto-return
-  if (framing.current === 'MACRO' && framing.macroTimer > 0) {
-    framing.macroTimer -= dt;
-    if (framing.macroTimer <= 0) {
-      // Return to appropriate shot
-      if (autoCamera) {
-        pickAutoShot();
-      } else {
-        setFraming('WIDE');
-      }
-    }
-  }
-}
-
-// Auto camera: pick shot based on current state
-function pickAutoShot() {
-  if (state.intensity < 0.3) {
-    setFraming('WIDE');
-  } else if (state.rhythmicity > 0.6 && Math.random() < 0.4) {
-    setFraming('MACRO');
-  } else if (state.trajectory === 0) {
-    setFraming('PAN');
-  } else {
-    setFraming('MEDIUM');
+    if (framing.targetX > W*0.3 || framing.targetX < -W*0.3) framing.panDirX *= -1;
   }
 }
 
 // ═══════════════════════════════════════
-//  Invert dissolve
+//  Director
 // ═══════════════════════════════════════
 
-function startInvertDissolve() {
-  invertDissolving = true;
-  invertDissolveProgress = 0;
-  invertTarget = !inverted;
-}
-
-function updateInvertDissolve(dt) {
-  if (!invertDissolving) return;
-  invertDissolveProgress += dt / CFG.invertDissolveDuration;
-  if (invertDissolveProgress >= 1) {
-    inverted = invertTarget;
-    invertDissolving = false;
-    invertDissolveProgress = 0;
-    document.getElementById('btn-invert').textContent = inverted ? 'ON' : 'OFF';
-    document.getElementById('btn-invert').classList.toggle('on', inverted);
-  }
-}
-
-// ═══════════════════════════════════════
-//  Director — 5 weighted mutations
-// ═══════════════════════════════════════
-
-const MUTATION_TYPES = [
-  { type: 'PRIMITIVE', weight: 30 },
-  { type: 'INVERT', weight: 15 },
-  { type: 'RESET_PARTIAL', weight: 15 },
-  { type: 'CHROMATIC', weight: 25 },
-  { type: 'SCALE', weight: 15 },
-];
-const MUTATION_TOTAL_WEIGHT = MUTATION_TYPES.reduce((s, m) => s + m.weight, 0);
-
+const CHANGE_TYPES = ['PRIMITIVE', 'FRAMING', 'INVERT', 'RESET'];
 const director = { sceneTime: 0, nextCheckIn: 0, changeProb: 0, lastChangeType: '——', plateauTime: 0 };
 let dirBaseInterval = 30, dirDivisorIdx = 1, dirRandomFactor = 0.3;
 const DIVISORS = [4, 8, 16, 32];
-
-// Mutation log
-const mutationLog = [];
-function logMutation(type, detail) {
-  mutationLog.unshift({ type, detail, time: globalTime });
-  if (mutationLog.length > 5) mutationLog.pop();
-}
 
 function initDirector() { director.sceneTime = 0; computeNextCheck(); }
 
@@ -1358,82 +956,37 @@ function updateDirector(dt) {
     if (director.plateauTime > CFG.directorPlateauSec) prob += 0.3;
     prob += dirRandomFactor * Math.random();
     director.changeProb = Math.min(1, prob);
-    if (prob > CFG.directorChangeThreshold) {
-      // Camera integration: 60% mutation only, 25% mutation+camera, 15% camera only
-      const camRoll = Math.random();
-      if (camRoll < 0.60) {
-        executeMutation();
-      } else if (camRoll < 0.85) {
-        executeMutation();
-        if (autoCamera) pickAutoShot();
-      } else {
-        if (autoCamera) pickAutoShot();
-        logMutation('CAMERA', framing.current);
-      }
-    }
+    if (prob > CFG.directorChangeThreshold) executeChange();
     computeNextCheck();
   }
 }
 
-function pickMutationType() {
-  let r = Math.random() * MUTATION_TOTAL_WEIGHT;
-  for (const m of MUTATION_TYPES) {
-    r -= m.weight;
-    if (r <= 0) return m.type;
-  }
-  return 'PRIMITIVE';
-}
-
-function executeMutation(forceType) {
-  const type = forceType || pickMutationType();
+function executeChange() {
+  const type = CHANGE_TYPES[Math.floor(Math.random() * CHANGE_TYPES.length)];
   director.lastChangeType = type;
   director.sceneTime = 0;
-
   if (type === 'PRIMITIVE') {
+    // Mutate: swap one primitive
     if (dna && dna.primitives.length > 0) {
       const idx = Math.floor(Math.random() * dna.primitives.length);
-      const old = dna.primitives[idx];
       const available = PRIM_TYPES.filter(p => !dna.primitives.includes(p));
       if (available.length > 0) {
-        const newPrim = available[Math.floor(Math.random() * available.length)];
-        dna.primitives[idx] = newPrim;
+        dna.primitives[idx] = available[Math.floor(Math.random() * available.length)];
         initPrimitiveState();
-        logMutation(type, `${old}→${newPrim}`);
       }
     }
+  } else if (type === 'FRAMING') {
+    setFraming(FRAMING_TYPES[Math.floor(Math.random() * FRAMING_TYPES.length)]);
   } else if (type === 'INVERT') {
-    startInvertDissolve();
-    logMutation(type, invertTarget ? 'W→B' : 'B→W');
-  } else if (type === 'RESET_PARTIAL') {
-    // Kill entities in a random rectangular zone
-    const rx = Math.random() * 0.6 + 0.1;
-    const ry = Math.random() * 0.6 + 0.1;
-    const rw = 0.1 + Math.random() * 0.3;
-    const rh = 0.1 + Math.random() * 0.3;
-    let killed = 0;
-    for (const e of entities) {
-      if (e.x > rx && e.x < rx + rw && e.y > ry && e.y < ry + rh) {
-        e.age = e.maxAge; // force death
-        killed++;
-      }
-    }
-    logMutation(type, `${killed} killed`);
-  } else if (type === 'CHROMATIC') {
-    const modes = ['all-A', 'all-B', 'grey'];
-    chromaticMode = modes[Math.floor(Math.random() * modes.length)];
-    chromaticTimer = CFG.chromaticShiftDuration;
-    logMutation(type, chromaticMode);
-  } else if (type === 'SCALE') {
-    if (dna) {
-      const oldRange = dna.dotSizeRange.join('-');
-      // Shift toward fine or coarse
-      if (Math.random() > 0.5) {
-        dna.dotSizeRange = [1, 2 + Math.floor(Math.random() * 4)]; // fine
-      } else {
-        dna.dotSizeRange = [6 + Math.floor(Math.random() * 4), 12 + Math.floor(Math.random() * 5)]; // coarse
-      }
-      logMutation(type, `${oldRange}→${dna.dotSizeRange.join('-')}`);
-    }
+    inverted = !inverted;
+    document.getElementById('btn-invert').textContent = inverted ? 'ON' : 'OFF';
+    document.getElementById('btn-invert').classList.toggle('on', inverted);
+  } else if (type === 'RESET') {
+    generateDNA();
+    setFraming('WIDE');
+    inverted = false;
+    document.getElementById('btn-invert').textContent = 'OFF';
+    document.getElementById('btn-invert').classList.remove('on');
   }
 }
 
@@ -1482,15 +1035,12 @@ function updateReadout() {
   const primList = dna ? dna.primitives.join('+') : '——';
   const mapping = dna ? dna.freqMapping : '——';
 
-  let avgAge = 0, countA = 0, countB = 0, countC = 0;
-  for (const e of entities) {
-    const norm = e.age / e.maxAge;
-    avgAge += norm;
-    if (e.color === 'A' && e.colorAlpha > 0.1) countA++;
-    if (e.color === 'B' && e.colorAlpha > 0.1) countB++;
-    if (e.color === 'C' && e.colorAlpha > 0.1) countC++;
+  let avgAge = 0;
+  if (entities.length > 0) {
+    let sum = 0;
+    for (const e of entities) sum += e.age / e.maxAge;
+    avgAge = sum / entities.length;
   }
-  if (entities.length > 0) avgAge /= entities.length;
 
   readoutEl.innerHTML =
     `DNA          <span class="h">${primList}</span>\n` +
@@ -1503,27 +1053,13 @@ function updateReadout() {
     `AVG AGE      <span class="h">${avgAge.toFixed(2)}</span>\n` +
     `BIRTH RATE   <span class="h">${(CFG.birthRateMax * state.intensity).toFixed(0)}/s</span>\n` +
     `${'─'.repeat(24)}\n` +
-    `<span style="color:#FF4400">A</span> ${countA}  <span style="color:#00AACC">B</span> ${countB}  <span style="color:#E6007E">C</span> ${countC}\n` +
-    `CHROMATIC    <span class="h">${chromaticMode}${chromaticTimer > 0 ? ' ' + chromaticTimer.toFixed(0) + 's' : ''}</span>\n` +
-    `${'─'.repeat(24)}\n` +
     `SCENE TIME   <span class="h">${director.sceneTime.toFixed(1)}s</span>\n` +
     `NEXT CHECK   <span class="h">${Math.max(0, director.nextCheckIn).toFixed(1)}s</span>\n` +
     `LAST CHANGE  <span class="h">${director.lastChangeType}</span>\n` +
-    `CAMERA       <span class="h">${framing.current}</span> ×${framing.zoom.toFixed(1)}\n` +
-    `CAM OFFSET   <span class="h">${framing.offsetX.toFixed(0)},${framing.offsetY.toFixed(0)}</span>\n` +
-    (framing.macroTimer > 0 ? `MACRO RTN    <span class="h">${framing.macroTimer.toFixed(1)}s</span>\n` : '') +
+    `FRAMING      <span class="h">${framing.current}</span>\n` +
     `DOT SIZE     <span class="h">${dotSize}px</span>\n` +
-    `CLIMAX       <span style="color:${climaxProgress > 0.1 ? '#E6007E' : '#2e2e2e'}">${climaxProgress > 0.1 ? (climaxProgress * 100).toFixed(0) + '%' : 'OFF'}</span>` +
+    `CLIMAX       <span style="color:${inClimax ? '#E6007E' : '#2e2e2e'}">${inClimax ? 'ON' : 'OFF'}</span>` +
     (autoMode ? `\nAUTO         <span class="h">${AUTO_PHASES[autoPhase].name}</span>` : '');
-}
-
-function updateMutationLogUI() {
-  const el = document.getElementById('mutation-log');
-  el.innerHTML = mutationLog.map(m => {
-    const ago = (globalTime - m.time).toFixed(0);
-    const cls = m.type === 'CHROMATIC' ? (m.detail.includes('A') ? 'log-a' : m.detail.includes('B') ? 'log-b' : '') : '';
-    return `<span class="${cls}">${m.type}</span> ${m.detail} <span style="color:#2e2e2e">${ago}s</span>`;
-  }).join('\n');
 }
 
 // ═══════════════════════════════════════
@@ -1563,7 +1099,9 @@ document.getElementById('sl-evo').addEventListener('input', e => {
 });
 
 document.getElementById('btn-invert').addEventListener('click', () => {
-  startInvertDissolve();
+  inverted = !inverted;
+  document.getElementById('btn-invert').textContent = inverted ? 'ON' : 'OFF';
+  document.getElementById('btn-invert').classList.toggle('on', inverted);
 });
 
 document.getElementById('btn-regen').addEventListener('click', () => { generateDNA(); });
@@ -1592,38 +1130,6 @@ document.getElementById('btn-auto').addEventListener('click', () => {
   autoMode = !autoMode;
   document.getElementById('btn-auto').classList.toggle('running', autoMode);
   if (autoMode) { autoPhase = 0; autoTimer = 0; }
-});
-
-// Color toggles
-document.querySelectorAll('.color-toggle').forEach(btn => {
-  btn.addEventListener('click', () => {
-    const c = btn.dataset.color;
-    colorEnabled[c] = !colorEnabled[c];
-    btn.classList.toggle('on', colorEnabled[c]);
-  });
-});
-
-// Mutation buttons
-document.querySelectorAll('.mut-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    executeMutation(btn.dataset.mut);
-  });
-});
-
-// Camera buttons
-document.querySelectorAll('.cam-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    autoCamera = false;
-    document.getElementById('btn-autocam').textContent = 'OFF';
-    document.getElementById('btn-autocam').classList.remove('on');
-    setFraming(btn.dataset.cam);
-  });
-});
-
-document.getElementById('btn-autocam').addEventListener('click', () => {
-  autoCamera = !autoCamera;
-  document.getElementById('btn-autocam').textContent = autoCamera ? 'ON' : 'OFF';
-  document.getElementById('btn-autocam').classList.toggle('on', autoCamera);
 });
 
 const PRESETS = {
@@ -1660,6 +1166,7 @@ document.querySelectorAll('.preset').forEach(btn => {
 
 let lastTime = 0, frameCount = 0;
 
+// Generate initial DNA
 generateDNA();
 initDirector();
 
@@ -1672,17 +1179,16 @@ function loop(now) {
   updateAuto(dt);
   updateClimax(dt);
   updateDirector(dt);
-  updateFraming(dt);
-  updateInvertDissolve(dt);
+  updateFraming();
   updatePrimitives(dt);
   updateEntities(dt);
   updateOnsets(dt);
   updateMidi();
 
+  // Build spatial hash for entity density
   buildEntityGrid();
 
-  // Background
-  const bgInverted = invertDissolving ? inverted : inverted; // during dissolve, keep original bg
+  // Draw
   ctx.fillStyle = inverted ? '#FFFFFF' : '#000000';
   ctx.fillRect(0, 0, W, H);
 
@@ -1691,14 +1197,8 @@ function loop(now) {
   ctx.scale(framing.zoom, framing.zoom);
   ctx.translate(-W/2 + framing.offsetX, -H/2 + framing.offsetY);
 
-  // Dot size with climax compression
-  let globalDotSize = dotSizeOverride > 0 ? dotSizeOverride :
+  const globalDotSize = dotSizeOverride > 0 ? dotSizeOverride :
     Math.max(1, Math.round(CFG.dotSizeMax - (CFG.dotSizeMax - CFG.dotSizeMin) * state.brightness));
-
-  if (climaxProgress > 0.1) {
-    const compress = 1 - (1 - CFG.climaxDotCompress) * climaxProgress;
-    globalDotSize = Math.max(1, Math.round(globalDotSize * compress));
-  }
 
   if (globalDotSize >= CFG.dotSizeBufferThreshold) {
     renderFieldFillRect(globalDotSize);
@@ -1706,16 +1206,15 @@ function loop(now) {
     renderFieldBuffer(globalDotSize);
   }
 
+  // MATRICE on top
   drawMatrice();
+
   ctx.restore();
 
-  drawClimaxOverlay();
+  if (inClimax) drawClimax();
 
   frameCount++;
-  if (frameCount % 10 === 0) {
-    updateReadout();
-    updateMutationLogUI();
-  }
+  if (frameCount % 10 === 0) updateReadout();
 }
 
 requestAnimationFrame(loop);

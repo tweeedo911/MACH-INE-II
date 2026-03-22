@@ -22,8 +22,8 @@ let recentOnsets = [];         // timestamps of recent onsets
 const REGULARITY_WINDOW = 3;  // seconds
 const MAX_REGULARITY_ONSETS = 60;
 
-// Smoothing factor for EMA (lower = faster response)
-const SMOOTH = 0.65;
+// Smoothing factor for EMA
+const SMOOTH = 0.85;
 
 // ── Per-frame update ──
 export function updateState() {

@@ -36,9 +36,14 @@ Poi apri `http://localhost:8181` nel browser.
 - Onset detection via spectral flux (soglia adattiva)
 - Energy trajectory (~3 sec), stima BPM da intervalli onset
 - Stato narrativo derivato: intensity, rhythmicity, brightness, trajectory, stereo width
-- Spettrogramma scrolling (80 linee, stile Joy Division)
-- Flash geometrici su onset, linee verticali su note MIDI
-- HUD debug con tutti i dati in tempo reale
+- Campo halftone Bayer 8×8 con zone Voronoi e densità reattiva
+- 8 primitivi strutturali: BANDA, BLOCCO, VETTORE, VUOTO, FRONTE, SCIAME, STRISCIA, MATRICE
+- DNA di sessione: combinazione unica di primitivi e parametri a ogni avvio
+- Generazioni: entità con ciclo vita (nascita → crescita → morte → fossile)
+- Sistema cromatico A (#FF4400 onset) / B (#00AACC MIDI) / C (#E6007E climax)
+- 5 mutazioni automatiche: PRIMITIVE, INVERT, RESET_PARTIAL, CHROMATIC, SCALE
+- Camera 2D: 4 shot (WIDE/MEDIUM/MACRO/PAN) con POI tracking
+- HUD minimal + debug toggle
 
 ---
 
@@ -49,11 +54,16 @@ MACH:INE II/
 ├── index.html        shell HTML + CSS + <script type="module">
 ├── src/
 │   ├── main.js       boot e collegamento moduli
-│   ├── config.js     parametri centralizzati
-│   ├── audio.js      audio engine stereo
-│   ├── midi.js       MIDI engine
+│   ├── config.js     parametri centralizzati (CFG)
+│   ├── audio.js      audio engine stereo (Web Audio API)
+│   ├── midi.js       MIDI engine (WebMIDI API)
 │   ├── state.js      stato narrativo (5 valori derivati)
-│   └── render.js     render loop, disegno, HUD debug
+│   ├── dna.js        DNA sessione, 8 primitivi, zone Voronoi
+│   ├── generations.js  entità, ciclo vita, spatial hash grid
+│   ├── colors.js     sistema cromatico A/B/C, climax, inversione
+│   ├── director.js   regista: 5 mutazioni + camera 2D
+│   ├── field.js      campo halftone Bayer 8×8, render duale
+│   └── render.js     orchestratore render + HUD
 ├── sandbox.html      sandbox narrativo (simulazione input + regista)
 ├── start.sh          launcher locale (server HTTP + browser)
 ├── README.md         questo file
@@ -70,7 +80,19 @@ MACH:INE II/
 
 ## Versione corrente
 
-`v0.4.0` — vedi [CHANGELOG.md](CHANGELOG.md) per i dettagli.
+`v0.8.0` — vedi [CHANGELOG.md](CHANGELOG.md) per i dettagli.
+
+---
+
+## Comandi tastiera
+
+| Tasto | Azione |
+|-------|--------|
+| H | Toggle HUD minimal |
+| D | Toggle HUD debug |
+| F | Fullscreen |
+| R | Rigenera DNA (nuovo mondo) |
+| N | Forza mutazione manuale |
 
 ---
 

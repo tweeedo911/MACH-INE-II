@@ -7,15 +7,15 @@ Da consultare prima di ogni modifica visiva o strutturale.
 
 ## Concept
 
-**Sistema reattivo con narrazione autonoma.**
+**Un campo di dati che nasce, cresce, si ritira e muore. Ogni sessione e' unica.**
 
 MACH:INE II riceve audio stereo e MIDI da Ableton in tempo reale.
-Interpreta questi dati, costruisce un mondo visivo procedurale e lo evolve nel tempo
-con cambi di scena, zoom, variazioni cromatiche e momenti di rottura.
+Ad ogni avvio genera un nuovo DNA — un set di regole procedurali
+che definiscono come quel mondo specifico si comporta.
+Due sessioni non producono mai lo stesso risultato.
 
 Il sistema reagisce alla musica in modo diretto e visibile.
 Non decora — interpreta, accumula, decide.
-
 Non conosce la traccia in anticipo. Tutto e' in tempo reale.
 
 ---
@@ -64,7 +64,7 @@ ma funziona anche con tutto su un canale unico.
 
 | Dato | Descrizione | Uso |
 |------|-------------|-----|
-| **Note On** | Nota, velocity, canale | Eventi visivi armonici (colore B) |
+| **Note On** | Nota, velocity, canale | Eventi visivi armonici |
 | **Note Off** | Fine nota | Durata degli eventi visivi |
 | **CC** | Controller continui, valore, canale | Modulazione parametri visivi diretti |
 | **Densita' note** | Note per finestra temporale | Contribuisce all'intensita' narrativa |
@@ -72,10 +72,174 @@ ma funziona anche con tutto su un canale unico.
 
 ---
 
-## Motore narrativo
+## Riferimenti visivi
 
-Il motore narrativo sta tra i dati (audio + MIDI) e il rendering.
-Non disegna nulla — decide cosa disegnare, come, e quando cambiare.
+Pinterest board: https://it.pinterest.com/tweeedo/machne/
+Immagini di riferimento in `docs/refs/`.
+
+L'estetica si colloca all'incrocio tra:
+- Ryoji Ikeda → precisione, densita' di dato, alto contrasto
+- Grafica halftone/risograph → il punto come unita' fondamentale
+- Diagrammi tecnici → composizione strutturata, pannelli, layout
+- Stampa brutalista → grana grossa, pixel grandi, peso grafico
+
+Quello che accomuna tutti i riferimenti:
+- Il dither/halftone e' IL materiale, non un effetto
+- Collisione tra griglia rigida e forma organica
+- Composizione strutturata (le cose hanno posizioni, peso, senso)
+- Contrasto di scala (pixel enormi accanto a grana fine)
+- Il colore e' raro ma quando c'e' puo' essere intenso e sovrapposto
+
+---
+
+## Il DNA di sessione
+
+Ad ogni avvio, il sistema genera un DNA unico — un set di parametri
+procedurali che determinano il carattere visivo di quella sessione.
+
+Il DNA sceglie tra i **primitivi strutturali** disponibili
+e ne combina 2-3 con parametri unici:
+
+### Primitivi strutturali
+
+| Primitivo | Descrizione |
+|-----------|-------------|
+| **BANDA** | Zona orizzontale o verticale di densita' alta. Bordi netti. Puo' essere una riga di 2px o una fascia che occupa meta' schermo. |
+| **VETTORE** | Direzione dominante lungo cui la densita' si distribuisce. Diagonale, curva, asse. Come un campo magnetico che orienta tutto. |
+| **BLOCCO** | Rettangolo di densita' o dot-size diverso dal campo circostante. Bordi nettissimi, alto contrasto. |
+| **VUOTO** | Assenza. Zona dove nulla nasce. Lo spazio nero ha una forma. |
+| **FRONTE** | Bordo mobile tra due densita'. Avanza, si ritira, lascia residui. Come una linea di costa. |
+| **SCIAME** | Cluster di particelle fini che si aggregano e disgregano. Posizione e comportamento collettivo, non individuale. |
+| **STRISCIA** | Linee parallele sottili a distanza variabile. Possono deformarsi, interrompersi, addensarsi. |
+| **MATRICE** | Griglia di caratteri o simboli a densita' variabile. Non decorativa — e' la struttura del campo resa leggibile. |
+
+Il DNA determina per ogni primitivo scelto:
+- Orientamento (orizzontale, verticale, diagonale, radiale)
+- Scala (micro: 1-4px, medio: 8-16px, macro: 32px+)
+- Velocita' di evoluzione
+- Come risponde alle 5 bande audio
+- Come nasce, come muore
+
+Due sessioni diverse possono produrre mondi come:
+- Bande orizzontali larghe + sciame di particelle fini + vuoti netti
+- Vettori diagonali + matrice di caratteri + fronti che avanzano
+- Blocchi brutalisti grandi + strisce sottili che li attraversano
+
+---
+
+## Le generazioni
+
+Il campo non e' statico. E' un ecosistema con generazioni che vivono e muoiono.
+
+### Ciclo vita
+
+**Nascita:** l'audio attivo genera nuovi elementi. Le frequenze determinano
+dove nascono (il mapping e' definito dal DNA: basse=sinistra, alte=destra,
+oppure basse=basso, alte=alto, oppure radiale dal centro — cambia ogni sessione).
+L'intensita' determina il tasso di nascita.
+
+**Crescita:** gli elementi appena nati aumentano in densita'/opacita'.
+La velocita' di crescita dipende dall'intensita' audio.
+
+**Maturita':** gli elementi al massimo della loro espressione.
+Il dot-size e' al suo valore nominale. Il colore (se presente) e' pieno.
+
+**Invecchiamento:** gli elementi cominciano a degradarsi.
+Il dot-size degenera (diventa piu' grande e rado — grana grossa).
+L'opacita' cala. Il colore sbiadisce verso il grigio.
+Gli elementi vecchi hanno un aspetto diverso dai giovani.
+
+**Morte:** gli elementi scompaiono. Non istantaneamente —
+si dissolvono attraverso il dither (la matrice Bayer li mangia).
+
+### Accumulo e stratificazione
+
+Le generazioni si sovrappongono. Dopo 5 minuti di sessione,
+il campo porta le tracce di tutto quello che e' successo:
+- Generazioni giovani dense e definite in primo piano
+- Generazioni vecchie rade e a grana grossa sotto
+- Residui fossili di generazioni morte (quasi invisibili)
+
+Questa stratificazione e' la "memoria" del sistema.
+Non c'e' un reset tra le generazioni — si accumulano.
+
+### Relazione con l'audio
+
+- **Silenzio:** nessuna nascita. Le generazioni esistenti invecchiano e muoiono.
+  Il campo si svuota lentamente. Alla fine: quasi nero, solo dither appena visibile.
+- **Ambient bassa energia:** nascita lenta, generazioni longeve, tutto graduale.
+- **Building:** nascita accelerata, generazioni si sovrappongono.
+- **Peak ritmico:** esplosioni di nascita sugli onset, generazioni brevi e intense.
+- **Climax:** nascita massiva, tutto il campo raggiunge densita' estrema.
+
+---
+
+## Il trattamento halftone
+
+Il dither Bayer 8x8 e' il trattamento fondamentale di tutto il sistema.
+Non e' un overlay — e' il modo in cui ogni elemento viene reso.
+
+### Come funziona
+
+Ogni elemento ha un valore di densita' (0-1).
+La matrice Bayer 8x8 determina quali pixel sono accesi e quali spenti.
+Densita' 0 = tutto nero. Densita' 1 = tutto bianco.
+I valori intermedi producono pattern di punti a densita' variabile.
+
+### Dot-size dinamico
+
+Il dot-size non e' fisso. Varia in base a:
+- **Brillantezza audio:** suono brillante (centroid alto) = punti fini 1-2px.
+  Suono cupo (centroid basso) = punti grossi 8-16px.
+- **Eta' della generazione:** giovane = dot-size nominale. Vecchio = dot-size degenera.
+- **DNA della sessione:** il range di dot-size e' un parametro del DNA.
+
+Zone con dot-size diversi coesistono sullo stesso schermo.
+Questo produce il contrasto di scala dei riferimenti visivi.
+
+---
+
+## Sistema cromatico
+
+### Base
+Nero `#000000` → bianco `#FFFFFF` attraverso grigi digitali:
+`#0D0D0D` `#1C1C1C` `#2E2E2E` `#474747` `#636363` `#828282` `#A8A8A8` `#CECECE` `#E8E8E8`
+
+La maggior parte del tempo, il sistema vive nei grigi.
+
+### A / RITMO — `#FF4400`
+Rosso-arancio bruciato. Gli elementi nati da un onset forte nascono in A.
+Non e' un flash sopra la scena — sono i punti stessi che diventano A.
+Poi decadono verso il grigio col tempo.
+
+### B / ARMONIA — `#00AACC`
+Teal elettrico. Gli elementi nati da eventi MIDI nascono in B.
+Posizione influenzata dal pitch. Decadono verso il grigio.
+
+### C / CLIMAX — `#E6007E`
+Magenta. Quando l'intensita' e' massima sostenuta (3+ sec),
+tutti gli elementi vivi virano verso C.
+Il campo intero cambia colore. Poi decade.
+**2-3 volte per sessione.** Mai di piu'.
+
+### Interazione cromatica
+
+I colori possono coesistere e sovrapporsi.
+A e B possono essere visibili contemporaneamente.
+Quando C si attiva, domina — ma non "esclude" istantaneamente:
+gli elementi A e B virano gradualmente verso C.
+
+Momenti possibili:
+- Campo grigio con pochi punti A (onset sporadici)
+- Zona A e zona B che si sovrappongono (onset + MIDI insieme)
+- A su B: punti teal che diventano rosso-arancio su un onset
+- Flood C che assorbe tutto gradualmente
+
+Il colore e' integrato nel campo, non applicato sopra.
+
+---
+
+## Motore narrativo
 
 ### 1. Lo Stato — "dove siamo"
 
@@ -83,142 +247,58 @@ Cinque valori derivati, aggiornati ogni frame:
 
 | Valore | Fonte | Range | Guida |
 |--------|-------|-------|-------|
-| **Intensita'** | RMS + densita' onset + densita' MIDI | 0–1 | Complessita' visiva globale |
-| **Ritmicita'** | Regolarita' degli onset | 0–1 | Frequenza e stile dei cambi scena |
-| **Brillantezza** | Spectral centroid normalizzato | 0–1 | Palette (grigi bassi vs alti), possibilita' di colore |
-| **Traiettoria** | Energy trajectory | -1/0/+1 | Costruzione (+1), svuotamento (-1), plateau (0) |
-| **Ampiezza stereo** | Correlazione L/R | 0–1 | Composizione stretta (mono) vs espansa (stereo) |
+| **Intensita'** | RMS + densita' onset + densita' MIDI | 0-1 | Tasso di nascita, densita' globale |
+| **Ritmicita'** | Regolarita' degli onset | 0-1 | Frequenza mutazioni, stile cambi |
+| **Brillantezza** | Spectral centroid normalizzato | 0-1 | Dot-size, grana del campo |
+| **Traiettoria** | Energy trajectory | -1/0/+1 | Crescita vs svuotamento vs plateau |
+| **Ampiezza stereo** | Correlazione L/R | 0-1 | Dispersione spaziale degli elementi |
 
-### 2. Il Regista — "quando cambiare"
+### 2. Il Regista — "quando mutare"
 
-Gestisce i cambi scena. Ha un timer interno che si resetta ad ogni cambio.
+Non gestisce "scene" predefinite — gestisce **mutazioni** del campo.
 
-**La durata tra cambi dipende dalla ritmicita':**
-- Ritmicita' alta → cambio possibile ogni 8, 16 o 32 beat (scelta random)
-- Ritmicita' bassa → cambio possibile ogni 20–60 secondi (range random)
+**Timer adattivo:**
+- Ritmicita' alta → mutazione possibile ogni 8, 16 o 32 beat (random)
+- Ritmicita' bassa → mutazione possibile ogni 20-60 secondi (random)
 
-**Ad ogni potenziale punto di cambio, il regista tira un dado:**
-- Energia stabile da tempo → probabilita' di cambio sale (evita stasi)
-- Cambio drastico nell'audio (drop, break) → cambio quasi certo
-- Elemento random sempre presente → imprevedibilita'
+**Tipi di mutazione:**
+- Cambio di primitivo dominante (il DNA evolve: un primitivo decade, un altro emerge)
+- Cambio di framing (zoom, pan, macro)
+- Cambio cromatico (attivazione A o B, shift di palette)
+- Inversione (campo che da nero su bianco diventa bianco su nero)
+- Reset parziale (una zona del campo viene azzerata, rinasce)
 
-**Tipi di cambio scena:**
-- Cambio texture dominante
-- Cambio framing (zoom microscopio, zoom out panoramico, pan)
-- Cambio cromatico (attivazione/disattivazione colori semantici A/B/C)
-- Reset parziale o totale del campo (ripartenza)
+**Dado e probabilita':**
+- Plateau prolungato → probabilita' di mutazione sale
+- Cambio drastico nell'audio → mutazione quasi certa
+- Elemento random sempre presente
 
 ### 3. Il Climax — "momenti di rottura"
 
-Non guidato dal regista ma da una soglia di intensita'.
-
-Quando l'intensita' supera una soglia per un tempo sostenuto
-(plateau alto, non un singolo picco), il sistema entra in stato di climax:
-flood cromatico C, glitch, rottura delle regole compositive normali.
-
-Raro e imprevedibile — ma sempre motivato dall'audio.
+Quando l'intensita' supera soglia per 3+ secondi:
+- Tutti gli elementi virano verso C (#E6007E)
+- Il dot-size si comprime (punti fini, densita' massima)
+- Il campo raggiunge quasi il bianco (o quasi il magenta)
+- Al rilascio: collasso rapido, le generazioni muoiono in massa
 
 ---
 
-## Riferimenti visivi
+## Il Direttore (camera 2D)
 
-Artisti di riferimento: Ryoji Ikeda, Refik Anadol, Christine Sun Kim, Brian Foo, Valery Vermeulen.
-Pinterest board: https://it.pinterest.com/tweeedo/machne/
+| Shot | Trigger | Effetto |
+|------|---------|---------|
+| **Wide** | Bassa energia | Tutto il campo, scala 1x |
+| **Medium** | Energia crescente | Zoom 1.5x, centra sull'attivita' |
+| **Macro** | Ritmicita' alta, breve | Zoom 3x, dettaglio della grana |
+| **Pan** | Plateau, transizione | Drift laterale lento |
 
-Sintesi dei riferimenti:
-- Ikeda → precisione geometrica, densita' di dato, alto contrasto, binario
-- Anadol → fluidita' collettiva, profondita', respiro
-- Christine Sun Kim → l'immagine come partitura leggibile del suono
-- Brian Foo → stratificazione come narrativa nel tempo
-- Vermeulen → autonomia matematica del sistema
+Transizioni fluide (lerp).
+Veloci su musica ritmica, lente su ambient.
+Macro ha durata limitata (4-8 beat), poi ritorna.
 
----
-
-## Sistema cromatico
-
-La palette e' austera. Il 90% del visuale vive nei grigi.
-I colori compaiono raramente e sempre con un significato preciso.
-
-### Base
-Nero `#000000` → bianco `#FFFFFF` attraverso grigi digitali:
-`#0D0D0D` `#1C1C1C` `#2E2E2E` `#474747` `#636363` `#828282` `#A8A8A8` `#CECECE` `#E8E8E8`
-
-### A / RITMO — `#FF4400`
-Rosso-arancio bruciato. Energia percussiva, impatto fisico.
-Trigger: onset, kick, attacchi, transienti.
-Frequenza: comune durante sezioni energetiche.
-
-### B / ARMONIA — `#00AACC`
-Teal elettrico. Informazione melodica, struttura.
-Trigger: note MIDI, accordi, pitch, armonia.
-Frequenza: presente durante sezioni melodiche.
-
-### C / CLIMAX — `#E6007E`
-Magenta. Rottura del sistema, picco narrativo.
-Trigger: energia massima sostenuta, evento raro.
-Frequenza: **2-3 volte per sessione**. Mai di piu'.
-
-### Regola dei tre colori
-Non piu' di 2 colori semantici visibili contemporaneamente a schermo.
-C/CLIMAX esclude A e B finche' e' attivo.
-
-### Selettore palette
-Da implementare dopo v1.0. Il sistema cromatico sopra e' il default.
-
----
-
-## Vocabolario texture
-
-Sei texture fondamentali, usate in combinazione:
-
-| Texture | Uso |
-|---------|-----|
-| **Dither Bayer 8x8** | Texture primaria del sistema. Sempre presente a bassa intensita'. |
-| **Linee topografiche** | Campo di altitudine. Risponde all'ampiezza globale. |
-| **Character grid** | Simboli/caratteri come densita'. Sfondo a bassa energia. |
-| **Scanline + barre** | Rappresentazione frequenziale diretta. |
-| **Block color** | Zone piatte di grigio. Struttura compositiva. |
-| **Glitch / artefatto** | Rottura digitale. Usato raramente, su eventi estremi. |
-
-Il dither e' il collante: ogni transizione tra texture usa il dither come interpolazione.
-
----
-
-## Vocabolario forme
-
-| Forma | Comportamento |
-|-------|---------------|
-| **Campo di punti** | Nascita da onset · posizione da frequenza · invecchiamento visibile |
-| **Superficie topografica** | Griglia deformata dall'ampiezza · memoria di forma |
-| **Evento ritmico (A)** | Esplosione geometrica in `#FF4400` · si cristallizza in traccia |
-| **Evento armonico (B)** | Linea verticale in `#00AACC` · posizione X = pitch MIDI |
-| **Stratificazione** | Tracce accumulate · leggibili come partitura · non si cancellano |
-| **Climax (C)** | Flood magenta · rettangoli concentrici · zoom camera |
-
----
-
-## Architettura visiva
-
-### IL MONDO (ecosistema)
-- Particelle con nascita, vita, morte
-- Posizione → frequenza del bin corrispondente
-- Velocita' → energia della banda
-- Eta' → opacita', cristallizzazione
-- Tracce persistenti che stratificano la storia della sessione
-
-### IL DIRETTORE (sistema camera 2D)
-Cambia inquadratura in base alla struttura musicale:
-
-| Shot | Trigger |
-|------|---------|
-| Wide | Default, stato di bassa energia |
-| Medium | Building, energia crescente |
-| Macro | Zoom "microscopio" su porzione del campo |
-| Pan | Spostamento laterale, esplorazione |
-
-Su musica eterea: deriva lenta e continua, no tagli netti.
-Su musica ritmica: tagli precisi a tempo.
-La scelta e' del Regista, con elemento random.
+Lo zoom Macro sul campo halftone con dot-size variabile
+mostra la struttura interna: i singoli punti, la matrice Bayer,
+la differenza tra generazioni giovani (fini) e vecchie (grosse).
 
 ---
 
@@ -239,33 +319,31 @@ Tutto self-contained. Nessuna libreria audio esterna.
 
 ## Strumenti di lavoro
 
-Il **moodboard statico** (docs/moodboard.html) resta come riferimento palette e texture.
-
-Lo strumento di lavoro principale e' il **sandbox narrativo**: una pagina interattiva
-dove si simulano input audio e MIDI tramite slider e click, si osserva il comportamento
-del motore narrativo e si tuonano i parametri prima di collegare l'audio reale.
+**Sandbox narrativo** (sandbox.html): pagina interattiva
+dove si simulano input audio e MIDI tramite slider e click.
+Strumento di tuning per il DNA, le generazioni e il regista.
 
 ---
 
 ## Kill list — cosa NON facciamo
 
+- Forme tipiche da visualizer (cerchi pulsanti, onde sinusoidali decorative, VU meter)
+- Gradienti morbidi o sfumature
+- Glow, bloom, effetti di luce
+- Mesh 3D o modelli
 - Testo animato o titoli in scena
-- Mesh 3D complesse o modelli
-- Gradienti colorati (solo grigi + A/B/C)
-- Glow o bloom eccessivo
-- Piu' di 3 colori semantici nel sistema
-- Piu' di 2 colori semantici simultanei a schermo
-- Effetti di post-processing pesanti
+- Curve smooth o bezier (le forme sono fatte di punti e segmenti netti)
 - Machine learning o analisi audio offline
-- Piu' di 10 parametri configurabili simultaneamente
-- Three.js o WebGL (si resta su Canvas 2D)
+- Scene predefinite intercambiabili (il mondo e' unico, non un catalogo)
+- Three.js o WebGL
 
 ---
 
 ## Principio anti-fallimento
 
-Ogni versione deve essere visivamente bella **da sola** prima di aggiungere complessita'.
-Se un layer con camera fissa non e' gia' interessante, non si aggiunge Il Direttore.
-Se una texture non funziona in isolamento, non si combina con le altre.
+Il campo con il solo dither Bayer e un primitivo deve essere gia' interessante
+prima di aggiungere generazioni, colore o camera.
+Se la grana del punto non e' gia' bella da sola, niente di quello
+che viene dopo la salvera'.
 
 *Ultima modifica: 2026-03-21*

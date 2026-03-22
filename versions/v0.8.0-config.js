@@ -46,16 +46,15 @@ export const CFG = {
 
   // ── Density ──
   densityBase: 0.0,
-  densityMax: 0.55,
-  densityFloor: 0.04,
-  brightnessDensityBoost: 0.12,
-  rhythmFlickerAmp: 0.04,
-  rhythmFlickerSpeed: 3,
+  densityMax: 0.45,
+  brightnessDensityBoost: 0.15,
+  rhythmFlickerAmp: 0.05,
+  rhythmFlickerSpeed: 4,
 
   // ── Zone seeds ──
-  zoneCount: 10,
-  zoneDotSizeVariation: 0.7,
-  zoneDensityVariation: 0.5,
+  zoneCount: 8,
+  zoneDotSizeVariation: 0.4,
+  zoneDensityVariation: 0.25,
   zoneFlickerPhaseSpread: 1.0,
 
   // ── Generations ──
@@ -92,8 +91,8 @@ export const CFG = {
   climaxCollapseSpeed: 3.0,
 
   // ── Color decay ──
-  colorDecayStart: 0.65,
-  colorDecayEnd: 0.92,
+  colorDecayStart: 0.5,
+  colorDecayEnd: 0.85,
 
   // ── Camera ──
   camLerpFast: 0.08,
@@ -101,9 +100,9 @@ export const CFG = {
   camMediumZoom: 1.5,
   camMacroZoom: 3,
   camMacroReturnSec: 5,
-  camPanSpeed: 1.5,
-  camPanOscAmp: 0.12,
-  camPanOscSpeed: 0.25,
+  camPanSpeed: 0.3,
+  camPanOscAmp: 0.05,
+  camPanOscSpeed: 0.5,
 
   // ── Director ──
   directorBPM: 120,
