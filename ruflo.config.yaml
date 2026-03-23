@@ -1,0 +1,189 @@
+project:
+  name: "MACHINE_II"
+  type: "code"
+  language: "javascript"
+  runtime: "browser"
+  description: "Browser-based recursive co-composition system for live audiovisual performance"
+
+models:
+  default: "cheap"
+  planner: "cheap"
+  reviewer: "cheap"
+  fallback: "cheap"
+
+orchestration:
+  topology: "star"
+  strategy: "specialized"
+  maxAgents: 4
+  parallelism: 2
+  routing: "planner-led"
+  includeFullConversation: false
+  passFullRepoContext: false
+  handoffFormat: "summary_only"
+  retryOnFailure: 1
+  stopOnScopeExpansion: true
+
+context:
+  memoryPolicy: "minimal"
+  repoMapFirst: true
+  preferTargetedReads: true
+  maxFilesPerTask: 3
+  includeDocsByDefault: []
+  excludeByDefault:
+    - "node_modules"
+    - "dist"
+    - "build"
+    - ".git"
+    - "*.png"
+    - "*.jpg"
+    - "*.wav"
+    - "*.mp4"
+    - "*.zip"
+  alwaysAskBeforeBroadScan: true
+
+agents:
+  - id: "planner"
+    role: "Task planner and scope guard"
+    model: "strong"
+    permissions:
+      read: true
+      write: false
+    instructions:
+      - "Make a short plan before non-trivial changes."
+      - "Identify touched files."
+      - "Stop and ask approval if protected areas are involved."
+      - "Prefer minimal diffs over refactors."
+      - "One goal per session."
+
+  - id: "reader"
+    role: "Focused code reader"
+    model: "cheap"
+    permissions:
+      read: true
+      write: false
+    instructions:
+      - "Read only files relevant to the requested task."
+      - "Return concise findings."
+      - "Do not propose architecture rewrites."
+      - "Do not inspect unrelated modules."
+
+  - id: "implementer"
+    role: "Safe patch implementer"
+    model: "cheap"
+    permissions:
+      read: true
+      write: true
+    instructions:
+      - "Only edit approved files."
+      - "Prefer patching existing modules."
+      - "Move sensitive numeric values into config.js."
+      - "Keep technical code/comments in English."
+      - "Do not duplicate logic."
+
+  - id: "reviewer"
+    role: "Rules and regression reviewer"
+    model: "cheap"
+    permissions:
+      read: true
+      write: false
+    instructions:
+      - "Check compliance with DESIGN.md."
+      - "Check for magic numbers and duplicated logic."
+      - "Check narrative regressions."
+      - "Return a short risk summary."
+
+rules:
+  protectedAreas:
+    - "main.js"
+    - "render.js"
+    - "director.js"
+    - "audio history buffer"
+    - "onset detection"
+    - "narrative arc to visual arc relationship"
+    - "rupture behavior"
+    - "climax behavior"
+    - "camera logic tied to narrative"
+
+  askApprovalWhenTaskTouches:
+    - "scene system"
+    - "arc timing"
+    - "mutation logic"
+    - "camera behavior"
+    - "rupture phases"
+    - "global render loop"
+    - "state architecture"
+
+  alwaysPrefer:
+    - "small safe edits"
+    - "targeted file reads"
+    - "summary-only handoffs"
+    - "config-driven parameters"
+    - "narrative justification for director changes"
+
+  neverDo:
+    - "monolithic rewrite"
+    - "repo-wide refactor without approval"
+    - "magic numbers"
+    - "duplicate thresholds"
+    - "burst-only rupture"
+    - "changing core concept"
+    - "broken commits"
+
+taskProfiles:
+  default:
+    planner: true
+    reader: true
+    implementer: true
+    reviewer: false
+
+  quick_patch:
+    planner: false
+    reader: false
+    implementer: true
+    reviewer: false
+
+  docs_only:
+    planner: true
+    reader: true
+    implementer: false
+    reviewer: false
+
+  safe_patch:
+    planner: true
+    reader: true
+    implementer: true
+    reviewer: true
+
+  protected_change:
+    planner: true
+    reader: true
+    implementer: false
+    reviewer: false
+    requireApproval: true
+
+output:
+  plannerMaxLines: 7
+  readerMaxLines: 10
+  reviewerMaxLines: 8
+  finalSections:
+    - "Touched files"
+    - "What changed"
+    - "Why safe"
+    - "Rules checked"
+    - "Risks"
+
+workflow:
+  requirePlanBeforeEdit: true
+  requireSnapshotReminder: true
+  requireDocUpdateOnStructuralChange: true
+  requireCommitMessageFormat: "vX.Y.Z: descrizione breve"
+  branchPrefixExperimental: "exp/"
+
+session:
+  oneGoalPerSession: true
+  recommendClearBetweenTasks: true
+  recommendCompactNearLimit: true
+  autoCompactAfterAgents: 2
+  maxContextKTokens: 40
+  warnAtContextPercent: 70
+  preferProfileForSimpleTasks: "quick_patch"

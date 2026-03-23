@@ -131,6 +131,11 @@ export function resetClimax() {
   climaxProgress = 0;
 }
 
+export function setComposerClimax(active) {
+  inClimax = active;
+  if (!active) climaxProgress = Math.max(0, climaxProgress - 0.1);
+}
+
 // Get pixel color for entity — pure color toward bg, not washed to fg
 export function getCellColor(colorId, colorAlpha, _fgVal) {
   if (colorId === 0 || colorAlpha < 0.01) return null;
@@ -151,7 +156,18 @@ export function getCellColor(colorId, colorAlpha, _fgVal) {
 
 // Get pixel color for MIDI channel — pure saturated color
 export function getMidiColor(ch, alpha, _fgVal) {
-  if (ch < 0 || ch >= 5 || alpha < 0.01) return null;
+  if (ch === null || alpha < 0.01) return null;
+  // Color 'C' = magenta RUPTURE
+  if (ch === 'C') {
+    const a = Math.min(1, Math.pow(alpha, 0.5));
+    const bg = palette.bg;
+    return [
+      Math.round(bg[0] + (COLOR_C[0] - bg[0]) * a),
+      Math.round(bg[1] + (COLOR_C[1] - bg[1]) * a),
+      Math.round(bg[2] + (COLOR_C[2] - bg[2]) * a),
+    ];
+  }
+  if (typeof ch !== 'number' || ch < 0 || ch >= 5 || alpha < 0.01) return null;
   const rgb = MIDI_COLORS[ch];
   const a = Math.min(1, Math.pow(alpha, 0.5));
   const bg = palette.bg;
