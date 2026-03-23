@@ -23,24 +23,51 @@ Architettura 12 moduli ES completa. Zone Kandinsky con reattivita' per zona.
 ## v0.9.0 — DONE
 Sinestesia geometrica MIDI. 5 canali separati (KICK/BASS/HARMONY/LEAD/TEXTURE), colori per ruolo, MIDI patterns indipendenti, fix routing IAC Driver.
 
-## v1.0.0 — DONE (corrente)
+## v1.0.0 — DONE
 
 **Piano narrativo + estetica Mondrian.**
 
 - **8 scene estetiche:** BAYER_CLASSIC, COLORED_GROUND, SPARSE, DENSE, MONOCHROME, NEGATIVE, MONDRIAN, HORIZON
-- **8 composizioni rettangolari:** UNIFORM, MONDRIAN_A, MONDRIAN_B, COLUMNS, HORIZON, FRAME, ISLANDS, ASYMMETRIC — blocchi netti con linee divisorie, zero geometrie rotonde
-- **Arco narrativo:** INTRO → DEVELOP → TENSION → CLIMAX → RELEASE con tempi accelerati
-- **7 palette dinamiche:** default, amber, cyan, bw, magenta, warm, cold — transizioni lerp
-- **Geometrie MIDI rettangolari:** pulse=rettangolo espandente, blob=blocco pieno, band=striscia, trail=rettangolo verticale, scatter=granuli rettangolari
-- **Onset wave orizzontali** (strisce, non anelli)
-- **Densita' MIDI additiva** (d += midiD, non Math.max)
-- **Dot size da scena** (stabile, no pulsazione globale audio)
-- **Narrazione veloce:** mutazioni ogni 1-8 bars, peso SCENE 45%
-- **Launcher .command** con doppio-click
+- **8 composizioni rettangolari:** UNIFORM, MONDRIAN_A, MONDRIAN_B, COLUMNS, HORIZON, FRAME, ISLANDS, ASYMMETRIC
+- **Arco narrativo:** INTRO → DEVELOP → TENSION → CLIMAX → RELEASE
+- **7 palette dinamiche:** default, amber, cyan, bw, magenta, warm, cold
+- **Geometrie MIDI rettangolari:** pulse, blob, band, trail, scatter
+- **Onset wave orizzontali**, dot size da scena, densita' MIDI additiva
 
 ---
 
-## v1.1.0 — PROSSIMO
+## v1.1.0 — DONE
+
+**Audio-driven density + non-linear compression.**
+
+- **Void threshold 0.12:** spazio negativo vero, nessun punto sotto soglia
+- **Densita' max 0.65** con compressione non-lineare (pow 1.6) per contrasto forte
+- **MIDI max-not-sum:** prende la nota piu' forte, non la somma
+- **Contributi banda ridotti** (sub/mid/high piu' sottili, meno rumore)
+- **densityFloor 0.01** per permettere veri vuoti nel campo
+
+---
+
+## v1.2.0 — DONE (corrente)
+
+**Colori puri + forme MIDI per tipo di suono + arco audio-driven.**
+
+- **Colori verso bg non fg:** `getCellColor` e `getMidiColor` interpolano verso `palette.bg` per colori saturi e puri
+- **Arco narrativo audio-driven:** 6 stati (SILENCE/BUILDING/ACTIVE/INTENSE/PEAK/DECAY) guidati da RMS smoothed con isteresi, nessun timer
+- **MIDI per carattere sonoro:**
+  - KICK: flash istantaneo (no espansione temporale), velocity-driven
+  - BASS: colonna verticale persistente (shape 'column'), decay lentissimo
+  - HARMONY: banda orizzontale, scala con densita' accordale
+  - LEAD: trail melodico pitch→Y, traccia leggibile nel tempo
+  - TEXTURE: granuli scatter, dimensione da energia high/air
+- **Region fillColor:** composizioni Mondrian con accent1/2/3 per campi colorati rettangolari
+- **Priorita' colore:** MIDI forte (>0.15) > region fill (mul>=1.5) > entity color > fg
+- **Camera narrativa:** WIDE_ONLY→DRIFT_BIAS→TIGHTEN→MACRO_LOCK→SLOW_WIDE per fase arc
+- **Palette accent per regione:** ogni blocco composizione porta il proprio colore accent
+
+---
+
+## v1.3.0 — PROSSIMO
 
 - Pannello controllo MIDI-mappabile (macro CC)
 - Dual-screen: controllo con preview + fullscreen proiezione (window.open)

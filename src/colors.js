@@ -131,8 +131,8 @@ export function resetClimax() {
   climaxProgress = 0;
 }
 
-// Get pixel color for entity — reads from dynamic palette
-export function getCellColor(colorId, colorAlpha, fgVal) {
+// Get pixel color for entity — pure color toward bg, not washed to fg
+export function getCellColor(colorId, colorAlpha, _fgVal) {
   if (colorId === 0 || colorAlpha < 0.01) return null;
   let rgb;
   if (colorId === 1) rgb = palette.accent1;
@@ -140,22 +140,24 @@ export function getCellColor(colorId, colorAlpha, fgVal) {
   else if (colorId === 3) rgb = palette.accent3;
   else return null;
 
-  const a = Math.pow(colorAlpha, 0.6);
+  const a = Math.min(1, colorAlpha);
+  const bg = palette.bg;
   return [
-    Math.round(fgVal + (rgb[0] - fgVal) * a),
-    Math.round(fgVal + (rgb[1] - fgVal) * a),
-    Math.round(fgVal + (rgb[2] - fgVal) * a),
+    Math.round(bg[0] + (rgb[0] - bg[0]) * a),
+    Math.round(bg[1] + (rgb[1] - bg[1]) * a),
+    Math.round(bg[2] + (rgb[2] - bg[2]) * a),
   ];
 }
 
-// Get pixel color for MIDI channel
-export function getMidiColor(ch, alpha, fgVal) {
+// Get pixel color for MIDI channel — pure saturated color
+export function getMidiColor(ch, alpha, _fgVal) {
   if (ch < 0 || ch >= 5 || alpha < 0.01) return null;
   const rgb = MIDI_COLORS[ch];
-  const a = Math.pow(Math.min(1, alpha), 0.5);
+  const a = Math.min(1, Math.pow(alpha, 0.5));
+  const bg = palette.bg;
   return [
-    Math.round(fgVal + (rgb[0] - fgVal) * a),
-    Math.round(fgVal + (rgb[1] - fgVal) * a),
-    Math.round(fgVal + (rgb[2] - fgVal) * a),
+    Math.round(bg[0] + (rgb[0] - bg[0]) * a),
+    Math.round(bg[1] + (rgb[1] - bg[1]) * a),
+    Math.round(bg[2] + (rgb[2] - bg[2]) * a),
   ];
 }

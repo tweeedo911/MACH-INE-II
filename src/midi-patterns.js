@@ -1,42 +1,47 @@
 // ═══════════════════════════════════════════════════════════
 //  MACH:INE II — MIDI Visual Mapping Patterns
-//  Each channel has independent behavior that changes rarely.
+//  v1.2: shapes linked to sound character
 // ═══════════════════════════════════════════════════════════
 
+import { audio } from './audio.js';
+
 // ── Per-role behavior options ──
-// size values increased for visibility; scene.midiScale further scales them
-
+// KICK: percussivo, flash istantaneo (decay rapido, no bloom)
 const KICK_BEHAVIORS = [
-  { zone: [0.50, 0.90], xMode: 'center', shape: 'pulse',  size: 0.14, decay: 0.93, color: 0 },
-  { zone: [0.40, 1.00], xMode: 'spread', shape: 'pulse',  size: 0.18, decay: 0.91, color: 0 },
-  { zone: [0.30, 0.80], xMode: 'spread', shape: 'pulse',  size: 0.11, decay: 0.95, color: 0 },
+  { zone: [0.50, 0.90], xMode: 'spread', shape: 'pulse', size: 0.16, decay: 0.78, color: 0 },
+  { zone: [0.40, 1.00], xMode: 'spread', shape: 'pulse', size: 0.20, decay: 0.75, color: 0 },
+  { zone: [0.30, 0.80], xMode: 'spread', shape: 'pulse', size: 0.14, decay: 0.80, color: 0 },
 ];
 
+// BASS: sostenuto, colonna verticale persistente, larghezza = velocity
 const BASS_BEHAVIORS = [
-  { zone: [0.65, 1.00], xMode: 'center', shape: 'blob',   size: 0.20, decay: 0.988, color: 1 },
-  { zone: [0.45, 0.55], xMode: 'center', shape: 'blob',   size: 0.25, decay: 0.985, color: 1 },
-  { zone: [0.50, 1.00], xMode: 'pitch',  shape: 'blob',   size: 0.18, decay: 0.986, color: 1 },
-  { zone: [0.40, 0.90], xMode: 'center', shape: 'blob',   size: 0.22, decay: 0.990, color: 1 },
+  { zone: [0.10, 0.95], xMode: 'center', shape: 'column', size: 0.10, decay: 0.997, color: 1 },
+  { zone: [0.20, 0.95], xMode: 'pitch',  shape: 'column', size: 0.12, decay: 0.996, color: 1 },
+  { zone: [0.00, 1.00], xMode: 'center', shape: 'column', size: 0.08, decay: 0.998, color: 1 },
+  { zone: [0.30, 0.90], xMode: 'pitch',  shape: 'column', size: 0.14, decay: 0.995, color: 1 },
 ];
 
+// HARMONY: banda orizzontale, altezza = densità accordale
 const HARMONY_BEHAVIORS = [
-  { zone: [0.25, 0.75], xMode: 'pitch',  shape: 'band',   size: 0.12, decay: 0.978, color: 2 },
-  { zone: [0.20, 0.80], xMode: 'stereo', shape: 'band',   size: 0.15, decay: 0.975, color: 2 },
-  { zone: [0.10, 0.90], xMode: 'center', shape: 'blob',   size: 0.18, decay: 0.982, color: 2 },
-  { zone: [0.00, 1.00], xMode: 'pitch',  shape: 'band',   size: 0.10, decay: 0.976, color: 2 },
+  { zone: [0.25, 0.75], xMode: 'pitch',  shape: 'band', size: 0.10, decay: 0.982, color: 2 },
+  { zone: [0.20, 0.80], xMode: 'stereo', shape: 'band', size: 0.13, decay: 0.980, color: 2 },
+  { zone: [0.00, 1.00], xMode: 'pitch',  shape: 'band', size: 0.08, decay: 0.978, color: 2 },
+  { zone: [0.10, 0.90], xMode: 'stereo', shape: 'band', size: 0.12, decay: 0.981, color: 2 },
 ];
 
+// LEAD: melodico, trail pitch→Y, time→X, decay lento per leggere la melodia
 const LEAD_BEHAVIORS = [
-  { zone: [0.00, 0.40], xMode: 'pitch',  shape: 'trail',  size: 0.08, decay: 0.970, color: 3 },
-  { zone: [0.10, 0.90], xMode: 'stereo', shape: 'trail',  size: 0.07, decay: 0.968, color: 3 },
-  { zone: [0.00, 0.60], xMode: 'pitch',  shape: 'trail',  size: 0.10, decay: 0.975, color: 3 },
-  { zone: [0.00, 1.00], xMode: 'pitch',  shape: 'trail',  size: 0.06, decay: 0.965, color: 3 },
+  { zone: [0.05, 0.55], xMode: 'pitch', shape: 'trail', size: 0.07, decay: 0.984, color: 3 },
+  { zone: [0.10, 0.65], xMode: 'pitch', shape: 'trail', size: 0.06, decay: 0.982, color: 3 },
+  { zone: [0.00, 0.50], xMode: 'pitch', shape: 'trail', size: 0.08, decay: 0.986, color: 3 },
+  { zone: [0.05, 0.60], xMode: 'pitch', shape: 'trail', size: 0.05, decay: 0.980, color: 3 },
 ];
 
+// TEXTURE: granuli che si adattano all'energia high/air
 const TEXTURE_BEHAVIORS = [
-  { zone: [0.00, 1.00], xMode: 'random', shape: 'scatter', size: 0.04, decay: 0.955, color: 4 },
-  { zone: [0.00, 1.00], xMode: 'random', shape: 'scatter', size: 0.06, decay: 0.960, color: 4 },
-  { zone: [0.00, 1.00], xMode: 'pitch',  shape: 'scatter', size: 0.05, decay: 0.950, color: null },
+  { zone: [0.00, 1.00], xMode: 'random', shape: 'scatter', size: 0.03, decay: 0.960, color: 4 },
+  { zone: [0.00, 1.00], xMode: 'random', shape: 'scatter', size: 0.05, decay: 0.955, color: 4 },
+  { zone: [0.00, 1.00], xMode: 'pitch',  shape: 'scatter', size: 0.04, decay: 0.958, color: null },
 ];
 
 const ALL_BEHAVIORS = [KICK_BEHAVIORS, BASS_BEHAVIORS, HARMONY_BEHAVIORS, LEAD_BEHAVIORS, TEXTURE_BEHAVIORS];
@@ -105,9 +110,29 @@ export function getNotePosition(ch, noteNorm, velNorm) {
     x = Math.random();
   }
 
+  // Radius audio-linked by channel type
+  let radius;
+  if (ch === 0) {
+    // KICK: size proporzionale a velocity, niente padding fisso
+    radius = role.size * velNorm;
+  } else if (ch === 1) {
+    // BASS: larghezza = velocity, il render usa questo come hw
+    radius = role.size * (0.5 + velNorm * 0.5);
+  } else if (ch === 2) {
+    // HARMONY: altezza base, viene scalata in addMidiNote con noteCount
+    radius = role.size * (0.6 + velNorm * 0.4);
+  } else if (ch === 4) {
+    // TEXTURE: energia high/air modula la dimensione
+    const airEnergy = (audio.bands.air.L + audio.bands.air.R +
+                       audio.bands.high.L + audio.bands.high.R) * 0.25;
+    radius = role.size * (0.3 + airEnergy * 2.5 + velNorm * 0.3);
+  } else {
+    radius = role.size * (0.6 + velNorm * 0.4);
+  }
+
   return {
     x, y,
-    radius: role.size * (0.7 + velNorm * 0.3),
+    radius: Math.max(0.01, radius),
     decay: role.decay,
     shape: role.shape,
     color: role.color,

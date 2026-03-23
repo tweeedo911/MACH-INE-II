@@ -92,8 +92,8 @@ function midiColorAt(nx, ny) {
 
     let influence = 0;
     if (n.shape === 'pulse') {
-      // Colore rettangolare espanso attorno al flash
-      const expand = n.radius * (1 + n.time * 3);
+      // Colore rettangolare istantaneo — niente espansione nel tempo
+      const expand = n.radius;
       const hw = expand * 1.6, hh = expand * 0.9;
       const adx = Math.abs(dx), ady = Math.abs(dy);
       if (adx < hw && ady < hh) {
@@ -112,6 +112,12 @@ function midiColorAt(nx, ny) {
       if (Math.abs(dy) < bandH) {
         const xFade = 1 - Math.pow(Math.abs(nx - 0.5) * 2, 3);
         influence = (1 - Math.abs(dy) / bandH) * xFade * n.alpha * n.vel;
+      }
+    } else if (n.shape === 'column') {
+      // Colonna verticale — strip stretta in x, piena altezza
+      const hw = n.radius * 0.9;
+      if (Math.abs(dx) < hw) {
+        influence = (1 - Math.abs(dx) / hw) * n.alpha * n.vel;
       }
     } else if (n.shape === 'trail') {
       // Colore rettangolare verticale
@@ -234,7 +240,7 @@ function computeDensity(nx, ny, px, py, state, globalTime, W, H) {
     let midiD = 0;
 
     if (n.shape === 'pulse') {
-      const expand = n.radius * (1 + n.time * 3);
+      const expand = n.radius;
       const hw = expand * 1.2, hh = expand * 0.6;
       const edgeW = 0.03 + n.radius * 0.12;
       const adx = Math.abs(dx), ady = Math.abs(dy);
@@ -261,12 +267,18 @@ function computeDensity(nx, ny, px, py, state, globalTime, W, H) {
         const xFade = 1 - Math.pow(Math.abs(nx - 0.5) * 2, 3);
         midiD = falloff * xFade * n.vel * n.alpha * 0.7;
       }
+    } else if (n.shape === 'column') {
+      const hw = n.radius * 0.7;
+      if (Math.abs(dx) < hw) {
+        midiD = (1 - Math.abs(dx) / hw) * n.vel * n.alpha * 0.9;
+      }
     } else if (n.shape === 'scatter') {
       const hw = n.radius * 0.5, hh = n.radius * 0.3;
       if (Math.abs(dx) < hw && Math.abs(dy) < hh) {
         midiD = n.vel * n.alpha * 0.5;
       }
     } else {
+      // trail — rettangolo verticale
       const hw = n.radius * 0.4, hh = n.radius * 0.8;
       if (Math.abs(dx) < hw && Math.abs(dy) < hh) {
         midiD = (1 - Math.abs(dy) / hh) * n.vel * n.alpha * 0.8;
@@ -331,9 +343,22 @@ function renderFillRect(ctx, dotSize, state, globalTime, W, H) {
         const fgVal = cellInv ? 0 : 255;
         const [mCh, mAlpha] = midiColorAt(nx, ny);
         let fill;
-        if (mCh >= 0 && mAlpha > 0.03) {
+        // Priority: strong MIDI > region fill > entity color > fg
+        if (mCh >= 0 && mAlpha > 0.15) {
           const mc = getMidiColor(mCh, mAlpha, fgVal);
           if (mc) fill = `rgb(${mc[0]},${mc[1]},${mc[2]})`;
+        }
+        if (!fill) {
+          let regionFill = null;
+          for (const reg of scene.regions) {
+            if (reg.fillColor && reg.mul >= 1.5 && nx >= reg.x && nx < reg.x + reg.w && ny >= reg.y && ny < reg.y + reg.h) {
+              regionFill = reg.fillColor; break;
+            }
+          }
+          if (regionFill) {
+            const rc = getCellColor(regionFill, 0.85, fgVal);
+            if (rc) fill = `rgb(${rc[0]},${rc[1]},${rc[2]})`;
+          }
         }
         if (!fill) {
           const [cId, cAlpha] = entityColorAt(nx, ny, W, H);
@@ -383,9 +408,22 @@ function renderBuffer(ctx, dotSize, state, globalTime, W, H) {
       if (density > threshold) {
         const [mCh, mAlpha] = midiColorAt(nx, ny);
         let colored = false;
-        if (mCh >= 0 && mAlpha > 0.03) {
+        // Priority: strong MIDI > region fill > entity color > fg
+        if (mCh >= 0 && mAlpha > 0.15) {
           const mc = getMidiColor(mCh, mAlpha, cellFg);
           if (mc) { data[idx] = mc[0]; data[idx+1] = mc[1]; data[idx+2] = mc[2]; colored = true; }
+        }
+        if (!colored) {
+          let regionFill = null;
+          for (const reg of scene.regions) {
+            if (reg.fillColor && reg.mul >= 1.5 && nx >= reg.x && nx < reg.x + reg.w && ny >= reg.y && ny < reg.y + reg.h) {
+              regionFill = reg.fillColor; break;
+            }
+          }
+          if (regionFill) {
+            const rc = getCellColor(regionFill, 0.85, cellFg);
+            if (rc) { data[idx] = rc[0]; data[idx+1] = rc[1]; data[idx+2] = rc[2]; colored = true; }
+          }
         }
         if (!colored) {
           const [cId, cAlpha] = entityColorAt(nx, ny, W, H);
