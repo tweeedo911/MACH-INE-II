@@ -198,8 +198,8 @@ function computeDensity(nx, ny, px, py, state, globalTime, W, H) {
     d *= 1 - Math.pow(centerDist, CFG.widthCenterFalloff * (1 - state.stereoWidth)) * (1 - state.stereoWidth);
   }
 
-  if (state.trajectory === 1) d += (1 - ny) * 0.15 * localIntensity;
-  else if (state.trajectory === -1) d += ny * 0.15 * localIntensity;
+  if (state.trajectory === 1) d += (1 - ny) * 0.08 * localIntensity;
+  else if (state.trajectory === -1) d += ny * 0.08 * localIntensity;
 
   // Frequency bands → spatial regions
   const bandAvg = (band) => (band.L + band.R) * 0.5;
@@ -207,9 +207,9 @@ function computeDensity(nx, ny, px, py, state, globalTime, W, H) {
   const mid = bandAvg(audio.bands.mid);
   const highAir = bandAvg(audio.bands.high) * 0.6 + bandAvg(audio.bands.air) * 0.4;
 
-  if (ny > 0.6) d += subLow * 0.20 * (ny - 0.6) / 0.4;
-  else if (ny > 0.3) d += mid * 0.15 * (1 - Math.abs(ny - 0.5) / 0.2);
-  if (ny < 0.4) d += highAir * 0.18 * (0.4 - ny) / 0.4;
+  if (ny > 0.6) d += subLow * 0.08 * (ny - 0.6) / 0.4;
+  else if (ny > 0.3) d += mid * 0.06 * (1 - Math.abs(ny - 0.5) / 0.2);
+  if (ny < 0.4) d += highAir * 0.07 * (0.4 - ny) / 0.4;
 
   const pd = primitiveDensity(nx, ny, state, W, H);
   if (pd === -1) return 0;
@@ -226,14 +226,14 @@ function computeDensity(nx, ny, px, py, state, globalTime, W, H) {
     }
   }
 
-  // MIDI trail — additive density (not max) so audio terrain + MIDI landmarks coexist
+  // MIDI trail — take strongest note only (max, not sum) for cleaner landmarks
+  let maxMidiD = 0;
   for (const n of midiTrail) {
     if (n.alpha < 0.02) continue;
     const dx = nx - n.x, dy = ny - n.y;
     let midiD = 0;
 
     if (n.shape === 'pulse') {
-      // Rettangolo che si espande — flash quadrato
       const expand = n.radius * (1 + n.time * 3);
       const hw = expand * 1.2, hh = expand * 0.6;
       const edgeW = 0.03 + n.radius * 0.12;
@@ -246,18 +246,14 @@ function computeDensity(nx, ny, px, py, state, globalTime, W, H) {
         }
       }
     } else if (n.shape === 'blob') {
-      // Blocco rettangolare pieno — massa quadrata
       const breathe = 1 + Math.sin(n.time * 2.5) * 0.15;
       const hw = n.radius * 1.8 * breathe;
       const hh = n.radius * 1.2 * breathe;
       const adx = Math.abs(dx), ady = Math.abs(dy);
       if (adx < hw && ady < hh) {
-        const fx = 1 - (adx / hw);
-        const fy = 1 - (ady / hh);
-        midiD = fx * fy * n.vel * n.alpha * 0.85;
+        midiD = (1 - adx / hw) * (1 - ady / hh) * n.vel * n.alpha * 0.85;
       }
     } else if (n.shape === 'band') {
-      // Striscia orizzontale rettangolare (invariata, già rettangolare)
       const bandH = n.radius * 0.8;
       const bandDist = Math.abs(dy);
       if (bandDist < bandH) {
@@ -266,22 +262,20 @@ function computeDensity(nx, ny, px, py, state, globalTime, W, H) {
         midiD = falloff * xFade * n.vel * n.alpha * 0.7;
       }
     } else if (n.shape === 'scatter') {
-      // Granuli rettangolari piccoli
       const hw = n.radius * 0.5, hh = n.radius * 0.3;
       if (Math.abs(dx) < hw && Math.abs(dy) < hh) {
         midiD = n.vel * n.alpha * 0.5;
       }
     } else {
-      // Trail — rettangolo verticale stretto
       const hw = n.radius * 0.4, hh = n.radius * 0.8;
       if (Math.abs(dx) < hw && Math.abs(dy) < hh) {
-        const fy = 1 - Math.abs(dy) / hh;
-        midiD = fy * n.vel * n.alpha * 0.8;
+        midiD = (1 - Math.abs(dy) / hh) * n.vel * n.alpha * 0.8;
       }
     }
 
-    d += midiD * 0.5; // additive, scaled down
+    if (midiD > maxMidiD) maxMidiD = midiD;
   }
+  d += maxMidiD * 0.4;
 
   // Melodic contour: lines between consecutive TRAIL notes of same channel
   if (midiTrail.length >= 2) {
@@ -305,7 +299,10 @@ function computeDensity(nx, ny, px, py, state, globalTime, W, H) {
 
   if (inClimax) d += CFG.climaxDensityBoost * climaxProgress;
 
-  return Math.max(0, Math.min(1, d));
+  // Non-linear compression: create true negative space
+  d = Math.max(0, Math.min(1, d));
+  if (d < CFG.densityVoidThreshold) return 0;
+  return Math.pow((d - CFG.densityVoidThreshold) / (1 - CFG.densityVoidThreshold), 1.6);
 }
 
 // ── Render: fillRect path (large dots) ──

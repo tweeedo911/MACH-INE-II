@@ -59,8 +59,9 @@ function lerpColor(current, target, speed) {
   }
 }
 
-export function updatePalette() {
-  const s = palette._lerpSpeed;
+export function updatePalette(dt) {
+  // Framerate-independent lerp
+  const s = dt ? (1 - Math.pow(1 - palette._lerpSpeed, dt * 60)) : palette._lerpSpeed;
   lerpColor(palette.bg, palette._targetBg, s);
   lerpColor(palette.fg, palette._targetFg, s);
   lerpColor(palette.accent1, palette._targetA1, s);
@@ -93,8 +94,8 @@ export function startInvertDissolve() {
 }
 
 export function updateColors(dt, state) {
-  // Palette lerp
-  updatePalette();
+  // Palette lerp (dt-based)
+  updatePalette(dt);
 
   // Climax
   if (state.intensity > CFG.climaxIntensityThreshold) climaxTimer += dt;
