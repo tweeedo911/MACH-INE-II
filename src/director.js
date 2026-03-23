@@ -95,66 +95,60 @@ const COLORED_PALETTES = ['amber', 'cyan', 'magenta', 'warm', 'cold'];
 //  COMPOSITIONS — Spatial density layouts
 // ═══════════════════════════════════════════════════════════
 
+// fillColor: palette accent index (1=accent1, 2=accent2, 3=accent3, null=fg/bg)
 const COMPOSITIONS = {
   UNIFORM: [],
-  // Mondrian: pannello sinistro denso, centro vuoto, colonna destra
   MONDRIAN_A: [
-    { x: 0, y: 0, w: 0.38, h: 0.55, mul: 2.5 },
-    { x: 0, y: 0.55, w: 0.38, h: 0.45, mul: 0.04 },
-    { x: 0.38, y: 0, w: 0.02, h: 1, mul: 3.0 },    // linea verticale
-    { x: 0.40, y: 0, w: 0.35, h: 1, mul: 0.02 },    // centro vuoto
-    { x: 0.75, y: 0, w: 0.02, h: 1, mul: 3.0 },    // linea verticale
-    { x: 0.77, y: 0, w: 0.23, h: 0.35, mul: 0.04 },
-    { x: 0.77, y: 0.35, w: 0.23, h: 0.65, mul: 2.2 },
+    { x: 0,    y: 0,    w: 0.38, h: 0.55, mul: 2.5, fillColor: 1 },
+    { x: 0,    y: 0.55, w: 0.38, h: 0.45, mul: 0.04, fillColor: null },
+    { x: 0.38, y: 0,    w: 0.02, h: 1,    mul: 3.0,  fillColor: 3 }, // linea
+    { x: 0.40, y: 0,    w: 0.35, h: 1,    mul: 0.02, fillColor: null },
+    { x: 0.75, y: 0,    w: 0.02, h: 1,    mul: 3.0,  fillColor: 3 }, // linea
+    { x: 0.77, y: 0,    w: 0.23, h: 0.35, mul: 0.04, fillColor: null },
+    { x: 0.77, y: 0.35, w: 0.23, h: 0.65, mul: 2.2,  fillColor: 2 },
   ],
-  // Mondrian: griglia 3×2 con blocchi alternati
   MONDRIAN_B: [
-    { x: 0, y: 0, w: 0.30, h: 0.45, mul: 2.8 },
-    { x: 0.30, y: 0, w: 0.40, h: 0.45, mul: 0.03 },
-    { x: 0.70, y: 0, w: 0.30, h: 0.45, mul: 1.8 },
-    { x: 0, y: 0.45, w: 0.02, h: 0.02, mul: 3.5 },  // nodo
-    { x: 0, y: 0.47, w: 0.50, h: 0.53, mul: 0.05 },
-    { x: 0.50, y: 0.47, w: 0.50, h: 0.25, mul: 2.4 },
-    { x: 0.50, y: 0.72, w: 0.50, h: 0.28, mul: 0.03 },
+    { x: 0,    y: 0,    w: 0.30, h: 0.45, mul: 2.8, fillColor: 1 },
+    { x: 0.30, y: 0,    w: 0.40, h: 0.45, mul: 0.03, fillColor: null },
+    { x: 0.70, y: 0,    w: 0.30, h: 0.45, mul: 1.8,  fillColor: 2 },
+    { x: 0,    y: 0.45, w: 0.02, h: 0.02, mul: 3.5,  fillColor: 3 },
+    { x: 0,    y: 0.47, w: 0.50, h: 0.53, mul: 0.05, fillColor: null },
+    { x: 0.50, y: 0.47, w: 0.50, h: 0.25, mul: 2.4,  fillColor: 3 },
+    { x: 0.50, y: 0.72, w: 0.50, h: 0.28, mul: 0.03, fillColor: null },
   ],
-  // Colonne verticali tipo Rothko/Mondrian
   COLUMNS: [
-    { x: 0, y: 0, w: 0.18, h: 1, mul: 2.5 },
-    { x: 0.18, y: 0, w: 0.24, h: 1, mul: 0.02 },
-    { x: 0.42, y: 0, w: 0.16, h: 1, mul: 3.0 },
-    { x: 0.58, y: 0, w: 0.22, h: 1, mul: 0.02 },
-    { x: 0.80, y: 0, w: 0.20, h: 1, mul: 1.8 },
+    { x: 0,    y: 0, w: 0.18, h: 1, mul: 2.5, fillColor: 1 },
+    { x: 0.18, y: 0, w: 0.24, h: 1, mul: 0.02, fillColor: null },
+    { x: 0.42, y: 0, w: 0.16, h: 1, mul: 3.0, fillColor: 2 },
+    { x: 0.58, y: 0, w: 0.22, h: 1, mul: 0.02, fillColor: null },
+    { x: 0.80, y: 0, w: 0.20, h: 1, mul: 1.8, fillColor: 3 },
   ],
-  // Striscia orizzontale con bordi vuoti
   HORIZON: [
-    { x: 0, y: 0, w: 1, h: 0.30, mul: 0.03 },
-    { x: 0, y: 0.30, w: 1, h: 0.02, mul: 3.5 },   // linea
-    { x: 0, y: 0.32, w: 1, h: 0.20, mul: 2.5 },
-    { x: 0, y: 0.52, w: 1, h: 0.02, mul: 3.5 },   // linea
-    { x: 0, y: 0.54, w: 1, h: 0.46, mul: 0.03 },
+    { x: 0, y: 0,    w: 1, h: 0.30, mul: 0.03, fillColor: null },
+    { x: 0, y: 0.30, w: 1, h: 0.02, mul: 3.5,  fillColor: 3 },
+    { x: 0, y: 0.32, w: 1, h: 0.20, mul: 2.5,  fillColor: 1 },
+    { x: 0, y: 0.52, w: 1, h: 0.02, mul: 3.5,  fillColor: 3 },
+    { x: 0, y: 0.54, w: 1, h: 0.46, mul: 0.03, fillColor: null },
   ],
-  // Vuoto al centro, densità ai bordi — rettangolare
   FRAME: [
-    { x: 0, y: 0, w: 1, h: 0.12, mul: 2.5 },
-    { x: 0, y: 0.88, w: 1, h: 0.12, mul: 2.5 },
-    { x: 0, y: 0.12, w: 0.12, h: 0.76, mul: 2.5 },
-    { x: 0.88, y: 0.12, w: 0.12, h: 0.76, mul: 2.5 },
-    { x: 0.12, y: 0.12, w: 0.76, h: 0.76, mul: 0.02 },
+    { x: 0,    y: 0,    w: 1,    h: 0.12, mul: 2.5, fillColor: 2 },
+    { x: 0,    y: 0.88, w: 1,    h: 0.12, mul: 2.5, fillColor: 2 },
+    { x: 0,    y: 0.12, w: 0.12, h: 0.76, mul: 2.5, fillColor: 1 },
+    { x: 0.88, y: 0.12, w: 0.12, h: 0.76, mul: 2.5, fillColor: 1 },
+    { x: 0.12, y: 0.12, w: 0.76, h: 0.76, mul: 0.02, fillColor: null },
   ],
-  // Blocchi isolati su sfondo vuoto — isole rettangolari
   ISLANDS: [
-    { x: 0, y: 0, w: 1, h: 1, mul: 0.02 },           // base quasi vuota
-    { x: 0.05, y: 0.05, w: 0.22, h: 0.15, mul: 80 }, // isola (2.5/0.02*0.65)
-    { x: 0.62, y: 0.18, w: 0.15, h: 0.28, mul: 70 },
-    { x: 0.25, y: 0.60, w: 0.30, h: 0.12, mul: 90 },
-    { x: 0.78, y: 0.75, w: 0.18, h: 0.20, mul: 60 },
+    { x: 0,    y: 0,    w: 1,    h: 1,    mul: 0.02, fillColor: null },
+    { x: 0.05, y: 0.05, w: 0.22, h: 0.15, mul: 80,   fillColor: 1 },
+    { x: 0.62, y: 0.18, w: 0.15, h: 0.28, mul: 70,   fillColor: 2 },
+    { x: 0.25, y: 0.60, w: 0.30, h: 0.12, mul: 90,   fillColor: 3 },
+    { x: 0.78, y: 0.75, w: 0.18, h: 0.20, mul: 60,   fillColor: 1 },
   ],
-  // Asimmetrico con peso a destra
   ASYMMETRIC: [
-    { x: 0, y: 0, w: 0.60, h: 1, mul: 0.04 },
-    { x: 0.60, y: 0, w: 0.02, h: 1, mul: 3.5 },     // linea
-    { x: 0.62, y: 0, w: 0.38, h: 0.50, mul: 2.8 },
-    { x: 0.62, y: 0.50, w: 0.38, h: 0.50, mul: 0.05 },
+    { x: 0,    y: 0,    w: 0.60, h: 1,    mul: 0.04, fillColor: null },
+    { x: 0.60, y: 0,    w: 0.02, h: 1,    mul: 3.5,  fillColor: 3 },
+    { x: 0.62, y: 0,    w: 0.38, h: 0.50, mul: 2.8,  fillColor: 1 },
+    { x: 0.62, y: 0.50, w: 0.38, h: 0.50, mul: 0.05, fillColor: null },
   ],
 };
 
@@ -162,104 +156,117 @@ const COMPOSITIONS = {
 //  NARRATIVE ARC
 // ═══════════════════════════════════════════════════════════
 
-// ── Per-phase behavior parameters ──
+// ── Per-phase behavior parameters (6 audio-driven states) ──
 const ARC_PARAMS = {
-  INTRO: {
-    allowedScenes: ['BAYER_CLASSIC', 'SPARSE'],
-    mutationRate: 0.0,         // no mutations — organic growth only
+  SILENCE: {
+    allowedScenes: ['SPARSE'],
+    mutationRate: 0.0,
     camera: 'WIDE_ONLY',
-    densityCap: 0.25,
-    blendMul: 0.4,             // very slow transitions
+    densityCap: 0.06,
+    blendMul: 0.2,
   },
-  DEVELOP: {
-    allowedScenes: null,       // all scenes
-    mutationRate: 0.6,
+  BUILDING: {
+    allowedScenes: ['BAYER_CLASSIC', 'SPARSE', 'HORIZON', 'MONDRIAN'],
+    mutationRate: 0.3,
     camera: 'DRIFT_BIAS',
-    densityCap: 0.8,
+    densityCap: 0.4,
+    blendMul: 0.6,
+  },
+  ACTIVE: {
+    allowedScenes: null,   // all scenes
+    mutationRate: 1.0,
+    camera: 'DRIFT_BIAS',
+    densityCap: 0.9,
     blendMul: 1.0,
   },
-  TENSION: {
+  INTENSE: {
     allowedScenes: ['DENSE', 'COLORED_GROUND', 'MONDRIAN', 'NEGATIVE'],
-    mutationRate: 1.5,         // faster mutations — urgency
+    mutationRate: 1.8,
     camera: 'TIGHTEN',
     densityCap: 1.0,
-    blendMul: 1.5,
+    blendMul: 1.8,
     chromaChance: 0.3,
   },
-  CLIMAX: {
+  PEAK: {
     allowedScenes: ['DENSE', 'NEGATIVE'],
-    mutationRate: 2.5,
+    mutationRate: 3.0,
     camera: 'MACRO_LOCK',
     densityCap: 999,
     blendMul: 3.0,
     chromaChance: 0.5,
     invertChance: 0.3,
   },
-  RELEASE: {
+  DECAY: {
     allowedScenes: ['SPARSE', 'MONOCHROME', 'HORIZON'],
     mutationRate: 0.15,
     camera: 'SLOW_WIDE',
-    densityCap: 0.35,
-    blendMul: 0.25,            // very slow dissolve
+    densityCap: 0.28,
+    blendMul: 0.2,
   },
 };
 
 export const arc = {
   totalTime: 0,
   phaseTime: 0,
-  phase: 'INTRO',     // INTRO, DEVELOP, TENSION, CLIMAX, RELEASE
-  tensionAccum: 0,
-  releaseTimer: 0,
-  introHotTime: 0,
-  climaxTime: 0,
+  phase: 'SILENCE',
+  _smoothRms: 0,
+  _stateHold: 0,
   sceneHistory: [],
 };
 
 function setArcPhase(newPhase) {
+  if (arc.phase === newPhase) return;
   arc.phase = newPhase;
   arc.phaseTime = 0;
+  const holds = {
+    SILENCE: CFG.arcHoldSilence, BUILDING: CFG.arcHoldBuilding,
+    ACTIVE: CFG.arcHoldActive,   INTENSE:  CFG.arcHoldIntense,
+    PEAK:   CFG.arcHoldPeak,     DECAY:    CFG.arcHoldDecay,
+  };
+  arc._stateHold = holds[newPhase] || 2.0;
 }
 
 function updateArc(dt, state) {
   arc.totalTime += dt;
   arc.phaseTime += dt;
+  arc._stateHold -= dt;
 
-  if (arc.phase === 'INTRO') {
-    // Exit by timer OR audio intensity
-    if (arc.phaseTime > CFG.arcIntroDuration) { setArcPhase('DEVELOP'); return; }
-    if (state.intensity > CFG.arcIntroEscapeIntensity) {
-      arc.introHotTime += dt;
-      if (arc.introHotTime > CFG.arcIntroEscapeSec) { setArcPhase('DEVELOP'); return; }
-    } else { arc.introHotTime = Math.max(0, arc.introHotTime - dt); }
-  } else if (arc.phase === 'DEVELOP') {
-    if (arc.totalTime > CFG.arcDevelopEnd && state.intensity > CFG.arcTensionThreshold) {
-      arc.tensionAccum += dt;
-      if (arc.tensionAccum > 8) { setArcPhase('TENSION'); return; }
-    } else {
-      arc.tensionAccum = Math.max(0, arc.tensionAccum - dt * 0.5);
-    }
-  } else if (arc.phase === 'TENSION') {
-    if (state.intensity > CFG.arcTensionThreshold) {
-      arc.tensionAccum += dt;
-      if (arc.tensionAccum > CFG.arcTensionBuildSec) { setArcPhase('CLIMAX'); arc.climaxTime = 0; return; }
-    } else {
-      arc.tensionAccum = Math.max(0, arc.tensionAccum - dt * 2);
-      if (arc.tensionAccum < 3) { setArcPhase('DEVELOP'); return; }
-    }
-  } else if (arc.phase === 'CLIMAX') {
-    arc.climaxTime += dt;
-    if (arc.climaxTime > CFG.arcClimaxMinSec && state.intensity < 0.3) {
-      setArcPhase('RELEASE');
-      arc.releaseTimer = CFG.arcReleaseDuration;
-      return;
-    }
-  } else if (arc.phase === 'RELEASE') {
-    arc.releaseTimer -= dt;
-    // Allow early escape if music explodes
-    if (arc.releaseTimer <= 0 || (state.intensity > 0.6 && arc.phaseTime > 15)) {
-      setArcPhase('DEVELOP');
-      arc.tensionAccum = 0;
-    }
+  // Smooth RMS — framerate-independent, tau from config
+  const tau = CFG.arcSmoothTau || 0.6;
+  arc._smoothRms += (audio.rms - arc._smoothRms) * (1 - Math.exp(-dt / tau));
+  const rms  = arc._smoothRms;
+  const flux = audio.flux;
+  const traj = audio.trajectory;
+  const rhyt = state.rhythmicity;
+
+  if (arc._stateHold > 0) return; // isteresi — no flicker
+
+  switch (arc.phase) {
+    case 'SILENCE':
+      if (rms > CFG.arcRmsBuilding && traj === 1) setArcPhase('BUILDING');
+      else if (rms > CFG.arcRmsActive) setArcPhase('ACTIVE');
+      break;
+    case 'BUILDING':
+      if (rms < CFG.arcRmsSilence) setArcPhase('SILENCE');
+      else if (rms > CFG.arcRmsActive && rhyt > 0.25) setArcPhase('ACTIVE');
+      break;
+    case 'ACTIVE':
+      if (rms < CFG.arcRmsSilence) setArcPhase('SILENCE');
+      else if (rms < CFG.arcRmsBuilding && traj === -1) setArcPhase('BUILDING');
+      else if (rms > CFG.arcRmsIntense && flux > CFG.arcFluxIntense) setArcPhase('INTENSE');
+      break;
+    case 'INTENSE':
+      if (rms < CFG.arcRmsBuilding) setArcPhase('ACTIVE');
+      else if (rms > CFG.arcRmsPeak) setArcPhase('PEAK');
+      break;
+    case 'PEAK':
+      if (rms < CFG.arcRmsIntense && traj === -1) setArcPhase('DECAY');
+      break;
+    case 'DECAY':
+      if (rms < CFG.arcRmsSilence) setArcPhase('SILENCE');
+      else if (rms > CFG.arcRmsIntense && traj === 1) setArcPhase('ACTIVE');
+      else if (rms > CFG.arcRmsPeak) setArcPhase('PEAK');
+      break;
   }
 }
 
@@ -555,9 +562,11 @@ export function updateDirector(dt, state, globalTime, W, H) {
   updateSceneBlend(dt);
 
   // Arc-driven density clamping
-  const arcParams = ARC_PARAMS[arc.phase];
-  if (arc.phase === 'INTRO') {
-    scene.densityMul = Math.min(scene.densityMul, 0.1 + arc.phaseTime / CFG.arcIntroDuration * 0.2);
+  const arcParams = ARC_PARAMS[arc.phase] || ARC_PARAMS.ACTIVE;
+  if (arc.phase === 'SILENCE') {
+    scene.densityMul = Math.min(scene.densityMul, 0.04 + arc.phaseTime * 0.008);
+  } else if (arc.phase === 'BUILDING') {
+    scene.densityMul = Math.min(scene.densityMul, 0.08 + arc.phaseTime * 0.015);
   } else {
     scene.densityMul = Math.min(scene.densityMul, arcParams.densityCap);
   }

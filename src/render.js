@@ -159,7 +159,7 @@ function updateHUDDebug() {
     `CAM  ${framing.current} ×${framing.zoom.toFixed(1)}\n` +
     `DIR  ${director.lastChangeType}  ${director.sceneTime.toFixed(0)}s\n` +
     `SCENE ${scene.target.name}  ${scene.target.composition}  blend:${scene.blend.toFixed(2)}\n` +
-    `ARC  ${arc.phase}  ${Math.floor(arc.totalTime)}s\n` +
+    `ARC  ${arc.phase}  rms:${(arc._smoothRms||0).toFixed(2)}  ${Math.floor(arc.totalTime)}s\n` +
     `\n` +
     `MIDI ${midi.connected ? 'OK ' + midi.inputCount : 'OFF'}  ${lastNote}  CH:${midi.lastNote ? midi.lastNote.ch : '-'}\n` +
     `CH  ${midi.channels.map((c, i) => c.density > 0 ? i + ':' + c.density.toFixed(1) : '').filter(Boolean).join('  ') || 'no activity'}\n` +

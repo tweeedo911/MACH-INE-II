@@ -108,21 +108,29 @@ export const CFG = {
 
   // ── Director ──
   directorPlateauSec: 4,
-  directorChangeThreshold: 0.55,  // was 0.45 — more selective
+  directorChangeThreshold: 0.55,
   chromaticShiftDuration: 20,
   invertDissolveDuration: 1.0,
 
   // ── Scene system ──
-  sceneTransitionBars: 8,       // was 12 — faster transitions
-  sceneCutProbability: 0.25,    // was 0.15 — more cuts
-  arcIntroDuration: 45,         // was 60 — shorter intro
-  arcIntroEscapeIntensity: 0.5, // audio can end intro early
-  arcIntroEscapeSec: 5,
-  arcDevelopEnd: 75,            // was 180 — unlock tension sooner
-  arcTensionThreshold: 0.50,
-  arcTensionBuildSec: 15,       // was 20
-  arcReleaseDuration: 50,       // was 40 — longer release, more dramatic
-  arcClimaxMinSec: 12,          // minimum time in climax
+  sceneTransitionBars: 8,
+  sceneCutProbability: 0.25,
+
+  // ── Audio-driven arc thresholds (tunable) ──
+  arcRmsSilence:   0.10,   // below this = SILENCE
+  arcRmsBuilding:  0.28,   // SILENCE→BUILDING
+  arcRmsActive:    0.38,   // BUILDING→ACTIVE
+  arcRmsIntense:   0.60,   // ACTIVE→INTENSE
+  arcRmsPeak:      0.80,   // INTENSE→PEAK
+  arcFluxIntense:  0.012,  // flux needed to reach INTENSE
+  arcSmoothTau:    0.6,    // RMS smoothing time constant (seconds)
+  // State hold times (prevent flickering)
+  arcHoldSilence:  2.0,
+  arcHoldBuilding: 3.0,
+  arcHoldActive:   4.0,
+  arcHoldIntense:  3.0,
+  arcHoldPeak:     5.0,
+  arcHoldDecay:    7.0,
 
   // ── Render ──
   dotSizeBufferThreshold: 6,
