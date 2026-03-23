@@ -107,8 +107,8 @@ export const CFG = {
 
   // ── Director ──
   directorBPM: 120,
-  directorPlateauSec: 5,
-  directorChangeThreshold: 0.6,
+  directorPlateauSec: 4,
+  directorChangeThreshold: 0.45,
   chromaticShiftDuration: 20,
   invertDissolveDuration: 1.0,
 

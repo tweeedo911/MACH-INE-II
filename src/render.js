@@ -11,7 +11,7 @@ import { dna, updatePrimitives } from './dna.js';
 import { entities, fossils, updateGenerations, buildEntityGrid, triggerOnset, triggerMIDI } from './generations.js';
 import { updateColors, inverted, inClimax, climaxProgress, colorEnabled, chromaticMode, chromaticTimer } from './colors.js';
 import { updateDirector, applyCamera, framing, director, executeMutation } from './director.js';
-import { renderField, updateWaves, addOnsetWave, addMidiColumn } from './field.js';
+import { renderField, updateWaves, addOnsetWave, addMidiNote } from './field.js';
 
 let canvas, ctx;
 let W, H;
@@ -53,16 +53,14 @@ export function renderFrame(_now, dt) {
   }
   lastOnset = audio.onset;
 
-  // Detect MIDI note
-  if (midi.lastNote && midi.noteFlashes.length > 0) {
-    const nf = midi.noteFlashes[midi.noteFlashes.length - 1];
-    if (nf.alpha > 0.9) { // freshly added
-      const noteNorm = midi.lastNote.note / 127;
-      const velNorm = midi.lastNote.vel / 127;
-      const x = triggerMIDI(state, colorEnabled, noteNorm, velNorm);
-      addMidiColumn(x);
-    }
+  // Process all MIDI notes received since last frame
+  for (const n of midi.newNotes) {
+    const noteNorm = n.note / 127;
+    const velNorm = n.vel / 127;
+    triggerMIDI(state, colorEnabled, noteNorm, velNorm);
+    addMidiNote(n.ch, noteNorm, velNorm);
   }
+  midi.newNotes.length = 0;
 
   // Update systems
   updateColors(dt, state);
@@ -157,6 +155,7 @@ function updateHUDDebug() {
     `\n` +
     `CAM  ${framing.current} ×${framing.zoom.toFixed(1)}\n` +
     `DIR  ${director.lastChangeType}  ${director.sceneTime.toFixed(0)}s\n` +
-    `MIDI ${midi.connected ? 'OK ' + midi.inputCount : 'OFF'}  ${lastNote}\n` +
+    `MIDI ${midi.connected ? 'OK ' + midi.inputCount : 'OFF'}  ${lastNote}  CH:${midi.lastNote ? midi.lastNote.ch : '-'}\n` +
+    `CH  ${midi.channels.map((c, i) => c.density > 0 ? i + ':' + c.density.toFixed(1) : '').filter(Boolean).join('  ') || 'no activity'}\n` +
     `CLIMAX ${climaxProgress > 0.1 ? (climaxProgress * 100).toFixed(0) + '%' : 'OFF'}`;
 }

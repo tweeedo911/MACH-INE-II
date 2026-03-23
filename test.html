@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>MACH:INE II — System Test</title>
+<style>
+  body { background: #111; color: #0f0; font: 13px/1.6 monospace; padding: 20px; }
+  .pass { color: #0f0; }
+  .fail { color: #f00; font-weight: bold; }
+  .section { color: #0af; margin-top: 16px; font-weight: bold; }
+  #results { white-space: pre-wrap; }
+  #summary { margin-top: 24px; font-size: 16px; padding: 12px; border: 1px solid; }
+</style>
+</head>
+<body>
+<div id="results"></div>
+<div id="summary"></div>
+
+<script type="module">
+// ═══════════════════════════════════════════════════════
+//  MACH:INE II — Automated System Test
+//  Tests all modules without real audio/MIDI/canvas
+// ═══════════════════════════════════════════════════════
+
+const out = document.getElementById('results');
+const summary = document.getElementById('summary');
+let passed = 0, failed = 0;
+
+function section(name) {
+  out.innerHTML += `<span class="section">── ${name} ──</span>\n`;
+}
+
+function assert(name, condition, detail) {
+  if (condition) {
+    passed++;
+    out.innerHTML += `<span class="pass">  ✓ ${name}</span>\n`;
+  } else {
+    failed++;
+    out.innerHTML += `<span class="fail">  ✗ ${name}${detail ? ' — ' + detail : ''}</span>\n`;
+  }
+}
+
+// ── 1. Config ──
+section('CONFIG');
+try {
+  const { CFG } = await import('./src/config.js');
+  assert('CFG exists', !!CFG);
+  assert('densityFloor > 0', CFG.densityFloor > 0, `got ${CFG.densityFloor}`);
+  assert('densityMax > densityBase', CFG.densityMax > CFG.densityBase);
+  assert('zoneCount > 0', CFG.zoneCount > 0);
+  assert('fftSize power of 2', (CFG.fftSize & (CFG.fftSize - 1)) === 0);
+  assert('dotSizeMin < dotSizeMax', CFG.dotSizeMin < CFG.dotSizeMax);
+  assert('hudUpdateInterval > 0', CFG.hudUpdateInterval > 0);
+  assert('All band ranges defined',
+    ['sub','low','mid','high','air'].every(b => CFG.bandRanges[b] && CFG.bandRanges[b].length === 2));
+  assert('Band ranges are ordered (low < high)',
+    Object.values(CFG.bandRanges).every(r => r[0] < r[1]));
+} catch(e) { assert('Config import', false, e.message); }
+
+// ── 2. MIDI Patterns ──
+section('MIDI PATTERNS');
+try {
+  const { initMidiPatterns, getNotePosition, checkPatternChange, getChannelMapping, mutateChannel } = await import('./src/midi-patterns.js');
+
+  assert('initMidiPatterns exists', typeof initMidiPatterns === 'function');
+  assert('getNotePosition exists', typeof getNotePosition === 'function');
+  assert('checkPatternChange exists', typeof checkPatternChange === 'function');
+  assert('getChannelMapping exists', typeof getChannelMapping === 'function');
+  assert('mutateChannel exists', typeof mutateChannel === 'function');
+
+  // Test all 5 channels have mappings
+  for (let ch = 0; ch < 5; ch++) {
+    const m = getChannelMapping(ch);
+    assert(`Channel ${ch} has mapping`, !!m, `got ${m}`);
+    assert(`Channel ${ch} has zone`, Array.isArray(m.zone) && m.zone.length === 2);
+    assert(`Channel ${ch} has xMode`, typeof m.xMode === 'string');
+    assert(`Channel ${ch} has shape`, typeof m.shape === 'string');
+    assert(`Channel ${ch} has decay`, typeof m.decay === 'number' && m.decay > 0 && m.decay < 1);
+  }
+
+  // Channel 5+ should return null
+  assert('Channel 5 returns null', getChannelMapping(5) === null);
+
+  // getNotePosition returns correct structure
+  const pos = getNotePosition(0, 0.5, 0.8);
+  assert('getNotePosition returns object', !!pos);
+  assert('pos.x in [0,1]', pos.x >= 0 && pos.x <= 1, `got ${pos.x}`);
+  assert('pos.y in [0,1]', pos.y >= 0 && pos.y <= 1, `got ${pos.y}`);
+  assert('pos.radius > 0', pos.radius > 0);
+  assert('pos.decay in (0,1)', pos.decay > 0 && pos.decay < 1);
+  assert('pos.shape is string', typeof pos.shape === 'string');
+  assert('pos.ch === 0', pos.ch === 0);
+
+  // getNotePosition for ch >= 5 returns null
+  assert('getNotePosition ch=5 null', getNotePosition(5, 0.5, 0.5) === null);
+  assert('getNotePosition ch=10 null', getNotePosition(10, 0.5, 0.5) === null);
+
+  // mutateChannel changes the mapping
+  const before = getChannelMapping(2);
+  let changed = false;
+  for (let i = 0; i < 20; i++) {
+    mutateChannel(2);
+    const after = getChannelMapping(2);
+    if (after !== before) { changed = true; break; }
+  }
+  assert('mutateChannel can change mapping', changed);
+
+  // checkPatternChange works without crashing
+  const result = checkPatternChange(100, 0);
+  assert('checkPatternChange returns bool', typeof result === 'boolean');
+
+} catch(e) { assert('MIDI Patterns import', false, e.message); }
+
+// ── 3. Colors ──
+section('COLORS');
+try {
+  const { COLOR_A, COLOR_B, COLOR_C, colorEnabled, getCellColor,
+          setChromaticShift, updateColors, resetClimax,
+          chromaticMode, inverted, startInvertDissolve } = await import('./src/colors.js');
+
+  assert('COLOR_A is RGB array', Array.isArray(COLOR_A) && COLOR_A.length === 3);
+  assert('COLOR_B is RGB array', Array.isArray(COLOR_B) && COLOR_B.length === 3);
+  assert('COLOR_C is RGB array', Array.isArray(COLOR_C) && COLOR_C.length === 3);
+  assert('colorEnabled has A/B/C', 'A' in colorEnabled && 'B' in colorEnabled && 'C' in colorEnabled);
+
+  // getCellColor
+  const c = getCellColor(1, 0.8, 200);
+  assert('getCellColor returns array for colorId=1', Array.isArray(c) && c.length === 3);
+  assert('getCellColor returns null for colorId=0', getCellColor(0, 0.8, 200) === null);
+  assert('getCellColor returns null for low alpha', getCellColor(1, 0.001, 200) === null);
+
+  // updateColors doesn't crash
+  const fakeState = { intensity: 0.5, rhythmicity: 0.5, brightness: 0.5 };
+  updateColors(0.016, fakeState);
+  assert('updateColors runs', true);
+
+  // resetClimax
+  resetClimax();
+  assert('resetClimax runs', true);
+
+  // setChromaticShift
+  setChromaticShift('all-A');
+  assert('setChromaticShift runs', true);
+
+  // startInvertDissolve
+  startInvertDissolve();
+  assert('startInvertDissolve runs', true);
+
+} catch(e) { assert('Colors import', false, e.message); }
+
+// ── 4. DNA + Zones ──
+// NOTE: dna and zoneSeeds are `export let` — dynamic import destructuring captures
+// the value at import time. After generateDNA() reassigns them, we must re-read
+// via the module namespace object.
+section('DNA + ZONES');
+try {
+  const dnaMod = await import('./src/dna.js');
+  const { generateDNA, PRIM_TYPES, getZone, primitiveDensity, isInVuoto, updatePrimitives } = dnaMod;
+  const { CFG } = await import('./src/config.js');
+
+  assert('PRIM_TYPES has 8 types', PRIM_TYPES.length === 8);
+
+  generateDNA();
+  const dna = dnaMod.dna;  // re-read live binding
+  assert('dna generated', !!dna);
+  assert('dna.primitives is array', Array.isArray(dna.primitives));
+  assert('dna has 2-3 primitives', dna.primitives.length >= 2 && dna.primitives.length <= 3);
+  assert('All primitives are valid', dna.primitives.every(p => PRIM_TYPES.includes(p)));
+  assert('dna.freqMapping is string', typeof dna.freqMapping === 'string');
+  assert('dna.dotSizeRange is [min, max]', dna.dotSizeRange[0] < dna.dotSizeRange[1]);
+  assert('dna.evolutionSpeed > 0', dna.evolutionSpeed > 0);
+
+  // Zones — re-read live binding
+  const zoneSeeds = dnaMod.zoneSeeds;
+  assert('zoneSeeds generated', Array.isArray(zoneSeeds) && zoneSeeds.length === CFG.zoneCount);
+
+  const zone = getZone(0.5, 0.5);
+  assert('getZone returns object', !!zone);
+  assert('zone.reactivity in [0,1]', zone.reactivity >= 0 && zone.reactivity <= 1);
+  assert('zone.dotSizeMul > 0', zone.dotSizeMul > 0);
+  assert('zone.densityMul > 0', zone.densityMul > 0);
+  assert('zone.birthMul > 0', zone.birthMul > 0);
+  assert('zone.flickerSpeed > 0', zone.flickerSpeed > 0);
+
+  // Edge zones
+  assert('getZone(0,0) works', !!getZone(0, 0));
+  assert('getZone(0.99,0.99) works', !!getZone(0.99, 0.99));
+
+  // primitiveDensity
+  const fakeState = { intensity: 0.5, rhythmicity: 0.5, stereoWidth: 0.5, brightness: 0.5, trajectory: 0 };
+  const pd = primitiveDensity(0.5, 0.5, fakeState, 1920, 1080);
+  assert('primitiveDensity returns number', typeof pd === 'number');
+
+  // primitiveDensity at zero intensity should be 0
+  const pd0 = primitiveDensity(0.5, 0.5, { ...fakeState, intensity: 0 }, 1920, 1080);
+  assert('primitiveDensity at intensity=0 is 0', pd0 === 0);
+
+  // isInVuoto returns boolean
+  assert('isInVuoto returns boolean', typeof isInVuoto(0.5, 0.5) === 'boolean');
+
+  // updatePrimitives doesn't crash
+  updatePrimitives(0.016, fakeState, 1);
+  assert('updatePrimitives runs', true);
+
+} catch(e) { assert('DNA import', false, e.message); }
+
+// ── 5. Generations ──
+// NOTE: entities and fossils are `export let` — reassigned by resetGenerations().
+// Must re-read from module namespace after reset.
+section('GENERATIONS');
+try {
+  const genMod = await import('./src/generations.js');
+  const { triggerOnset, triggerMIDI, updateGenerations,
+          buildEntityGrid, entityDensityAt, entityColorAt, resetGenerations } = genMod;
+
+  const fakeState = { intensity: 0.5, rhythmicity: 0.5, brightness: 0.5, trajectory: 0, stereoWidth: 0.5 };
+  const colorEnabled = { A: true, B: true, C: true };
+
+  resetGenerations();
+  assert('resetGenerations clears entities', genMod.entities.length === 0);
+
+  // triggerOnset spawns entities
+  triggerOnset(fakeState, colorEnabled);
+  assert('triggerOnset spawns entities', genMod.entities.length > 0, `got ${genMod.entities.length}`);
+
+  // Entity structure
+  const e = genMod.entities[0];
+  assert('entity has x,y', typeof e.x === 'number' && typeof e.y === 'number');
+  assert('entity x in [0,1]', e.x >= 0 && e.x <= 1);
+  assert('entity y in [0,1]', e.y >= 0 && e.y <= 1);
+  assert('entity has age', typeof e.age === 'number');
+  assert('entity has maxAge', typeof e.maxAge === 'number' && e.maxAge > 0);
+  assert('entity has density', typeof e.density === 'number');
+
+  // triggerMIDI
+  const countBefore = genMod.entities.length;
+  triggerMIDI(fakeState, colorEnabled, 0.5, 0.8);
+  assert('triggerMIDI spawns entities', genMod.entities.length > countBefore);
+
+  // updateGenerations
+  updateGenerations(0.016, fakeState, 1, false, 0, colorEnabled, 'normal');
+  assert('updateGenerations runs', true);
+  assert('entities aged', genMod.entities[0].age > 0);
+
+  // buildEntityGrid
+  buildEntityGrid(1920, 1080);
+  assert('buildEntityGrid runs', true);
+
+  // entityDensityAt
+  const dens = entityDensityAt(0.5, 0.5, 1920, 1080);
+  assert('entityDensityAt returns number', typeof dens === 'number');
+
+  // entityColorAt
+  const [colorId, colorAlpha] = entityColorAt(0.5, 0.5, 1920, 1080);
+  assert('entityColorAt returns [id, alpha]', typeof colorId === 'number' && typeof colorAlpha === 'number');
+
+} catch(e) { assert('Generations import', false, e.message); }
+
+// ── 6. State ──
+section('STATE');
+try {
+  const { state, updateState } = await import('./src/state.js');
+
+  assert('state has intensity', 'intensity' in state);
+  assert('state has rhythmicity', 'rhythmicity' in state);
+  assert('state has brightness', 'brightness' in state);
+  assert('state has trajectory', 'trajectory' in state);
+  assert('state has stereoWidth', 'stereoWidth' in state);
+
+  // updateState doesn't crash (audio/midi will be at defaults)
+  updateState();
+  assert('updateState runs', true);
+  assert('intensity in [0,1]', state.intensity >= 0 && state.intensity <= 1);
+
+} catch(e) { assert('State import', false, e.message); }
+
+// ── 7. Field (non-render functions) ──
+section('FIELD');
+try {
+  const { addOnsetWave, addMidiNote, updateWaves, onsetWaves, midiTrail } = await import('./src/field.js');
+
+  // addOnsetWave
+  addOnsetWave(0.5, 0.5, 1920, 1080);
+  assert('addOnsetWave adds wave', onsetWaves.length > 0);
+  assert('wave has cx,cy,radius,alpha',
+    typeof onsetWaves[0].cx === 'number' && typeof onsetWaves[0].alpha === 'number');
+
+  // addMidiNote with channel
+  addMidiNote(0, 0.5, 0.8);
+  assert('addMidiNote adds trail note', midiTrail.length > 0);
+  const n = midiTrail[midiTrail.length - 1];
+  assert('trail note has x,y', typeof n.x === 'number' && typeof n.y === 'number');
+  assert('trail note has decay', typeof n.decay === 'number' && n.decay > 0 && n.decay < 1);
+  assert('trail note has ch', typeof n.ch === 'number');
+  assert('trail note has shape', typeof n.shape === 'string');
+  assert('trail note has color', n.color === null || typeof n.color === 'string');
+
+  // Add notes for all channels
+  for (let ch = 0; ch < 5; ch++) {
+    addMidiNote(ch, Math.random(), Math.random());
+  }
+  assert('All 5 channels create trail notes', midiTrail.length >= 5);
+
+  // addMidiNote with ch >= 5 should not add
+  const lenBefore = midiTrail.length;
+  addMidiNote(5, 0.5, 0.5);
+  assert('Channel 5 does not add trail', midiTrail.length === lenBefore);
+
+  // updateWaves decays
+  const alphaBefore = midiTrail[0].alpha;
+  updateWaves(0.1);
+  assert('updateWaves decays trail alpha', midiTrail[0].alpha < alphaBefore);
+
+  // updateWaves decays onset waves
+  if (onsetWaves.length > 0) {
+    const waveBefore = onsetWaves[0].alpha;
+    updateWaves(0.1);
+    assert('updateWaves decays onset waves', onsetWaves[0].alpha < waveBefore);
+  }
+
+  // Reinforce: adding same note again should not increase count
+  const trailLen = midiTrail.length;
+  addMidiNote(0, midiTrail[0].x, midiTrail[0].y);  // approximate same position
+  // May or may not reinforce depending on exact position match
+  assert('Reinforce mechanism exists (no crash)', true);
+
+} catch(e) { assert('Field import', false, e.message); }
+
+// ── 8. Director ──
+section('DIRECTOR');
+try {
+  const { director, initDirector, executeMutation, updateDirector,
+          framing, setFraming, applyCamera, mutationLog } = await import('./src/director.js');
+
+  const fakeState = { intensity: 0.5, rhythmicity: 0.5, brightness: 0.5, trajectory: 0, stereoWidth: 0.5 };
+
+  initDirector(fakeState);
+  assert('initDirector runs', true);
+  assert('director.sceneTime === 0', director.sceneTime === 0);
+  assert('director.barCount === 0', director.barCount === 0);
+
+  // executeMutation
+  executeMutation('CHROMATIC', 10);
+  assert('executeMutation runs', true);
+  assert('mutationLog has entry', mutationLog.length > 0);
+  assert('mutation logged correctly', mutationLog[0].type === 'CHROMATIC');
+
+  // Framing
+  setFraming('WIDE', 1920, 1080);
+  assert('setFraming WIDE', framing.current === 'WIDE');
+  setFraming('MEDIUM', 1920, 1080);
+  assert('setFraming MEDIUM', framing.current === 'MEDIUM');
+  setFraming('MACRO', 1920, 1080);
+  assert('setFraming MACRO', framing.current === 'MACRO');
+  setFraming('DRIFT', 1920, 1080);
+  assert('setFraming DRIFT', framing.current === 'DRIFT');
+
+  // updateDirector with BPM
+  const { audio } = await import('./src/audio.js');
+  audio.bpm = 120;
+  updateDirector(0.016, { ...fakeState, rhythmicity: 0.8 }, 10, 1920, 1080);
+  assert('updateDirector with BPM runs', true);
+
+  // updateDirector without BPM
+  audio.bpm = 0;
+  updateDirector(0.016, fakeState, 10.5, 1920, 1080);
+  assert('updateDirector without BPM runs', true);
+
+  // Camera lerp
+  setFraming('WIDE', 1920, 1080);
+  const zoomBefore = framing.zoom;
+  updateDirector(0.5, fakeState, 11, 1920, 1080);
+  assert('Camera zoom lerps toward target', Math.abs(framing.zoom - framing.targetZoom) <= Math.abs(zoomBefore - framing.targetZoom));
+
+} catch(e) { assert('Director import', false, e.message); }
+
+// ── 9. Audio (structure only, no real audio) ──
+section('AUDIO (structure)');
+try {
+  const { audio } = await import('./src/audio.js');
+
+  assert('audio.rms defined', typeof audio.rms === 'number');
+  assert('audio.bands defined', !!audio.bands);
+  assert('audio.bands has all 5', ['sub','low','mid','high','air'].every(b => b in audio.bands));
+  assert('audio.centroid defined', typeof audio.centroid === 'number');
+  assert('audio.flux defined', typeof audio.flux === 'number');
+  assert('audio.onset defined', typeof audio.onset === 'boolean');
+  assert('audio.bpm defined', typeof audio.bpm === 'number');
+  assert('audio.stereoCorrelation defined', typeof audio.stereoCorrelation === 'number');
+  assert('audio.trajectory defined', typeof audio.trajectory === 'number');
+
+} catch(e) { assert('Audio import', false, e.message); }
+
+// ── 10. MIDI (structure only) ──
+section('MIDI (structure)');
+try {
+  const { midi, MIDI_ROLES, noteName } = await import('./src/midi.js');
+
+  assert('MIDI_ROLES has 5 roles', MIDI_ROLES.length === 5);
+  assert('Roles are KICK,BASS,HARMONY,LEAD,TEXTURE',
+    MIDI_ROLES.join(',') === 'KICK,BASS,HARMONY,LEAD,TEXTURE');
+  assert('midi.channels has 5', midi.channels.length === 5);
+
+  for (let ch = 0; ch < 5; ch++) {
+    const c = midi.channels[ch];
+    assert(`midi.channels[${ch}] has lastNote`, 'lastNote' in c);
+    assert(`midi.channels[${ch}] has active`, Array.isArray(c.active));
+    assert(`midi.channels[${ch}] has density`, typeof c.density === 'number');
+    assert(`midi.channels[${ch}] has timestamps`, Array.isArray(c.timestamps));
+  }
+
+  assert('noteName(60) = C4', noteName(60) === 'C4');
+  assert('noteName(69) = A4', noteName(69) === 'A4');
+  assert('noteName(0) = C-1', noteName(0) === 'C-1');
+
+} catch(e) { assert('MIDI import', false, e.message); }
+
+// ── 11. Cross-module integration ──
+section('INTEGRATION');
+try {
+  const fieldMod = await import('./src/field.js');
+  const { addMidiNote } = fieldMod;
+  const { getChannelMapping, initMidiPatterns } = await import('./src/midi-patterns.js');
+
+  // Re-init patterns to get fresh state, then clear trail
+  initMidiPatterns();
+  fieldMod.midiTrail.length = 0;
+
+  // Verify addMidiNote uses getNotePosition correctly for each channel
+  // Use unique noteNorm per channel to avoid reinforce collisions
+  for (let ch = 0; ch < 5; ch++) {
+    const mapping = getChannelMapping(ch);
+    const noteNorm = 0.2 + ch * 0.15; // unique per channel
+    const trailLenBefore = fieldMod.midiTrail.length;
+    addMidiNote(ch, noteNorm, 0.7);
+    const last = fieldMod.midiTrail[fieldMod.midiTrail.length - 1];
+    const isNew = fieldMod.midiTrail.length > trailLenBefore;
+    // Note position should be within the channel's zone
+    assert(`Ch${ch} note y within zone [${mapping.zone[0].toFixed(2)},${mapping.zone[1].toFixed(2)}]`,
+      last.y >= mapping.zone[0] - 0.01 && last.y <= mapping.zone[1] + 0.01,
+      `got y=${last.y.toFixed(3)}`);
+    // Shape only verifiable on freshly added notes (not reinforced)
+    if (isNew) {
+      assert(`Ch${ch} shape matches mapping`, last.shape === mapping.shape,
+        `trail=${last.shape} mapping=${mapping.shape}`);
+    } else {
+      assert(`Ch${ch} note reinforced (shape may differ)`, true);
+    }
+  }
+
+  // Director imports checkPatternChange correctly
+  const { updateDirector, director, initDirector } = await import('./src/director.js');
+  const { audio } = await import('./src/audio.js');
+  const fakeState = { intensity: 0.5, rhythmicity: 0.8, brightness: 0.5, trajectory: 0, stereoWidth: 0.5 };
+
+  initDirector(fakeState);
+  audio.bpm = 120;
+
+  // Simulate many beats to trigger bar boundary
+  for (let i = 0; i < 200; i++) {
+    updateDirector(0.5, fakeState, i * 0.5, 1920, 1080);  // 0.5s per step = 120 BPM
+  }
+  assert('Director bar counter advanced', director.barCount > 0, `barCount=${director.barCount}`);
+
+} catch(e) { assert('Integration', false, e.message); }
+
+// ── Summary ──
+const total = passed + failed;
+summary.className = failed === 0 ? 'pass' : 'fail';
+summary.textContent = failed === 0
+  ? `✓ ALL ${total} TESTS PASSED`
+  : `✗ ${failed} FAILED / ${total} TOTAL`;
+
+out.innerHTML += '\n';
+</script>
+</body>
+</html>

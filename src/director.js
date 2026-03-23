@@ -3,11 +3,14 @@
 // ═══════════════════════════════════════════════════════════
 
 import { CFG } from './config.js';
+import { audio } from './audio.js';
 import { dna, PRIM_TYPES } from './dna.js';
 import { entities } from './generations.js';
 import { startInvertDissolve, setChromaticShift } from './colors.js';
+import { checkPatternChange } from './midi-patterns.js';
 
 // ── Mutation system ──
+// Intensity-aware weights: at low intensity, prefer subtle changes
 const MUTATION_TYPES = [
   { type: 'PRIMITIVE', weight: 30 },
   { type: 'INVERT', weight: 15 },
@@ -20,21 +23,31 @@ const TOTAL_WEIGHT = MUTATION_TYPES.reduce((s, m) => s + m.weight, 0);
 export const director = {
   sceneTime: 0, nextCheckIn: 0, changeProb: 0,
   lastChangeType: '——', plateauTime: 0,
+  beatAccum: 0, barCount: 0,
 };
 
 export const mutationLog = [];
-let dirBaseInterval = 30, dirDivisorIdx = 1, dirRandomFactor = 0.3;
-const DIVISORS = [4, 8, 16, 32];
+let dirBaseInterval = 15, dirRandomFactor = 0.4;
+
+// How many bars between potential mutations (chosen randomly per cycle)
+const BAR_OPTIONS = [2, 4, 4, 8, 8, 16];
 
 function logMut(type, detail, globalTime) {
   mutationLog.unshift({ type, detail, time: globalTime });
   if (mutationLog.length > 5) mutationLog.pop();
 }
 
+function pickNextBarTarget() {
+  return BAR_OPTIONS[Math.floor(Math.random() * BAR_OPTIONS.length)];
+}
+
+let nextMutationBar = 4; // mutate after this many bars
+
 function computeNextCheck(state) {
-  if (state.rhythmicity > 0.5) {
-    const bpm = CFG.directorBPM;
-    director.nextCheckIn = DIVISORS[dirDivisorIdx] * (60 / bpm) * (0.8 + Math.random() * 0.4);
+  // When we have BPM, the bar counter drives mutations instead
+  if (audio.bpm > 0 && state.rhythmicity > 0.3) {
+    // Set a long fallback — bar counter handles timing
+    director.nextCheckIn = 999;
   } else {
     director.nextCheckIn = dirBaseInterval * (1 + dirRandomFactor * Math.random());
   }
@@ -42,6 +55,9 @@ function computeNextCheck(state) {
 
 export function initDirector(state) {
   director.sceneTime = 0;
+  director.beatAccum = 0;
+  director.barCount = 0;
+  nextMutationBar = pickNextBarTarget();
   computeNextCheck(state);
 }
 
@@ -146,21 +162,59 @@ function pickAutoShot(state, W, H) {
 
 export function updateDirector(dt, state, globalTime, W, H) {
   director.sceneTime += dt;
-  director.nextCheckIn -= dt;
   if (state.trajectory === 0) director.plateauTime += dt; else director.plateauTime = 0;
 
-  if (director.nextCheckIn <= 0) {
-    let prob = 0.5;
-    if (director.plateauTime > CFG.directorPlateauSec) prob += 0.3;
-    prob += dirRandomFactor * Math.random();
-    director.changeProb = Math.min(1, prob);
-    if (prob > CFG.directorChangeThreshold) {
-      const camRoll = Math.random();
-      if (camRoll < 0.60) executeMutation(null, globalTime);
-      else if (camRoll < 0.85) { executeMutation(null, globalTime); if (autoCamera) pickAutoShot(state, W, H); }
-      else { if (autoCamera) pickAutoShot(state, W, H); logMut('CAMERA', framing.current, globalTime); }
+  const bpm = audio.bpm;
+  const hasRhythm = bpm > 0 && state.rhythmicity > 0.3;
+
+  if (hasRhythm) {
+    // ── BPM-synced mode: count beats and bars ──
+    const beatDuration = 60 / bpm;
+    director.beatAccum += dt;
+
+    if (director.beatAccum >= beatDuration) {
+      director.beatAccum -= beatDuration;
+      director.barCount++;
+
+      // Every 4 beats = 1 bar
+      if (director.barCount % 4 === 0) {
+        const barNum = director.barCount / 4;
+
+        // Check per-channel MIDI pattern changes (independent schedules)
+        for (let ch = 0; ch < 5; ch++) checkPatternChange(barNum, ch);
+
+        // Check for mutation on bar boundary
+        if (barNum >= nextMutationBar) {
+          // Probability scales with intensity — busier music = more mutations
+          const prob = 0.4 + state.intensity * 0.4 + dirRandomFactor * Math.random();
+          if (prob > CFG.directorChangeThreshold) {
+            const camRoll = Math.random();
+            if (camRoll < 0.55) executeMutation(null, globalTime);
+            else if (camRoll < 0.80) { executeMutation(null, globalTime); if (autoCamera) pickAutoShot(state, W, H); }
+            else { if (autoCamera) pickAutoShot(state, W, H); logMut('CAMERA', framing.current, globalTime); }
+          }
+          // Pick next mutation point: fewer bars at high intensity, more at low
+          nextMutationBar = barNum + pickNextBarTarget();
+          if (state.intensity > 0.7) nextMutationBar = barNum + Math.max(2, pickNextBarTarget() / 2);
+        }
+      }
     }
-    computeNextCheck(state);
+  } else {
+    // ── No BPM: timer-based fallback ──
+    director.nextCheckIn -= dt;
+    if (director.nextCheckIn <= 0) {
+      let prob = 0.5;
+      if (director.plateauTime > CFG.directorPlateauSec) prob += 0.3;
+      prob += dirRandomFactor * Math.random();
+      director.changeProb = Math.min(1, prob);
+      if (prob > CFG.directorChangeThreshold) {
+        const camRoll = Math.random();
+        if (camRoll < 0.55) executeMutation(null, globalTime);
+        else if (camRoll < 0.80) { executeMutation(null, globalTime); if (autoCamera) pickAutoShot(state, W, H); }
+        else { if (autoCamera) pickAutoShot(state, W, H); logMut('CAMERA', framing.current, globalTime); }
+      }
+      computeNextCheck(state);
+    }
   }
 
   // Camera lerp
