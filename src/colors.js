@@ -8,6 +8,28 @@ export const COLOR_A = [255, 68, 0];     // #FF4400
 export const COLOR_B = [0, 170, 204];    // #00AACC
 export const COLOR_C = [230, 0, 126];    // #E6007E
 
+// ── Per-role MIDI colors (synesthetic palette) ──
+// Each instrument role has its own chromatic identity
+export const MIDI_COLORS = [
+  [255, 140, 20],   // KICK  — amber/warm orange
+  [200, 30, 30],    // BASS  — deep red
+  [0, 180, 210],    // HARMONY — cyan/teal
+  [160, 60, 220],   // LEAD  — violet
+  [180, 200, 220],  // TEXTURE — cold white/steel
+];
+
+// Get RGB for a MIDI channel's color, mixed with alpha toward fgVal
+export function getMidiColor(ch, alpha, fgVal) {
+  if (ch < 0 || ch >= 5 || alpha < 0.01) return null;
+  const rgb = MIDI_COLORS[ch];
+  const a = Math.pow(Math.min(1, alpha), 0.5); // aggressive curve — color shows early
+  return [
+    Math.round(fgVal + (rgb[0] - fgVal) * a),
+    Math.round(fgVal + (rgb[1] - fgVal) * a),
+    Math.round(fgVal + (rgb[2] - fgVal) * a),
+  ];
+}
+
 export const colorEnabled = { A: true, B: true, C: true };
 
 // Chromatic shift

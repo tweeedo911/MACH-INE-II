@@ -5,15 +5,28 @@
 
 import { CFG } from './config.js';
 
+// ── MIDI role channels (0-indexed internally, user sees 1-5) ──
+// Ch 1 = KICK/DRUMS, Ch 2 = BASS, Ch 3 = HARMONY, Ch 4 = LEAD, Ch 5 = TEXTURE
+export const MIDI_ROLES = ['KICK', 'BASS', 'HARMONY', 'LEAD', 'TEXTURE'];
+
 // ── Public state ──
 export const midi = {
   lastNote: null,       // { note, vel, ch } | null
+  newNotes: [],         // accumulated since last frame — consumed by render
   noteFlashes: [],      // [{ x, alpha, noteNum, ch }]
   noteDensity: 0,       // notes per second over window
   pitchRange: { low: 127, high: 0 },
   cc: new Map(),        // "ch:cc" -> value (0-127)
   connected: false,
   inputCount: 0,
+
+  // Per-channel tracking (channels 0-4)
+  channels: Array.from({ length: 5 }, () => ({
+    lastNote: null,     // { note, vel, time }
+    active: [],         // currently held notes [{ note, vel }]
+    density: 0,         // notes/sec
+    timestamps: [],     // for density calc
+  })),
 };
 
 // ── Internal ──
@@ -38,6 +51,7 @@ function handleMIDIMessage(msg) {
   const [status, data1, data2] = msg.data;
   const type = status & 0xF0;
   const ch = status & 0x0F;
+  if (type === 0x90 && data2 > 0) console.log(`NOTE ch:${ch} n:${data1} v:${data2}`);
 
   if (type === 0x90 && data2 > 0) {
     // Note On
@@ -46,6 +60,7 @@ function handleMIDIMessage(msg) {
     const x = (note / 127) * W;
 
     midi.lastNote = { note, vel, ch };
+    midi.newNotes.push({ note, vel, ch });
     midi.noteFlashes.push({ x, alpha: vel / 127, noteNum: note, ch });
 
     // Update pitch range
@@ -55,8 +70,20 @@ function handleMIDIMessage(msg) {
     // Record timestamp for density
     noteTimestamps.push(performance.now() / 1000);
 
+    // Per-channel tracking (only channels 0-4)
+    if (ch < 5) {
+      const chData = midi.channels[ch];
+      chData.lastNote = { note, vel, time: performance.now() / 1000 };
+      chData.active.push({ note, vel });
+      chData.timestamps.push(performance.now() / 1000);
+    }
+
   } else if (type === 0x80 || (type === 0x90 && data2 === 0)) {
-    // Note Off — could be used later for note duration
+    // Note Off
+    if (ch < 5) {
+      const chData = midi.channels[ch];
+      chData.active = chData.active.filter(n => n.note !== data1);
+    }
 
   } else if (type === 0xB0) {
     // CC
@@ -77,6 +104,15 @@ export function updateMIDI() {
     noteTimestamps.shift();
   }
   midi.noteDensity = noteTimestamps.length / CFG.noteDensityWindowSec;
+
+  // Per-channel density
+  for (let c = 0; c < 5; c++) {
+    const chData = midi.channels[c];
+    while (chData.timestamps.length > 0 && chData.timestamps[0] < windowStart) {
+      chData.timestamps.shift();
+    }
+    chData.density = chData.timestamps.length / CFG.noteDensityWindowSec;
+  }
 
   // Decay note flashes
   for (let i = midi.noteFlashes.length - 1; i >= 0; i--) {
@@ -104,15 +140,28 @@ export async function initMIDI() {
     midi.connected = true;
     midi.inputCount = access.inputs.size;
 
+    const knownInputs = new Set();
     const attachListeners = () => {
       access.inputs.forEach(input => {
+        if (!knownInputs.has(input.id)) {
+          console.log(`MIDI input: "${input.name}" state:${input.state} conn:${input.connection}`);
+          knownInputs.add(input.id);
+        }
+        // Always re-attach — ensures handler survives reconnects
         input.onmidimessage = handleMIDIMessage;
+        // Force open if closed
+        if (input.connection === 'closed' && input.state === 'connected') {
+          input.open().catch(() => {});
+        }
       });
       midi.inputCount = access.inputs.size;
     };
 
     attachListeners();
-    access.onstatechange = () => attachListeners();
+    access.onstatechange = (e) => {
+      console.log(`MIDI state change: ${e.port.name} ${e.port.state} ${e.port.connection}`);
+      attachListeners();
+    };
 
     return `OK  ${access.inputs.size} IN`;
   } catch (e) {
