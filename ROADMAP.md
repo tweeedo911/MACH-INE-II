@@ -1,65 +1,59 @@
 # MACH:INE II — Roadmap
 
 Ogni milestone produce qualcosa di testabile, visivamente completo e utilizzabile da solo.
-Non si passa alla milestone successiva finche' la corrente non e' solida.
 
 ---
 
 ## v0.1.0 — DONE
-
 Spettrogramma scrolling (Joy Division), onset detection basica, MIDI note flash.
 
-## v0.2.0 — DONE (committato)
+## v0.2.0 — DONE
+Audio engine stereo. Band-split, spectral flux, centroid, correlazione, trajectory, BPM. ES modules.
 
-Audio engine stereo. Band-split, spectral flux, centroid, correlazione, trajectory, BPM.
-ES modules.
-
-## v0.3.0–v0.7.0 — DONE (non committato, in working tree)
-
+## v0.3.0–v0.7.0 — DONE
 - v0.3.0: sandbox narrativo, regista, simulazione input
 - v0.4.0: campo halftone Bayer 8x8, dot-size dinamico, densita' da audio
 - v0.5.0: DNA sessione, 8 primitivi, zone Voronoi (6 archetipi), generazioni con ciclo vita
 - v0.6.0: colore A/B/C, mutazioni pesate, inversione dissolve
 - v0.7.0: camera WIDE/MEDIUM/MACRO/DRIFT, macro con ritorno
 
-## v0.8.0 — IN CORSO (non committato)
+## v0.8.0 — DONE
+Architettura 12 moduli ES completa. Zone Kandinsky con reattivita' per zona.
 
-Audio reale + MIDI multi-canale + sinestesia geometrica.
+## v0.9.0 — DONE
+Sinestesia geometrica MIDI. 5 canali separati (KICK/BASS/HARMONY/LEAD/TEXTURE), colori per ruolo, MIDI patterns indipendenti, fix routing IAC Driver.
 
-**Fatto:**
-- 12 moduli ES in src/ (config, audio, midi, state, dna, colors, generations, field, director, midi-patterns, render, main)
-- Audio stereo reale via BlackHole, MIDI via IAC Driver + Max for Live MIDI Router
-- 5 canali MIDI con ruoli: KICK, BASS, HARMONY, LEAD, TEXTURE
-- Per-channel MIDI patterns (5 pool di behavior, cambio indipendente 12-32 bars)
-- Sinestesia geometrica: ogni shape ha geometria propria (pulse=anello, blob=gaussiana, band=striscia, trail=linea melodica, scatter=granuli)
-- 5 colori per ruolo MIDI (ambra, rosso, ciano, viola, acciaio) con area colore 2.5x la geometria
-- Director BPM-synced: mutazioni su bar boundary, intensita' modula frequenza
-- Zone Voronoi con reattivita' indipendente (0.05-1.0), flicker polyrhythmic
-- Frequenze audio → regioni spaziali (sub/low→bottom, mid→center, high/air→top)
-- HUD minimale + debug con monitor canali MIDI
-- Test suite automatica (test.html, ~90 test)
+## v1.0.0 — DONE (corrente)
 
-**Da fare:**
-- Committare tutto (enorme diff da v0.2.0)
-- Separare canali MIDI in Ableton (ora tutto su ch 2)
-- Testare le 5 geometrie + 5 colori con canali separati
-- Tuning raggi, decay, intensita' colore dopo test reale
+**Piano narrativo + estetica Mondrian.**
+
+- **8 scene estetiche:** BAYER_CLASSIC, COLORED_GROUND, SPARSE, DENSE, MONOCHROME, NEGATIVE, MONDRIAN, HORIZON
+- **8 composizioni rettangolari:** UNIFORM, MONDRIAN_A, MONDRIAN_B, COLUMNS, HORIZON, FRAME, ISLANDS, ASYMMETRIC — blocchi netti con linee divisorie, zero geometrie rotonde
+- **Arco narrativo:** INTRO → DEVELOP → TENSION → CLIMAX → RELEASE con tempi accelerati
+- **7 palette dinamiche:** default, amber, cyan, bw, magenta, warm, cold — transizioni lerp
+- **Geometrie MIDI rettangolari:** pulse=rettangolo espandente, blob=blocco pieno, band=striscia, trail=rettangolo verticale, scatter=granuli rettangolari
+- **Onset wave orizzontali** (strisce, non anelli)
+- **Densita' MIDI additiva** (d += midiD, non Math.max)
+- **Dot size da scena** (stabile, no pulsazione globale audio)
+- **Narrazione veloce:** mutazioni ogni 1-8 bars, peso SCENE 45%
+- **Launcher .command** con doppio-click
 
 ---
 
-## v0.9.0 — RAFFINAMENTO
-
-- Tuning con musica reale multi-canale
-- Performance (midiColorAt spatial index se necessario)
-- Nuovi primitivi, glitch strutturali
-- Frequency → color (bande audio colorano zone spaziali)
-
-## v1.0.0 — LIVE READY
+## v1.1.0 — PROSSIMO
 
 - Pannello controllo MIDI-mappabile (macro CC)
-- Dual-screen: controllo con preview + fullscreen proiezione separata (window.open)
-- Stabilita' per live performance
+- Dual-screen: controllo con preview + fullscreen proiezione (window.open)
+- Rimuovere console.log diagnostici da midi.js
+- Spatial index per midiColorAt (performance)
+- Nuovi primitivi e glitch strutturali
+
+## v2.0.0 — FUTURO
+
+- Stabilita' per live performance lunghe (>2h)
+- Preset salvabili/caricabili
+- OSC support
 
 ---
 
-*Ultima modifica: 2026-03-22*
+*Ultima modifica: 2026-03-23*

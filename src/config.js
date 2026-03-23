@@ -46,9 +46,9 @@ export const CFG = {
 
   // ── Density ──
   densityBase: 0.0,
-  densityMax: 0.55,
-  densityFloor: 0.04,
-  brightnessDensityBoost: 0.12,
+  densityMax: 0.45,
+  densityFloor: 0.06,
+  brightnessDensityBoost: 0.08,
   rhythmFlickerAmp: 0.04,
   rhythmFlickerSpeed: 3,
 
@@ -106,16 +106,24 @@ export const CFG = {
   camPanOscSpeed: 0.25,
 
   // ── Director ──
-  directorBPM: 120,
   directorPlateauSec: 4,
   directorChangeThreshold: 0.45,
   chromaticShiftDuration: 20,
   invertDissolveDuration: 1.0,
+
+  // ── Scene system ──
+  sceneTransitionBars: 12,    // bars for gradual scene blend
+  sceneCutProbability: 0.15,  // chance of instant cut vs gradual
+  arcIntroDuration: 60,       // seconds for INTRO phase
+  arcDevelopEnd: 180,         // seconds when DEVELOP can become TENSION
+  arcTensionThreshold: 0.45,  // intensity above this builds tension
+  arcTensionBuildSec: 20,     // seconds of sustained intensity for TENSION→CLIMAX
+  arcReleaseDuration: 40,     // seconds of forced release after climax
 
   // ── Render ──
   dotSizeBufferThreshold: 6,
   hudUpdateInterval: 6,
 
   // ── FPS limiter ──
-  fpsAutoLimit: 30,     // if fps drops below this, reduce maxEntities
+  fpsAutoLimit: 30,
 };
