@@ -26,34 +26,34 @@ const SCENES = [
   {
     name: 'COLORED_GROUND',
     palette: 'amber',
-    densityMul: 0.7,
+    densityMul: 0.8,
     dotSize: 10,
-    midiScale: 1.2,
+    midiScale: 1.3,
     invertBase: true,
     composition: 'MONDRIAN_B',
   },
   {
     name: 'SPARSE',
     palette: 'default',
-    densityMul: 0.2,
+    densityMul: 0.08,       // was 0.2 — quasi vuoto, MIDI domina
     dotSize: 3,
-    midiScale: 2.0,
+    midiScale: 2.5,
     invertBase: false,
     composition: 'ISLANDS',
   },
   {
     name: 'DENSE',
     palette: 'warm',
-    densityMul: 1.6,
+    densityMul: 2.0,        // was 1.6 — nero dominante
     dotSize: 4,
-    midiScale: 0.6,
+    midiScale: 0.5,
     invertBase: false,
     composition: 'COLUMNS',
   },
   {
     name: 'MONOCHROME',
     palette: 'bw',
-    densityMul: 1.0,
+    densityMul: 1.2,
     dotSize: 8,
     midiScale: 1.0,
     invertBase: false,
@@ -62,7 +62,7 @@ const SCENES = [
   {
     name: 'NEGATIVE',
     palette: 'default',
-    densityMul: 0.9,
+    densityMul: 1.4,        // was 0.9 — pieno invertito = drammatico
     dotSize: 6,
     midiScale: 1.0,
     invertBase: true,
@@ -71,18 +71,18 @@ const SCENES = [
   {
     name: 'MONDRIAN',
     palette: 'cold',
-    densityMul: 0.8,
+    densityMul: 0.5,        // was 0.8 — contrasto dalle composizioni
     dotSize: 8,
-    midiScale: 1.4,
+    midiScale: 1.5,
     invertBase: false,
     composition: 'MONDRIAN_A',
   },
   {
     name: 'HORIZON',
     palette: 'cyan',
-    densityMul: 0.6,
+    densityMul: 0.35,       // was 0.6 — arioso, respiro
     dotSize: 6,
-    midiScale: 1.5,
+    midiScale: 1.8,
     invertBase: false,
     composition: 'HORIZON',
   },
@@ -162,74 +162,122 @@ const COMPOSITIONS = {
 //  NARRATIVE ARC
 // ═══════════════════════════════════════════════════════════
 
+// ── Per-phase behavior parameters ──
+const ARC_PARAMS = {
+  INTRO: {
+    allowedScenes: ['BAYER_CLASSIC', 'SPARSE'],
+    mutationRate: 0.0,         // no mutations — organic growth only
+    camera: 'WIDE_ONLY',
+    densityCap: 0.25,
+    blendMul: 0.4,             // very slow transitions
+  },
+  DEVELOP: {
+    allowedScenes: null,       // all scenes
+    mutationRate: 0.6,
+    camera: 'DRIFT_BIAS',
+    densityCap: 0.8,
+    blendMul: 1.0,
+  },
+  TENSION: {
+    allowedScenes: ['DENSE', 'COLORED_GROUND', 'MONDRIAN', 'NEGATIVE'],
+    mutationRate: 1.5,         // faster mutations — urgency
+    camera: 'TIGHTEN',
+    densityCap: 1.0,
+    blendMul: 1.5,
+    chromaChance: 0.3,
+  },
+  CLIMAX: {
+    allowedScenes: ['DENSE', 'NEGATIVE'],
+    mutationRate: 2.5,
+    camera: 'MACRO_LOCK',
+    densityCap: 999,
+    blendMul: 3.0,
+    chromaChance: 0.5,
+    invertChance: 0.3,
+  },
+  RELEASE: {
+    allowedScenes: ['SPARSE', 'MONOCHROME', 'HORIZON'],
+    mutationRate: 0.15,
+    camera: 'SLOW_WIDE',
+    densityCap: 0.35,
+    blendMul: 0.25,            // very slow dissolve
+  },
+};
+
 export const arc = {
   totalTime: 0,
+  phaseTime: 0,
   phase: 'INTRO',     // INTRO, DEVELOP, TENSION, CLIMAX, RELEASE
   tensionAccum: 0,
   releaseTimer: 0,
+  introHotTime: 0,
+  climaxTime: 0,
   sceneHistory: [],
 };
 
+function setArcPhase(newPhase) {
+  arc.phase = newPhase;
+  arc.phaseTime = 0;
+}
+
 function updateArc(dt, state) {
   arc.totalTime += dt;
+  arc.phaseTime += dt;
 
   if (arc.phase === 'INTRO') {
-    if (arc.totalTime > CFG.arcIntroDuration) arc.phase = 'DEVELOP';
+    // Exit by timer OR audio intensity
+    if (arc.phaseTime > CFG.arcIntroDuration) { setArcPhase('DEVELOP'); return; }
+    if (state.intensity > CFG.arcIntroEscapeIntensity) {
+      arc.introHotTime += dt;
+      if (arc.introHotTime > CFG.arcIntroEscapeSec) { setArcPhase('DEVELOP'); return; }
+    } else { arc.introHotTime = Math.max(0, arc.introHotTime - dt); }
   } else if (arc.phase === 'DEVELOP') {
     if (arc.totalTime > CFG.arcDevelopEnd && state.intensity > CFG.arcTensionThreshold) {
       arc.tensionAccum += dt;
-      if (arc.tensionAccum > 10) arc.phase = 'TENSION';
+      if (arc.tensionAccum > 8) { setArcPhase('TENSION'); return; }
     } else {
       arc.tensionAccum = Math.max(0, arc.tensionAccum - dt * 0.5);
     }
   } else if (arc.phase === 'TENSION') {
     if (state.intensity > CFG.arcTensionThreshold) {
       arc.tensionAccum += dt;
-      if (arc.tensionAccum > CFG.arcTensionBuildSec) arc.phase = 'CLIMAX';
+      if (arc.tensionAccum > CFG.arcTensionBuildSec) { setArcPhase('CLIMAX'); arc.climaxTime = 0; return; }
     } else {
       arc.tensionAccum = Math.max(0, arc.tensionAccum - dt * 2);
-      if (arc.tensionAccum < 5) arc.phase = 'DEVELOP';
+      if (arc.tensionAccum < 3) { setArcPhase('DEVELOP'); return; }
     }
   } else if (arc.phase === 'CLIMAX') {
-    if (state.intensity < 0.3) {
-      arc.phase = 'RELEASE';
+    arc.climaxTime += dt;
+    if (arc.climaxTime > CFG.arcClimaxMinSec && state.intensity < 0.3) {
+      setArcPhase('RELEASE');
       arc.releaseTimer = CFG.arcReleaseDuration;
+      return;
     }
   } else if (arc.phase === 'RELEASE') {
     arc.releaseTimer -= dt;
-    if (arc.releaseTimer <= 0) {
-      arc.phase = 'DEVELOP';
+    // Allow early escape if music explodes
+    if (arc.releaseTimer <= 0 || (state.intensity > 0.6 && arc.phaseTime > 15)) {
+      setArcPhase('DEVELOP');
       arc.tensionAccum = 0;
     }
   }
 }
 
 function pickScene() {
-  const weights = SCENES.map(() => 1);
-
-  if (arc.phase === 'INTRO') {
-    SCENES.forEach((s, i) => {
-      if (s.name !== 'BAYER_CLASSIC' && s.name !== 'SPARSE' && s.name !== 'MONDRIAN') weights[i] = 0;
-    });
-  } else if (arc.phase === 'RELEASE') {
-    SCENES.forEach((s, i) => {
-      if (s.name === 'SPARSE' || s.name === 'MONOCHROME' || s.name === 'HORIZON') weights[i] = 3;
-      else if (s.name === 'DENSE') weights[i] = 0;
-    });
-  } else if (arc.phase === 'TENSION' || arc.phase === 'CLIMAX') {
-    SCENES.forEach((s, i) => {
-      if (s.name === 'DENSE' || s.name === 'COLORED_GROUND' || s.name === 'MONDRIAN') weights[i] = 2.5;
-      if (s.name === 'SPARSE') weights[i] = 0.3;
-    });
-  }
+  const params = ARC_PARAMS[arc.phase];
+  const weights = SCENES.map((s) => {
+    if (params.allowedScenes && !params.allowedScenes.includes(s.name)) return 0;
+    return 1;
+  });
 
   // Avoid repeating recent scenes
   for (const recent of arc.sceneHistory.slice(0, 2)) {
     const idx = SCENES.findIndex(s => s.name === recent);
-    if (idx >= 0) weights[idx] *= 0.2;
+    if (idx >= 0) weights[idx] *= 0.15;
   }
 
   const total = weights.reduce((a, b) => a + b, 0);
+  if (total === 0) return SCENES[0];
   let r = Math.random() * total;
   for (let i = 0; i < SCENES.length; i++) {
     r -= weights[i];
@@ -253,17 +301,19 @@ export const scene = {
   midiScale: 1.0,
   invertBase: false,
   regions: [],         // active composition regions [{x,y,w,h,mul}]
+  _regionsCurrent: [],
   _regionsTarget: [],
 };
 
 function transitionToScene(newScene, instant) {
   scene.target = newScene;
+  const blendMul = ARC_PARAMS[arc.phase].blendMul || 1.0;
   if (instant) {
     scene.current = newScene;
     scene.blend = 1.0;
   } else {
     scene.blend = 0;
-    scene.blendSpeed = 1 / (CFG.sceneTransitionBars * 2); // seconds approximation
+    scene.blendSpeed = blendMul / (CFG.sceneTransitionBars * 2);
   }
 
   // Apply palette
@@ -278,7 +328,8 @@ function transitionToScene(newScene, instant) {
     startInvertDissolve();
   }
 
-  // Set composition target
+  // Set composition — save current for cross-fade
+  scene._regionsCurrent = scene.regions.map(r => ({ ...r }));
   scene._regionsTarget = COMPOSITIONS[newScene.composition] || [];
 
   // Track history
@@ -302,14 +353,24 @@ function updateSceneBlend(dt) {
   // Snap booleans at 0.5
   scene.invertBase = t > 0.5 ? to.invertBase : from.invertBase;
 
-  // Lerp composition regions
+  // Lerp composition regions — cross-fade instead of snap
   if (t >= 1) {
     scene.current = scene.target;
     scene.regions = scene._regionsTarget;
+  } else if (scene._regionsCurrent && scene._regionsCurrent.length === scene._regionsTarget.length) {
+    // Same length: interpolate mul values
+    scene.regions = scene._regionsCurrent.map((r, i) => ({
+      x: r.x + (scene._regionsTarget[i].x - r.x) * t,
+      y: r.y + (scene._regionsTarget[i].y - r.y) * t,
+      w: r.w + (scene._regionsTarget[i].w - r.w) * t,
+      h: r.h + (scene._regionsTarget[i].h - r.h) * t,
+      mul: r.mul + (scene._regionsTarget[i].mul - r.mul) * t,
+    }));
   } else {
-    // During transition, blend region muls toward target
-    // If lengths differ, snap regions at blend 0.5
-    if (t > 0.5) scene.regions = scene._regionsTarget;
+    // Different lengths: cross-fade old (decreasing) + new (increasing)
+    const oldRegs = (scene._regionsCurrent || []).map(r => ({ ...r, mul: r.mul * (1 - t) }));
+    const newRegs = scene._regionsTarget.map(r => ({ ...r, mul: r.mul * t }));
+    scene.regions = [...oldRegs, ...newRegs];
   }
 }
 
@@ -334,7 +395,7 @@ export const director = {
 export const mutationLog = [];
 let dirBaseInterval = 15, dirRandomFactor = 0.4;
 
-const BAR_OPTIONS = [1, 2, 2, 4, 4, 8];
+const BAR_OPTIONS = [4, 8, 8, 12, 16, 24];
 
 function logMut(type, detail, globalTime) {
   mutationLog.unshift({ type, detail, time: globalTime });
@@ -456,10 +517,29 @@ export function setFraming(type, W, H) {
 }
 
 function pickAutoShot(state, W, H) {
-  if (state.intensity < 0.3) setFraming('WIDE', W, H);
-  else if (state.rhythmicity > 0.6 && Math.random() < 0.4) setFraming('MACRO', W, H);
-  else if (state.trajectory === 0) setFraming('DRIFT', W, H);
-  else setFraming('MEDIUM', W, H);
+  const params = ARC_PARAMS[arc.phase];
+  const cam = params.camera;
+
+  if (cam === 'WIDE_ONLY') return setFraming('WIDE', W, H);
+  if (cam === 'MACRO_LOCK') return setFraming('MACRO', W, H);
+  if (cam === 'SLOW_WIDE') {
+    // Gentle zoom out
+    framing.targetZoom = 1.0;
+    framing.current = 'WIDE';
+    return;
+  }
+  if (cam === 'TIGHTEN') {
+    // Progressively tighter during TENSION
+    const progress = Math.min(1, arc.phaseTime / 90);
+    if (progress < 0.5) setFraming('MEDIUM', W, H);
+    else setFraming('MACRO', W, H);
+    return;
+  }
+  // DRIFT_BIAS — default for DEVELOP
+  const roll = Math.random();
+  if (roll < 0.5) setFraming('DRIFT', W, H);
+  else if (roll < 0.85) setFraming('MEDIUM', W, H);
+  else setFraming('WIDE', W, H);
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -475,8 +555,11 @@ export function updateDirector(dt, state, globalTime, W, H) {
   updateSceneBlend(dt);
 
   // Arc-driven density clamping
+  const arcParams = ARC_PARAMS[arc.phase];
   if (arc.phase === 'INTRO') {
-    scene.densityMul = Math.min(scene.densityMul, 0.4 + arc.totalTime / CFG.arcIntroDuration * 0.6);
+    scene.densityMul = Math.min(scene.densityMul, 0.1 + arc.phaseTime / CFG.arcIntroDuration * 0.2);
+  } else {
+    scene.densityMul = Math.min(scene.densityMul, arcParams.densityCap);
   }
 
   const bpm = audio.bpm;
@@ -496,14 +579,14 @@ export function updateDirector(dt, state, globalTime, W, H) {
         for (let ch = 0; ch < 5; ch++) checkPatternChange(barNum, ch);
 
         if (barNum >= nextMutationBar) {
-          const prob = 0.4 + state.intensity * 0.4 + dirRandomFactor * Math.random();
+          const prob = (0.4 + state.intensity * 0.4 + dirRandomFactor * Math.random()) * arcParams.mutationRate;
           if (prob > CFG.directorChangeThreshold) {
             const camRoll = Math.random();
             if (camRoll < 0.55) executeMutation(null, globalTime);
             else if (camRoll < 0.80) { executeMutation(null, globalTime); if (autoCamera) pickAutoShot(state, W, H); }
             else { if (autoCamera) pickAutoShot(state, W, H); logMut('CAMERA', framing.current, globalTime); }
           }
-          nextMutationBar = barNum + pickNextBarTarget();
+          nextMutationBar = barNum + Math.round(pickNextBarTarget() / Math.max(0.5, arcParams.mutationRate));
           if (state.intensity > 0.7) nextMutationBar = barNum + Math.max(2, pickNextBarTarget() / 2);
         }
       }
@@ -511,7 +594,7 @@ export function updateDirector(dt, state, globalTime, W, H) {
   } else {
     director.nextCheckIn -= dt;
     if (director.nextCheckIn <= 0) {
-      let prob = 0.5;
+      let prob = 0.5 * arcParams.mutationRate;
       if (director.plateauTime > CFG.directorPlateauSec) prob += 0.3;
       prob += dirRandomFactor * Math.random();
       director.changeProb = Math.min(1, prob);

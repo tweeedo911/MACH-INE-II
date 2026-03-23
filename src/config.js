@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════
 //  MACH:INE II — Centralized Configuration
-//  v0.8.0: audio + field + DNA + color + camera
+//  v1.1.0: dynamic storytelling + density contrast
 // ═══════════════════════════════════════════════════════════
 
 export const CFG = {
@@ -46,9 +46,10 @@ export const CFG = {
 
   // ── Density ──
   densityBase: 0.0,
-  densityMax: 0.45,
-  densityFloor: 0.06,
-  brightnessDensityBoost: 0.08,
+  densityMax: 0.65,          // was 0.45 — wider dynamic range
+  densityFloor: 0.01,        // was 0.06 — allow true voids
+  densityVoidThreshold: 0.12, // below this → zero (negative space)
+  brightnessDensityBoost: 0.06,
   rhythmFlickerAmp: 0.04,
   rhythmFlickerSpeed: 3,
 
@@ -88,7 +89,7 @@ export const CFG = {
   climaxIntensityThreshold: 0.85,
   climaxShiftSpeed: 0.4,
   climaxDotCompress: 0.3,
-  climaxDensityBoost: 0.25,
+  climaxDensityBoost: 0.12,   // was 0.25
   climaxCollapseSpeed: 3.0,
 
   // ── Color decay ──
@@ -107,18 +108,21 @@ export const CFG = {
 
   // ── Director ──
   directorPlateauSec: 4,
-  directorChangeThreshold: 0.45,
+  directorChangeThreshold: 0.55,  // was 0.45 — more selective
   chromaticShiftDuration: 20,
   invertDissolveDuration: 1.0,
 
   // ── Scene system ──
-  sceneTransitionBars: 12,    // bars for gradual scene blend
-  sceneCutProbability: 0.15,  // chance of instant cut vs gradual
-  arcIntroDuration: 60,       // seconds for INTRO phase
-  arcDevelopEnd: 180,         // seconds when DEVELOP can become TENSION
-  arcTensionThreshold: 0.45,  // intensity above this builds tension
-  arcTensionBuildSec: 20,     // seconds of sustained intensity for TENSION→CLIMAX
-  arcReleaseDuration: 40,     // seconds of forced release after climax
+  sceneTransitionBars: 8,       // was 12 — faster transitions
+  sceneCutProbability: 0.25,    // was 0.15 — more cuts
+  arcIntroDuration: 45,         // was 60 — shorter intro
+  arcIntroEscapeIntensity: 0.5, // audio can end intro early
+  arcIntroEscapeSec: 5,
+  arcDevelopEnd: 75,            // was 180 — unlock tension sooner
+  arcTensionThreshold: 0.50,
+  arcTensionBuildSec: 15,       // was 20
+  arcReleaseDuration: 50,       // was 40 — longer release, more dramatic
+  arcClimaxMinSec: 12,          // minimum time in climax
 
   // ── Render ──
   dotSizeBufferThreshold: 6,
