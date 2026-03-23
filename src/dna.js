@@ -71,10 +71,10 @@ const ZONE_ARCHETYPES = [
   { dotSizeMul: [0.15, 0.35], densityMul: [1.4, 1.9], flickerAmp: [0, 0.01], flickerSpeed: [0.5, 1.5], birthMul: [1.3, 1.8], colorAffinity: 'A', reactivity: [0.1, 0.25] },
   // GRANA GROSSA: large dots, low reactivity — monumental
   { dotSizeMul: [1.8, 2.8], densityMul: [0.7, 1.0], flickerAmp: [0, 0.01], flickerSpeed: [1, 2], birthMul: [0.5, 0.8], colorAffinity: null, reactivity: [0.15, 0.3] },
-  // RITMICO: follows the music strongly
-  { dotSizeMul: [0.7, 1.1], densityMul: [0.9, 1.3], flickerAmp: [0.08, 0.15], flickerSpeed: [2, 6], birthMul: [1.0, 1.4], colorAffinity: null, reactivity: [0.8, 1.0] },
-  // RAREFATTO: sparse, almost inert
-  { dotSizeMul: [0.4, 0.7], densityMul: [0.3, 0.5], flickerAmp: [0, 0.02], flickerSpeed: [0.3, 0.8], birthMul: [0.2, 0.4], colorAffinity: null, reactivity: [0.05, 0.15] },
+  // RITMICO: follows the music strongly — high reactivity, strong flicker
+  { dotSizeMul: [0.7, 1.1], densityMul: [0.9, 1.3], flickerAmp: [0.10, 0.18], flickerSpeed: [2, 6], birthMul: [1.0, 1.4], colorAffinity: null, reactivity: [0.85, 1.0] },
+  // RAREFATTO: sparse, almost inert — very low reactivity
+  { dotSizeMul: [0.4, 0.7], densityMul: [0.3, 0.5], flickerAmp: [0, 0.005], flickerSpeed: [0.2, 0.5], birthMul: [0.2, 0.4], colorAffinity: null, reactivity: [0.02, 0.08] },
   // CROMATICO: colored, moderate reactivity
   { dotSizeMul: [0.3, 0.6], densityMul: [1.2, 1.6], flickerAmp: [0.02, 0.05], flickerSpeed: [1, 3], birthMul: [1.1, 1.5], colorAffinity: 'B', reactivity: [0.3, 0.5] },
   // DENSO MEDIO: balanced, moderate reactivity

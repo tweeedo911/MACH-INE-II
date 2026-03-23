@@ -9,8 +9,8 @@ import { midi, noteName } from './midi.js';
 import { state } from './state.js';
 import { dna, updatePrimitives } from './dna.js';
 import { entities, fossils, updateGenerations, buildEntityGrid, triggerOnset, triggerMIDI } from './generations.js';
-import { updateColors, inverted, inClimax, climaxProgress, colorEnabled, chromaticMode, chromaticTimer } from './colors.js';
-import { updateDirector, applyCamera, framing, director, executeMutation } from './director.js';
+import { updateColors, inverted, inClimax, climaxProgress, colorEnabled, chromaticMode, chromaticTimer, palette } from './colors.js';
+import { updateDirector, applyCamera, framing, director, executeMutation, scene, arc } from './director.js';
 import { renderField, updateWaves, addOnsetWave, addMidiNote } from './field.js';
 
 let canvas, ctx;
@@ -70,8 +70,11 @@ export function renderFrame(_now, dt) {
   updateWaves(dt);
   buildEntityGrid(W, H);
 
-  // Draw
-  ctx.fillStyle = inverted ? '#FFFFFF' : '#000000';
+  // Draw — background from palette (dynamic)
+  const bg = palette.bg;
+  ctx.fillStyle = inverted
+    ? `rgb(${255 - Math.round(bg[0])},${255 - Math.round(bg[1])},${255 - Math.round(bg[2])})`
+    : `rgb(${Math.round(bg[0])},${Math.round(bg[1])},${Math.round(bg[2])})`;
   ctx.fillRect(0, 0, W, H);
 
   ctx.save();
@@ -155,6 +158,9 @@ function updateHUDDebug() {
     `\n` +
     `CAM  ${framing.current} ×${framing.zoom.toFixed(1)}\n` +
     `DIR  ${director.lastChangeType}  ${director.sceneTime.toFixed(0)}s\n` +
+    `SCENE ${scene.target.name}  ${scene.target.composition}  blend:${scene.blend.toFixed(2)}\n` +
+    `ARC  ${arc.phase}  ${Math.floor(arc.totalTime)}s\n` +
+    `\n` +
     `MIDI ${midi.connected ? 'OK ' + midi.inputCount : 'OFF'}  ${lastNote}  CH:${midi.lastNote ? midi.lastNote.ch : '-'}\n` +
     `CH  ${midi.channels.map((c, i) => c.density > 0 ? i + ':' + c.density.toFixed(1) : '').filter(Boolean).join('  ') || 'no activity'}\n` +
     `CLIMAX ${climaxProgress > 0.1 ? (climaxProgress * 100).toFixed(0) + '%' : 'OFF'}`;

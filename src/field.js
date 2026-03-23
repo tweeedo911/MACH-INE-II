@@ -9,8 +9,9 @@ import { dna, getZone, primitiveDensity, isInVuoto } from './dna.js';
 import { entityDensityAt, entityColorAt } from './generations.js';
 import {
   inverted, invertDissolving, invertDissolveProgress, invertTarget,
-  climaxProgress, inClimax, getCellColor, getMidiColor,
+  climaxProgress, inClimax, getCellColor, getMidiColor, palette,
 } from './colors.js';
+import { scene } from './director.js';
 
 // ── Bayer 8x8 ──
 const BAYER8 = new Float32Array([
@@ -32,8 +33,6 @@ export function addOnsetWave(cx, cy, W, H) {
 }
 
 // ── MIDI note trail ──
-// Each note leaves a hot-spot positioned by midi-patterns.js
-// Repeated notes reinforce — loops become persistent patterns
 const MAX_TRAIL = 64;
 export let midiTrail = [];
 
@@ -41,11 +40,15 @@ export function addMidiNote(ch, noteNorm, velNorm) {
   const pos = getNotePosition(ch, noteNorm, velNorm);
   if (!pos) return;
 
+  // Scale radius by scene midiScale
+  const scaledRadius = pos.radius * scene.midiScale;
+
   // Reinforce: if a similar note exists from same channel, boost it
   for (const n of midiTrail) {
     if (n.ch === ch && Math.abs(n.x - pos.x) < 0.04 && Math.abs(n.y - pos.y) < 0.04) {
       n.alpha = Math.min(1, n.alpha + velNorm * 0.5);
       n.vel = Math.max(n.vel, velNorm);
+      n.radius = scaledRadius;
       n.time = 0;
       return;
     }
@@ -54,7 +57,7 @@ export function addMidiNote(ch, noteNorm, velNorm) {
   midiTrail.push({
     x: pos.x, y: pos.y,
     vel: velNorm, alpha: 1,
-    radius: pos.radius,
+    radius: scaledRadius,
     decay: pos.decay,
     shape: pos.shape,
     color: pos.color,
@@ -72,18 +75,15 @@ export function updateWaves(dt) {
     w.alpha *= CFG.onsetDecayRate;
     if (w.alpha < 0.01) onsetWaves.splice(i, 1);
   }
-  // Trail notes fade slowly — melodic contour persists
   for (let i = midiTrail.length - 1; i >= 0; i--) {
     const n = midiTrail[i];
     n.time += dt;
-    // Use per-note decay from midi-patterns (defaults to 0.97 if missing)
     n.alpha *= n.decay || 0.97;
     if (n.alpha < 0.01) midiTrail.splice(i, 1);
   }
 }
 
-// ── MIDI color field: returns [ch, alpha] for the dominant MIDI note at this point ──
-// Color area is 2.5× larger than density area — color bleeds beyond the geometry
+// ── MIDI color field ──
 function midiColorAt(nx, ny) {
   let bestCh = -1, bestAlpha = 0;
   for (const n of midiTrail) {
@@ -92,31 +92,40 @@ function midiColorAt(nx, ny) {
 
     let influence = 0;
     if (n.shape === 'pulse') {
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      const ringRadius = n.radius * (1 + n.time * 3);
-      const colorWidth = 0.06 + n.radius * 0.4;  // wider than density ring
-      const ringDist = Math.abs(dist - ringRadius);
-      if (ringDist < colorWidth) influence = (1 - ringDist / colorWidth) * n.alpha * n.vel;
+      // Colore rettangolare espanso attorno al flash
+      const expand = n.radius * (1 + n.time * 3);
+      const hw = expand * 1.6, hh = expand * 0.9;
+      const adx = Math.abs(dx), ady = Math.abs(dy);
+      if (adx < hw && ady < hh) {
+        influence = (1 - adx / hw) * (1 - ady / hh) * n.alpha * n.vel;
+      }
     } else if (n.shape === 'blob') {
-      const breathe = 1 + Math.sin(n.time * 2.5) * 0.25;
-      const r = n.radius * 2.5 * breathe;  // 2.5× density radius
-      const dist2 = dx * dx + dy * dy;
-      if (dist2 < r * r) influence = Math.exp(-dist2 / (r * r * 0.5)) * n.alpha * n.vel;
+      // Blocco colore rettangolare ampio
+      const breathe = 1 + Math.sin(n.time * 2.5) * 0.15;
+      const hw = n.radius * 2.5 * breathe, hh = n.radius * 1.8 * breathe;
+      const adx = Math.abs(dx), ady = Math.abs(dy);
+      if (adx < hw && ady < hh) {
+        influence = (1 - adx / hw) * (1 - ady / hh) * n.alpha * n.vel;
+      }
     } else if (n.shape === 'band') {
-      const bandH = n.radius * 1.5;  // wider color band
+      const bandH = n.radius * 1.5;
       if (Math.abs(dy) < bandH) {
         const xFade = 1 - Math.pow(Math.abs(nx - 0.5) * 2, 3);
         influence = (1 - Math.abs(dy) / bandH) * xFade * n.alpha * n.vel;
       }
     } else if (n.shape === 'trail') {
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      const r = n.radius * 2.5;
-      if (dist < r) influence = (1 - dist / r) * n.alpha * n.vel;
+      // Colore rettangolare verticale
+      const hw = n.radius * 1.2, hh = n.radius * 2.0;
+      const adx = Math.abs(dx), ady = Math.abs(dy);
+      if (adx < hw && ady < hh) {
+        influence = (1 - ady / hh) * n.alpha * n.vel;
+      }
     } else {
-      // scatter — small color spots
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      const r = n.radius * 1.5;
-      if (dist < r) influence = (1 - dist / r) * n.alpha * n.vel * 0.6;
+      // Scatter — piccolo rettangolo colore
+      const hw = n.radius * 1.0, hh = n.radius * 0.8;
+      if (Math.abs(dx) < hw && Math.abs(dy) < hh) {
+        influence = n.alpha * n.vel * 0.6;
+      }
     }
 
     if (influence > bestAlpha) {
@@ -125,7 +134,7 @@ function midiColorAt(nx, ny) {
     }
   }
 
-  // Trail contour lines also carry color
+  // Trail contour lines carry color
   if (midiTrail.length >= 2) {
     for (let i = 1; i < midiTrail.length; i++) {
       const a = midiTrail[i - 1], b = midiTrail[i];
@@ -148,7 +157,7 @@ function midiColorAt(nx, ny) {
   return [bestCh, bestAlpha];
 }
 
-// ── Smoothed intensity for low-reactivity zones (very slow) ──
+// ── Smoothed intensity for low-reactivity zones ──
 let smoothedIntensity = 0;
 
 // ── Total density at point ──
@@ -158,24 +167,31 @@ function computeDensity(nx, ny, px, py, state, globalTime, W, H) {
   const zone = getZone(nx, ny);
   const r = zone.reactivity;
 
-  // Zone reactivity: low-r zones use their own slow-moving baseline
-  // r=0 → completely decoupled from live audio, only slow average
-  // r=1 → fully tracks live intensity
   const localIntensity = state.intensity * r + smoothedIntensity * (1 - r);
   const intCurve = Math.pow(localIntensity, 1.5);
   let d = CFG.densityBase + (CFG.densityMax - CFG.densityBase) * intCurve;
 
   d += state.brightness * CFG.brightnessDensityBoost * localIntensity;
 
-  // Flicker only in reactive zones
+  // Flicker only in reactive zones — per-zone speed and amplitude
   if (r > 0.3 && state.rhythmicity > 0.01) {
     const speed = zone.flickerSpeed || CFG.rhythmFlickerSpeed;
     const flickerT = globalTime * speed + zone.flickerPhase * Math.PI * 2;
     const amp = zone.flickerAmp || CFG.rhythmFlickerAmp;
-    // Scale flicker by reactivity squared — only clearly reactive zones pulse
     d += Math.sin(flickerT * Math.PI * 2) * amp * state.rhythmicity * r * r;
   }
   d *= zone.densityMul;
+
+  // Scene density multiplier
+  d *= scene.densityMul;
+
+  // Composition regions — spatial density override
+  for (const reg of scene.regions) {
+    if (nx >= reg.x && nx < reg.x + reg.w && ny >= reg.y && ny < reg.y + reg.h) {
+      d *= reg.mul;
+      break;
+    }
+  }
 
   if (state.stereoWidth < 1) {
     const centerDist = Math.abs(nx - 0.5) * 2;
@@ -185,17 +201,15 @@ function computeDensity(nx, ny, px, py, state, globalTime, W, H) {
   if (state.trajectory === 1) d += (1 - ny) * 0.15 * localIntensity;
   else if (state.trajectory === -1) d += ny * 0.15 * localIntensity;
 
-  // Frequency bands → spatial regions (frequencies "open" screen areas)
-  // sub/low → bottom, mid → center, high/air → top
+  // Frequency bands → spatial regions
   const bandAvg = (band) => (band.L + band.R) * 0.5;
   const subLow = bandAvg(audio.bands.sub) * 0.6 + bandAvg(audio.bands.low) * 0.4;
   const mid = bandAvg(audio.bands.mid);
   const highAir = bandAvg(audio.bands.high) * 0.6 + bandAvg(audio.bands.air) * 0.4;
 
-  // Each band boosts density in its vertical zone with soft falloff
-  if (ny > 0.6) d += subLow * 0.35 * (ny - 0.6) / 0.4;       // bottom 40%
-  else if (ny > 0.3) d += mid * 0.25 * (1 - Math.abs(ny - 0.5) / 0.2);  // center
-  if (ny < 0.4) d += highAir * 0.3 * (0.4 - ny) / 0.4;        // top 40%
+  if (ny > 0.6) d += subLow * 0.20 * (ny - 0.6) / 0.4;
+  else if (ny > 0.3) d += mid * 0.15 * (1 - Math.abs(ny - 0.5) / 0.2);
+  if (ny < 0.4) d += highAir * 0.18 * (0.4 - ny) / 0.4;
 
   const pd = primitiveDensity(nx, ny, state, W, H);
   if (pd === -1) return 0;
@@ -204,65 +218,69 @@ function computeDensity(nx, ny, px, py, state, globalTime, W, H) {
   d += entityDensityAt(nx, ny, W, H);
 
   for (const w of onsetWaves) {
-    const dx = px - w.cx, dy = py - w.cy;
-    const dist = Math.sqrt(dx * dx + dy * dy);
-    const ringDist = Math.abs(dist - w.radius);
-    if (ringDist < CFG.onsetWaveWidth) {
-      d = Math.max(d, (1 - ringDist / CFG.onsetWaveWidth) * CFG.onsetWaveDensity * w.alpha);
+    // Onda rettangolare orizzontale che si espande verticalmente
+    const dy = Math.abs(py - w.cy);
+    const bandDist = Math.abs(dy - w.radius);
+    if (bandDist < CFG.onsetWaveWidth) {
+      d = Math.max(d, (1 - bandDist / CFG.onsetWaveWidth) * CFG.onsetWaveDensity * w.alpha);
     }
   }
 
-  // MIDI note trail — shape-specific geometry per instrument role
+  // MIDI trail — additive density (not max) so audio terrain + MIDI landmarks coexist
   for (const n of midiTrail) {
     if (n.alpha < 0.02) continue;
     const dx = nx - n.x, dy = ny - n.y;
+    let midiD = 0;
 
     if (n.shape === 'pulse') {
-      // KICK: expanding ring — density on the ring edge, not filled
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      const ringRadius = n.radius * (1 + n.time * 3); // expands over time
-      const ringWidth = 0.03 + n.radius * 0.15;
-      const ringDist = Math.abs(dist - ringRadius);
-      if (ringDist < ringWidth) {
-        const falloff = 1 - ringDist / ringWidth;
-        d = Math.max(d, falloff * n.vel * n.alpha);
+      // Rettangolo che si espande — flash quadrato
+      const expand = n.radius * (1 + n.time * 3);
+      const hw = expand * 1.2, hh = expand * 0.6;
+      const edgeW = 0.03 + n.radius * 0.12;
+      const adx = Math.abs(dx), ady = Math.abs(dy);
+      if (adx < hw + edgeW && ady < hh + edgeW) {
+        const dEdge = Math.max(Math.max(0, adx - hw), Math.max(0, ady - hh));
+        const inEdge = Math.min(Math.abs(adx - hw), Math.abs(ady - hh));
+        if (dEdge < edgeW && inEdge < edgeW) {
+          midiD = (1 - dEdge / edgeW) * n.vel * n.alpha;
+        }
       }
     } else if (n.shape === 'blob') {
-      // BASS: large soft gaussian, breathes with time
-      const breathe = 1 + Math.sin(n.time * 2.5) * 0.25;
-      const r = n.radius * 1.5 * breathe;
-      const dist2 = dx * dx + dy * dy;
-      const r2 = r * r;
-      if (dist2 < r2) {
-        const gauss = Math.exp(-dist2 / (r2 * 0.4));
-        d = Math.max(d, gauss * n.vel * n.alpha * 0.85);
+      // Blocco rettangolare pieno — massa quadrata
+      const breathe = 1 + Math.sin(n.time * 2.5) * 0.15;
+      const hw = n.radius * 1.8 * breathe;
+      const hh = n.radius * 1.2 * breathe;
+      const adx = Math.abs(dx), ady = Math.abs(dy);
+      if (adx < hw && ady < hh) {
+        const fx = 1 - (adx / hw);
+        const fy = 1 - (ady / hh);
+        midiD = fx * fy * n.vel * n.alpha * 0.85;
       }
     } else if (n.shape === 'band') {
-      // HARMONY: horizontal stripe at note y, full width
+      // Striscia orizzontale rettangolare (invariata, già rettangolare)
       const bandH = n.radius * 0.8;
       const bandDist = Math.abs(dy);
       if (bandDist < bandH) {
         const falloff = 1 - bandDist / bandH;
-        // Taper at edges of x
         const xFade = 1 - Math.pow(Math.abs(nx - 0.5) * 2, 3);
-        d = Math.max(d, falloff * xFade * n.vel * n.alpha * 0.7);
+        midiD = falloff * xFade * n.vel * n.alpha * 0.7;
       }
     } else if (n.shape === 'scatter') {
-      // TEXTURE: small dispersed grains — handled as small radius with jitter
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      const r = n.radius * 0.6;
-      if (dist < r) {
-        const falloff = 1 - dist / r;
-        d = Math.max(d, falloff * n.vel * n.alpha * 0.5);
+      // Granuli rettangolari piccoli
+      const hw = n.radius * 0.5, hh = n.radius * 0.3;
+      if (Math.abs(dx) < hw && Math.abs(dy) < hh) {
+        midiD = n.vel * n.alpha * 0.5;
       }
     } else {
-      // trail and fallback: point density
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      if (dist < n.radius) {
-        const falloff = 1 - dist / n.radius;
-        d = Math.max(d, falloff * n.vel * n.alpha * 0.8);
+      // Trail — rettangolo verticale stretto
+      const hw = n.radius * 0.4, hh = n.radius * 0.8;
+      if (Math.abs(dx) < hw && Math.abs(dy) < hh) {
+        const fy = 1 - Math.abs(dy) / hh;
+        midiD = fy * n.vel * n.alpha * 0.8;
       }
     }
+
+    d += midiD * 0.5; // additive, scaled down
   }
 
   // Melodic contour: lines between consecutive TRAIL notes of same channel
@@ -280,8 +298,7 @@ function computeDensity(nx, ny, px, py, state, globalTime, W, H) {
       const lineDist = Math.sqrt((nx - px2) * (nx - px2) + (ny - py2) * (ny - py2));
       const lineWidth = 0.02;
       if (lineDist < lineWidth) {
-        const lineAlpha = Math.min(a.alpha, b.alpha) * 0.6;
-        d = Math.max(d, (1 - lineDist / lineWidth) * lineAlpha * 0.7);
+        d += Math.min(a.alpha, b.alpha) * (1 - lineDist / lineWidth) * 0.3;
       }
     }
   }
@@ -315,7 +332,6 @@ function renderFillRect(ctx, dotSize, state, globalTime, W, H) {
       if (density > threshold) {
         const zDot = Math.max(1, Math.round(dotSize * zone.dotSizeMul));
         const fgVal = cellInv ? 0 : 255;
-        // Check MIDI color first (larger area), then entity color
         const [mCh, mAlpha] = midiColorAt(nx, ny);
         let fill;
         if (mCh >= 0 && mAlpha > 0.03) {
@@ -368,7 +384,6 @@ function renderBuffer(ctx, dotSize, state, globalTime, W, H) {
       const density = computeDensity(nx, ny, px, py, state, globalTime, W, H);
       const idx = (row * bw + col) * 4;
       if (density > threshold) {
-        // Check MIDI color first, then entity color
         const [mCh, mAlpha] = midiColorAt(nx, ny);
         let colored = false;
         if (mCh >= 0 && mAlpha > 0.03) {
@@ -421,19 +436,13 @@ function drawMatrice(ctx, state, globalTime, W, H) {
   }
 }
 
-// ── Smoothed brightness for stable base dot size ──
-let smoothedBrightness = 0;
-
 // ── Public render entry point ──
 export function renderField(ctx, W, H, state, globalTime) {
   // Update smoothed intensity for low-reactivity zones
-  // 0.0008 ≈ 60s to converge — inert zones evolve on a geological timescale
   smoothedIntensity += (state.intensity - smoothedIntensity) * 0.0008;
 
-  // Smoothed brightness for stable base dot size — changes over ~10s, not per-beat
-  smoothedBrightness += (state.brightness - smoothedBrightness) * 0.003;
-
-  let dotSize = Math.max(1, Math.round(CFG.dotSizeMax - (CFG.dotSizeMax - CFG.dotSizeMin) * smoothedBrightness));
+  // Dot size from scene (stable, no audio pulsation)
+  let dotSize = Math.max(1, scene.dotSize);
 
   if (climaxProgress > 0.1) {
     const compress = 1 - (1 - CFG.climaxDotCompress) * climaxProgress;
