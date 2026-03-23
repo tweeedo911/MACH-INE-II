@@ -37,14 +37,28 @@ const LEAD_BEHAVIORS = [
   { zone: [0.05, 0.60], xMode: 'pitch', shape: 'trail', size: 0.05, decay: 0.980, color: 3 },
 ];
 
-// TEXTURE: granuli che si adattano all'energia high/air
-const TEXTURE_BEHAVIORS = [
-  { zone: [0.00, 1.00], xMode: 'random', shape: 'scatter', size: 0.03, decay: 0.960, color: 4 },
-  { zone: [0.00, 1.00], xMode: 'random', shape: 'scatter', size: 0.05, decay: 0.955, color: 4 },
-  { zone: [0.00, 1.00], xMode: 'pitch',  shape: 'scatter', size: 0.04, decay: 0.958, color: null },
+// CH4 DRONE — T1 FIELD: scatter lentissimo, no color, fondo armonico
+const DRONE_BEHAVIORS = [
+  { zone: [0.00, 1.00], xMode: 'random', shape: 'scatter', size: 0.06, decay: 0.999, color: null },
+  { zone: [0.10, 0.90], xMode: 'center', shape: 'scatter', size: 0.08, decay: 0.999, color: null },
 ];
 
-const ALL_BEHAVIORS = [KICK_BEHAVIORS, BASS_BEHAVIORS, HARMONY_BEHAVIORS, LEAD_BEHAVIORS, TEXTURE_BEHAVIORS];
+// CH5 GRAIN — T3 GRAIN: scatter ritmico, colore steel (4)
+const GRAIN_BEHAVIORS = [
+  { zone: [0.00, 1.00], xMode: 'random', shape: 'scatter', size: 0.03, decay: 0.91, color: 4 },
+  { zone: [0.00, 1.00], xMode: 'pitch',  shape: 'scatter', size: 0.04, decay: 0.90, color: 4 },
+];
+
+// CH6 RUPTURE — T7 RUPTURE: frammenti caotici magenta
+const RUPTURE_BEHAVIORS = [
+  { zone: [0.00, 1.00], xMode: 'random', shape: 'rupture', size: 0.18, decay: 0.88, color: 'C' },
+  { zone: [0.10, 0.90], xMode: 'spread', shape: 'rupture', size: 0.22, decay: 0.85, color: 'C' },
+];
+
+const ALL_BEHAVIORS = [
+  KICK_BEHAVIORS, BASS_BEHAVIORS, HARMONY_BEHAVIORS, LEAD_BEHAVIORS,
+  DRONE_BEHAVIORS, GRAIN_BEHAVIORS, RUPTURE_BEHAVIORS,
+];
 
 // ── Current state ──
 const channelMapping = [];
@@ -56,7 +70,7 @@ function pickBehavior(ch) {
 }
 
 export function initMidiPatterns() {
-  for (let i = 0; i < 5; i++) {
+  for (let i = 0; i < 7; i++) {
     channelMapping[i] = pickBehavior(i);
     channelChangeBar[i] = 8 + Math.floor(Math.random() * 24);
   }
@@ -77,12 +91,12 @@ export function mutateChannel(ch) {
 }
 
 export function getChannelMapping(ch) {
-  if (ch >= 5) return null;
+  if (ch >= 7) return null;
   return channelMapping[ch];
 }
 
 export function getNotePosition(ch, noteNorm, velNorm) {
-  if (ch >= 5) return null;
+  if (ch >= 7) return null;
   const role = channelMapping[ch];
   if (!role) return null;
 
@@ -122,10 +136,17 @@ export function getNotePosition(ch, noteNorm, velNorm) {
     // HARMONY: altezza base, viene scalata in addMidiNote con noteCount
     radius = role.size * (0.6 + velNorm * 0.4);
   } else if (ch === 4) {
-    // TEXTURE: energia high/air modula la dimensione
+    // DRONE: dimensione costante, leggermente modulata da energia sub
+    const subEnergy = (audio.bands.sub.L + audio.bands.sub.R) * 0.5;
+    radius = role.size * (0.5 + subEnergy * 0.8 + velNorm * 0.2);
+  } else if (ch === 5) {
+    // GRAIN: energia high/air modula la dimensione
     const airEnergy = (audio.bands.air.L + audio.bands.air.R +
                        audio.bands.high.L + audio.bands.high.R) * 0.25;
     radius = role.size * (0.3 + airEnergy * 2.5 + velNorm * 0.3);
+  } else if (ch === 6) {
+    // RUPTURE: grande, velocity-driven
+    radius = role.size * (0.5 + velNorm * 0.8);
   } else {
     radius = role.size * (0.6 + velNorm * 0.4);
   }

@@ -126,6 +126,15 @@ function midiColorAt(nx, ny) {
       if (adx < hw && ady < hh) {
         influence = (1 - ady / hh) * n.alpha * n.vel;
       }
+    } else if (n.shape === 'rupture') {
+      // Rettangoli frammentati: fasce orizzontali con lacune animate
+      const fragIndex = Math.floor(Math.abs(dx * 9 + n.time * 1.3)) % 3;
+      const bandH = n.radius * 0.55;
+      const slotY = Math.floor(dy / bandH + 2) % 3;
+      const gap = (Math.sin(n.time * 4.7 + slotY * 2.1) > 0.3) ? 1 : 0;
+      if (gap && Math.abs(dy) < n.radius * 1.6 && fragIndex > 0) {
+        influence = (1 - Math.abs(dy) / (n.radius * 1.6)) * n.alpha * n.vel * 0.85;
+      }
     } else {
       // Scatter — piccolo rettangolo colore
       const hw = n.radius * 1.0, hh = n.radius * 0.8;

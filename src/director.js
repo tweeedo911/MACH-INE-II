@@ -643,3 +643,15 @@ export function applyCamera(ctx, W, H) {
   ctx.scale(framing.zoom, framing.zoom);
   ctx.translate(-W / 2 + framing.offsetX, -H / 2 + framing.offsetY);
 }
+
+// ── Composer override ──
+// Forza una fase dell'arco e blocca le transizioni audio-reattive
+export function setArcPhaseForced(newPhase) {
+  arc.phase = newPhase;
+  arc.phaseTime = 0;
+  arc._stateHold = 999;
+}
+
+export function releaseArcHold() {
+  arc._stateHold = 0;
+}

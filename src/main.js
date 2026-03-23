@@ -3,6 +3,7 @@
 //  v0.8.0: halftone field, DNA, generations, color, camera, audio
 // ═══════════════════════════════════════════════════════════
 
+import { CFG } from './config.js';
 import { initAudio, updateAudio } from './audio.js';
 import { initMIDI, updateMIDI } from './midi.js';
 import { state, updateState } from './state.js';
@@ -11,6 +12,7 @@ import { generateDNA } from './dna.js';
 import { resetGenerations } from './generations.js';
 import { resetClimax } from './colors.js';
 import { initDirector } from './director.js';
+import { initComposer, updateComposer, toggleComposer, composerActive } from './composer.js';
 
 // ── DOM refs ──
 const canvas = document.getElementById('c');
@@ -44,6 +46,7 @@ startScreen.addEventListener('click', async () => {
   // Generate first DNA world
   generateDNA();
   initDirector(state);
+  initComposer();
 
   startScreen.style.display = 'none';
   hudMinimal.style.display = 'block';
@@ -56,6 +59,8 @@ startScreen.addEventListener('click', async () => {
 // ── Keyboard ──
 document.addEventListener('keydown', (e) => {
   if (!running) return;
+
+  if (e.code === CFG.composerKey) { toggleComposer(); return; }
 
   const result = handleKey(e.code);
   if (result === 'REGEN') {
@@ -77,5 +82,6 @@ function loop(now) {
   updateAudio();
   updateMIDI();
   updateState();
+  if (composerActive) updateComposer(dt);
   renderFrame(now, dt);
 }

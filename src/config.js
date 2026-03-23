@@ -138,4 +138,30 @@ export const CFG = {
 
   // ── FPS limiter ──
   fpsAutoLimit: 30,
+
+  // ── Composer (Mode 2) ──
+  composerKey: 'KeyC',
+  COMPOSER: {
+    enabled: false,
+    bpm: 116,
+    phases: {
+      germoglio:    { duration: 40,  mode: 'D_dorian',   drone: 62, arc: 'SILENCE'   },
+      pulsazione:   { duration: 60,  mode: 'D_phrygian',  drone: 62, arc: 'BUILDING'  },
+      densita:      { duration: 90,  mode: 'A_lydian',    drone: 69, arc: 'INTENSE'   },
+      rottura:      { duration: 30,  mode: 'Eb_locrian',  drone: 63, arc: 'PEAK'      },
+      dissoluzione: { duration: 80,  mode: 'D_dorian',    drone: 62, arc: 'RELEASE'   },
+    },
+    phaseOrder: ['germoglio', 'pulsazione', 'densita', 'rottura', 'dissoluzione'],
+    euclidean: { normal: [5, 16], rottura: [3, 8] },
+    minSilenceRatio: 0.40,
+    rupture: {
+      presagio:      [0.00, 0.25],
+      infiltrazione: [0.25, 0.55],
+      takeover:      [0.55, 0.85],
+      residuo:       [0.85, 1.00],
+      silenceBarsRange: [4, 6],
+    },
+    voiceLeadingMax: 2,
+    midiOutputName: null,
+  },
 };
