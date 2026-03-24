@@ -36,6 +36,7 @@ export const audio = {
 
 // ── Internal state ──
 let audioCtx;
+let gainNode;
 let analyserL, analyserR;
 let fftL, fftR;
 let prevFftL;          // previous frame FFT for spectral flux
@@ -76,9 +77,14 @@ export async function initAudio() {
 
   const src = audioCtx.createMediaStreamSource(stream);
 
+  // Gain controllabile via tasti [ ] senza ricalibrare
+  gainNode = audioCtx.createGain();
+  gainNode.gain.value = CFG.audioInputGain;
+  src.connect(gainNode);
+
   // Split stereo into L and R
   const splitter = audioCtx.createChannelSplitter(2);
-  src.connect(splitter);
+  gainNode.connect(splitter);
 
   // Left analyser
   analyserL = audioCtx.createAnalyser();
@@ -129,6 +135,18 @@ export function updateAudio() {
 // ── Expose audioCtx for sample rate etc. ──
 export function getAudioContext() {
   return audioCtx;
+}
+
+// ── Gain control ──
+export function setAudioGain(value) {
+  const v = Math.max(CFG.audioInputGainMin, Math.min(CFG.audioInputGainMax, value));
+  if (gainNode) gainNode.gain.value = v;
+  CFG.audioInputGain = v;
+  return v;
+}
+
+export function getAudioGain() {
+  return gainNode ? gainNode.gain.value : CFG.audioInputGain;
 }
 
 export function getBinCount() {

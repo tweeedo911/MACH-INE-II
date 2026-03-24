@@ -4,13 +4,15 @@
 // ═══════════════════════════════════════════════════════════
 
 import { CFG } from './config.js';
-import { audio } from './audio.js';
+import { audio, getAudioGain } from './audio.js';
 import { midi, noteName } from './midi.js';
 import { state } from './state.js';
 import { dna, updatePrimitives } from './dna.js';
 import { entities, fossils, updateGenerations, buildEntityGrid, triggerOnset, triggerMIDI } from './generations.js';
 import { updateColors, inverted, inClimax, climaxProgress, colorEnabled, chromaticMode, chromaticTimer, palette } from './colors.js';
 import { updateDirector, applyCamera, framing, director, executeMutation, scene, arc } from './director.js';
+import { getComposer2Status } from './composer2.js';
+import { getComposer3Status } from './composer3.js';
 import { renderField, updateWaves, addOnsetWave, addMidiNote } from './field.js';
 
 let canvas, ctx;
@@ -119,7 +121,8 @@ function updateHUDMinimal() {
   hudMinimal.textContent =
     `${primList}  ${framing.current}` +
     (audio.bpm ? `  ${audio.bpm}BPM` : '') +
-    (midi.connected ? `  MIDI:${midi.inputCount}` : '');
+    (midi.connected ? `  MIDI:${midi.inputCount}` : '') +
+    `  G:${getAudioGain().toFixed(1)}`;
 }
 
 // ── HUD Debug ──
@@ -165,5 +168,7 @@ function updateHUDDebug() {
     `CH  ${midi.channels.map((c, i) => c.density > 0 ? i + ':' + c.density.toFixed(1) : '').filter(Boolean).join('  ') || 'no activity'}\n` +
     `CLIMAX ${climaxProgress > 0.1 ? (climaxProgress * 100).toFixed(0) + '%' : 'OFF'}\n` +
     `\n` +
-    `KEYS  H=hud  D=debug  F=full  R=regen  N=mutate  C=composer`;
+    `KEYS  H=hud  D=debug  F=full  R=regen  N=mutate  è/+=gain  1=comp1  2=comp2  3=comp3\n` +
+    (() => { const s = getComposer2Status(); return s.active ? `COMP2 ${s.phase}  L:${s.activeCount}/4  ${s.ruptureStage}` : 'COMP2 OFF'; })() + '\n' +
+    (() => { const s = getComposer3Status(); return s.active ? `COMP3 ${s.phase}  root:${s.chordRoot}  bar:${s.bar}  ${s.ruptureStage}` : 'COMP3 OFF'; })();
 }

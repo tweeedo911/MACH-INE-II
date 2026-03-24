@@ -6,7 +6,8 @@ import { CFG } from './config.js';
 import { audio } from './audio.js';
 import { dna, PRIM_TYPES } from './dna.js';
 import { entities } from './generations.js';
-import { startInvertDissolve, setChromaticShift, setPalette } from './colors.js';
+import { startInvertDissolve, setChromaticShift, setPalette, setComposerClimax } from './colors.js';
+import { on as onDirectorEvent } from './director-events.js';
 import { checkPatternChange } from './midi-patterns.js';
 
 // ═══════════════════════════════════════════════════════════
@@ -554,6 +555,7 @@ function pickAutoShot(state, W, H) {
 // ═══════════════════════════════════════════════════════════
 
 export function updateDirector(dt, state, globalTime, W, H) {
+  _W = W; _H = H; _state = state;
   director.sceneTime += dt;
   if (state.trajectory === 0) director.plateauTime += dt; else director.plateauTime = 0;
 
@@ -654,4 +656,55 @@ export function setArcPhaseForced(newPhase) {
 
 export function releaseArcHold() {
   arc._stateHold = 0;
+}
+
+// ── Dimensioni canvas (aggiornate ogni frame da updateDirector) ──
+let _W = 800, _H = 600, _state = {};
+
+// ═══════════════════════════════════════════════════════════
+//  EVENT BUS — binding semantico Composer 2 → Director
+// ═══════════════════════════════════════════════════════════
+
+export function initDirectorEvents() {
+  onDirectorEvent('tension', ({ level }) => {
+    if (level > 0.65 && autoCamera) pickAutoShot(_state, _W, _H);
+  });
+
+  onDirectorEvent('void', ({ ratio }) => {
+    if (ratio > 0.55) {
+      const sparse = SCENES.find(s => s.name === 'SPARSE');
+      if (sparse) transitionToScene(sparse, false);
+    }
+  });
+
+  onDirectorEvent('grain_entry', ({ intensity }) => {
+    if (intensity > 0.4) setChromaticShift('all-B');
+  });
+
+  onDirectorEvent('chord_change', ({ mode }) => {
+    const map = {
+      Cs_dorian: 'default', Cs_phrygian: 'default',
+      Gs_lydian: 'cyan',    D_locrian: 'cold',
+    };
+    setPalette(map[mode] || 'default');
+  });
+
+  onDirectorEvent('rupture_stage', ({ stage }) => {
+    const neg = SCENES.find(s => s.name === 'NEGATIVE');
+    const den = SCENES.find(s => s.name === 'DENSE');
+    if (stage === 'presagio'      && neg) transitionToScene(neg, false);
+    if (stage === 'infiltrazione' && autoCamera) pickAutoShot(_state, _W, _H);
+    if (stage === 'takeover') {
+      setComposerClimax(true);
+      if (den) transitionToScene(den, true);
+    }
+    if (stage === 'residuo') {
+      setComposerClimax(false);
+      if (autoCamera) setFraming('WIDE', _W, _H);
+    }
+  });
+
+  onDirectorEvent('density_peak', () => {
+    if (autoCamera) setFraming('MACRO', _W, _H);
+  });
 }
