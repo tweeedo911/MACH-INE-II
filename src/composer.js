@@ -255,59 +255,59 @@ function onBeat(beatInBar) {
     if (beatInBar === 0) addOnsetWave(0.5, 0.5, 1, 1);
   }
 
-  // ── CH1 BASS (TENSION) — ogni 2 bar, su beat 0 ──
+  // ── CH3 BASS — ogni 2 bar, su beat 0 ──
   if (presence[1] > 0.1 && beatInBar === 0 && bar % 2 === 0) {
     const root = chord[0];
     const bassNote = root > 60 ? root - 12 : root;
     const vel = Math.round(60 + presence[1] * 50);
     const dur = Math.round(barDuration * 2 * 1000);
-    sendMIDINote(1, bassNote, vel, dur);
-    addMidiNote(1, bassNote / 127, vel / 127);
+    sendMIDINote(3, bassNote, vel, dur);
+    addMidiNote(3, bassNote / 127, vel / 127);
   }
 
-  // ── CH2 HARMONY (CHORDS) — beat 0 e beat 2 ──
+  // ── CH4 CHORDS — beat 0 e beat 2 ──
   if (presence[2] > 0.1 && (beatInBar === 0 || beatInBar === 2)) {
     if (beatInBar === 0) nextChord();
     const c = lastChord;
     const vel = Math.round(45 + presence[2] * 40);
     const dur = Math.round((60 / bpm) * 2 * 1000);
     for (let i = 0; i < c.length; i++) {
-      sendMIDINote(2, c[i], vel, dur);
-      addMidiNote(2, c[i] / 127, vel / 127);
+      sendMIDINote(4, c[i], vel, dur);
+      addMidiNote(4, c[i] / 127, vel / 127);
     }
   }
 
-  // ── CH3 VOICE (LEAD) — beat dispari ──
+  // ── CH5 VOICE — beat dispari ──
   if (presence[3] > 0.1 && beatInBar % 2 === 1) {
     const note = nextVoiceNote();
     const vel = Math.round(50 + presence[3] * 55 + (Math.random() - 0.5) * 20);
     const dur = Math.round((60 / bpm) * (0.5 + Math.random()) * 1000);
-    sendMIDINote(3, Math.max(36, Math.min(96, note)), Math.max(30, Math.min(127, vel)), dur);
-    addMidiNote(3, note / 127, vel / 127);
+    sendMIDINote(5, Math.max(36, Math.min(96, note)), Math.max(30, Math.min(127, vel)), dur);
+    addMidiNote(5, note / 127, vel / 127);
   }
 
-  // ── CH4 DRONE (FIELD) — ogni 8 bar su beat 0 ──
+  // ── CH2 DRONE — ogni 8 bar su beat 0 ──
   if (presence[4] > 0.1 && beatInBar === 0 && bar % 8 === 0) {
     const drone = CFG.COMPOSER.phases[phase].drone;
     const vel = Math.round(40 + presence[4] * 35);
     const dur = Math.round(barDuration * 8 * 1000);
-    sendMIDINote(4, drone, vel, dur);
-    addMidiNote(4, drone / 127, vel / 127);
+    sendMIDINote(2, drone, vel, dur);
+    addMidiNote(2, drone / 127, vel / 127);
   }
 
-  // ── CH5 GRAIN — beat pari, burst rapidi ──
+  // ── CH1 GRAIN — beat pari, burst rapidi ──
   if (presence[5] > 0.1 && beatInBar % 2 === 0) {
     const grainCount = 1 + Math.round(presence[5] * 3);
     for (let g = 0; g < grainCount; g++) {
       const note = scale[Math.floor(Math.random() * scale.length)];
       const vel = Math.round(30 + Math.random() * 60);
       const dur = 40 + Math.round(Math.random() * 80);
-      sendMIDINote(5, note, vel, dur);
-      addMidiNote(5, note / 127, vel / 127);
+      sendMIDINote(1, note, vel, dur);
+      addMidiNote(1, note / 127, vel / 127);
     }
   }
 
-  // ── CH6 RUPTURE — solo in rottura, dipende dallo stage ──
+  // ── CH7 RUPTURE — solo in rottura, dipende dallo stage ──
   if (presence[6] > 0.1 && phase === 'rottura') {
     const stageActions = {
       presagio:      () => beatInBar === 3,
@@ -321,8 +321,8 @@ function onBeat(beatInBar) {
       const note = dissonant[Math.floor(Math.random() * dissonant.length)];
       const vel = Math.round(60 + ruptureProgress * 67);
       const dur = ruptureStage === 'takeover' ? 400 : 150;
-      sendMIDINote(6, note, Math.min(127, vel), dur);
-      addMidiNote(6, note / 127, vel / 127);
+      sendMIDINote(7, note, Math.min(127, vel), dur);
+      addMidiNote(7, note / 127, vel / 127);
     }
   }
 }

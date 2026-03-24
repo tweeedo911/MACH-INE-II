@@ -4,83 +4,88 @@ Ogni milestone produce qualcosa di testabile, visivamente completo e utilizzabil
 
 ---
 
-## v0.1.0 — DONE
-Spettrogramma scrolling (Joy Division), onset detection basica, MIDI note flash.
+## v0.1.0–v0.8.0 — DONE
 
-## v0.2.0 — DONE
-Audio engine stereo. Band-split, spectral flux, centroid, correlazione, trajectory, BPM. ES modules.
-
-## v0.3.0–v0.7.0 — DONE
-- v0.3.0: sandbox narrativo, regista, simulazione input
-- v0.4.0: campo halftone Bayer 8x8, dot-size dinamico, densita' da audio
-- v0.5.0: DNA sessione, 8 primitivi, zone Voronoi (6 archetipi), generazioni con ciclo vita
-- v0.6.0: colore A/B/C, mutazioni pesate, inversione dissolve
-- v0.7.0: camera WIDE/MEDIUM/MACRO/DRIFT, macro con ritorno
-
-## v0.8.0 — DONE
-Architettura 12 moduli ES completa. Zone Kandinsky con reattivita' per zona.
+Spettrogramma → audio engine stereo → sandbox narrativo → campo halftone → DNA/generazioni → colore/mutazioni → camera → architettura ES modules.
 
 ## v0.9.0 — DONE
-Sinestesia geometrica MIDI. 5 canali separati (KICK/BASS/HARMONY/LEAD/TEXTURE), colori per ruolo, MIDI patterns indipendenti, fix routing IAC Driver.
+Sinestesia geometrica MIDI. 5 canali separati (KICK/BASS/HARMONY/LEAD/TEXTURE), colori per ruolo, MIDI patterns indipendenti.
 
 ## v1.0.0 — DONE
-
-**Piano narrativo + estetica Mondrian.**
-
-- **8 scene estetiche:** BAYER_CLASSIC, COLORED_GROUND, SPARSE, DENSE, MONOCHROME, NEGATIVE, MONDRIAN, HORIZON
-- **8 composizioni rettangolari:** UNIFORM, MONDRIAN_A, MONDRIAN_B, COLUMNS, HORIZON, FRAME, ISLANDS, ASYMMETRIC
-- **Arco narrativo:** INTRO → DEVELOP → TENSION → CLIMAX → RELEASE
-- **7 palette dinamiche:** default, amber, cyan, bw, magenta, warm, cold
-- **Geometrie MIDI rettangolari:** pulse, blob, band, trail, scatter
-- **Onset wave orizzontali**, dot size da scena, densita' MIDI additiva
-
----
+Piano narrativo Mondrian. 8 scene estetiche, 8 composizioni rettangolari, arco INTRO→CLIMAX→RELEASE, 7 palette dinamiche, onset wave.
 
 ## v1.1.0 — DONE
+Audio-driven density. Void threshold, compressione non-lineare, densityFloor per spazio negativo reale.
 
-**Audio-driven density + non-linear compression.**
-
-- **Void threshold 0.12:** spazio negativo vero, nessun punto sotto soglia
-- **Densita' max 0.65** con compressione non-lineare (pow 1.6) per contrasto forte
-- **MIDI max-not-sum:** prende la nota piu' forte, non la somma
-- **Contributi banda ridotti** (sub/mid/high piu' sottili, meno rumore)
-- **densityFloor 0.01** per permettere veri vuoti nel campo
+## v1.2.0 — DONE
+Colori puri + forme MIDI per tipo di suono + arco audio-driven (6 stati RMS). Region fillColor, camera narrativa per fase arc.
 
 ---
 
-## v1.2.0 — DONE (corrente)
+## v1.3.0 — DONE (corrente)
 
-**Colori puri + forme MIDI per tipo di suono + arco audio-driven.**
+**Tre motori compositivi autonomi + MIDI unificato a 8 canali.**
 
-- **Colori verso bg non fg:** `getCellColor` e `getMidiColor` interpolano verso `palette.bg` per colori saturi e puri
-- **Arco narrativo audio-driven:** 6 stati (SILENCE/BUILDING/ACTIVE/INTENSE/PEAK/DECAY) guidati da RMS smoothed con isteresi, nessun timer
-- **MIDI per carattere sonoro:**
-  - KICK: flash istantaneo (no espansione temporale), velocity-driven
-  - BASS: colonna verticale persistente (shape 'column'), decay lentissimo
-  - HARMONY: banda orizzontale, scala con densita' accordale
-  - LEAD: trail melodico pitch→Y, traccia leggibile nel tempo
-  - TEXTURE: granuli scatter, dimensione da energia high/air
-- **Region fillColor:** composizioni Mondrian con accent1/2/3 per campi colorati rettangolari
-- **Priorita' colore:** MIDI forte (>0.15) > region fill (mul>=1.5) > entity color > fg
-- **Camera narrativa:** WIDE_ONLY→DRIFT_BIAS→TIGHTEN→MACRO_LOCK→SLOW_WIDE per fase arc
-- **Palette accent per regione:** ogni blocco composizione porta il proprio colore accent
+### Mapping canonico (Ableton CH 1–8)
 
----
+| Ableton | Codice | Ruolo |
+|---------|--------|-------|
+| CH 1 | PULSE  | Euclidean kick/motorik |
+| CH 2 | GRAIN  | Hihat/percussione GM |
+| CH 3 | DRONE  | Pad/cluster sempre presente |
+| CH 4 | BASS   | Basso, legge root da CHORDS |
+| CH 5 | CHORDS | Triadi modali, voice leading |
+| CH 6 | VOICE  | Melodia Markov 2° ordine |
+| CH 7 | LEAD   | Motivo principale |
+| CH 8 | RUPTURE | 4 stadi obbligatori |
 
-## v1.3.0 — PROSSIMO
+### Composer 1 — tasto `1` (D Dorian, 116 BPM)
+DERIVA in 5 fasi: GERMOGLIO→PULSAZIONE→DENSITÀ→ROTTURA→DISSOLUZIONE. EuclideanEngine E(5,16), Markov, rupture 4 stadi.
 
-- Pannello controllo MIDI-mappabile (macro CC)
-- Dual-screen: controllo con preview + fullscreen proiezione (window.open)
-- Rimuovere console.log diagnostici da midi.js
-- Spatial index per midiColorAt (performance)
-- Nuovi primitivi e glitch strutturali
+### Composer 2 — tasto `2` (C# Dorian, 108 BPM)
+4 layer oscillatori sfasati (harmonic/rhythmic/textural/melodic). VoidManager silence ≥40%. Director event bus: tension/void/grain_entry/chord_change/rupture_stage/density_peak.
 
-## v2.0.0 — FUTURO
+### Composer 3 — tasto `3` (D Dorian DERIVA, 84 BPM motorik)
+Fedele alla spec `new/`. EuclideanEngine, GrainEngine GM percussion (hihat/claves/sideStick/clap/tom), ChordEngine progressioni fisse (Dm→F→Dm→C), MarkovEngine note accordo ×3. RuptureEngine con note off-scale presagio (Bb/F#, vel 28).
 
-- Stabilita' per live performance lunghe (>2h)
-- Preset salvabili/caricabili
-- OSC support
+### Infrastruttura
+- Web Worker clock: MIDI esce anche con Ableton in primo piano (nessun throttling rAF)
+- Gain audio input controllabile live (`è` / `+`, range 0.5–8.0×, visibile in HUD)
+- Mutua esclusione completa tra i tre composer
 
 ---
 
-*Ultima modifica: 2026-03-23*
+## v1.4.0 — PROSSIMO
+
+**Stabilità live + leggibilità performance.**
+
+- [ ] Dual-screen: finestra controllo (HUD completo) + proiezione fullscreen separata (`window.open`)
+- [ ] Macro CC: mappare 4–8 CC MIDI ai parametri chiave (gain, densità, evoSpeed, palette)
+- [ ] Eliminare i TASK-v*.md dalla root → archivio in `docs/`
+- [ ] Rimuovere console.log residui in produzione (flag `CFG.debug`)
+- [ ] MIDI out feedback visivo: canale attivo evidenziato nell'HUD
+
+---
+
+## v1.5.0
+
+**Sessione salvabile.**
+
+- [ ] Preset DNA + fase composer esportabili come JSON
+- [ ] Load preset da file / URL param
+- [ ] Snapshot visivo (canvas toBlob → download PNG)
+
+---
+
+## v2.0.0
+
+**Performance lunghe + ecosistema aperto.**
+
+- [ ] Stabilità >2h (memory leak audit, fossil/entity pruning aggressivo)
+- [ ] OSC support (via WebSocket bridge)
+- [ ] Three.js migration: rendering 3D opzionale (toggle 2D/3D)
+- [ ] Documentazione pubblica del protocollo compositivo
+
+---
+
+*Ultima modifica: 2026-03-24*

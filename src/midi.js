@@ -7,7 +7,7 @@ import { CFG } from './config.js';
 
 // ── MIDI role channels (0-indexed internally) ──
 // Ch 0=KICK, Ch 1=BASS, Ch 2=HARMONY, Ch 3=LEAD, Ch 4=DRONE, Ch 5=GRAIN, Ch 6=RUPTURE
-export const MIDI_ROLES = ['KICK', 'BASS', 'HARMONY', 'LEAD', 'DRONE', 'GRAIN', 'RUPTURE'];
+export const MIDI_ROLES = ['PULSE', 'GRAIN', 'DRONE', 'BASS', 'CHORDS', 'VOICE', 'LEAD', 'RUPTURE'];
 
 // ── Public state ──
 export const midi = {
@@ -20,8 +20,8 @@ export const midi = {
   connected: false,
   inputCount: 0,
 
-  // Per-channel tracking (channels 0-6)
-  channels: Array.from({ length: 7 }, () => ({
+  // Per-channel tracking (channels 0-7)
+  channels: Array.from({ length: 8 }, () => ({
     lastNote: null,     // { note, vel, time }
     active: [],         // currently held notes [{ note, vel }]
     density: 0,         // notes/sec
@@ -52,8 +52,6 @@ function handleMIDIMessage(msg) {
   const [status, data1, data2] = msg.data;
   const type = status & 0xF0;
   const ch = status & 0x0F;
-  if (type === 0x90 && data2 > 0) console.log(`NOTE ch:${ch} n:${data1} v:${data2}`);
-
   if (type === 0x90 && data2 > 0) {
     // Note On
     const note = data1;
@@ -71,8 +69,8 @@ function handleMIDIMessage(msg) {
     // Record timestamp for density
     noteTimestamps.push(performance.now() / 1000);
 
-    // Per-channel tracking (channels 0-6)
-    if (ch < 7) {
+    // Per-channel tracking (channels 0-7)
+    if (ch < 8) {
       const chData = midi.channels[ch];
       chData.lastNote = { note, vel, time: performance.now() / 1000 };
       chData.active.push({ note, vel });
@@ -81,7 +79,7 @@ function handleMIDIMessage(msg) {
 
   } else if (type === 0x80 || (type === 0x90 && data2 === 0)) {
     // Note Off
-    if (ch < 7) {
+    if (ch < 8) {
       const chData = midi.channels[ch];
       chData.active = chData.active.filter(n => n.note !== data1);
     }
@@ -107,7 +105,7 @@ export function updateMIDI() {
   midi.noteDensity = noteTimestamps.length / CFG.noteDensityWindowSec;
 
   // Per-channel density
-  for (let c = 0; c < 7; c++) {
+  for (let c = 0; c < 8; c++) {
     const chData = midi.channels[c];
     while (chData.timestamps.length > 0 && chData.timestamps[0] < windowStart) {
       chData.timestamps.shift();
@@ -139,7 +137,7 @@ export function sendMIDINote(ch, note, vel, durationMs = 200) {
 
 export function sendMIDIAllNotesOff() {
   if (!midiOut) return;
-  for (let c = 0; c < 7; c++) midiOut.send([0xB0 | c, 123, 0]);
+  for (let c = 0; c < 8; c++) midiOut.send([0xB0 | c, 123, 0]);
 }
 
 // ── Init ──
