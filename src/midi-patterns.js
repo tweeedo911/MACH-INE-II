@@ -73,11 +73,44 @@ const ALL_BEHAVIORS = [
   RUPTURE_BEHAVIORS, // CH7
 ];
 
+// ── Engine-specific behaviors (fixed visual identity per engine) ──
+// When an engine is active, its channels use a canonical behavior
+// instead of the random pool. Channels not listed fall back to the pool.
+const ENGINE_BEHAVIORS = {
+  terreno: {
+    0: { zone: [0.20, 0.80], xMode: 'center', shape: 'band',    size: 0.20, decay: 0.94,   color: 0 },
+    1: { zone: [0.00, 1.00], xMode: 'random', shape: 'scatter', size: 0.06, decay: 0.97,   color: null },
+    2: { zone: [0.00, 1.00], xMode: 'center', shape: 'scatter', size: 0.10, decay: 0.9999, color: null },
+    3: { zone: [0.10, 0.90], xMode: 'center', shape: 'column',  size: 0.14, decay: 0.998,  color: 1 },
+    4: { zone: [0.20, 0.80], xMode: 'pitch',  shape: 'band',    size: 0.13, decay: 0.990,  color: 2 },
+    5: { zone: [0.05, 0.55], xMode: 'pitch',  shape: 'trail',   size: 0.08, decay: 0.988,  color: 3 },
+  },
+  meccanica: {
+    0: { zone: [0.30, 0.90], xMode: 'spread', shape: 'pulse',   size: 0.16, decay: 0.82,  color: 0 },
+    1: { zone: [0.00, 1.00], xMode: 'pitch',  shape: 'scatter', size: 0.04, decay: 0.88,  color: 4 },
+    4: { zone: [0.20, 0.80], xMode: 'stereo', shape: 'band',    size: 0.12, decay: 0.975, color: 2 },
+    5: { zone: [0.10, 0.60], xMode: 'pitch',  shape: 'trail',   size: 0.07, decay: 0.978, color: 3 },
+    6: { zone: [0.10, 0.60], xMode: 'pitch',  shape: 'pulse',   size: 0.09, decay: 0.95,  color: 3 },
+  },
+  deriva: {
+    1: { zone: [0.00, 1.00], xMode: 'random', shape: 'scatter', size: 0.05, decay: 0.965,  color: null },
+    2: { zone: [0.00, 1.00], xMode: 'center', shape: 'scatter', size: 0.10, decay: 0.9999, color: null },
+    4: { zone: [0.20, 0.80], xMode: 'pitch',  shape: 'band',    size: 0.09, decay: 0.993,  color: 2 },
+    5: { zone: [0.05, 0.55], xMode: 'pitch',  shape: 'trail',   size: 0.06, decay: 0.992,  color: 3 },
+    6: { zone: [0.10, 0.60], xMode: 'pitch',  shape: 'trail',   size: 0.05, decay: 0.988,  color: 3 },
+  },
+};
+
 // ── Current state ──
+let currentEngine = null;   // 'terreno' | 'meccanica' | 'deriva' | null
 const channelMapping = [];
 const channelChangeBar = [];
 
 function pickBehavior(ch) {
+  // If an engine is active and defines this channel, use its canonical behavior
+  if (currentEngine && ENGINE_BEHAVIORS[currentEngine]?.[ch]) {
+    return ENGINE_BEHAVIORS[currentEngine][ch];
+  }
   const pool = ALL_BEHAVIORS[ch];
   return pool[Math.floor(Math.random() * pool.length)];
 }
@@ -97,6 +130,18 @@ export function checkPatternChange(barNum, ch) {
     return old !== channelMapping[ch];
   }
   return false;
+}
+
+export function setEngine(engineId) {
+  currentEngine = engineId;  // 'terreno' | 'meccanica' | 'deriva' | null
+  // Re-pick all channels with the new engine context
+  for (let i = 0; i < 8; i++) {
+    channelMapping[i] = pickBehavior(i);
+  }
+}
+
+export function getEngine() {
+  return currentEngine;
 }
 
 export function mutateChannel(ch) {

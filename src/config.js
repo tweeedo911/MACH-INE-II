@@ -143,11 +143,11 @@ export const CFG = {
   // ── FPS limiter ──
   fpsAutoLimit: 30,
 
-  // ── Composer 1 (Mode 2 — DERIVA D Dorian) ──
+  // ── Composer 1 (TERRENO — D Dorian, dub lento) ──
   composer1Key: 'Digit1',
   COMPOSER: {
     enabled: false,
-    bpm: 116,
+    bpm: 72,
     phases: {
       germoglio:    { duration: 40,  mode: 'D_dorian',   drone: 62, arc: 'SILENCE'   },
       pulsazione:   { duration: 60,  mode: 'D_phrygian',  drone: 62, arc: 'BUILDING'  },
@@ -169,10 +169,10 @@ export const CFG = {
     midiOutputName: null,
   },
 
-  // ── Composer 2 (Mode 3 — C# Dorian, layer sfasati) ──
+  // ── Composer 2 (MECCANICA — C# Dorian, layer poliritmici) ──
   COMPOSER2: {
     toggleKey: 'Digit2',
-    bpm: 108,
+    bpm: 98,
     gravitationalCenter: 61, // C#4
     phases: {
       germoglio:    { duration: 45, mode: 'Cs_dorian',   drone: 61, arc: 'SILENCE'  },
@@ -183,11 +183,12 @@ export const CFG = {
     },
     phaseOrder: ['germoglio', 'pulsazione', 'densita', 'rottura', 'dissoluzione'],
     layers: {
-      harmonic: { cycleBars: 24, offset: 0.00 },
-      rhythmic: { cycleBars: 8,  offset: 0.00 },
-      textural: { cycleBars: 3,  offset: 0.33 },
-      melodic:  { cycleBars: 4,  offset: 0.50 },
+      harmonic: { cycleBars: 4, offset: 0.00 },  // prime cycles → realign every 420 bars
+      rhythmic: { cycleBars: 3, offset: 0.00 },
+      textural: { cycleBars: 5, offset: 0.00 },
+      melodic:  { cycleBars: 7, offset: 0.00 },
     },
+    grooveShuffleMs: 10,  // ±10ms humanization on rhythmic crossings
     silenceTarget: {
       germoglio:    0.65,
       pulsazione:   0.45,
@@ -205,19 +206,25 @@ export const CFG = {
     midiOutputName: null,
   },
 
-  // ── Composer 3 (spec new/ — 8 tracce, D Dorian DERIVA, BPM 84) ──
+  // ── Composer 3 (DERIVA — A Lydian, brightness-driven, no beat fisso) ──
   COMPOSER3: {
     toggleKey: 'Digit3',
-    bpm: 84,
+    bpm: null,  // non usato: il trigger è brightness, non beat
+    brightnessTrigger: {
+      threshold: 0.40,          // centroid normalizzato sopra cui parte una nota VOICE
+      adaptiveWindow: 30,       // frame per la moving average (come fluxSmoothingWindow)
+      adaptiveMultiplier: 1.30, // soglia = media × moltiplicatore (come fluxOnsetMultiplier)
+      minThreshold: 0.15,       // floor adattivo (come fluxMinThreshold)
+    },
     phases: {
-      germoglio:    { duration: 40,  mode: 'D_dorian',   drone: 38, arc: 'SILENCE'  },
-      pulsazione:   { duration: 60,  mode: 'D_phrygian', drone: 38, arc: 'BUILDING' },
+      germoglio:    { duration: 40,  mode: 'A_lydian',   drone: 45, arc: 'SILENCE'  },
+      pulsazione:   { duration: 60,  mode: 'A_lydian',   drone: 45, arc: 'BUILDING' },
       densita:      { duration: 90,  mode: 'A_lydian',   drone: 45, arc: 'INTENSE'  },
       rottura:      { duration: 30,  mode: 'Eb_locrian', drone: 39, arc: 'PEAK'     },
-      dissoluzione: { duration: 80,  mode: 'D_dorian',   drone: 38, arc: 'RELEASE'  },
+      dissoluzione: { duration: 80,  mode: 'A_lydian',   drone: 45, arc: 'RELEASE'  },
     },
     phaseOrder: ['germoglio', 'pulsazione', 'densita', 'rottura', 'dissoluzione'],
-    euclidean: { normal: [5, 16], rottura: [3, 8] },
+    driftBarSec: 4,           // virtual "bar" length in seconds (no BPM)
     minSilenceRatio: 0.40,
     rupture: {
       presagio:      [0.00, 0.25],
@@ -230,15 +237,15 @@ export const CFG = {
       snare: 38, sideStick: 37, clap: 39, claves: 75,
       tomRange: [64, 65, 66, 67, 68],
     },
-    // Progressioni accordali fisse per fase (MIDI assoluto — D Dorian)
+    // Progressioni accordali fisse per fase (MIDI assoluto — A Lydian)
     chordProgressions: {
       germoglio:    null,
-      pulsazione:   [[50,53,57],[53,57,60],[50,53,57],[48,52,55]], // Dm→F→Dm→C
-      densita:      [[57,61,64],[52,56,59],[54,57,61],[52,56,59],[57,61,64],[59,62,66]],
+      pulsazione:   [[57,61,64],[64,68,71],[57,61,64],[59,63,66]],   // A→E→A→B
+      densita:      [[57,61,64],[59,63,66],[61,64,68],[64,68,71],[57,61,64],[66,69,73]], // A→B→C#m→E→A→F#m
       rottura:      null,
-      dissoluzione: [[50,53,57],[45,48,52],[50,53,57]],            // Dm→Am→Dm
+      dissoluzione: [[57,61,64],[64,68,71],[57,61,64]],              // A→E→A
     },
-    // Bar tra un cambio accordo e il successivo (0 = nessun accordo)
+    // Virtual bars between chord changes (0 = no chords)
     chordRhythm: {
       germoglio: 0, pulsazione: 4, densita: 2, rottura: 0, dissoluzione: 12,
     },

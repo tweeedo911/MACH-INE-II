@@ -1,18 +1,20 @@
 // ═══════════════════════════════════════════════════════════
 //  MACH:INE II — Composer 3
-//  Spec new/ — 8 tracce fedeli — D Dorian DERIVA — BPM 84
-//  CH0=PULSE CH1=GRAIN CH2=DRONE CH3=BASS CH4=CHORDS
-//  CH5=VOICE CH6=LEAD CH7=RUPTURE
+//  DERIVA — A Lydian — no fixed BPM — brightness-driven VOICE
+//  CH1=GRAIN CH2=DRONE CH4=CHORDS CH5=VOICE CH6=LEAD CH7=RUPTURE
+//  CH0 PULSE and CH3 BASS: not used (presence = 0)
 // ═══════════════════════════════════════════════════════════
 
 import { CFG } from './config.js';
 import { state } from './state.js';
+import { audio } from './audio.js';
 import { sendMIDINote, sendMIDIAllNotesOff } from './midi.js';
 import { setArcPhaseForced, releaseArcHold } from './director.js';
 import { setComposerClimax } from './colors.js';
-import { addMidiNote, addOnsetWave } from './field.js';
+import { addMidiNote } from './field.js';
+import { setEngine } from './midi-patterns.js';
 
-// ── Scale modes (D Dorian root) ──
+// ── Scale modes (A Lydian primary) ──
 const MODES3 = {
   D_dorian:   [50,52,53,55,57,59,60,62,64,65,67,69,71,72,74],
   D_phrygian: [50,51,53,55,57,58,60,62,63,65,67,69,70,72,74],
@@ -21,34 +23,35 @@ const MODES3 = {
 };
 
 // ── Presenza target per fase [PULSE, GRAIN, DRONE, BASS, CHORDS, VOICE, LEAD, RUPTURE] ──
+// DERIVA: CH0 PULSE = 0 always, CH3 BASS = 0 always
 const PHASE_PRESENCE3 = {
-  germoglio:    [0.0, 0.0, 0.8, 0.0, 0.0, 0.0, 0.0, 0.0],
-  pulsazione:   [0.9, 0.5, 0.7, 0.5, 0.6, 0.4, 0.0, 0.0],
-  densita:      [0.9, 0.8, 0.6, 0.8, 0.9, 0.8, 0.6, 0.0],
-  rottura:      [0.4, 0.7, 0.3, 0.3, 0.2, 0.2, 0.0, 1.0],
-  dissoluzione: [0.2, 0.3, 0.9, 0.3, 0.3, 0.5, 0.3, 0.0],
+  germoglio:    [0.0, 0.1, 1.0, 0.0, 0.3, 0.0, 0.0, 0.0],
+  pulsazione:   [0.0, 0.4, 0.7, 0.0, 0.6, 0.5, 0.0, 0.0],
+  densita:      [0.0, 0.7, 0.5, 0.0, 0.8, 0.9, 0.4, 0.0],
+  rottura:      [0.0, 0.5, 0.3, 0.0, 0.2, 0.3, 0.0, 1.0],
+  dissoluzione: [0.0, 0.3, 1.0, 0.0, 0.5, 0.7, 0.2, 0.0],
 };
 
 // ── State ──
 export let composer3Active = false;
 
-let clock = 0;        // beat counter (float)
-let lastBeat = -1;
-let lastBar  = -1;
+let timeSec = 0;      // elapsed time in seconds (no BPM)
+let lastDriftBar = -1; // virtual bar counter for DRONE/CHORDS timing
 let phase    = 'germoglio';
 let phaseIdx = 0;
 let phaseClock = 0;
 
 // ChordEngine
 let chordIdx = 0;
-let currentChord = [50, 53, 57]; // Dm iniziale
+let currentChord = [57, 61, 64]; // A major iniziale
 
 // MarkovEngine
 let markovHistory3 = [null, null];
 
-// EuclideanEngine
-let euclidean3 = null;
-let euclideanStep3 = 0;
+// Brightness trigger for VOICE (replaces beat-based triggering)
+let centroidHistory = [];   // moving average buffer
+let centroidAvg = 0;        // running average
+let brightnessCooldown = 0; // seconds until next trigger allowed
 
 // RuptureEngine
 let ruptureStage3 = 'idle';
@@ -59,37 +62,13 @@ let ruptureNoteTimer = 2; // timer per note off-beat in presagio
 let presence3 = [0, 0, 0, 0, 0, 0, 0, 0];
 
 // ═══════════════════════════════════════════════════════════
-//  EUCLIDEAN ENGINE — Bjorklund
+//  CHORD ENGINE — progressioni fisse per fase (A Lydian)
 // ═══════════════════════════════════════════════════════════
-
-function buildEuclidean3(steps, total) {
-  const pattern = [];
-  let bucket = 0;
-  for (let i = 0; i < total; i++) {
-    bucket += steps;
-    if (bucket >= total) { bucket -= total; pattern.push(true); }
-    else pattern.push(false);
-  }
-  return pattern;
-}
-
-function initEuclidean3() {
-  const cfg = CFG.COMPOSER3.euclidean;
-  const [steps, total] = phase === 'rottura' ? cfg.rottura : cfg.normal;
-  euclidean3 = buildEuclidean3(steps, total);
-  euclideanStep3 = 0;
-}
-
-// ═══════════════════════════════════════════════════════════
-//  CHORD ENGINE — progressioni fisse per fase
-// ═══════════════════════════════════════════════════════════
-
-function getRoot() { return currentChord[0]; }
 
 function initChord3() {
   const prog = CFG.COMPOSER3.chordProgressions[phase];
   chordIdx = 0;
-  currentChord = (prog && prog[0]) ? [...prog[0]] : [50, 53, 57];
+  currentChord = (prog && prog[0]) ? [...prog[0]] : [57, 61, 64];
 }
 
 function nextChord3() {
@@ -134,48 +113,7 @@ function nextVoiceNote3() {
   return chosen;
 }
 
-// ═══════════════════════════════════════════════════════════
-//  GRAIN ENGINE — note GM percussive per fase
-// ═══════════════════════════════════════════════════════════
-
-function grainNote3(beat, bar) {
-  const G = CFG.COMPOSER3.grain;
-  const barBeat = beat % 4;
-
-  if (phase === 'germoglio') return null;
-
-  if (phase === 'pulsazione') {
-    if (barBeat % 2 === 0) {
-      const vel = 25 + Math.round(Math.random() * 15);
-      if (bar % 8 === 0 && barBeat === 0) return { note: G.hihatOpen, vel };
-      return { note: G.hihatClosed, vel };
-    }
-    return null;
-  }
-
-  if (phase === 'densita') {
-    if (barBeat === 0) return { note: G.sideStick, vel: 45 + Math.round(Math.random() * 20) };
-    if (barBeat === 1) return { note: G.hihatClosed, vel: 30 + Math.round(Math.random() * 15) };
-    if (barBeat === 2) return { note: G.claves,     vel: 40 + Math.round(Math.random() * 15) };
-    if (barBeat === 3) return { note: G.hihatClosed, vel: 25 + Math.round(Math.random() * 10) };
-  }
-
-  if (phase === 'rottura') {
-    const note = Math.random() < 0.5
-      ? G.clap
-      : G.tomRange[Math.floor(Math.random() * G.tomRange.length)];
-    return { note, vel: 60 + Math.round(Math.random() * 30) };
-  }
-
-  if (phase === 'dissoluzione') {
-    if (barBeat === 0 && Math.random() < 0.4) {
-      return { note: G.hihatOpen, vel: 20 + Math.round(Math.random() * 20) };
-    }
-    return null;
-  }
-
-  return null;
-}
+// (GRAIN ENGINE removed — DERIVA uses air-energy-driven updateGrain3 instead)
 
 // ═══════════════════════════════════════════════════════════
 //  RUPTURE ENGINE — 4 stadi obbligatori
@@ -227,7 +165,6 @@ function updatePhase3(dt) {
     phaseIdx = (phaseIdx + 1) % CFG.COMPOSER3.phaseOrder.length;
     phase = CFG.COMPOSER3.phaseOrder[phaseIdx];
     initChord3();
-    initEuclidean3();
     markovHistory3 = [null, null];
     console.log(`[COMPOSER3] → ${phase}`);
   }
@@ -256,102 +193,124 @@ function updatePresence3(dt) {
 }
 
 // ═══════════════════════════════════════════════════════════
-//  BEAT HANDLER — CH0 PULSE, CH1 GRAIN, CH5 VOICE, CH7 RUPTURE
+//  BRIGHTNESS TRIGGER — adaptive threshold for VOICE (replaces beat clock)
 // ═══════════════════════════════════════════════════════════
 
-function onBeat3(beat, bar) {
-  const bpm    = CFG.COMPOSER3.bpm;
-  const beatMs = (60 / bpm) * 1000;
-  const barBeat = beat % 4;
+function updateBrightnessTrigger(dt) {
+  const cfg = CFG.COMPOSER3.brightnessTrigger;
+  const centroid = audio.centroid || 0;
 
-  // CH0 T1 PULSE — euclidean E(5,16), C2=36
-  if (presence3[0] > 0.1 && euclidean3) {
-    const step = euclideanStep3 % euclidean3.length;
-    if (euclidean3[step]) {
-      const vel = Math.round(80 + presence3[0] * 40);
-      sendMIDINote(0, 36, vel, 50);
-      addMidiNote(0, 36 / 127, vel / 127);
-      if (barBeat === 0) addOnsetWave(0.5, 0.5, 1, 1);
-    }
-    euclideanStep3++;
+  // Update moving average
+  centroidHistory.push(centroid);
+  if (centroidHistory.length > cfg.adaptiveWindow) centroidHistory.shift();
+  centroidAvg = centroidHistory.reduce((s, v) => s + v, 0) / centroidHistory.length;
+
+  // Adaptive threshold
+  const threshold = Math.max(cfg.minThreshold, centroidAvg * cfg.adaptiveMultiplier);
+
+  // Cooldown
+  if (brightnessCooldown > 0) {
+    brightnessCooldown -= dt;
+    return;
   }
 
-  // CH1 T2 GRAIN — GM percussion per fase
-  if (presence3[1] > 0.1) {
-    const g = grainNote3(beat, bar);
-    if (g) {
-      sendMIDINote(1, g.note, g.vel, 80);
-      addMidiNote(1, g.note / 127, g.vel / 127);
-    }
-  }
-
-  // CH5 T6 VOICE — Markov ogni 2 beat, probabilistico
-  if (presence3[5] > 0.1 && beat % 2 === 1) {
-    if (Math.random() < presence3[5] * 0.7) {
+  // CH5 VOICE — trigger when centroid crosses threshold
+  if (presence3[5] > 0.1 && centroid > threshold) {
+    if (Math.random() < presence3[5] * 0.8) {
       const note = nextVoiceNote3();
-      const vel  = Math.round(45 + presence3[5] * 50 + (Math.random() - 0.5) * 15);
-      const dur  = Math.round(beatMs * (0.5 + Math.random() * 1.5));
+      const vel  = Math.round(40 + presence3[5] * 45 + (Math.random() - 0.5) * 15);
+      const dur  = Math.round(500 + Math.random() * 300); // short drops (~0.5 beat)
       sendMIDINote(5, Math.max(36, Math.min(96, note)), Math.max(30, Math.min(127, vel)), dur);
       addMidiNote(5, note / 127, vel / 127);
+      brightnessCooldown = 0.4 + Math.random() * 0.6; // 0.4–1.0 sec between triggers
     }
-  }
-
-  // CH7 T8 RUPTURE — infiltrazione e takeover (presagio via timer)
-  if (ruptureStage3 === 'infiltrazione' && barBeat % 2 === 1) {
-    const scale = MODES3.Eb_locrian;
-    const note  = scale[Math.floor(Math.random() * scale.length)];
-    const vel   = Math.round(38 + ruptureProgress3 * 30);
-    sendMIDINote(7, note, Math.min(127, vel), 200);
-    addMidiNote(7, note / 127, vel / 127);
-  }
-  if (ruptureStage3 === 'takeover') {
-    const note = 64 + Math.round(Math.random() * 10); // E5-D6
-    const vel  = Math.round(70 + ruptureProgress3 * 40);
-    sendMIDINote(7, note, Math.min(127, vel), 300);
-    addMidiNote(7, note / 127, vel / 127);
   }
 }
 
 // ═══════════════════════════════════════════════════════════
-//  BAR HANDLER — CH2 DRONE, CH3 BASS, CH4 CHORDS, CH6 LEAD
+//  GRAIN TRIGGER — density proportional to audio.bands.air
 // ═══════════════════════════════════════════════════════════
 
-function onBar3(bar) {
-  const bpm          = CFG.COMPOSER3.bpm;
-  const beatMs       = (60 / bpm) * 1000;
-  const barMs        = beatMs * 4;
+let grainAccum = 0;
+
+function updateGrain3(dt) {
+  if (presence3[1] < 0.1) return;
+  const airEnergy = (audio.bands?.air?.L || 0) + (audio.bands?.air?.R || 0);
+  // Higher air → more frequent grain events
+  const rate = presence3[1] * (0.5 + airEnergy * 4); // events per second
+  grainAccum += dt * rate;
+  if (grainAccum >= 1) {
+    grainAccum -= 1;
+    const G = CFG.COMPOSER3.grain;
+    const candidates = [G.hihatClosed, G.claves, G.sideStick, G.hihatOpen];
+    const note = candidates[Math.floor(Math.random() * candidates.length)];
+    const vel = 20 + Math.round(Math.random() * 25 + airEnergy * 40);
+    sendMIDINote(1, note, Math.min(127, vel), 80);
+    addMidiNote(1, note / 127, vel / 127);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  RUPTURE TICK — CH7 events (presagio via timer, infiltrazione/takeover periodic)
+// ═══════════════════════════════════════════════════════════
+
+let ruptureTick = 0;
+
+function updateRuptureNotes(dt) {
+  if (ruptureStage3 === 'infiltrazione') {
+    ruptureTick += dt;
+    if (ruptureTick >= 1.5) { // ~every 1.5 sec
+      ruptureTick = 0;
+      const scale = MODES3.Eb_locrian;
+      const note  = scale[Math.floor(Math.random() * scale.length)];
+      const vel   = Math.round(38 + ruptureProgress3 * 30);
+      sendMIDINote(7, note, Math.min(127, vel), 200);
+      addMidiNote(7, note / 127, vel / 127);
+    }
+  } else if (ruptureStage3 === 'takeover') {
+    ruptureTick += dt;
+    if (ruptureTick >= 0.8) { // ~every 0.8 sec
+      ruptureTick = 0;
+      const note = 64 + Math.round(Math.random() * 10);
+      const vel  = Math.round(70 + ruptureProgress3 * 40);
+      sendMIDINote(7, note, Math.min(127, vel), 300);
+      addMidiNote(7, note / 127, vel / 127);
+    }
+  } else {
+    ruptureTick = 0;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  DRIFT BAR HANDLER — CH2 DRONE, CH4 CHORDS, CH6 LEAD (time-based)
+// ═══════════════════════════════════════════════════════════
+
+function onDriftBar3(driftBar) {
+  const barSec       = CFG.COMPOSER3.driftBarSec;
+  const barMs        = barSec * 1000;
   const phaseData    = CFG.COMPOSER3.phases[phase];
   const chordRhythm  = CFG.COMPOSER3.chordRhythm[phase] || 0;
 
-  // Avanza accordo (prima del basso per coerenza armonica)
-  if (chordRhythm > 0 && bar % chordRhythm === 0 && bar > 0) {
+  // Advance chord (before drone for harmonic coherence)
+  if (chordRhythm > 0 && driftBar % chordRhythm === 0 && driftBar > 0) {
     nextChord3();
   }
 
-  // CH2 T3 DRONE — ogni 4 bar, root+quinta+ottava
-  if (presence3[2] > 0.1 && bar % 4 === 0) {
+  // CH2 DRONE — every 4 drift bars, root+fifth+octave, very long
+  if (presence3[2] > 0.1 && driftBar % 4 === 0) {
     const root   = phaseData.drone;
     const fifth  = root + 7;
     const octave = root + 12;
     const vel    = Math.round(35 + presence3[2] * 30);
-    const dur    = Math.round(barMs * 3.5);
+    const dur    = Math.round(barMs * 3.5); // ~14 sec
     for (const n of [root, fifth, octave]) {
       sendMIDINote(2, n, vel, dur);
       addMidiNote(2, n / 127, vel / 127);
     }
   }
 
-  // CH3 T4 BASS — ogni chordRhythm bar, legge root da ChordEngine
-  if (presence3[3] > 0.1 && chordRhythm > 0 && bar % chordRhythm === 0) {
-    const bassNote = getRoot() - 12;
-    const vel      = Math.round(55 + presence3[3] * 45);
-    const dur      = Math.round(barMs * (chordRhythm - 0.5));
-    sendMIDINote(3, Math.max(24, bassNote), vel, dur);
-    addMidiNote(3, bassNote / 127, vel / 127);
-  }
-
-  // CH4 T5 CHORDS — ogni chordRhythm bar
-  if (presence3[4] > 0.1 && chordRhythm > 0 && bar % chordRhythm === 0) {
+  // CH4 CHORDS — every chordRhythm drift bars, voice leading slow
+  if (presence3[4] > 0.1 && chordRhythm > 0 && driftBar % chordRhythm === 0) {
     const chord = currentChord;
     const vel   = Math.round(42 + presence3[4] * 38);
     const dur   = Math.round(barMs * (chordRhythm - 0.3));
@@ -361,28 +320,28 @@ function onBar3(bar) {
     }
   }
 
-  // CH6 T7 LEAD — motivo D3-G3-A3 ogni 8 bar
-  if (presence3[6] > 0.1 && bar % 8 === 0 && bar > 0) {
-    const motif   = [50, 55, 57]; // D3, G3, A3
-    const velBase = Math.round(55 + presence3[6] * 40);
+  // CH6 LEAD — brief melodic fragments every 8 drift bars (echo of VOICE)
+  if (presence3[6] > 0.1 && driftBar % 8 === 0 && driftBar > 0) {
+    const motif   = [57, 64, 66]; // A3, E4, F#4 (A Lydian)
+    const velBase = Math.round(45 + presence3[6] * 35);
     let delay = 0;
     for (const n of motif) {
       const noteDelay = delay;
       setTimeout(() => {
         if (!composer3Active) return;
-        sendMIDINote(6, n, velBase, Math.round(beatMs * 1.5));
+        sendMIDINote(6, n, velBase, 600);
         addMidiNote(6, n / 127, velBase / 127);
       }, noteDelay);
-      delay += Math.round(beatMs * 0.75);
+      delay += Math.round(700 + Math.random() * 300);
     }
   }
 
-  // CH7 RUPTURE residuo — note diradate con vel decrescente
-  if (ruptureStage3 === 'residuo' && bar % 2 === 0) {
+  // CH7 RUPTURE residuo — sparse notes with decreasing velocity
+  if (ruptureStage3 === 'residuo' && driftBar % 2 === 0) {
     const vel = Math.round(50 * (1 - ruptureProgress3));
     if (vel > 10) {
-      sendMIDINote(7, 50, vel, 400); // D3
-      addMidiNote(7, 50 / 127, vel / 127);
+      sendMIDINote(7, 57, vel, 400); // A3
+      addMidiNote(7, 57 / 127, vel / 127);
     }
   }
 }
@@ -405,9 +364,8 @@ function injectState3() {
 // ═══════════════════════════════════════════════════════════
 
 export function initComposer3() {
-  clock = 0;
-  lastBeat = -1;
-  lastBar  = -1;
+  timeSec = 0;
+  lastDriftBar = -1;
   phase    = CFG.COMPOSER3.phaseOrder[0];
   phaseIdx = 0;
   phaseClock = 0;
@@ -416,19 +374,25 @@ export function initComposer3() {
   ruptureProgress3 = 0;
   ruptureNoteTimer = 2;
   markovHistory3   = [null, null];
+  centroidHistory  = [];
+  centroidAvg      = 0;
+  brightnessCooldown = 0;
+  grainAccum       = 0;
+  ruptureTick      = 0;
   initChord3();
-  initEuclidean3();
 }
 
 export function toggleComposer3() {
   composer3Active = !composer3Active;
   if (composer3Active) {
     initComposer3();
-    console.log('[COMPOSER3] ON — D Dorian DERIVA 84bpm');
+    setEngine('deriva');
+    console.log('[COMPOSER3] ON — A Lydian DERIVA (brightness-driven)');
   } else {
     sendMIDIAllNotesOff();
     setComposerClimax(false);
     releaseArcHold();
+    setEngine(null);
     console.log('[COMPOSER3] OFF');
   }
 }
@@ -438,20 +402,24 @@ export function updateComposer3(dt) {
   updatePresence3(dt);
   updateRupture3(dt);
 
-  // Beat clock a 84 BPM
-  const beatsPerSec = CFG.COMPOSER3.bpm / 60;
-  clock += dt * beatsPerSec;
-  const currentBeat = Math.floor(clock);
-  const currentBar  = Math.floor(clock / 4);
+  // Time-based drift clock (no BPM)
+  timeSec += dt;
+  const barSec = CFG.COMPOSER3.driftBarSec;
+  const currentDriftBar = Math.floor(timeSec / barSec);
 
-  if (currentBeat > lastBeat) {
-    lastBeat = currentBeat;
-    onBeat3(currentBeat, currentBar);
+  if (currentDriftBar > lastDriftBar) {
+    lastDriftBar = currentDriftBar;
+    onDriftBar3(currentDriftBar);
   }
-  if (currentBar > lastBar) {
-    lastBar = currentBar;
-    onBar3(currentBar);
-  }
+
+  // Brightness-driven VOICE trigger
+  updateBrightnessTrigger(dt);
+
+  // Air-energy-driven GRAIN
+  updateGrain3(dt);
+
+  // Rupture note events
+  updateRuptureNotes(dt);
 
   injectState3();
 }
@@ -462,6 +430,6 @@ export function getComposer3Status() {
     phase,
     ruptureStage: ruptureStage3,
     chordRoot: currentChord[0],
-    bar: Math.floor(clock / 4),
+    bar: lastDriftBar,
   };
 }
