@@ -8,7 +8,7 @@ import { dna, PRIM_TYPES } from './dna.js';
 import { entities } from './generations.js';
 import { startInvertDissolve, setChromaticShift, setPalette, setComposerClimax } from './colors.js';
 import { on as onDirectorEvent } from './director-events.js';
-import { checkPatternChange } from './midi-patterns.js';
+import { checkPatternChange, getEngine } from './midi-patterns.js';
 
 // ═══════════════════════════════════════════════════════════
 //  SCENES — Coherent aesthetic states
@@ -91,6 +91,31 @@ const SCENES = [
 
 // Colored ground palette variants (picked randomly)
 const COLORED_PALETTES = ['amber', 'cyan', 'magenta', 'warm', 'cold'];
+
+// ── Engine-aware preferences (visual identity per composer) ──
+const ENGINE_PREFS = {
+  terreno: {
+    sceneBoost: ['BAYER_CLASSIC', 'DENSE', 'COLORED_GROUND'],  // warm, dark
+    sceneAvoid: ['HORIZON', 'SPARSE'],
+    palette: 'amber',
+    camera: 'WIDE',       // WIDE or DRIFT only
+    cameraAllow: new Set(['WIDE', 'DRIFT']),
+  },
+  meccanica: {
+    sceneBoost: ['MONDRIAN', 'NEGATIVE', 'MONOCHROME'],         // cold, geometric
+    sceneAvoid: [],
+    palette: 'cold',
+    camera: 'MEDIUM',     // MEDIUM with rapid pan
+    cameraAllow: new Set(['MEDIUM', 'MACRO', 'DRIFT']),
+  },
+  deriva: {
+    sceneBoost: ['HORIZON', 'SPARSE', 'MONOCHROME'],            // airy, rarefied
+    sceneAvoid: ['DENSE', 'NEGATIVE'],
+    palette: 'cyan',
+    camera: 'DRIFT',      // WIDE or slow DRIFT
+    cameraAllow: new Set(['WIDE', 'DRIFT']),
+  },
+};
 
 // ═══════════════════════════════════════════════════════════
 //  COMPOSITIONS — Spatial density layouts
@@ -273,9 +298,18 @@ function updateArc(dt, state) {
 
 function pickScene() {
   const params = ARC_PARAMS[arc.phase];
+  const engine = getEngine();
+  const prefs = engine ? ENGINE_PREFS[engine] : null;
+
   const weights = SCENES.map((s) => {
     if (params.allowedScenes && !params.allowedScenes.includes(s.name)) return 0;
-    return 1;
+    let w = 1;
+    // Engine-aware biasing
+    if (prefs) {
+      if (prefs.sceneBoost.includes(s.name)) w *= 3.0;
+      if (prefs.sceneAvoid.includes(s.name)) w *= 0.1;
+    }
+    return w;
   });
 
   // Avoid repeating recent scenes
@@ -324,9 +358,13 @@ function transitionToScene(newScene, instant) {
     scene.blendSpeed = blendMul / (CFG.sceneTransitionBars * 2);
   }
 
-  // Apply palette
+  // Apply palette — engine preference overrides scene default
+  const engine = getEngine();
+  const prefs = engine ? ENGINE_PREFS[engine] : null;
   let palName = newScene.palette;
-  if (newScene.name === 'COLORED_GROUND') {
+  if (prefs) {
+    palName = prefs.palette;
+  } else if (newScene.name === 'COLORED_GROUND') {
     palName = COLORED_PALETTES[Math.floor(Math.random() * COLORED_PALETTES.length)];
   }
   setPalette(palName);
@@ -527,23 +565,37 @@ export function setFraming(type, W, H) {
 function pickAutoShot(state, W, H) {
   const params = ARC_PARAMS[arc.phase];
   const cam = params.camera;
+  const engine = getEngine();
+  const prefs = engine ? ENGINE_PREFS[engine] : null;
 
   if (cam === 'WIDE_ONLY') return setFraming('WIDE', W, H);
-  if (cam === 'MACRO_LOCK') return setFraming('MACRO', W, H);
+  if (cam === 'MACRO_LOCK') {
+    // Engine may disallow MACRO (e.g. TERRENO/DERIVA prefer WIDE)
+    if (prefs && !prefs.cameraAllow.has('MACRO')) return setFraming(prefs.camera, W, H);
+    return setFraming('MACRO', W, H);
+  }
   if (cam === 'SLOW_WIDE') {
-    // Gentle zoom out
     framing.targetZoom = 1.0;
     framing.current = 'WIDE';
     return;
   }
   if (cam === 'TIGHTEN') {
-    // Progressively tighter during TENSION
+    if (prefs && !prefs.cameraAllow.has('MACRO')) {
+      setFraming(prefs.camera, W, H);
+      return;
+    }
     const progress = Math.min(1, arc.phaseTime / 90);
     if (progress < 0.5) setFraming('MEDIUM', W, H);
     else setFraming('MACRO', W, H);
     return;
   }
-  // DRIFT_BIAS — default for DEVELOP
+  // DRIFT_BIAS — default, engine-aware
+  if (prefs) {
+    // Bias toward engine's preferred framing
+    const allowed = [...prefs.cameraAllow];
+    const pick = allowed[Math.floor(Math.random() * allowed.length)];
+    return setFraming(pick, W, H);
+  }
   const roll = Math.random();
   if (roll < 0.5) setFraming('DRIFT', W, H);
   else if (roll < 0.85) setFraming('MEDIUM', W, H);

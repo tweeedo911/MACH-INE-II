@@ -10,6 +10,7 @@ import { sendMIDINote, sendMIDIAllNotesOff } from './midi.js';
 import { setArcPhaseForced, releaseArcHold } from './director.js';
 import { setComposerClimax } from './colors.js';
 import { addMidiNote, addOnsetWave } from './field.js';
+import { setEngine } from './midi-patterns.js';
 
 // ═══════════════════════════════════════════════════════════
 //  SCALE DEFINITIONS (pitch class sets, 2 ottave da C3=48)
@@ -398,11 +399,13 @@ export function toggleComposer() {
   composerActive = !composerActive;
   if (composerActive) {
     initComposer();
-    console.log('[COMPOSER] ON');
+    setEngine('terreno');
+    console.log('[COMPOSER] ON — D Dorian TERRENO 72bpm');
   } else {
     sendMIDIAllNotesOff();
     setComposerClimax(false);
     releaseArcHold();
+    setEngine(null);
     console.log('[COMPOSER] OFF');
   }
 }

@@ -10,6 +10,7 @@ import { setArcPhaseForced, releaseArcHold } from './director.js';
 import { setComposerClimax } from './colors.js';
 import { addMidiNote } from './field.js';
 import { emit } from './director-events.js';
+import { setEngine } from './midi-patterns.js';
 
 // ── Scale modes C# (nota MIDI: C#4 = 61) ──
 const MODES2 = {
@@ -107,11 +108,13 @@ export function toggleComposer2() {
   composer2Active = !composer2Active;
   if (composer2Active) {
     initComposer2();
-    console.log('[COMPOSER2] ON — C# Dorian / layer sfasati');
+    setEngine('meccanica');
+    console.log('[COMPOSER2] ON — C# Dorian MECCANICA 98bpm');
   } else {
     sendMIDIAllNotesOff();
     setComposerClimax(false);
     releaseArcHold();
+    setEngine(null);
     console.log('[COMPOSER2] OFF');
   }
 }
@@ -254,33 +257,79 @@ function checkLayerCrossings() {
                  ruptureStage === 'infiltrazione' ? 0.4 :
                  ruptureStage === 'presagio'      ? 0.15 : 0;
 
-  // CH4 CHORDS — crossing 0.5 del layer armonico (~ogni 26s a 108bpm)
-  if (presence[0] > 0.3 && layers.harmonic.crossed(0.5)) {
-    const chord = buildChord(currentMode);
-    const vel   = Math.floor(52 + presence[0] * 40);
-    for (const note of chord) {
-      sendMIDINote(4, note, vel, beatMs * 6);
-      addMidiNote(4, note / 127, vel / 127);
+  // CH4 CHORDS — harmonic layer crossing 0.0, 0.5
+  if (presence[0] > 0.3) {
+    if (layers.harmonic.crossed(0.0) || layers.harmonic.crossed(0.5)) {
+      const chord = buildChord(currentMode);
+      const vel   = Math.floor(52 + presence[0] * 40);
+      for (const note of chord) {
+        sendMIDINote(4, note, vel, beatMs * 6);
+        addMidiNote(4, note / 127, vel / 127);
+      }
+      emit('chord_change', { root: chord[0], mode: currentMode });
     }
-    emit('chord_change', { root: chord[0], mode: currentMode });
   }
 
-  // CH1 GRAIN — crossing 0.33 e 0.67 del layer testuale (~ogni 3s)
+  // CH0 PULSE — rhythmic layer crossing 0.25, 0.5, 0.75 (syncopated groove)
+  if (presence[1] > 0.3 && rc < 0.6) {
+    const shuffleMs = CFG.COMPOSER2.grooveShuffleMs || 0;
+    for (const th of [0.25, 0.5, 0.75]) {
+      if (layers.rhythmic.crossed(th)) {
+        const delay = shuffleMs > 0 ? Math.round((Math.random() * 2 - 1) * shuffleMs) : 0;
+        const vel = Math.floor(68 + presence[1] * 45);
+        const fire = () => {
+          sendMIDINote(0, currentDrone - 12, vel, beatMs * 0.25);
+          addMidiNote(0, (currentDrone - 12) / 127, vel / 127);
+        };
+        if (delay > 0) setTimeout(fire, delay);
+        else fire();
+      }
+    }
+  }
+
+  // CH1 GRAIN — textural layer crossing 0.2, 0.4, 0.6, 0.8
   if (presence[2] > 0.25 && rc < 0.5) {
-    if (layers.textural.crossed(0.33) || layers.textural.crossed(0.67)) {
-      const scale = MODES2[currentMode];
-      const hi    = scale.filter(n => n >= 72 && n <= 88);
-      const pool  = hi.length > 0 ? hi : scale;
-      const note  = pool[Math.floor(Math.random() * pool.length)];
-      const vel   = Math.floor(38 + presence[2] * 35);
-      sendMIDINote(1, note, vel, beatMs * 0.35);
-      addMidiNote(1, note / 127, vel / 127);
-      emit('grain_entry', { intensity: presence[2] });
+    for (const th of [0.2, 0.4, 0.6, 0.8]) {
+      if (layers.textural.crossed(th)) {
+        const scale = MODES2[currentMode];
+        const hi    = scale.filter(n => n >= 72 && n <= 88);
+        const pool  = hi.length > 0 ? hi : scale;
+        const note  = pool[Math.floor(Math.random() * pool.length)];
+        const vel   = Math.floor(38 + presence[2] * 35);
+        sendMIDINote(1, note, vel, beatMs * 0.35);
+        addMidiNote(1, note / 127, vel / 127);
+        emit('grain_entry', { intensity: presence[2] });
+      }
+    }
+  }
+
+  // CH5 VOICE + CH6 LEAD — melodic layer crossing 0.33, 0.66
+  if (presence[3] > 0.3 && rc < 0.5) {
+    for (const th of [0.33, 0.66]) {
+      if (layers.melodic.crossed(th)) {
+        if (Math.random() < presence[3] * 0.7) {
+          const note = pickMelodicNote(currentMode);
+          const vel  = Math.floor(48 + presence[3] * 50);
+          // CH5 VOICE
+          sendMIDINote(5, note, vel, beatMs * 1.8);
+          addMidiNote(5, note / 127, vel / 127);
+          // CH6 LEAD echo (lower vel, slight delay)
+          if (presence[3] > 0.5 && Math.random() < 0.4) {
+            setTimeout(() => {
+              if (!composer2Active) return;
+              const leadNote = pickMelodicNote(currentMode);
+              sendMIDINote(6, leadNote, Math.floor(vel * 0.7), beatMs * 1.2);
+              addMidiNote(6, leadNote / 127, (vel * 0.7) / 127);
+            }, Math.round(beatMs * 0.5));
+          }
+        }
+      }
     }
   }
 }
 
-// ── Beat-triggered notes (CH0, CH3, CH4, CH6) ──
+// ── Beat-triggered notes (CH2 DRONE, CH7 RUPTURE only) ──
+// CH0 PULSE, CH1 GRAIN, CH5 VOICE, CH6 LEAD are now crossing-triggered above
 function onBeat(beat) {
   const bpm    = CFG.COMPOSER2.bpm;
   const beatMs = (60 / bpm) * 1000;
@@ -290,27 +339,6 @@ function onBeat(beat) {
   const rc        = ruptureStage === 'takeover'     ? 0.8 :
                     ruptureStage === 'infiltrazione' ? 0.4 :
                     ruptureStage === 'presagio'      ? 0.15 : 0;
-
-  // CH0 RHYTHMIC — downbeat obbligato, off-beat sparso ogni 2 battute
-  if (presence[1] > 0.3 && rc < 0.6) {
-    const isDownbeat = barBeat === 0;
-    const isOffbeat  = barBeat === 2 && presence[1] > 0.55 && bar % 2 === 0;
-    if (isDownbeat || isOffbeat) {
-      const vel = Math.floor(68 + presence[1] * 45);
-      sendMIDINote(0, currentDrone - 12, vel, beatMs * 0.25);
-      addMidiNote(0, (currentDrone - 12) / 127, vel / 127);
-    }
-  }
-
-  // CH5 VOICE — beat 1 di ogni battuta, probabilistico
-  if (presence[3] > 0.3 && barBeat === 1 && rc < 0.5) {
-    if (Math.random() < presence[3] * 0.7) {
-      const note = pickMelodicNote(currentMode);
-      const vel  = Math.floor(48 + presence[3] * 50);
-      sendMIDINote(5, note, vel, beatMs * 1.8);
-      addMidiNote(5, note / 127, vel / 127);
-    }
-  }
 
   // CH2 DRONE — bordone ogni 16 beat, con gap naturale prima del prossimo
   if (beat % 16 === 0 && phaseName !== 'rottura') {
