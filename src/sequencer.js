@@ -1,39 +1,102 @@
 // ═══════════════════════════════════════════════════════════
-//  MACH:INE II — Performance Sequencer
-//  Autopilot: 6 engine in ~40 minuti con transizioni-mutazione
+//  MACH:INE II — Performance Sequencer v3
+//  5-act dramaturgical structure with sustained multi-engine overlap
+//  Cue types: silence, activate, layer, fade_to, end
 // ═══════════════════════════════════════════════════════════
 
-import { executeMutation } from './director.js';
-import { startInvertDissolve, setChromaticShift } from './colors.js';
+import { executeMutation, requestFraming, requestCameraShake } from './director.js';
+import { startInvertDissolve, setConcertTime } from './colors.js';
+import { setPresenceMultiplier, getPresenceMultiplier, resetAllMultipliers } from './presence-multiplier.js';
 
-// ── Sequence definition (dramaturgical order) ──
-// Each entry: [engineKey, durationSec]
-const SEQUENCE = [
-  ['deriva',     5 * 60],   //  5 min — apertura beatless
-  ['cristallo',  6 * 60],   //  6 min — contemplazione glaciale
-  ['abisso',     7 * 60],   //  7 min — rituale profondo
-  ['terreno',    7 * 60],   //  7 min — primo groove
-  ['meccanica',  8 * 60],   //  8 min — techno strutturato
-  ['vortice',    7 * 60],   //  7 min — climax tribale
+// ── Momenti-firma state (read by generations.js, render.js) ──
+export const firma = {
+  gelo: false,          // freeze entities in place
+  convergenza: false,   // attract entities to center
+  vuotoTotale: false,   // total blackout
+  densityCap: 1,        // 0→1 opening, 1→0 closing
+};
+
+// ── Act boundaries (seconds) ──
+const ACTS = [
+  { name: 'I EMERGENZA',  start: 0,    end: 480  },
+  { name: 'II DISCESA',   start: 480,  end: 1080 },
+  { name: 'III MACCHINA', start: 1080, end: 1680 },
+  { name: 'IV VORTICE',   start: 1680, end: 2160 },
+  { name: 'V RITORNO',    start: 2160, end: 2400 },
 ];
 
-// ── Transition: mutation storm between engines ──
-// Duration of the inter-engine mutation passage (seconds)
-const TRANSITION_DURATION = 6;
-// Mutation bursts during transition
-const TRANSITION_MUTATIONS = 4;
+// ── Cue definitions — 5-act concert structure ──
+// layer: activate engine (if needed) + fade to target presence
+// fade_to: change one engine's presence (engine must already be active)
+const CUES = [
+  // ── ATTO I — EMERGENZA (0:00–8:00) ──
+  { t: 0,    action: 'silence' },
+  { t: 30,   action: 'activate',  engine: 'deriva' },
+  { t: 180,  action: 'layer',     engine: 'cristallo', target: 0.3, duration: 30 },
+  { t: 300,  action: 'fade_to',   engine: 'cristallo', target: 1.0, duration: 30 },
+  { t: 300,  action: 'fade_to',   engine: 'deriva',    target: 0.2, duration: 30 },
+  { t: 420,  action: 'fade_to',   engine: 'deriva',    target: 0.0, duration: 30 },
+
+  // ── ATTO II — DISCESA (8:00–18:00) ──
+  { t: 480,  action: 'camera', framing: 'WIDE' },     // Atto I→II: slow zoom out
+  { t: 480,  action: 'layer',     engine: 'abisso',    target: 0.3, duration: 30 },
+  { t: 570,  action: 'fade_to',   engine: 'cristallo', target: 0.0, duration: 30 },
+  { t: 570,  action: 'fade_to',   engine: 'abisso',    target: 1.0, duration: 30 },
+  { t: 720,  action: 'layer',     engine: 'terreno',   target: 0.3, duration: 25 },
+  { t: 840,  action: 'fade_to',   engine: 'abisso',    target: 0.0, duration: 25 },
+  { t: 840,  action: 'fade_to',   engine: 'terreno',   target: 1.0, duration: 25 },
+
+  // ── ATTO III — MACCHINA (18:00–28:00) ──
+  { t: 1080, action: 'camera', framing: 'MACRO' },    // Atto II→III: cut to macro
+  { t: 1080, action: 'layer',     engine: 'meccanica', target: 0.3, duration: 20 },
+  { t: 1140, action: 'fade_to',   engine: 'terreno',   target: 0.0, duration: 20 },
+  { t: 1140, action: 'fade_to',   engine: 'meccanica', target: 1.0, duration: 20 },
+
+  // MOMENTO-FIRMA: GELO (min 24 — machine freezes)
+  { t: 1440, action: 'firma', effect: 'gelo', active: true },
+  { t: 1470, action: 'firma', effect: 'gelo', active: false },
+
+  // ── ATTO IV — VORTICE (28:00–36:00) ──
+  { t: 1680, action: 'camera', framing: 'DRIFT', shake: 0.04 }, // Atto III→IV: drift + shake
+  { t: 1680, action: 'layer',     engine: 'vortice',   target: 0.3, duration: 15 },
+  { t: 1740, action: 'fade_to',   engine: 'meccanica', target: 0.0, duration: 15 },
+  { t: 1740, action: 'fade_to',   engine: 'vortice',   target: 1.0, duration: 15 },
+  { t: 1860, action: 'fade_to',   engine: 'deriva',    target: 0.3, duration: 20 },
+  // MOMENTO-FIRMA: CONVERGENZA (min 33 — converge to center before climax)
+  { t: 1980, action: 'firma', effect: 'convergenza', active: true },
+  { t: 2020, action: 'firma', effect: 'convergenza', active: false },
+  // CLIMAX GLOBALE — all engines to full (MOMENTO-FIRMA: INVERSIONE)
+  { t: 2040, action: 'fade_to',   engine: 'terreno',   target: 1.0, duration: 10, visual: true },
+  { t: 2040, action: 'fade_to',   engine: 'meccanica', target: 1.0, duration: 10 },
+  { t: 2040, action: 'fade_to',   engine: 'abisso',    target: 1.0, duration: 10 },
+  { t: 2040, action: 'fade_to',   engine: 'cristallo', target: 1.0, duration: 10 },
+  { t: 2040, action: 'fade_to',   engine: 'deriva',    target: 1.0, duration: 10 },
+  // After 30s — fade all except CRISTALLO + DERIVA
+  { t: 2070, action: 'fade_to',   engine: 'terreno',   target: 0.0, duration: 20 },
+  { t: 2070, action: 'fade_to',   engine: 'meccanica', target: 0.0, duration: 20 },
+  { t: 2070, action: 'fade_to',   engine: 'abisso',    target: 0.0, duration: 20 },
+  { t: 2070, action: 'fade_to',   engine: 'vortice',   target: 0.0, duration: 20 },
+
+  // ── ATTO V — RITORNO (36:00–40:00) ──
+  { t: 2160, action: 'camera', framing: 'MEDIUM' },   // Atto IV→V: slow zoom in
+  // MOMENTO-FIRMA: VUOTO TOTALE (min 36 — total emptiness)
+  { t: 2160, action: 'firma', effect: 'vuotoTotale', active: true },
+  { t: 2190, action: 'firma', effect: 'vuotoTotale', active: false },
+  { t: 2160, action: 'fade_to',   engine: 'cristallo', target: 0.0, duration: 60 },
+  { t: 2310, action: 'fade_to',   engine: 'deriva',    target: 0.0, duration: 60 },
+  { t: 2400, action: 'end' },
+];
 
 // ── State ──
 let active = false;
-let stepIndex = -1;
-let stepElapsed = 0;
-let transitioning = false;
-let transitionElapsed = 0;
-let transitionMutationsFired = 0;
 let globalTime = 0;
+let cueIndex = 0;
+
+// Multiple simultaneous transitions
+let transitions = [];  // [{ engine, startTime, duration, fromPm, toPm }]
 
 // Callbacks set by main.js
-let _activateEngine = null;   // (engineKey) => void
+let _activateEngine = null;   // (engineKey) => void — turns on without killing others
 let _deactivateAll = null;    // () => void
 
 export function initSequencer(activateEngine, deactivateAll) {
@@ -42,116 +105,208 @@ export function initSequencer(activateEngine, deactivateAll) {
 }
 
 export function toggleSequencer() {
-  if (active) {
-    stopSequencer();
-  } else {
-    startSequencer();
-  }
+  if (active) stopSequencer();
+  else startSequencer();
 }
 
-export function isSequencerActive() {
-  return active;
+export function isSequencerActive() { return active; }
+
+// Find the current act based on globalTime
+function currentAct() {
+  for (const act of ACTS) {
+    if (globalTime >= act.start && globalTime < act.end) return act.name;
+  }
+  return ACTS[ACTS.length - 1].name;
+}
+
+// Find the engine with highest presence (for display)
+function primaryEngine() {
+  const engines = ['terreno', 'meccanica', 'deriva', 'vortice', 'cristallo', 'abisso'];
+  let best = null, bestPm = 0;
+  for (const e of engines) {
+    const pm = getPresenceMultiplier(e);
+    if (pm > bestPm) { bestPm = pm; best = e; }
+  }
+  return bestPm > 0.05 ? best : null;
+}
+
+// Count engines with presence > threshold
+function activeEngineCount(threshold) {
+  const engines = ['terreno', 'meccanica', 'deriva', 'vortice', 'cristallo', 'abisso'];
+  return engines.filter(e => getPresenceMultiplier(e) > threshold).length;
 }
 
 export function getSequencerStatus() {
   if (!active) return { active: false };
-  const entry = SEQUENCE[stepIndex];
+  const primary = primaryEngine();
+  const overlap = activeEngineCount(0.05);
+  const act = currentAct();
+  let label = primary ? primary.toUpperCase() : 'SILENCE';
+  if (overlap > 1) label += ` +${overlap - 1}`;
   return {
     active: true,
-    engine: entry ? entry[0].toUpperCase() : 'TRANSITION',
-    step: stepIndex + 1,
-    total: SEQUENCE.length,
-    elapsed: Math.floor(stepElapsed),
-    duration: entry ? entry[1] : 0,
-    transitioning,
-    progress: entry ? stepElapsed / entry[1] : 0,
+    engine: label,
+    act,
+    step: cueIndex,
+    total: CUES.length,
+    elapsed: Math.floor(globalTime),
+    duration: CUES[CUES.length - 1].t,
+    transitioning: transitions.length > 0,
+    progress: globalTime / CUES[CUES.length - 1].t,
   };
 }
 
 function startSequencer() {
   active = true;
-  stepIndex = -1;
-  stepElapsed = 0;
-  transitioning = false;
-  transitionElapsed = 0;
-  // Start first transition immediately
-  advanceToNext();
-  console.log('[SEQUENCER] START — 40min autopilot');
+  globalTime = 0;
+  cueIndex = 0;
+  transitions = [];
+  firma.densityCap = 0;
+  resetAllMultipliers();
+  if (_deactivateAll) _deactivateAll();
+  console.log('[SEQUENCER] START — v3 5-act 40min concert');
 }
 
 function stopSequencer() {
   active = false;
-  transitioning = false;
-  stepIndex = -1;
+  transitions = [];
+  firma.gelo = false;
+  firma.convergenza = false;
+  firma.vuotoTotale = false;
+  firma.densityCap = 1;
+  setConcertTime(-1);
   console.log('[SEQUENCER] STOP');
 }
 
 export function skipToNext() {
-  if (!active) return;
-  // Jump to transition phase immediately
-  if (!transitioning) {
-    beginTransition();
-  }
+  if (!active || cueIndex >= CUES.length) return;
+  // Jump to next cue time (skip cues at same timestamp)
+  const nextT = CUES[cueIndex].t;
+  globalTime = nextT - 0.01;
 }
 
-function advanceToNext() {
-  stepIndex++;
-  if (stepIndex >= SEQUENCE.length) {
-    // Performance complete — stop
-    if (_deactivateAll) _deactivateAll();
-    stopSequencer();
-    console.log('[SEQUENCER] PERFORMANCE COMPLETE');
+// ── Transition management ──
+
+function addTransition(engine, target, duration) {
+  // Remove existing transition for this engine
+  transitions = transitions.filter(t => t.engine !== engine);
+  const fromPm = getPresenceMultiplier(engine);
+  if (Math.abs(fromPm - target) < 0.01) {
+    // Already at target
+    setPresenceMultiplier(engine, target);
     return;
   }
-
-  stepElapsed = 0;
-  transitioning = false;
-
-  const [engineKey] = SEQUENCE[stepIndex];
-  if (_activateEngine) _activateEngine(engineKey);
-  console.log(`[SEQUENCER] → ${engineKey.toUpperCase()} (${stepIndex + 1}/${SEQUENCE.length})`);
+  transitions.push({
+    engine,
+    startTime: globalTime,
+    duration: Math.max(0.1, duration),
+    fromPm,
+    toPm: target,
+  });
 }
 
-function beginTransition() {
-  transitioning = true;
-  transitionElapsed = 0;
-  transitionMutationsFired = 0;
-
-  // Kill current engine audio
-  if (_deactivateAll) _deactivateAll();
-
-  // Visual storm: invert dissolve + chromatic shift
-  startInvertDissolve();
-  setChromaticShift('shift');
+function updateTransitions() {
+  const completed = [];
+  for (let i = 0; i < transitions.length; i++) {
+    const tr = transitions[i];
+    const elapsed = globalTime - tr.startTime;
+    const progress = Math.min(1, elapsed / tr.duration);
+    // Cubic hermite ease
+    const ease = progress * progress * (3 - 2 * progress);
+    const pm = tr.fromPm + (tr.toPm - tr.fromPm) * ease;
+    setPresenceMultiplier(tr.engine, pm);
+    if (progress >= 1) {
+      setPresenceMultiplier(tr.engine, tr.toPm);
+      completed.push(i);
+    }
+  }
+  // Remove completed (reverse order to preserve indices)
+  for (let i = completed.length - 1; i >= 0; i--) {
+    const tr = transitions[completed[i]];
+    console.log(`[SEQ] ${tr.engine.toUpperCase()} → pm ${tr.toPm.toFixed(1)}`);
+    transitions.splice(completed[i], 1);
+  }
 }
 
-export function updateSequencer(dt, gTime) {
+// ── Cue processing ──
+
+function processCue(cue) {
+  switch (cue.action) {
+    case 'silence':
+      if (_deactivateAll) _deactivateAll();
+      resetAllMultipliers();
+      transitions = [];
+      break;
+
+    case 'activate':
+      setPresenceMultiplier(cue.engine, 1.0);
+      if (_activateEngine) _activateEngine(cue.engine);
+      console.log(`[SEQ] → ${cue.engine.toUpperCase()} ON`);
+      break;
+
+    case 'layer': {
+      // Activate engine (no-op if already active) at pm=0, then fade to target
+      setPresenceMultiplier(cue.engine, 0.0);
+      if (_activateEngine) _activateEngine(cue.engine);
+      addTransition(cue.engine, cue.target, cue.duration);
+      startInvertDissolve();
+      console.log(`[SEQ] LAYER ${cue.engine.toUpperCase()} → pm ${cue.target} (${cue.duration}s)`);
+      break;
+    }
+
+    case 'fade_to': {
+      addTransition(cue.engine, cue.target, cue.duration);
+      if (cue.visual) {
+        startInvertDissolve();
+        executeMutation(null, globalTime);
+      }
+      console.log(`[SEQ] FADE ${cue.engine.toUpperCase()} → pm ${cue.target} (${cue.duration}s)`);
+      break;
+    }
+
+    case 'camera':
+      requestFraming(cue.framing);
+      if (cue.shake) requestCameraShake(cue.shake);
+      console.log(`[SEQ] CAMERA → ${cue.framing}${cue.shake ? ' +SHAKE' : ''}`);
+      break;
+
+    case 'firma':
+      firma[cue.effect] = cue.active;
+      if (cue.active) startInvertDissolve();
+      console.log(`[SEQ] FIRMA ${cue.effect.toUpperCase()} ${cue.active ? 'ON' : 'OFF'}`);
+      break;
+
+    case 'end':
+      if (_deactivateAll) _deactivateAll();
+      resetAllMultipliers();
+      stopSequencer();
+      console.log('[SEQUENCER] PERFORMANCE COMPLETE');
+      break;
+  }
+}
+
+// ── Main update ──
+
+export function updateSequencer(dt) {
   if (!active) return;
-  globalTime = gTime;
+  globalTime += dt;
+  setConcertTime(globalTime);
 
-  if (transitioning) {
-    transitionElapsed += dt;
-
-    // Fire mutation bursts evenly across transition
-    const mutationInterval = TRANSITION_DURATION / TRANSITION_MUTATIONS;
-    const expectedFired = Math.floor(transitionElapsed / mutationInterval);
-    while (transitionMutationsFired < expectedFired && transitionMutationsFired < TRANSITION_MUTATIONS) {
-      executeMutation(null, globalTime);
-      transitionMutationsFired++;
-    }
-
-    // Transition complete → advance
-    if (transitionElapsed >= TRANSITION_DURATION) {
-      advanceToNext();
-    }
-    return;
+  // Concert opening/closing density cap
+  if (globalTime < 120) {
+    firma.densityCap = Math.min(1, Math.pow(globalTime / 120, 2));
+  } else if (globalTime > 2310) {
+    firma.densityCap = Math.max(0, Math.pow(1 - (globalTime - 2310) / 90, 2));
+  } else {
+    firma.densityCap = 1;
   }
 
-  // Normal playback — count time in current engine
-  stepElapsed += dt;
-  const [, duration] = SEQUENCE[stepIndex];
-
-  if (stepElapsed >= duration) {
-    beginTransition();
+  // Process due cues
+  while (cueIndex < CUES.length && globalTime >= CUES[cueIndex].t) {
+    processCue(CUES[cueIndex]);
+    cueIndex++;
+    if (!active) return; // 'end' cue stops everything
   }
+
+  updateTransitions();
 }

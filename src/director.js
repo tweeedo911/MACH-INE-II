@@ -4,6 +4,7 @@
 
 import { CFG } from './config.js';
 import { audio } from './audio.js';
+import { midi } from './midi.js';
 import { dna, PRIM_TYPES } from './dna.js';
 import { entities } from './generations.js';
 import { startInvertDissolve, setChromaticShift, setPalette, setComposerClimax } from './colors.js';
@@ -119,12 +120,12 @@ const ENGINE_PREFS = {
   deriva: {
     sceneBoost: ['HORIZON', 'SPARSE', 'MONOCHROME'],
     sceneAvoid: ['DENSE', 'NEGATIVE'],
-    palette: 'cyan',
+    palette: 'default',
     camera: 'DRIFT',
     cameraAllow: new Set(['WIDE', 'DRIFT']),
     dotSize: 5, densityMul: 0.5, midiScale: 1.8, forceInvert: null,
     shapeScale: 2.5, trailMax: 24, densityGravity: 0,
-    onsetWaveSpeed: 400, flickerSpeed: 0.5, midiDensityMul: 0.3,
+    onsetWaveSpeed: 400, flickerSpeed: 0.5, midiDensityMul: 0.7,
   },
   vortice: {
     sceneBoost: ['NEGATIVE', 'MONOCHROME', 'SPARSE'],
@@ -279,6 +280,8 @@ export const arc = {
   _smoothRms: 0,
   _stateHold: 0,
   sceneHistory: [],
+  tension: 0,           // 0-1 narrative tension (grows over concert)
+  _ruptureBoost: 0,     // temporary boost from rupture events
 };
 
 function setArcPhase(newPhase) {
@@ -306,33 +309,46 @@ function updateArc(dt, state) {
   const traj = audio.trajectory;
   const rhyt = state.rhythmicity;
 
+  // Narrative tension: linear growth over 40min + rupture boost
+  arc.tension = Math.min(1, arc.totalTime / 2400 + arc._ruptureBoost);
+  arc._ruptureBoost = Math.max(0, arc._ruptureBoost - dt * 0.008);
+
   if (arc._stateHold > 0) return; // isteresi — no flicker
+
+  // Tension-adjusted thresholds — up to 25% lower as tension grows
+  const tMod = 1 - arc.tension * 0.25;
+  const rmsSilence  = CFG.arcRmsSilence * tMod;
+  const rmsBuilding = CFG.arcRmsBuilding * tMod;
+  const rmsActive   = CFG.arcRmsActive * tMod;
+  const rmsIntense  = CFG.arcRmsIntense * tMod;
+  const rmsPeak     = CFG.arcRmsPeak * tMod;
+  const fluxIntense = CFG.arcFluxIntense * tMod;
 
   switch (arc.phase) {
     case 'SILENCE':
-      if (rms > CFG.arcRmsBuilding && traj === 1) setArcPhase('BUILDING');
-      else if (rms > CFG.arcRmsActive) setArcPhase('ACTIVE');
+      if (rms > rmsBuilding && traj === 1) setArcPhase('BUILDING');
+      else if (rms > rmsActive) setArcPhase('ACTIVE');
       break;
     case 'BUILDING':
-      if (rms < CFG.arcRmsSilence) setArcPhase('SILENCE');
-      else if (rms > CFG.arcRmsActive && rhyt > 0.25) setArcPhase('ACTIVE');
+      if (rms < rmsSilence) setArcPhase('SILENCE');
+      else if (rms > rmsActive && rhyt > 0.25) setArcPhase('ACTIVE');
       break;
     case 'ACTIVE':
-      if (rms < CFG.arcRmsSilence) setArcPhase('SILENCE');
-      else if (rms < CFG.arcRmsBuilding && traj === -1) setArcPhase('BUILDING');
-      else if (rms > CFG.arcRmsIntense && flux > CFG.arcFluxIntense) setArcPhase('INTENSE');
+      if (rms < rmsSilence) setArcPhase('SILENCE');
+      else if (rms < rmsBuilding && traj === -1) setArcPhase('BUILDING');
+      else if (rms > rmsIntense && flux > fluxIntense) setArcPhase('INTENSE');
       break;
     case 'INTENSE':
-      if (rms < CFG.arcRmsBuilding) setArcPhase('ACTIVE');
-      else if (rms > CFG.arcRmsPeak) setArcPhase('PEAK');
+      if (rms < rmsBuilding) setArcPhase('ACTIVE');
+      else if (rms > rmsPeak) setArcPhase('PEAK');
       break;
     case 'PEAK':
-      if (rms < CFG.arcRmsIntense && traj === -1) setArcPhase('DECAY');
+      if (rms < rmsIntense && traj === -1) setArcPhase('DECAY');
       break;
     case 'DECAY':
-      if (rms < CFG.arcRmsSilence) setArcPhase('SILENCE');
-      else if (rms > CFG.arcRmsIntense && traj === 1) setArcPhase('ACTIVE');
-      else if (rms > CFG.arcRmsPeak) setArcPhase('PEAK');
+      if (rms < rmsSilence) setArcPhase('SILENCE');
+      else if (rms > rmsIntense && traj === 1) setArcPhase('ACTIVE');
+      else if (rms > rmsPeak) setArcPhase('PEAK');
       break;
   }
 }
@@ -581,6 +597,10 @@ export const framing = {
   current: 'WIDE', targetZoom: 1, targetX: 0, targetY: 0,
   zoom: 1, offsetX: 0, offsetY: 0,
   panDirX: 0, panTime: 0, macroTimer: 0,
+  // Camera ritmica impulses
+  _zoomImpulse: 0,
+  _panImpulseX: 0,
+  _panImpulseY: 0,
 };
 export let autoCamera = true;
 
@@ -647,9 +667,18 @@ function pickAutoShot(state, W, H) {
     else setFraming('MACRO', W, H);
     return;
   }
+  // Camera narrativa — MACRO follows solos (voice/lead active, pulse quiet)
+  const voiceDensity = (midi.channels[5] ? midi.channels[5].density : 0)
+                     + (midi.channels[6] ? midi.channels[6].density : 0);
+  const pulseDensity = midi.channels[0] ? midi.channels[0].density : 0;
+  if (voiceDensity > 0.4 && pulseDensity < 0.2) {
+    if (!prefs || prefs.cameraAllow.has('MACRO')) {
+      return setFraming('MACRO', W, H);
+    }
+  }
+
   // DRIFT_BIAS — default, engine-aware
   if (prefs) {
-    // Bias toward engine's preferred framing
     const allowed = [...prefs.cameraAllow];
     const pick = allowed[Math.floor(Math.random() * allowed.length)];
     return setFraming(pick, W, H);
@@ -716,6 +745,31 @@ export function updateDirector(dt, state, globalTime, W, H) {
   updateArc(dt, state);
   updateSceneBlend(dt);
 
+  // Dynamic compositions — regions react to arc and intensity
+  if (scene.regions.length > 0) {
+    // Work on copies to avoid corrupting static composition data
+    scene.regions = scene.regions.map(r => {
+      const dr = { ...r };
+      if (arc.phase === 'PEAK') {
+        // Collapse toward uniform (all mul → 1.0)
+        dr.mul += (1.0 - dr.mul) * dt * 0.5;
+      } else if (arc.phase === 'SILENCE' || arc.phase === 'DECAY') {
+        // Extremize: dense denser, sparse sparser
+        dr.mul += (dr.mul > 1 ? 0.3 : -0.15) * dt;
+        dr.mul = Math.max(0.01, dr.mul);
+      }
+      // Intensity-driven scaling: dense regions grow with intensity
+      if (dr.mul > 1) {
+        dr.mul *= 1 + (state.intensity - 0.4) * dt * 0.3;
+      }
+      // Downbeat pulse on divider lines (mul > 2.5)
+      if (dr.mul > 2.5 && framing._zoomImpulse > 0.01) {
+        dr.mul += framing._zoomImpulse * 8;
+      }
+      return dr;
+    });
+  }
+
   // Arc-driven density clamping
   const arcParams = ARC_PARAMS[arc.phase] || ARC_PARAMS.ACTIVE;
   if (arc.phase === 'SILENCE') {
@@ -736,6 +790,11 @@ export function updateDirector(dt, state, globalTime, W, H) {
     if (director.beatAccum >= beatDuration) {
       director.beatAccum -= beatDuration;
       director.barCount++;
+
+      // Camera ritmica — micro-zoom on downbeat (every bar)
+      if (director.barCount % 4 === 0) {
+        framing._zoomImpulse = 0.025;
+      }
 
       if (director.barCount % 4 === 0) {
         const barNum = director.barCount / 4;
@@ -772,11 +831,22 @@ export function updateDirector(dt, state, globalTime, W, H) {
     }
   }
 
-  // Camera lerp
+  // Camera ritmica — micro-pan on onset
+  if (audio.onset) {
+    framing._panImpulseX = (Math.random() - 0.5) * W * 0.02;
+    framing._panImpulseY = (Math.random() - 0.5) * H * 0.01;
+  }
+
+  // Decay camera impulses
+  framing._zoomImpulse *= Math.max(0, 1 - dt * 3);
+  framing._panImpulseX *= Math.max(0, 1 - dt * 4);
+  framing._panImpulseY *= Math.max(0, 1 - dt * 4);
+
+  // Camera lerp with impulses
   const s = state.rhythmicity > 0.5 ? CFG.camLerpFast : CFG.camLerpSlow;
-  framing.zoom += (framing.targetZoom - framing.zoom) * s;
-  framing.offsetX += (framing.targetX - framing.offsetX) * s;
-  framing.offsetY += (framing.targetY - framing.offsetY) * s;
+  framing.zoom += (framing.targetZoom + framing._zoomImpulse - framing.zoom) * s;
+  framing.offsetX += (framing.targetX + framing._panImpulseX - framing.offsetX) * s;
+  framing.offsetY += (framing.targetY + framing._panImpulseY - framing.offsetY) * s;
 
   if (framing.current === 'DRIFT') {
     const poi = findPOI();
@@ -797,6 +867,16 @@ export function applyCamera(ctx, W, H) {
   ctx.translate(W / 2, H / 2);
   ctx.scale(framing.zoom, framing.zoom);
   ctx.translate(-W / 2 + framing.offsetX, -H / 2 + framing.offsetY);
+}
+
+// ── Sequencer camera requests (uses stored W, H) ──
+export function requestFraming(type) {
+  setFraming(type, _W, _H);
+}
+
+export function requestCameraShake(intensity) {
+  framing._panImpulseX = (Math.random() - 0.5) * _W * intensity;
+  framing._panImpulseY = (Math.random() - 0.5) * _H * intensity;
 }
 
 // ── Composer override ──
@@ -848,6 +928,7 @@ export function initDirectorEvents() {
     if (stage === 'presagio'      && neg) transitionToScene(neg, false);
     if (stage === 'infiltrazione' && autoCamera) pickAutoShot(_state, _W, _H);
     if (stage === 'takeover') {
+      arc._ruptureBoost = Math.min(0.3, arc._ruptureBoost + 0.15);
       setComposerClimax(true);
       if (den) transitionToScene(den, true);
     }

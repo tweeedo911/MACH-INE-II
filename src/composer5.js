@@ -1,25 +1,37 @@
 // ═══════════════════════════════════════════════════════════
 //  MACH:INE II — Composer 5 (CRISTALLO)
-//  Eb Lydian · 54 BPM · ambient cristallino · shimmer arpeggios
+//  E Lydian · 54 BPM · ambient cristallino · shimmer arpeggios
 // ═══════════════════════════════════════════════════════════
 
 import { CFG } from './config.js';
 import { state } from './state.js';
-import { sendMIDINote, sendMIDIAllNotesOff } from './midi.js';
+import { sendMIDINote as _rawSend, sendMIDIAllNotesOff } from './midi.js';
 import { setArcPhaseForced, releaseArcHold } from './director.js';
 import { setComposerClimax } from './colors.js';
-import { addMidiNote } from './field.js';
+import { addMidiNote as _rawAddMidi } from './field.js';
 import { emit } from './director-events.js';
 import { setEngine } from './midi-patterns.js';
+import { getPresenceMultiplier, isChannelAllowed } from './presence-multiplier.js';
 
-// ── Scale modes Eb (nota MIDI: Eb3 = 51) ──
+// ── Presence-scaled MIDI output (with channel priority) ──
+function sendMIDINote(ch, note, vel, dur) {
+  const pm = getPresenceMultiplier('cristallo');
+  if (pm < 0.05) return;
+  if (!isChannelAllowed('cristallo', ch)) return;
+  _rawSend(ch, note, Math.max(1, Math.round(vel * pm)), dur);
+}
+function addMidiNote(ch, x, intensity) {
+  _rawAddMidi(ch, x, intensity * getPresenceMultiplier('cristallo'));
+}
+
+// ── Scale modes E (nota MIDI: E3 = 52) ──
 const MODES5 = {
-  Eb_lydian: [51,53,55,57,58,60,62, 63,65,67,69,70,72,74, 75,77,79,81,82,84,86],
-  E_locrian: [52,53,55,57,58,60,62, 64,65,67,69,70,72,74, 76,77,79,81,82,84,86],
+  E_lydian:  [52,54,56,58,59,61,63, 64,66,68,70,71,73,75, 76,78,80,82,83,85,87],
+  F_locrian: [53,54,56,58,59,61,63, 65,66,68,70,71,73,75, 77,78,80,82,83,85,87],
 };
 
-// Pivot pitch classes: Eb=3, G=7, Bb=10
-const PIVOT_CLASSES5 = new Set([3, 7, 10]);
+// Pivot pitch classes: E=4, G#=8, B=11
+const PIVOT_CLASSES5 = new Set([4, 8, 11]);
 
 // Presenza target [chords, voice, grain, pulse] per fase
 const PHASE_PRESENCE5 = {
@@ -39,14 +51,14 @@ let arcProgress = 0;
 let clock = 0;
 let lastBeat = -1;
 
-let currentMode = 'Eb_lydian';
-let currentDrone = 51;
+let currentMode = 'E_lydian';
+let currentDrone = 52;
 
 let ruptureStage = 'idle';
 let lastRuptureStage = 'idle';
 
 const presence = [0, 0, 0, 0];
-let lastChord = [63, 67, 70]; // Eb G Bb initial
+let lastChord = [64, 68, 71]; // E G# B initial
 let shimmerTimer = 0;
 let chordBarCount = 0;
 let debugTimer = 0;
@@ -61,9 +73,9 @@ export function initComposer5() {
   ruptureStage = 'idle';
   lastRuptureStage = 'idle';
   presence.fill(0);
-  currentMode = 'Eb_lydian';
-  currentDrone = 51;
-  lastChord = [63, 67, 70];
+  currentMode = 'E_lydian';
+  currentDrone = 52;
+  lastChord = [64, 68, 71];
   shimmerTimer = 0;
   chordBarCount = 0;
 }
@@ -74,7 +86,7 @@ export function toggleComposer5() {
   if (composer5Active) {
     initComposer5();
     setEngine('cristallo');
-    console.log('[COMPOSER5] ON — Eb Lydian CRISTALLO 54bpm');
+    console.log('[COMPOSER5] ON — E Lydian CRISTALLO 54bpm');
   } else {
     sendMIDIAllNotesOff();
     setComposerClimax(false);
@@ -302,7 +314,7 @@ function onBeat(beat) {
   if (ruptureStage !== 'idle' && ruptureStage !== 'residuo') {
     if (ruptureStage === 'takeover' && beat % 2 === 0) {
       // Cluster: fire many notes simultaneously
-      const scale = MODES5['E_locrian'];
+      const scale = MODES5['F_locrian'];
       const count = 3 + Math.floor(Math.random() * 4);
       for (let i = 0; i < count; i++) {
         const note = scale[Math.floor(Math.random() * scale.length)];
@@ -311,7 +323,7 @@ function onBeat(beat) {
         addMidiNote(7, note / 127, vel / 127);
       }
     } else if (beat % 8 === 0) {
-      const scale = MODES5['E_locrian'];
+      const scale = MODES5['F_locrian'];
       const note  = scale[Math.floor(Math.random() * scale.length)];
       const vel   = Math.floor(45 + rc * 40);
       sendMIDINote(7, note, vel, beatMs * 0.6);
@@ -322,9 +334,10 @@ function onBeat(beat) {
 
 // ── State injection ──
 function injectState() {
+  const pm = getPresenceMultiplier('cristallo');
   const activeCount = presence.filter(p => p > 0.3).length;
-  state.intensity   = Math.min(1, 0.1 + arcProgress * 0.4 + activeCount * 0.08);
-  state.rhythmicity = Math.min(1, presence[3] * 0.5 + presence[2] * 0.2);
+  state.intensity   = Math.min(1, 0.1 + arcProgress * 0.4 + activeCount * 0.08) * pm;
+  state.rhythmicity = Math.min(1, presence[3] * 0.5 + presence[2] * 0.2) * pm;
   state.trajectory  = arcProgress > 0.7 ? -1 : arcProgress > 0.3 ? 0 : 1;
 }
 

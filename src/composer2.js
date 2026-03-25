@@ -1,27 +1,39 @@
 // ═══════════════════════════════════════════════════════════
 //  MACH:INE II — Composer 2 (Secondo Organismo Compositivo)
-//  Centro gravitazionale: C# Dorian · layer sfasati · dialogo col director
+//  Centro gravitazionale: A Dorian · layer sfasati · dialogo col director
 // ═══════════════════════════════════════════════════════════
 
 import { CFG } from './config.js';
 import { state } from './state.js';
-import { sendMIDINote, sendMIDIAllNotesOff } from './midi.js';
+import { sendMIDINote as _rawSend, sendMIDIAllNotesOff } from './midi.js';
 import { setArcPhaseForced, releaseArcHold } from './director.js';
 import { setComposerClimax } from './colors.js';
-import { addMidiNote } from './field.js';
+import { addMidiNote as _rawAddMidi } from './field.js';
 import { emit } from './director-events.js';
 import { setEngine } from './midi-patterns.js';
+import { getPresenceMultiplier, isChannelAllowed } from './presence-multiplier.js';
 
-// ── Scale modes C# (nota MIDI: C#4 = 61) ──
+// ── Presence-scaled MIDI output (with channel priority) ──
+function sendMIDINote(ch, note, vel, dur) {
+  const pm = getPresenceMultiplier('meccanica');
+  if (pm < 0.05) return;
+  if (!isChannelAllowed('meccanica', ch)) return;
+  _rawSend(ch, note, Math.max(1, Math.round(vel * pm)), dur);
+}
+function addMidiNote(ch, x, intensity) {
+  _rawAddMidi(ch, x, intensity * getPresenceMultiplier('meccanica'));
+}
+
+// ── Scale modes A (nota MIDI: A3 = 57) ──
 const MODES2 = {
-  Cs_dorian:   [61,63,64,66,68,70,71,73,75,76,78,80,82,83,85],
-  Cs_phrygian: [61,62,64,66,68,69,71,73,74,76,78,80,81,83,85],
-  Gs_lydian:   [68,70,72,73,75,77,79,80,82,84,85,87,89,91,92],
-  D_locrian:   [62,63,65,67,68,70,72,74,75,77,79,80,82,84,86],
+  A_dorian:   [45,47,48,50,52,54,55,57,59,60,62,64,66,67,69,71,72,74,76,78,79,81],
+  A_phrygian: [45,46,48,50,52,53,55,57,58,60,62,64,65,67,69,70,72,74,76,77,79,81],
+  E_lydian:   [52,54,56,58,59,61,63,64,66,68,70,71,73,75,76,78,80,82,83,85,87],
+  Bb_locrian: [46,47,49,51,52,54,56,58,59,61,63,64,66,68,70,71,73,75,76,78,80],
 };
 
-// Pivot pitch classes: C#=1, E=4, G#=8 (mod 12, C=0)
-const PIVOT_CLASSES2 = new Set([1, 4, 8]);
+// Pivot pitch classes: A=9, C=0, E=4 (mod 12)
+const PIVOT_CLASSES2 = new Set([9, 0, 4]);
 
 // Presenza target per layer [harmonic, rhythmic, textural, melodic] per fase
 const PHASE_PRESENCE2 = {
@@ -68,9 +80,9 @@ let lastBeat = -1;
 const layers = {};    // { harmonic, rhythmic, textural, melodic }
 const presence = [0, 0, 0, 0]; // presenza corrente per layer
 
-let currentMode = 'Cs_dorian';
-let currentDrone = 61;
-let lastChord = [61, 64, 68];  // C# E G# iniziale
+let currentMode = 'A_dorian';
+let currentDrone = 57;
+let lastChord = [57, 60, 64];  // A C E iniziale
 
 let ruptureStage = 'idle';
 let lastRuptureStage = 'idle';
@@ -109,7 +121,7 @@ export function toggleComposer2() {
   if (composer2Active) {
     initComposer2();
     setEngine('meccanica');
-    console.log('[COMPOSER2] ON — C# Dorian MECCANICA 98bpm');
+    console.log('[COMPOSER2] ON — A Dorian MECCANICA 98bpm');
   } else {
     sendMIDIAllNotesOff();
     setComposerClimax(false);
@@ -214,13 +226,13 @@ function updateRupture() {
   }
 }
 
-// Fixed chord progressions per phase (MIDI absolute — C# Dorian / G# Lydian)
+// Fixed chord progressions per phase (MIDI absolute — A Dorian / E Lydian)
 const CHORD_PROGS2 = {
-  germoglio:    [[61,64,68]],                                                      // C#m
-  pulsazione:   [[61,64,68],[64,68,71],[66,69,73],[61,64,68]],                    // C#m → E → F#m → C#m
-  densita:      [[61,64,68],[64,68,71],[66,69,73],[68,71,75],[64,68,71],[61,66,68]], // C#m→E→F#m→G#m→E→C#sus
+  germoglio:    [[57,60,64]],                                                      // Am
+  pulsazione:   [[57,60,64],[60,64,67],[62,65,69],[57,60,64]],                    // Am → C → Dm → Am
+  densita:      [[57,60,64],[60,64,67],[62,65,69],[64,67,71],[60,64,67],[57,62,64]], // Am→C→Dm→Em→C→Asus
   rottura:      null,
-  dissoluzione: [[61,64,68],[64,68,71],[61,64,68]],                                // C#m → E → C#m
+  dissoluzione: [[57,60,64],[60,64,67],[57,60,64]],                                // Am → C → Am
 };
 let chordProgIdx2 = 0;
 
@@ -388,7 +400,7 @@ function onBeat(beat) {
   if (ruptureStage !== 'idle' && ruptureStage !== 'residuo') {
     const ruptureEvery = ruptureStage === 'presagio' ? 8 : 4;
     if (barBeat === 0 && bar % ruptureEvery === 0) {
-      const scale = MODES2['D_locrian'];
+      const scale = MODES2['Bb_locrian'];
       const note  = scale[Math.floor(Math.random() * scale.length)];
       const vel   = Math.floor(55 + rc * 55);
       sendMIDINote(7, note, vel, beatMs * 0.6);
@@ -425,9 +437,10 @@ function emitLayerEvents() {
 
 // ── State injection ──
 function injectState() {
+  const pm = getPresenceMultiplier('meccanica');
   const activeCount = presence.filter(p => p > 0.3).length;
-  state.intensity    = Math.min(1, 0.2 + arcProgress * 0.5 + activeCount * 0.1);
-  state.rhythmicity  = Math.min(1, presence[1] * 0.8 + presence[2] * 0.2);
+  state.intensity    = Math.min(1, 0.2 + arcProgress * 0.5 + activeCount * 0.1) * pm;
+  state.rhythmicity  = Math.min(1, presence[1] * 0.8 + presence[2] * 0.2) * pm;
   state.trajectory   = arcProgress > 0.7 ? -1 : arcProgress > 0.3 ? 0 : 1;
 }
 

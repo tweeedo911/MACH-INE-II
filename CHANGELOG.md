@@ -5,6 +5,37 @@ Formato: `[versione] – data – descrizione`
 
 ---
 
+## [v2.0.0] – 2026-03-25
+
+**Concerto narrativo a 5 atti — struttura drammaturgica completa per performance 40 minuti.**
+
+### Aggiunto
+- **Sequencer v3**: struttura a 5 atti (EMERGENZA / DISCESA / MACCHINA / VORTICE / RITORNO) con sovrapposizione multi-motore simultanea
+- **Presence multiplier system** (`presence-multiplier.js`): ogni motore ha un coefficiente 0→1 che modula la generazione musicale senza spegnere il motore — consente crossfade tra motori sovrapposti
+- **Channel gating**: tutti i 6 composer rispettano il presence multiplier, scalando velocity e densita delle note MIDI proporzionalmente
+- **Momenti-firma**: GELO (min 24 — entita congelate), CONVERGENZA (min 33 — attrazione al centro), INVERSIONE (min 34 — climax globale tutti i motori al massimo), VUOTO TOTALE (min 36 — blackout)
+- **Apertura concerto**: emersione quadratica da zero in 120s (`firma.densityCap`), DERIVA attiva a t=30 quando il campo e al ~6% di luminosita
+- **Chiusura concerto**: dissoluzione quadratica negli ultimi 90s (da t=2310 a t=2400)
+- **Colore progressivo**: colori sbloccati per atto — Atto I monocromo, Atto II +accent1, Atto III +accent2, Atto IV +accent3 solo in climax
+- **Climax cromatico reale**: bg palette tinta verso magenta scuro + boost alpha entita (sostituisce overlay debole)
+- **Palette engine-specific**: ice (CRISTALLO), abyssal (ABISSO), steel (MECCANICA), ikeda (VORTICE)
+- **MIDI colors engine-aware**: palette MIDI dedicate per CRISTALLO (ice blues), VORTICE (bianco/rosso), ABISSO (deep blue/viola), MECCANICA (industrial red)
+- **Camera breathing**: oscillazione ritmica zoom/offset sincronizzata al BPM del motore attivo
+- **Camera DRIFT**: nuovo shot con shake opzionale per VORTICE
+- **Tensione narrativa**: tracking tensione nell'arco del director, modulazione soglie fasi, boost da rupture takeover
+- **Impatto e contrasto temporale**: metriche narrative in state.js per variazioni improvvise di intensita
+- **Audio input gain**: default aumentato a 5.0× per segnali deboli (regolabile `[` `]`)
+
+### Modificato
+- `sequencer.js` riscritto: da lineare 6-motori a struttura 5 atti con cue system (silence/activate/layer/fade_to/camera/firma/end) e transizioni simultanee con ease cubica
+- `director.js`: ENGINE_PREFS esteso con camera allow set, breathing, palette engine-dedicated
+- `field.js`: densityCap applicato uniformemente a tutta la composizione (ambient + MIDI + entita)
+- `colors.js`: desaturazione progressiva per atto, bg tinting in climax, engine MIDI color overrides
+- `main.js`: supporto multi-motore simultaneo tramite presence multiplier (non piu mutua esclusione pura)
+- `midi-patterns.js`: DERIVA chords size 0.09→0.16 per maggiore visibilita
+
+---
+
 ## [v1.7.0] – 2026-03-25
 
 **Qualita musicale avanzata + MIDI Clock reale + debug generale.**

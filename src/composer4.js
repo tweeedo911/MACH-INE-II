@@ -1,22 +1,34 @@
 // ═══════════════════════════════════════════════════════════
 //  MACH:INE II — Composer 4 (VORTICE)
-//  F Phrygian · 138 BPM · tribal-industriale · micro-loop tessiture
+//  E Phrygian · 138 BPM · tribal-industriale · micro-loop tessiture
 //  Step sequencer a 16th note, pattern costanti, variazione ogni 16 bar
 // ═══════════════════════════════════════════════════════════
 
 import { CFG } from './config.js';
 import { state } from './state.js';
-import { sendMIDINote, sendMIDIAllNotesOff } from './midi.js';
+import { sendMIDINote as _rawSend, sendMIDIAllNotesOff } from './midi.js';
 import { setArcPhaseForced, releaseArcHold } from './director.js';
 import { setComposerClimax } from './colors.js';
-import { addMidiNote } from './field.js';
+import { addMidiNote as _rawAddMidi } from './field.js';
 import { emit } from './director-events.js';
 import { setEngine } from './midi-patterns.js';
+import { getPresenceMultiplier, isChannelAllowed } from './presence-multiplier.js';
 
-// ── Scale modes F (nota MIDI: F3 = 53) ──
+// ── Presence-scaled MIDI output (with channel priority) ──
+function sendMIDINote(ch, note, vel, dur) {
+  const pm = getPresenceMultiplier('vortice');
+  if (pm < 0.05) return;
+  if (!isChannelAllowed('vortice', ch)) return;
+  _rawSend(ch, note, Math.max(1, Math.round(vel * pm)), dur);
+}
+function addMidiNote(ch, x, intensity) {
+  _rawAddMidi(ch, x, intensity * getPresenceMultiplier('vortice'));
+}
+
+// ── Scale modes E (nota MIDI: E3 = 52) ──
 const MODES4 = {
-  F_phrygian: [53,54,56,58,60,61,63, 65,66,68,70,72,73,75, 77,78,80,82,84,85,87],
-  B_locrian:  [47,48,50,52,53,55,57, 59,60,62,64,65,67,69, 71,72,74,76,77,79,81],
+  E_phrygian: [52,53,55,57,59,60,62, 64,65,67,69,71,72,74, 76,77,79,81,83,84,86],
+  F_locrian:  [53,54,56,58,59,61,63, 65,66,68,70,71,73,75, 77,78,80,82,83,85,87],
 };
 
 // ── Pattern library (16-step, 16th note resolution) ──
@@ -114,8 +126,8 @@ export function initComposer4() {
   ruptureStage = 'idle';
   lastRuptureStage = 'idle';
   presence.fill(0);
-  currentMode = 'F_phrygian';
-  currentDrone = 53;
+  currentMode = 'E_phrygian';
+  currentDrone = 52;
   lastKickBar = -1;
   lastGhostBar = -1;
   lastBassBar = -1;
@@ -130,7 +142,7 @@ export function toggleComposer4() {
   if (composer4Active) {
     initComposer4();
     setEngine('vortice');
-    console.log('[COMPOSER4] ON — F Phrygian VORTICE 138bpm');
+    console.log('[COMPOSER4] ON — E Phrygian VORTICE 138bpm');
   } else {
     sendMIDIAllNotesOff();
     setComposerClimax(false);
@@ -254,12 +266,12 @@ function onStep(step) {
     addMidiNote(0, currentDrone / 127, vel / 127);
   }
 
-  // ── CH3 BASS — hypnotic with Gb (b2) tension ──
+  // ── CH3 BASS — hypnotic with F (b2) tension ──
   if (bassPat[s16] && name !== 'rottura') {
-    const bassRoot = currentDrone - 24; // F1
-    const flatTwo  = bassRoot + 1;      // Gb1 — Phrygian signature
-    const fifth    = bassRoot + 7;      // C2
-    const minThird = bassRoot + 3;      // Ab1
+    const bassRoot = currentDrone - 24; // E1
+    const flatTwo  = bassRoot + 1;      // F1 — Phrygian signature
+    const fifth    = bassRoot + 7;      // B1
+    const minThird = bassRoot + 3;      // G1
     // Pattern: root → Gb(tension) → root → fifth, with bar variation
     const bassSeq = [bassRoot, flatTwo, bassRoot, fifth];
     const altSeq  = [bassRoot, minThird, flatTwo, bassRoot];
@@ -332,7 +344,7 @@ function onStep(step) {
 
   // ── CH5 VOICE — minimal recurring motif every 2 bars ──
   if (presence[3] > 0.2 && s16 === 0 && step % 32 === 0) {
-    // Short 2-note motif anchored to F Phrygian: root + b2 or root + 5th
+    // Short 2-note motif anchored to E Phrygian: root + b2 or root + 5th
     const hi = scale.filter(n => n >= 72 && n <= 84);
     const pool = hi.length > 0 ? hi : scale;
     const note1 = pool[bar % pool.length]; // evolves with bar count
@@ -356,7 +368,7 @@ function onStep(step) {
     const ruptureEvery = ruptureStage === 'presagio' ? 8 :
                          ruptureStage === 'takeover'  ? 2 : 4;
     if (step % ruptureEvery === 0) {
-      const rScale = MODES4['B_locrian'];
+      const rScale = MODES4['F_locrian'];
       const note   = rScale[Math.floor(Math.random() * rScale.length)];
       const vel    = Math.floor(60 + rc * 60);
       sendMIDINote(7, note, vel, stepMs * 1.5);
@@ -367,9 +379,10 @@ function onStep(step) {
 
 // ── State injection ──
 function injectState() {
+  const pm = getPresenceMultiplier('vortice');
   const activeCount = presence.filter(p => p > 0.3).length;
-  state.intensity   = Math.min(1, 0.35 + arcProgress * 0.45 + activeCount * 0.1);
-  state.rhythmicity = Math.min(1, 0.4 + presence[0] * 0.4 + presence[1] * 0.2);
+  state.intensity   = Math.min(1, 0.35 + arcProgress * 0.45 + activeCount * 0.1) * pm;
+  state.rhythmicity = Math.min(1, 0.4 + presence[0] * 0.4 + presence[1] * 0.2) * pm;
   state.trajectory  = arcProgress > 0.7 ? -1 : arcProgress > 0.3 ? 0 : 1;
 }
 

@@ -95,7 +95,7 @@ const ENGINE_BEHAVIORS = {
   deriva: {
     1: { zone: [0.00, 1.00], xMode: 'random', shape: 'scatter', size: 0.05, decay: 0.965,  color: null },
     2: { zone: [0.00, 1.00], xMode: 'center', shape: 'scatter', size: 0.10, decay: 0.9999, color: null },
-    4: { zone: [0.20, 0.80], xMode: 'pitch',  shape: 'band',    size: 0.09, decay: 0.993,  color: 2 },
+    4: { zone: [0.20, 0.80], xMode: 'pitch',  shape: 'band',    size: 0.16, decay: 0.993,  color: 2 },
     5: { zone: [0.05, 0.55], xMode: 'pitch',  shape: 'trail',   size: 0.06, decay: 0.992,  color: 3 },
     6: { zone: [0.10, 0.60], xMode: 'pitch',  shape: 'trail',   size: 0.05, decay: 0.988,  color: 3 },
   },

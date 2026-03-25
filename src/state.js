@@ -15,6 +15,7 @@ export const state = {
   brightness: 0,      // 0-1, from spectral centroid
   trajectory: 0,      // -1/0/+1, from audio.trajectory
   stereoWidth: 0,     // 0-1, from 1 - stereoCorrelation
+  impact: 0,          // 0-1, temporal contrast (instant - rolling avg)
 };
 
 // ── Internal: onset regularity tracking ──
@@ -24,6 +25,11 @@ const MAX_REGULARITY_ONSETS = 60;
 
 // Smoothing factor for EMA (lower = faster response)
 const SMOOTH = 0.65;
+
+// ── Internal: temporal contrast (5-sec rolling buffer) ──
+const CONTRAST_WINDOW = 5;
+let contrastSamples = [];
+let lastContrastSample = 0;
 
 // ── Per-frame update ──
 export function updateState() {
@@ -79,4 +85,18 @@ export function updateState() {
   // ── Stereo Width ──
   const rawWidth = 1 - audio.stereoCorrelation;
   state.stereoWidth = state.stereoWidth * SMOOTH + rawWidth * (1 - SMOOTH);
+
+  // ── Temporal Contrast (Impact) ──
+  if (now - lastContrastSample >= 0.1) {
+    lastContrastSample = now;
+    contrastSamples.push({ t: now, v: state.intensity });
+    const cutoffC = now - CONTRAST_WINDOW;
+    while (contrastSamples.length > 0 && contrastSamples[0].t < cutoffC) {
+      contrastSamples.shift();
+    }
+  }
+  if (contrastSamples.length > 2) {
+    const avg = contrastSamples.reduce((s, b) => s + b.v, 0) / contrastSamples.length;
+    state.impact = Math.min(1, Math.max(0, state.intensity - avg));
+  }
 }

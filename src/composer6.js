@@ -1,33 +1,45 @@
 // ═══════════════════════════════════════════════════════════
 //  MACH:INE II — Composer 6 (ABISSO)
-//  Bb Phrygian · 76 BPM · drone rituale · risalita in rottura
+//  B Phrygian · 76 BPM · drone rituale · risalita in rottura
 // ═══════════════════════════════════════════════════════════
 
 import { CFG } from './config.js';
 import { state } from './state.js';
-import { sendMIDINote, sendMIDIAllNotesOff } from './midi.js';
+import { sendMIDINote as _rawSend, sendMIDIAllNotesOff } from './midi.js';
 import { setArcPhaseForced, releaseArcHold } from './director.js';
 import { setComposerClimax } from './colors.js';
-import { addMidiNote } from './field.js';
+import { addMidiNote as _rawAddMidi } from './field.js';
 import { emit } from './director-events.js';
 import { setEngine } from './midi-patterns.js';
+import { getPresenceMultiplier, isChannelAllowed } from './presence-multiplier.js';
 
-// ── Scale modes Bb (nota MIDI: Bb2 = 46) ──
+// ── Presence-scaled MIDI output (with channel priority) ──
+function sendMIDINote(ch, note, vel, dur) {
+  const pm = getPresenceMultiplier('abisso');
+  if (pm < 0.05) return;
+  if (!isChannelAllowed('abisso', ch)) return;
+  _rawSend(ch, note, Math.max(1, Math.round(vel * pm)), dur);
+}
+function addMidiNote(ch, x, intensity) {
+  _rawAddMidi(ch, x, intensity * getPresenceMultiplier('abisso'));
+}
+
+// ── Scale modes B (nota MIDI: B2 = 47) ──
 const MODES6 = {
-  Bb_phrygian: [46,47,49,51,53,54,56, 58,59,61,63,65,66,68, 70,71,73,75,77,78,80],
-  B_locrian:   [47,48,50,52,53,55,57, 59,60,62,64,65,67,69, 71,72,74,76,77,79,81],
+  B_phrygian: [47,48,50,52,54,55,57, 59,60,62,64,66,67,69, 71,72,74,76,78,79,81],
+  C_locrian:  [48,49,51,53,54,56,58, 60,61,63,65,66,68,70, 72,73,75,77,78,80,82],
 };
 
-// Chord progressions for ABISSO (Bb Phrygian — dark, ritualistic)
+// Chord progressions for ABISSO (B Phrygian — dark, ritualistic)
 const CHORD_PROGS6 = {
-  germoglio:    [[46,49,53]],                                         // Bbm
-  pulsazione:   [[46,49,53],[47,51,54],[46,49,53]],                  // Bbm → Cb → Bbm
-  densita:      [[46,49,53],[47,51,54],[49,53,56],[46,49,54]],       // Bbm → Cb → Dbm → Bbsus
+  germoglio:    [[47,50,54]],                                         // Bm
+  pulsazione:   [[47,50,54],[48,52,55],[47,50,54]],                  // Bm → C → Bm
+  densita:      [[47,50,54],[48,52,55],[50,54,57],[47,50,55]],       // Bm → C → Dm → Bsus
   rottura:      null,
-  dissoluzione: [[46,49,53],[47,51,54],[46,49,53]],                  // Bbm → Cb → Bbm
+  dissoluzione: [[47,50,54],[48,52,55],[47,50,54]],                  // Bm → C → Bm
 };
 let chordProgIdx6 = 0;
-let lastChord6 = [46, 49, 53];
+let lastChord6 = [47, 50, 54];
 
 // Presenza target [bass, drone, voice, grain, chords] per fase — 5 channels now
 const PHASE_PRESENCE6 = {
@@ -66,10 +78,10 @@ export function initComposer6() {
   ruptureStage = 'idle';
   lastRuptureStage = 'idle';
   presence.fill(0);
-  currentMode = 'Bb_phrygian';
-  currentDrone = 46;
+  currentMode = 'B_phrygian';
+  currentDrone = 47;
   chordProgIdx6 = 0;
-  lastChord6 = [46, 49, 53];
+  lastChord6 = [47, 50, 54];
 }
 
 // ── Toggle ──
@@ -78,7 +90,7 @@ export function toggleComposer6() {
   if (composer6Active) {
     initComposer6();
     setEngine('abisso');
-    console.log('[COMPOSER6] ON — Bb Phrygian ABISSO 76bpm');
+    console.log('[COMPOSER6] ON — B Phrygian ABISSO 76bpm');
   } else {
     sendMIDIAllNotesOff();
     setComposerClimax(false);
@@ -264,7 +276,7 @@ function onBeat(beat) {
   if (ruptureStage !== 'idle' && ruptureStage !== 'residuo') {
     const ruptureEvery = ruptureStage === 'presagio' ? 8 : 4;
     if (barBeat === 0 && bar % ruptureEvery === 0) {
-      const scale = MODES6['B_locrian'];
+      const scale = MODES6['C_locrian'];
       const note  = Math.min(127, scale[Math.floor(Math.random() * scale.length)] + octShift);
       const vel   = Math.floor(55 + rc * 55);
       sendMIDINote(7, note, vel, beatMs * 0.8);
@@ -275,9 +287,10 @@ function onBeat(beat) {
 
 // ── State injection ──
 function injectState() {
+  const pm = getPresenceMultiplier('abisso');
   const activeCount = presence.filter(p => p > 0.3).length;
-  state.intensity   = Math.min(1, 0.15 + arcProgress * 0.4 + activeCount * 0.07);
-  state.rhythmicity = Math.min(1, presence[0] * 0.3 + presence[3] * 0.2);
+  state.intensity   = Math.min(1, 0.15 + arcProgress * 0.4 + activeCount * 0.07) * pm;
+  state.rhythmicity = Math.min(1, presence[0] * 0.3 + presence[3] * 0.2) * pm;
   state.trajectory  = arcProgress > 0.7 ? -1 : arcProgress > 0.3 ? 0 : 1;
 }
 

@@ -4,6 +4,7 @@
 
 import { CFG } from './config.js';
 import { dna, primState, isInVuoto, getZone } from './dna.js';
+import { firma } from './sequencer.js';
 
 export let entities = [];
 export let fossils = [];
@@ -127,6 +128,26 @@ export function triggerMIDI(state, colorEnabled, noteNorm, velNorm) {
 
 // ── Per-frame update ──
 export function updateGenerations(dt, state, evoSpeed, inClimax, climaxProgress, colorEnabled, chromaticMode) {
+  // GELO — freeze all entity aging and birth
+  if (firma.gelo) {
+    // Only apply convergenza movement during gelo (if both active)
+    if (firma.convergenza) {
+      for (const e of entities) {
+        e.x += (0.5 - e.x) * dt * 0.3;
+        e.y += (0.5 - e.y) * dt * 0.3;
+      }
+    }
+    return;
+  }
+
+  // CONVERGENZA — attract entities toward center
+  if (firma.convergenza) {
+    for (const e of entities) {
+      e.x += (0.5 - e.x) * dt * 0.3;
+      e.y += (0.5 - e.y) * dt * 0.3;
+    }
+  }
+
   const evoDt = dt * evoSpeed * (dna ? dna.evolutionSpeed : 1);
 
   // Birth — threshold prevents spawning at near-silence

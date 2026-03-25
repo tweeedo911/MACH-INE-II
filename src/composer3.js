@@ -8,11 +8,23 @@
 import { CFG } from './config.js';
 import { state } from './state.js';
 import { audio } from './audio.js';
-import { sendMIDINote, sendMIDIAllNotesOff } from './midi.js';
+import { sendMIDINote as _rawSend, sendMIDIAllNotesOff } from './midi.js';
 import { setArcPhaseForced, releaseArcHold } from './director.js';
 import { setComposerClimax } from './colors.js';
-import { addMidiNote } from './field.js';
+import { addMidiNote as _rawAddMidi } from './field.js';
 import { setEngine } from './midi-patterns.js';
+import { getPresenceMultiplier, isChannelAllowed } from './presence-multiplier.js';
+
+// ── Presence-scaled MIDI output (with channel priority) ──
+function sendMIDINote(ch, note, vel, dur) {
+  const pm = getPresenceMultiplier('deriva');
+  if (pm < 0.05) return;
+  if (!isChannelAllowed('deriva', ch)) return;
+  _rawSend(ch, note, Math.max(1, Math.round(vel * pm)), dur);
+}
+function addMidiNote(ch, x, intensity) {
+  _rawAddMidi(ch, x, intensity * getPresenceMultiplier('deriva'));
+}
 
 // ── Scale modes (A Lydian primary) ──
 const MODES3 = {
@@ -371,9 +383,10 @@ function onDriftBar3(driftBar) {
 // ═══════════════════════════════════════════════════════════
 
 function injectState3() {
+  const pm = getPresenceMultiplier('deriva');
   const active = presence3.filter(p => p > 0.1).length;
-  state.intensity   = Math.min(1, active / 8 + ruptureProgress3 * 0.2);
-  state.rhythmicity = Math.min(1, presence3[0] * 1.2 + presence3[1] * 0.5);
+  state.intensity   = Math.min(1, active / 8 + ruptureProgress3 * 0.2) * pm;
+  state.rhythmicity = Math.min(1, presence3[0] * 1.2 + presence3[1] * 0.5) * pm;
   if (phase === 'densita')           state.trajectory =  1;
   else if (phase === 'dissoluzione') state.trajectory = -1;
   else                               state.trajectory =  0;
