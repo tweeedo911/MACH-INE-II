@@ -486,10 +486,11 @@ function drawMatrice(ctx, state, globalTime, W, H) {
     const ny = row / rows;
     for (let col = 0; col < cols; col++) {
       const nx = col / cols;
-      const d = entityDensityAt(nx, ny, W, H) + state.intensity * 0.3;
-      if (d < 0.15 || Math.random() > d) continue;
+      let d = entityDensityAt(nx, ny, W, H) + state.intensity * 0.5;
+      if (firma.densityCap < 1) d *= firma.densityCap;
+      if (d < 0.06 || Math.random() > d * 1.4) continue;
       const charIdx = Math.floor((globalTime * state.rhythmicity * 3 + col * 7 + row * 13) % chars.length);
-      const alpha = Math.min(1, d) * 0.7;
+      const alpha = Math.min(1, d) * 0.85;
       const fgVal = inverted ? 0 : 255;
       const [cId, cAlpha] = entityColorAt(nx, ny, W, H);
       const cellColor = getCellColor(cId, cAlpha, fgVal);
