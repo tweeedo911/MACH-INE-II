@@ -142,7 +142,6 @@ function updatePhase(dt) {
     phaseIndex = (phaseIndex + 1) % CFG.COMPOSER2.phaseOrder.length;
     phaseTime = 0;
     arcProgress = 0;
-    chordProgIdx2 = 0;
     console.log(`[COMPOSER2] → ${currentPhaseName()}`);
   }
 }
@@ -214,37 +213,26 @@ function updateRupture() {
   }
 }
 
-// Fixed chord progressions per phase (MIDI absolute — C# Dorian / G# Lydian)
-const CHORD_PROGS2 = {
-  germoglio:    [[61,64,68]],                                                      // C#m
-  pulsazione:   [[61,64,68],[64,68,71],[66,69,73],[61,64,68]],                    // C#m → E → F#m → C#m
-  densita:      [[61,64,68],[64,68,71],[66,69,73],[68,71,75],[64,68,71],[61,66,68]], // C#m→E→F#m→G#m→E→C#sus
-  rottura:      null,
-  dissoluzione: [[61,64,68],[64,68,71],[61,64,68]],                                // C#m → E → C#m
-};
-let chordProgIdx2 = 0;
-
-// ── Chord builder — structured progressions with voice leading ──
+// ── Chord builder con voice leading ──
 function buildChord(mode) {
-  const prog = CHORD_PROGS2[currentPhaseName()];
-  if (prog) {
-    chordProgIdx2 = (chordProgIdx2 + 1) % prog.length;
-    const notes = [...prog[chordProgIdx2]];
-    if (lastChord) {
-      for (let i = 0; i < notes.length; i++) {
-        const diff = notes[i] - lastChord[i];
-        if (Math.abs(diff) > 7) notes[i] += diff > 0 ? -12 : 12;
-      }
-    }
-    lastChord = notes;
-    return notes;
-  }
-  // Rottura: dissonant cluster
   const scale = MODES2[mode];
-  const idx = Math.floor(Math.random() * (scale.length - 2));
-  const notes = [scale[idx], scale[idx + 1], scale[idx + 2]]; // cluster
-  lastChord = notes;
-  return notes;
+  const maxLeap = CFG.COMPOSER2.voiceLeadingMax * 2; // semitoni
+  const newChord = lastChord.map(note => {
+    // Candidati: note nella scala vicine (max leap) + priority pivot
+    const candidates = scale.filter(n => Math.abs(n - note) <= maxLeap);
+    if (candidates.length === 0) {
+      // Fallback: nota più vicina nella scala
+      return scale.reduce((best, n) => Math.abs(n - note) < Math.abs(best - note) ? n : best);
+    }
+    // Preferenza pivot (pitch class indipendente dall'ottava)
+    const pivot = candidates.filter(n => PIVOT_CLASSES2.has(n % 12));
+    if (pivot.length > 0 && Math.random() < 0.4) {
+      return pivot[Math.floor(Math.random() * pivot.length)];
+    }
+    return candidates[Math.floor(Math.random() * candidates.length)];
+  });
+  lastChord = newChord;
+  return newChord;
 }
 
 // ── Melodia con bias pivot ──
@@ -298,27 +286,24 @@ function checkLayerCrossings() {
     }
   }
 
-  // CH5 VOICE + CH6 LEAD — call-and-response melodic system
+  // CH5 VOICE + CH6 LEAD — melodic layer crossing 0.25, 0.5, 0.75
   if (presence[3] > 0.3 && rc < 0.5) {
     for (const th of [0.25, 0.5, 0.75]) {
       if (layers.melodic.crossed(th)) {
         if (Math.random() < presence[3] * 0.7) {
           const note = pickMelodicNote(currentMode);
           const vel  = Math.floor(48 + presence[3] * 50);
-          // CH5 VOICE — the call
+          // CH5 VOICE
           sendMIDINote(5, note, vel, beatMs * 1.8);
           addMidiNote(5, note / 127, vel / 127);
-          // CH6 LEAD — response: invert the interval from last chord root
-          if (presence[3] > 0.5 && Math.random() < 0.5) {
-            const chordRoot = lastChord[0];
-            const interval = note - chordRoot;
-            // Response mirrors the interval (call goes up, response goes down)
-            const responseNote = Math.max(48, Math.min(96, chordRoot - interval));
+          // CH6 LEAD echo (lower vel, slight delay)
+          if (presence[3] > 0.5 && Math.random() < 0.4) {
             setTimeout(() => {
               if (!composer2Active) return;
-              sendMIDINote(6, responseNote, Math.floor(vel * 0.65), beatMs * 1.5);
-              addMidiNote(6, responseNote / 127, (vel * 0.65) / 127);
-            }, Math.round(beatMs * 0.75));
+              const leadNote = pickMelodicNote(currentMode);
+              sendMIDINote(6, leadNote, Math.floor(vel * 0.7), beatMs * 1.2);
+              addMidiNote(6, leadNote / 127, (vel * 0.7) / 127);
+            }, Math.round(beatMs * 0.5));
           }
         }
       }
@@ -328,9 +313,8 @@ function checkLayerCrossings() {
 
 // ── Beat-triggered notes (CH0 PULSE, CH2 DRONE, CH3 BASS, CH7 RUPTURE) ──
 function onBeat(beat) {
-  const bpm       = CFG.COMPOSER2.bpm;
-  const beatMs    = (60 / bpm) * 1000;
-  const shuffleMs = CFG.COMPOSER2.grooveShuffleMs || 10;
+  const bpm    = CFG.COMPOSER2.bpm;
+  const beatMs = (60 / bpm) * 1000;
   const phaseName = currentPhaseName();
   const barBeat   = beat % 4;
   const bar       = Math.floor(beat / 4);
@@ -338,49 +322,36 @@ function onBeat(beat) {
                     ruptureStage === 'infiltrazione' ? 0.4 :
                     ruptureStage === 'presagio'      ? 0.15 : 0;
 
-  // Groove shuffle: offset on even beats (±shuffleMs humanization)
-  const swing = (barBeat % 2 === 0 && barBeat > 0)
-    ? Math.round(shuffleMs + (Math.random() - 0.5) * shuffleMs)
-    : Math.round((Math.random() - 0.5) * shuffleMs * 0.5);
-
-  // CH0 PULSE — 4-on-the-floor kick with groove
+  // CH0 PULSE — 4-on-the-floor kick (beat-locked, mechanical)
   if (presence[1] > 0.3 && rc < 0.6) {
     const pulseEvery = presence[1] > 0.7 ? 1 : 2;
     if (beat % pulseEvery === 0) {
-      const vel = barBeat === 0 ? 110 : Math.floor(78 + presence[1] * 30);
-      setTimeout(() => {
-        if (!composer2Active) return;
-        sendMIDINote(0, currentDrone - 12, vel, beatMs * 0.3);
-        addMidiNote(0, (currentDrone - 12) / 127, vel / 127);
-      }, Math.max(0, swing));
+      const vel = barBeat === 0 ? 110 : Math.floor(82 + presence[1] * 25);
+      sendMIDINote(0, currentDrone - 12, vel, beatMs * 0.3);
+      addMidiNote(0, (currentDrone - 12) / 127, vel / 127);
     }
   }
 
-  // CH3 BASS — chromatic movement: root, chromatic approach, fifth, minor third
+  // CH3 BASS — hypnotic pulsing bassline (root-root-root-fifth per bar)
   if (presence[1] > 0.2 && phaseName !== 'rottura') {
     const bassRoot = currentDrone - 24;
+    const fifth    = bassRoot + 7;
     const bassEvery = presence[1] > 0.6 ? 1 : 2;
     if (beat % bassEvery === 0) {
-      // Chromatic bass pattern: root → root+1 (chromatic) → fifth → minor 3rd
-      const bassPattern = [bassRoot, bassRoot + 1, bassRoot + 7, bassRoot + 3];
-      const bassNote = bassPattern[barBeat % bassPattern.length];
+      const bassNote = barBeat === 3 ? fifth : bassRoot;
       const vel = barBeat === 0
-        ? Math.floor(90 + presence[1] * 27)
-        : Math.floor(72 + presence[1] * 22);
+        ? Math.floor(88 + presence[1] * 30)
+        : Math.floor(72 + presence[1] * 20);
       const gate = presence[1] > 0.7 ? 0.85 : 0.6;
-      setTimeout(() => {
-        if (!composer2Active) return;
-        sendMIDINote(3, bassNote, vel, beatMs * gate);
-        addMidiNote(3, bassNote / 127, vel / 127);
-      }, Math.max(0, swing));
+      sendMIDINote(3, bassNote, vel, beatMs * gate);
+      addMidiNote(3, bassNote / 127, vel / 127);
     }
   }
 
-  // CH2 DRONE — bordone ogni 16 beat, root + fifth
+  // CH2 DRONE — bordone ogni 16 beat, con gap naturale prima del prossimo
   if (beat % 16 === 0 && phaseName !== 'rottura') {
-    const vel = Math.floor(28 + arcProgress * 22);
+    const vel = Math.floor(30 + arcProgress * 20);
     sendMIDINote(2, currentDrone, vel, beatMs * 13);
-    sendMIDINote(2, currentDrone + 7, Math.round(vel * 0.6), beatMs * 13);
     addMidiNote(2, currentDrone / 127, vel / 127);
   }
 

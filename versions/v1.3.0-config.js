@@ -143,11 +143,11 @@ export const CFG = {
   // ── FPS limiter ──
   fpsAutoLimit: 30,
 
-  // ── Composer 1 (TERRENO — D Dorian, dub lento) ──
-  composer1Key: 'Digit4',
+  // ── Composer 1 (Mode 2 — DERIVA D Dorian) ──
+  composer1Key: 'Digit1',
   COMPOSER: {
     enabled: false,
-    bpm: 72,
+    bpm: 116,
     phases: {
       germoglio:    { duration: 40,  mode: 'D_dorian',   drone: 62, arc: 'SILENCE'   },
       pulsazione:   { duration: 60,  mode: 'D_phrygian',  drone: 62, arc: 'BUILDING'  },
@@ -169,10 +169,10 @@ export const CFG = {
     midiOutputName: null,
   },
 
-  // ── Composer 2 (MECCANICA — C# Dorian, layer poliritmici) ──
+  // ── Composer 2 (Mode 3 — C# Dorian, layer sfasati) ──
   COMPOSER2: {
-    toggleKey: 'Digit5',
-    bpm: 98,
+    toggleKey: 'Digit2',
+    bpm: 108,
     gravitationalCenter: 61, // C#4
     phases: {
       germoglio:    { duration: 45, mode: 'Cs_dorian',   drone: 61, arc: 'SILENCE'  },
@@ -183,12 +183,11 @@ export const CFG = {
     },
     phaseOrder: ['germoglio', 'pulsazione', 'densita', 'rottura', 'dissoluzione'],
     layers: {
-      harmonic: { cycleBars: 4, offset: 0.00 },  // prime cycles → realign every 420 bars
-      rhythmic: { cycleBars: 3, offset: 0.00 },
-      textural: { cycleBars: 5, offset: 0.00 },
-      melodic:  { cycleBars: 7, offset: 0.00 },
+      harmonic: { cycleBars: 24, offset: 0.00 },
+      rhythmic: { cycleBars: 8,  offset: 0.00 },
+      textural: { cycleBars: 3,  offset: 0.33 },
+      melodic:  { cycleBars: 4,  offset: 0.50 },
     },
-    grooveShuffleMs: 10,  // ±10ms humanization on rhythmic crossings
     silenceTarget: {
       germoglio:    0.65,
       pulsazione:   0.45,
@@ -206,25 +205,19 @@ export const CFG = {
     midiOutputName: null,
   },
 
-  // ── Composer 3 (DERIVA — A Lydian, brightness-driven, no beat fisso) ──
+  // ── Composer 3 (spec new/ — 8 tracce, D Dorian DERIVA, BPM 84) ──
   COMPOSER3: {
-    toggleKey: 'Digit1',
-    bpm: null,  // non usato: il trigger è brightness, non beat
-    brightnessTrigger: {
-      threshold: 0.40,          // centroid normalizzato sopra cui parte una nota VOICE
-      adaptiveWindow: 30,       // frame per la moving average (come fluxSmoothingWindow)
-      adaptiveMultiplier: 1.30, // soglia = media × moltiplicatore (come fluxOnsetMultiplier)
-      minThreshold: 0.15,       // floor adattivo (come fluxMinThreshold)
-    },
+    toggleKey: 'Digit3',
+    bpm: 84,
     phases: {
-      germoglio:    { duration: 40,  mode: 'A_lydian',   drone: 45, arc: 'SILENCE'  },
-      pulsazione:   { duration: 60,  mode: 'A_lydian',   drone: 45, arc: 'BUILDING' },
+      germoglio:    { duration: 40,  mode: 'D_dorian',   drone: 38, arc: 'SILENCE'  },
+      pulsazione:   { duration: 60,  mode: 'D_phrygian', drone: 38, arc: 'BUILDING' },
       densita:      { duration: 90,  mode: 'A_lydian',   drone: 45, arc: 'INTENSE'  },
       rottura:      { duration: 30,  mode: 'Eb_locrian', drone: 39, arc: 'PEAK'     },
-      dissoluzione: { duration: 80,  mode: 'A_lydian',   drone: 45, arc: 'RELEASE'  },
+      dissoluzione: { duration: 80,  mode: 'D_dorian',   drone: 38, arc: 'RELEASE'  },
     },
     phaseOrder: ['germoglio', 'pulsazione', 'densita', 'rottura', 'dissoluzione'],
-    driftBarSec: 4,           // virtual "bar" length in seconds (no BPM)
+    euclidean: { normal: [5, 16], rottura: [3, 8] },
     minSilenceRatio: 0.40,
     rupture: {
       presagio:      [0.00, 0.25],
@@ -237,109 +230,19 @@ export const CFG = {
       snare: 38, sideStick: 37, clap: 39, claves: 75,
       tomRange: [64, 65, 66, 67, 68],
     },
-    // Progressioni accordali fisse per fase (MIDI assoluto — A Lydian)
+    // Progressioni accordali fisse per fase (MIDI assoluto — D Dorian)
     chordProgressions: {
       germoglio:    null,
-      pulsazione:   [[57,61,64],[64,68,71],[57,61,64],[59,63,66]],   // A→E→A→B
-      densita:      [[57,61,64],[59,63,66],[61,64,68],[64,68,71],[57,61,64],[66,69,73]], // A→B→C#m→E→A→F#m
+      pulsazione:   [[50,53,57],[53,57,60],[50,53,57],[48,52,55]], // Dm→F→Dm→C
+      densita:      [[57,61,64],[52,56,59],[54,57,61],[52,56,59],[57,61,64],[59,62,66]],
       rottura:      null,
-      dissoluzione: [[57,61,64],[64,68,71],[57,61,64]],              // A→E→A
+      dissoluzione: [[50,53,57],[45,48,52],[50,53,57]],            // Dm→Am→Dm
     },
-    // Virtual bars between chord changes (0 = no chords)
+    // Bar tra un cambio accordo e il successivo (0 = nessun accordo)
     chordRhythm: {
       germoglio: 0, pulsazione: 4, densita: 2, rottura: 0, dissoluzione: 12,
     },
     voiceLeadingMax: 2,
-    midiOutputName: null,
-  },
-
-  // ── Composer 4 (VORTICE — F Phrygian, breakbeat industriale 138bpm) ──
-  COMPOSER4: {
-    toggleKey: 'Digit6',
-    bpm: 138,
-    gravitationalCenter: 65, // F4
-    phases: {
-      germoglio:    { duration: 30,  mode: 'F_phrygian',  drone: 53, arc: 'SILENCE'  },
-      pulsazione:   { duration: 50,  mode: 'F_phrygian',  drone: 53, arc: 'BUILDING' },
-      densita:      { duration: 70,  mode: 'F_phrygian',  drone: 53, arc: 'INTENSE'  },
-      rottura:      { duration: 25,  mode: 'B_locrian',   drone: 47, arc: 'PEAK'     },
-      dissoluzione: { duration: 60,  mode: 'F_phrygian',  drone: 53, arc: 'RELEASE'  },
-    },
-    phaseOrder: ['germoglio', 'pulsazione', 'densita', 'rottura', 'dissoluzione'],
-    variationBars: 16,   // complete pattern change every N bars
-    silenceTarget: {
-      germoglio: 0.25, pulsazione: 0.12, densita: 0.05,
-      rottura: 0.05, dissoluzione: 0.35,
-    },
-    rupture: {
-      presagioAt: 0.50, infiltrazioneAt: 0.65,
-      takeoverAt: 0.78, residuoAt: 0.90,
-    },
-    voiceLeadingMax: 3,
-    midiOutputName: null,
-  },
-
-  // ── Composer 5 (CRISTALLO — Eb Lydian, ambient cristallino 54bpm) ──
-  COMPOSER5: {
-    toggleKey: 'Digit2',
-    bpm: 54,
-    gravitationalCenter: 63, // Eb4
-    phases: {
-      germoglio:    { duration: 60,  mode: 'Eb_lydian',   drone: 51, arc: 'SILENCE'  },
-      pulsazione:   { duration: 80,  mode: 'Eb_lydian',   drone: 51, arc: 'BUILDING' },
-      densita:      { duration: 120, mode: 'Eb_lydian',   drone: 51, arc: 'INTENSE'  },
-      rottura:      { duration: 20,  mode: 'E_locrian',   drone: 52, arc: 'PEAK'     },
-      dissoluzione: { duration: 100, mode: 'Eb_lydian',   drone: 51, arc: 'RELEASE'  },
-    },
-    phaseOrder: ['germoglio', 'pulsazione', 'densita', 'rottura', 'dissoluzione'],
-    shimmerInterval: 3,       // seconds between shimmer arpeggios
-    sustainMultiplier: 4.0,   // note duration multiplier (long pads)
-    silenceTarget: {
-      germoglio: 0.70, pulsazione: 0.55, densita: 0.35,
-      rottura: 0.10, dissoluzione: 0.65,
-    },
-    rupture: {
-      presagioAt: 0.60, infiltrazioneAt: 0.75,
-      takeoverAt: 0.85, residuoAt: 0.92,
-    },
-    chordProgressions: {
-      germoglio:    [[63,67,70,74]],                                                          // Ebmaj7 (pad sostenuto)
-      pulsazione:   [[63,67,70,74],[65,69,72,75],[63,67,70,74],[70,74,77,81]],               // Ebmaj7→Fmaj7→Ebmaj7→Bbmaj7
-      densita:      [[63,67,70,74],[65,69,72,77],[67,70,74,79],[70,74,77,81],[63,67,72,74],[60,65,67,72]], // Ebmaj7→Fadd9→Gadd11→Bbmaj7→Ebadd9→Cm9
-      rottura:      null,
-      dissoluzione: [[63,67,70,74],[70,74,77,81],[63,67,70,74]],                             // Ebmaj7→Bbmaj7→Ebmaj7
-    },
-    chordRhythm: {
-      germoglio: 8, pulsazione: 8, densita: 4, rottura: 0, dissoluzione: 16,
-    },
-    voiceLeadingMax: 2,
-    midiOutputName: null,
-  },
-
-  // ── Composer 6 (ABISSO — Bb Phrygian, drone rituale 76bpm) ──
-  COMPOSER6: {
-    toggleKey: 'Digit3',
-    bpm: 76,
-    gravitationalCenter: 70, // Bb4
-    phases: {
-      germoglio:    { duration: 50,  mode: 'Bb_phrygian', drone: 46, arc: 'SILENCE'  },
-      pulsazione:   { duration: 70,  mode: 'Bb_phrygian', drone: 46, arc: 'BUILDING' },
-      densita:      { duration: 100, mode: 'Bb_phrygian', drone: 46, arc: 'INTENSE'  },
-      rottura:      { duration: 30,  mode: 'B_locrian',   drone: 47, arc: 'PEAK'     },
-      dissoluzione: { duration: 90,  mode: 'Bb_phrygian', drone: 46, arc: 'RELEASE'  },
-    },
-    phaseOrder: ['germoglio', 'pulsazione', 'densita', 'rottura', 'dissoluzione'],
-    heartbeatEvery: 2,        // PULSE every N beats (heartbeat feel)
-    risalitaOctaves: 2,       // octave shift during rupture takeover
-    silenceTarget: {
-      germoglio: 0.75, pulsazione: 0.55, densita: 0.35,
-      rottura: 0.15, dissoluzione: 0.70,
-    },
-    rupture: {
-      presagioAt: 0.45, infiltrazioneAt: 0.60,
-      takeoverAt: 0.75, residuoAt: 0.90,
-    },
-    voiceLeadingMax: 1,
     midiOutputName: null,
   },
 };

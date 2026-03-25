@@ -6,7 +6,7 @@
 import { CFG } from './config.js';
 
 // ── MIDI role channels (0-indexed internally) ──
-// Ch 0=PULSE, Ch 1=GRAIN, Ch 2=DRONE, Ch 3=BASS, Ch 4=CHORDS, Ch 5=VOICE, Ch 6=LEAD, Ch 7=RUPTURE
+// Ch 0=KICK, Ch 1=BASS, Ch 2=HARMONY, Ch 3=LEAD, Ch 4=DRONE, Ch 5=GRAIN, Ch 6=RUPTURE
 export const MIDI_ROLES = ['PULSE', 'GRAIN', 'DRONE', 'BASS', 'CHORDS', 'VOICE', 'LEAD', 'RUPTURE'];
 
 // ── Public state ──
@@ -33,11 +33,6 @@ export const midi = {
 let noteTimestamps = []; // for density calculation
 let W = window.innerWidth;
 let midiOut = null;
-
-// ── MIDI Clock (24 ppqn sync for Ableton / DAWs) ──
-let midiClockAccum = 0;
-let midiClockRunning = false;
-let lastClockBpm = 120;
 
 // Keep canvas width in sync
 export function setCanvasWidth(width) {
@@ -143,39 +138,6 @@ export function sendMIDINote(ch, note, vel, durationMs = 200) {
 export function sendMIDIAllNotesOff() {
   if (!midiOut) return;
   for (let c = 0; c < 8; c++) midiOut.send([0xB0 | c, 123, 0]);
-}
-
-// ── MIDI Clock Output (24 ppqn) ──
-export function sendMIDIStart() {
-  if (!midiOut) return;
-  midiOut.send([0xFA]); // MIDI Start
-  midiClockAccum = 0;
-  midiClockRunning = true;
-  console.log('[MIDI CLOCK] START');
-}
-
-export function sendMIDIStop() {
-  if (!midiOut) return;
-  midiOut.send([0xFC]); // MIDI Stop
-  midiClockRunning = false;
-  midiClockAccum = 0;
-  console.log('[MIDI CLOCK] STOP');
-}
-
-export function updateMIDIClock(dt, bpm) {
-  if (!midiOut || !midiClockRunning || !bpm) return;
-  lastClockBpm = bpm;
-  // 24 pulses per quarter note
-  const pulsesPerSec = (bpm / 60) * 24;
-  midiClockAccum += dt * pulsesPerSec;
-  while (midiClockAccum >= 1) {
-    midiOut.send([0xF8]); // MIDI Clock tick
-    midiClockAccum -= 1;
-  }
-}
-
-export function isMIDIClockRunning() {
-  return midiClockRunning;
 }
 
 // ── Init ──

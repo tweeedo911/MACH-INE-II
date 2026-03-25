@@ -82,8 +82,6 @@ function nextChord3() {
 //  MARKOV ENGINE 2nd ORDER — peso ×3 su note dell'accordo
 // ═══════════════════════════════════════════════════════════
 
-let lastVoiceInterval3 = 0; // interval memory for contour shaping
-
 function nextVoiceNote3() {
   const phaseData = CFG.COMPOSER3.phases[phase];
   const scale = MODES3[phaseData.mode] || MODES3.D_dorian;
@@ -91,20 +89,13 @@ function nextVoiceNote3() {
   const pool = [];
   for (const n of scale) {
     let w = 1.0;
-    // Chord tone bias ×3
+    // Note dell'accordo corrente pesate ×3
     if (currentChord.some(c => c % 12 === n % 12)) w = 3.0;
+    // Preferisce salti piccoli
     if (markovHistory3[1] !== null) {
-      const diff = n - markovHistory3[1];
-      const absDiff = Math.abs(diff);
-      // Stepwise preference
-      if (absDiff <= 3) w *= 2.5;
-      if (absDiff > 7) w *= 0.2;
-      // Contour rule: after a leap, tend to step back (Narmour)
-      if (Math.abs(lastVoiceInterval3) > 4) {
-        // After large leap, favor opposite direction stepwise
-        const resolveDir = -Math.sign(lastVoiceInterval3);
-        if (Math.sign(diff) === resolveDir && absDiff <= 3) w *= 2.5;
-      }
+      const diff = Math.abs(n - markovHistory3[1]);
+      if (diff <= 4) w *= 2.0;
+      if (diff > 7) w *= 0.3;
     }
     pool.push({ n, w });
   }
@@ -117,7 +108,6 @@ function nextVoiceNote3() {
     if (r <= 0) { chosen = entry.n; break; }
   }
 
-  if (markovHistory3[1] !== null) lastVoiceInterval3 = chosen - markovHistory3[1];
   markovHistory3[0] = markovHistory3[1];
   markovHistory3[1] = chosen;
   return chosen;
@@ -247,19 +237,15 @@ function updateGrain3(dt) {
   if (presence3[1] < 0.1) return;
   const airEnergy = (audio.bands?.air?.L || 0) + (audio.bands?.air?.R || 0);
   // Higher air → more frequent grain events
-  const rate = presence3[1] * (0.8 + airEnergy * 5); // events per second
+  const rate = presence3[1] * (0.5 + airEnergy * 4); // events per second
   grainAccum += dt * rate;
   if (grainAccum >= 1) {
     grainAccum -= 1;
-    // Pitched grain from A Lydian scale — high register shimmering textures
-    const phaseData = CFG.COMPOSER3.phases[phase];
-    const scale = MODES3[phaseData.mode] || MODES3.A_lydian;
-    const hi = scale.filter(n => n >= 72 && n <= 93);
-    const pool = hi.length > 0 ? hi : scale;
-    const note = pool[Math.floor(Math.random() * pool.length)];
-    const vel = 22 + Math.round(Math.random() * 28 + airEnergy * 35);
-    const dur = 60 + Math.round(Math.random() * 120); // short pitched grains
-    sendMIDINote(1, note, Math.min(127, vel), dur);
+    const G = CFG.COMPOSER3.grain;
+    const candidates = [G.hihatClosed, G.claves, G.sideStick, G.hihatOpen];
+    const note = candidates[Math.floor(Math.random() * candidates.length)];
+    const vel = 20 + Math.round(Math.random() * 25 + airEnergy * 40);
+    sendMIDINote(1, note, Math.min(127, vel), 80);
     addMidiNote(1, note / 127, vel / 127);
   }
 }
@@ -334,25 +320,19 @@ function onDriftBar3(driftBar) {
     }
   }
 
-  // CH6 LEAD — brief melodic fragments every 8 drift bars (derived from chord)
+  // CH6 LEAD — brief melodic fragments every 8 drift bars (echo of VOICE)
   if (presence3[6] > 0.1 && driftBar % 8 === 0 && driftBar > 0) {
-    // Build motif from current chord: root, third shifted up, fifth
-    const chord = currentChord;
-    const motif = [
-      chord[0],                             // root
-      chord[1] + (Math.random() < 0.5 ? 12 : 0), // third (sometimes octave up)
-      chord[2],                             // fifth
-    ];
-    const velBase = Math.round(42 + presence3[6] * 33);
+    const motif   = [57, 64, 66]; // A3, E4, F#4 (A Lydian)
+    const velBase = Math.round(45 + presence3[6] * 35);
     let delay = 0;
     for (const n of motif) {
       const noteDelay = delay;
       setTimeout(() => {
         if (!composer3Active) return;
-        sendMIDINote(6, n, velBase, 650);
+        sendMIDINote(6, n, velBase, 600);
         addMidiNote(6, n / 127, velBase / 127);
       }, noteDelay);
-      delay += Math.round(600 + Math.random() * 400);
+      delay += Math.round(700 + Math.random() * 300);
     }
   }
 

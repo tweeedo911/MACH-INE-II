@@ -8,7 +8,7 @@ import { dna, PRIM_TYPES } from './dna.js';
 import { entities } from './generations.js';
 import { startInvertDissolve, setChromaticShift, setPalette, setComposerClimax } from './colors.js';
 import { on as onDirectorEvent } from './director-events.js';
-import { checkPatternChange, getEngine } from './midi-patterns.js';
+import { checkPatternChange } from './midi-patterns.js';
 
 // ═══════════════════════════════════════════════════════════
 //  SCENES — Coherent aesthetic states
@@ -91,72 +91,6 @@ const SCENES = [
 
 // Colored ground palette variants (picked randomly)
 const COLORED_PALETTES = ['amber', 'cyan', 'magenta', 'warm', 'cold'];
-
-// ── Engine-aware preferences (visual identity per composer) ──
-const ENGINE_PREFS = {
-  terreno: {
-    sceneBoost: ['BAYER_CLASSIC', 'DENSE', 'COLORED_GROUND'],
-    sceneAvoid: ['HORIZON', 'SPARSE'],
-    palette: 'amber',
-    camera: 'WIDE',
-    cameraAllow: new Set(['WIDE', 'DRIFT']),
-    // render overrides
-    dotSize: 8, densityMul: 1.0, midiScale: 1.2, forceInvert: null,
-    // visual identity
-    shapeScale: 1.2, trailMax: 48, densityGravity: 0.15,
-    onsetWaveSpeed: 800, flickerSpeed: 3.0, midiDensityMul: 0.4,
-  },
-  meccanica: {
-    sceneBoost: ['MONDRIAN', 'NEGATIVE', 'MONOCHROME'],
-    sceneAvoid: [],
-    palette: 'steel',
-    camera: 'MEDIUM',
-    cameraAllow: new Set(['MEDIUM', 'MACRO', 'DRIFT']),
-    dotSize: 4, densityMul: 1.3, midiScale: 1.0, forceInvert: null,
-    shapeScale: 0.7, trailMax: 40, densityGravity: 0,
-    onsetWaveSpeed: 1200, flickerSpeed: 6.0, midiDensityMul: 0.4,
-  },
-  deriva: {
-    sceneBoost: ['HORIZON', 'SPARSE', 'MONOCHROME'],
-    sceneAvoid: ['DENSE', 'NEGATIVE'],
-    palette: 'cyan',
-    camera: 'DRIFT',
-    cameraAllow: new Set(['WIDE', 'DRIFT']),
-    dotSize: 5, densityMul: 0.5, midiScale: 1.8, forceInvert: null,
-    shapeScale: 2.5, trailMax: 24, densityGravity: 0,
-    onsetWaveSpeed: 400, flickerSpeed: 0.5, midiDensityMul: 0.3,
-  },
-  vortice: {
-    sceneBoost: ['NEGATIVE', 'MONOCHROME', 'SPARSE'],
-    sceneAvoid: ['COLORED_GROUND', 'DENSE'],
-    palette: 'ikeda',
-    camera: 'MEDIUM',
-    cameraAllow: new Set(['MEDIUM', 'WIDE']),
-    dotSize: 3, densityMul: 1.4, midiScale: 1.5, forceInvert: true,
-    shapeScale: 0.5, trailMax: 64, densityGravity: 0,
-    onsetWaveSpeed: 1600, flickerSpeed: 8.0, midiDensityMul: 0.5,
-  },
-  cristallo: {
-    sceneBoost: ['SPARSE', 'HORIZON', 'BAYER_CLASSIC'],
-    sceneAvoid: ['DENSE', 'NEGATIVE', 'COLORED_GROUND'],
-    palette: 'ice',
-    camera: 'WIDE',
-    cameraAllow: new Set(['WIDE']),
-    dotSize: 10, densityMul: 0.4, midiScale: 2.0, forceInvert: null,
-    shapeScale: 0.4, trailMax: 48, densityGravity: -0.3,
-    onsetWaveSpeed: 200, flickerSpeed: 0.2, midiDensityMul: 0.5,
-  },
-  abisso: {
-    sceneBoost: ['DENSE', 'MONOCHROME', 'COLORED_GROUND'],
-    sceneAvoid: ['SPARSE', 'HORIZON'],
-    palette: 'abyssal',
-    camera: 'DRIFT',
-    cameraAllow: new Set(['WIDE', 'DRIFT']),
-    dotSize: 7, densityMul: 1.6, midiScale: 0.8, forceInvert: false,
-    shapeScale: 1.8, trailMax: 32, densityGravity: 0.6,
-    onsetWaveSpeed: 600, flickerSpeed: 1.0, midiDensityMul: 0.6,
-  },
-};
 
 // ═══════════════════════════════════════════════════════════
 //  COMPOSITIONS — Spatial density layouts
@@ -339,18 +273,9 @@ function updateArc(dt, state) {
 
 function pickScene() {
   const params = ARC_PARAMS[arc.phase];
-  const engine = getEngine();
-  const prefs = engine ? ENGINE_PREFS[engine] : null;
-
   const weights = SCENES.map((s) => {
     if (params.allowedScenes && !params.allowedScenes.includes(s.name)) return 0;
-    let w = 1;
-    // Engine-aware biasing
-    if (prefs) {
-      if (prefs.sceneBoost.includes(s.name)) w *= 3.0;
-      if (prefs.sceneAvoid.includes(s.name)) w *= 0.1;
-    }
-    return w;
+    return 1;
   });
 
   // Avoid repeating recent scenes
@@ -388,23 +313,6 @@ export const scene = {
   _regionsTarget: [],
 };
 
-// ── Engine render overrides (read by field.js) ──
-export const engineRender = {
-  active: false,
-  _engine: null,       // track current engine for change detection
-  dotSize: null,       // override scene dotSize
-  densityMul: null,    // multiply scene densityMul
-  midiScale: null,     // override scene midiScale
-  forceInvert: null,   // true/false override, null = scene decides
-  // visual identity
-  shapeScale: 1.0,
-  trailMax: 64,
-  densityGravity: 0,
-  onsetWaveSpeed: null,
-  flickerSpeed: null,
-  midiDensityMul: 0.4,
-};
-
 function transitionToScene(newScene, instant) {
   scene.target = newScene;
   const blendMul = ARC_PARAMS[arc.phase].blendMul || 1.0;
@@ -416,13 +324,9 @@ function transitionToScene(newScene, instant) {
     scene.blendSpeed = blendMul / (CFG.sceneTransitionBars * 2);
   }
 
-  // Apply palette — engine preference overrides scene default
-  const engine = getEngine();
-  const prefs = engine ? ENGINE_PREFS[engine] : null;
+  // Apply palette
   let palName = newScene.palette;
-  if (prefs) {
-    palName = prefs.palette;
-  } else if (newScene.name === 'COLORED_GROUND') {
+  if (newScene.name === 'COLORED_GROUND') {
     palName = COLORED_PALETTES[Math.floor(Math.random() * COLORED_PALETTES.length)];
   }
   setPalette(palName);
@@ -623,37 +527,23 @@ export function setFraming(type, W, H) {
 function pickAutoShot(state, W, H) {
   const params = ARC_PARAMS[arc.phase];
   const cam = params.camera;
-  const engine = getEngine();
-  const prefs = engine ? ENGINE_PREFS[engine] : null;
 
   if (cam === 'WIDE_ONLY') return setFraming('WIDE', W, H);
-  if (cam === 'MACRO_LOCK') {
-    // Engine may disallow MACRO (e.g. TERRENO/DERIVA prefer WIDE)
-    if (prefs && !prefs.cameraAllow.has('MACRO')) return setFraming(prefs.camera, W, H);
-    return setFraming('MACRO', W, H);
-  }
+  if (cam === 'MACRO_LOCK') return setFraming('MACRO', W, H);
   if (cam === 'SLOW_WIDE') {
+    // Gentle zoom out
     framing.targetZoom = 1.0;
     framing.current = 'WIDE';
     return;
   }
   if (cam === 'TIGHTEN') {
-    if (prefs && !prefs.cameraAllow.has('MACRO')) {
-      setFraming(prefs.camera, W, H);
-      return;
-    }
+    // Progressively tighter during TENSION
     const progress = Math.min(1, arc.phaseTime / 90);
     if (progress < 0.5) setFraming('MEDIUM', W, H);
     else setFraming('MACRO', W, H);
     return;
   }
-  // DRIFT_BIAS — default, engine-aware
-  if (prefs) {
-    // Bias toward engine's preferred framing
-    const allowed = [...prefs.cameraAllow];
-    const pick = allowed[Math.floor(Math.random() * allowed.length)];
-    return setFraming(pick, W, H);
-  }
+  // DRIFT_BIAS — default for DEVELOP
   const roll = Math.random();
   if (roll < 0.5) setFraming('DRIFT', W, H);
   else if (roll < 0.85) setFraming('MEDIUM', W, H);
@@ -666,49 +556,6 @@ function pickAutoShot(state, W, H) {
 
 export function updateDirector(dt, state, globalTime, W, H) {
   _W = W; _H = H; _state = state;
-
-  // Update engine render overrides + detect engine change
-  const curEngine = getEngine();
-  const curPrefs = curEngine ? ENGINE_PREFS[curEngine] : null;
-  if (curPrefs && curPrefs.dotSize != null) {
-    // Detect engine change → apply palette immediately
-    if (!engineRender.active || engineRender._engine !== curEngine) {
-      setPalette(curPrefs.palette);
-      if (curPrefs.forceInvert != null && curPrefs.forceInvert !== scene.invertBase) {
-        startInvertDissolve();
-      }
-    }
-    engineRender.active = true;
-    engineRender._engine = curEngine;
-    engineRender.dotSize = curPrefs.dotSize;
-    engineRender.densityMul = curPrefs.densityMul;
-    engineRender.midiScale = curPrefs.midiScale;
-    engineRender.forceInvert = curPrefs.forceInvert;
-    // visual identity
-    engineRender.shapeScale = curPrefs.shapeScale ?? 1.0;
-    engineRender.trailMax = curPrefs.trailMax ?? 64;
-    engineRender.densityGravity = curPrefs.densityGravity ?? 0;
-    engineRender.onsetWaveSpeed = curPrefs.onsetWaveSpeed ?? null;
-    engineRender.flickerSpeed = curPrefs.flickerSpeed ?? null;
-    engineRender.midiDensityMul = curPrefs.midiDensityMul ?? 0.4;
-  } else {
-    if (engineRender.active) {
-      setPalette(scene.target.palette || 'default');
-    }
-    engineRender.active = false;
-    engineRender._engine = null;
-    engineRender.dotSize = null;
-    engineRender.densityMul = null;
-    engineRender.midiScale = null;
-    engineRender.forceInvert = null;
-    engineRender.shapeScale = 1.0;
-    engineRender.trailMax = 64;
-    engineRender.densityGravity = 0;
-    engineRender.onsetWaveSpeed = null;
-    engineRender.flickerSpeed = null;
-    engineRender.midiDensityMul = 0.4;
-  }
-
   director.sceneTime += dt;
   if (state.trajectory === 0) director.plateauTime += dt; else director.plateauTime = 0;
 

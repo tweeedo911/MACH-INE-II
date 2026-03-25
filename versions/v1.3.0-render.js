@@ -10,14 +10,9 @@ import { state } from './state.js';
 import { dna, updatePrimitives } from './dna.js';
 import { entities, fossils, updateGenerations, buildEntityGrid, triggerOnset, triggerMIDI } from './generations.js';
 import { updateColors, inverted, inClimax, climaxProgress, colorEnabled, chromaticMode, chromaticTimer, palette } from './colors.js';
-import { updateDirector, applyCamera, framing, director, executeMutation, scene, arc, engineRender } from './director.js';
+import { updateDirector, applyCamera, framing, director, executeMutation, scene, arc } from './director.js';
 import { getComposer2Status } from './composer2.js';
 import { getComposer3Status } from './composer3.js';
-import { getComposer4Status } from './composer4.js';
-import { getComposer5Status } from './composer5.js';
-import { getComposer6Status } from './composer6.js';
-import { getEngine } from './midi-patterns.js';
-import { getSequencerStatus } from './sequencer.js';
 import { renderField, updateWaves, addOnsetWave, addMidiNote } from './field.js';
 
 let canvas, ctx;
@@ -79,8 +74,7 @@ export function renderFrame(_now, dt) {
 
   // Draw — background from palette (dynamic)
   const bg = palette.bg;
-  const bgInv = (engineRender.active && engineRender.forceInvert != null) ? engineRender.forceInvert : inverted;
-  ctx.fillStyle = bgInv
+  ctx.fillStyle = inverted
     ? `rgb(${255 - Math.round(bg[0])},${255 - Math.round(bg[1])},${255 - Math.round(bg[2])})`
     : `rgb(${Math.round(bg[0])},${Math.round(bg[1])},${Math.round(bg[2])})`;
   ctx.fillRect(0, 0, W, H);
@@ -124,21 +118,9 @@ export function handleKey(code) {
 function updateHUDMinimal() {
   if (!hudMinimal) return;
   const primList = dna ? dna.primitives.join('+') : '——';
-  const eng = getEngine();
-  const seq = getSequencerStatus();
-  let seqTag = '';
-  if (seq.active) {
-    const min = Math.floor(seq.elapsed / 60);
-    const sec = seq.elapsed % 60;
-    seqTag = seq.transitioning
-      ? `  SEQ:TRANS`
-      : `  SEQ:${seq.step}/${seq.total} ${min}:${sec < 10 ? '0' : ''}${sec}`;
-  }
   hudMinimal.textContent =
-    (eng ? eng.toUpperCase() + '  ' : '') +
     `${primList}  ${framing.current}` +
     (audio.bpm ? `  ${audio.bpm}BPM` : '') +
-    seqTag +
     (midi.connected ? `  MIDI:${midi.inputCount}` : '') +
     `  G:${getAudioGain().toFixed(1)}`;
 }
@@ -186,21 +168,7 @@ function updateHUDDebug() {
     `CH  ${midi.channels.map((c, i) => c.density > 0 ? i + ':' + c.density.toFixed(1) : '').filter(Boolean).join('  ') || 'no activity'}\n` +
     `CLIMAX ${climaxProgress > 0.1 ? (climaxProgress * 100).toFixed(0) + '%' : 'OFF'}\n` +
     `\n` +
-    `ENGINE ${getEngine() ? getEngine().toUpperCase() : 'NONE'}\n` +
-    (() => {
-      const s = getSequencerStatus();
-      if (!s.active) return 'SEQ OFF\n';
-      if (s.transitioning) return `SEQ TRANSITION → next\n`;
-      const pct = (s.progress * 100).toFixed(0);
-      const min = Math.floor(s.elapsed / 60);
-      const sec = s.elapsed % 60;
-      return `SEQ ${s.step}/${s.total} ${s.engine} ${min}:${sec < 10 ? '0' : ''}${sec} (${pct}%)\n`;
-    })() +
-    `KEYS  H=hud D=debug F=full R=regen N=mutate è/+=gain\n` +
-    `      1=DERIVA 2=CRISTALLO 3=ABISSO 4=TERRENO 5=MECCANICA 6=VORTICE  0=SEQ  →=SKIP\n` +
+    `KEYS  H=hud  D=debug  F=full  R=regen  N=mutate  è/+=gain  1=comp1  2=comp2  3=comp3\n` +
     (() => { const s = getComposer2Status(); return s.active ? `COMP2 ${s.phase}  L:${s.activeCount}/4  ${s.ruptureStage}` : 'COMP2 OFF'; })() + '\n' +
-    (() => { const s = getComposer3Status(); return s.active ? `COMP3 ${s.phase}  root:${s.chordRoot}  bar:${s.bar}  ${s.ruptureStage}` : 'COMP3 OFF'; })() + '\n' +
-    (() => { const s = getComposer4Status(); return s.active ? `COMP4 ${s.phase}  L:${s.activeCount}  ${s.ruptureStage}` : 'COMP4 OFF'; })() + '\n' +
-    (() => { const s = getComposer5Status(); return s.active ? `COMP5 ${s.phase}  L:${s.activeCount}  ${s.ruptureStage}` : 'COMP5 OFF'; })() + '\n' +
-    (() => { const s = getComposer6Status(); return s.active ? `COMP6 ${s.phase}  L:${s.activeCount}  ${s.ruptureStage}` : 'COMP6 OFF'; })();
+    (() => { const s = getComposer3Status(); return s.active ? `COMP3 ${s.phase}  root:${s.chordRoot}  bar:${s.bar}  ${s.ruptureStage}` : 'COMP3 OFF'; })();
 }

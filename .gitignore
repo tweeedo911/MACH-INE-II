@@ -6,12 +6,17 @@ Thumbs.db
 
 # Bozze/iterazioni superate da src/
 composer/
+new/
 
 # Metadata tools
 .claude-flow/
+.claude/
 ruflo.config.yaml
 
 # Dev/test
 sandbox.html
 test.html
+
+# Vecchi launcher
 start.sh
+launch.command

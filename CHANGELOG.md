@@ -5,6 +5,157 @@ Formato: `[versione] – data – descrizione`
 
 ---
 
+## [v1.7.0] – 2026-03-25
+
+**Qualita musicale avanzata + MIDI Clock reale + debug generale.**
+
+### Aggiunto
+- MIDI Clock output 24ppqn: Start (0xFA), Stop (0xFC), Clock tick (0xF8) per sincronizzazione Ableton/DAW
+- Auto Start/Stop MIDI clock all'attivazione/disattivazione di un motore
+- TERRENO: progressioni accordali fisse per fase (Dm→G→F→Dm), bass patterns sincopati (downbeat/anticipation/half-time/off-beat), swing kick (+20ms su beat pari), memoria motivica nella voce (ripetizione/variazione intervalli)
+- MECCANICA: progressioni fisse (C#m→E→F#m→C#m), groove shuffle implementato (±10ms), bass cromatico (root→chromatic→fifth→minor3rd), call-and-response VOICE↔LEAD (LEAD inverte l'intervallo dal root)
+- DERIVA: grain convertito da percussione GM a texture pitched (A Lydian registro alto 72-93), LEAD deriva motif dall'accordo corrente, contour rule Narmour sulla voce
+- VORTICE: rotazione pattern sfalsata (kick ogni 8 bar, ghost ogni 12, bass ogni 16, micro-loop ogni 10), bass con Gb (b2 Phrygian) e Ab, micro-loop transposition (0-3 gradi scala)
+- CRISTALLO: shimmer patterns variabili (up/down/suspend/scatter con rotazione), grain piu denso (ogni 2 beat) con double sparkle occasionale, chord voicings estesi (maj7, add9, add11)
+- ABISSO: CH4 chords con pad Bbm/Cb rituali ogni 8 beat, 5 canali presence (bass, drone, voice, grain, chords), bass rituale root→Cb→root→Eb, grain a frequenza variabile (ogni 4→2→1 beat)
+- Launcher `launch.sh` su porta 8282
+
+### Fix
+- `composer4.js`: `lastPatternBar` non dichiarata causava ReferenceError bloccando l'avvio dell'app
+
+---
+
+## [v1.6.0] – 2026-03-25
+
+**Sequencer autopilot + identita visiva profonda per motore.**
+
+### Aggiunto
+- `sequencer.js`: performance automatica ~40 minuti attraverso 6 motori (DERIVA→CRISTALLO→ABISSO→TERRENO→MECCANICA→VORTICE)
+- Transizioni inter-motore con mutation storm (4 mutazioni, invert dissolve, chromatic shift, 6 secondi)
+- Tasto `0` = start/stop sequencer, `→` = skip al prossimo motore
+- Parametri visivi deep per motore in ENGINE_PREFS: shapeScale, trailLength, waveSpeed, flickerSpeed, densityGravity, midiDensityMul
+- `field.js`: supporto per parametri engine-level (shape scale, trail length, onset wave speed, flicker speed, density gravity, MIDI density multiplier)
+- HUD: display motore attivo nel minimal HUD, stato sequencer con progress bar
+- Rimappatura tastiera completa: 1=DERIVA, 2=CRISTALLO, 3=ABISSO, 4=TERRENO, 5=MECCANICA, 6=VORTICE
+
+### Modificato
+- `director.js`: ENGINE_PREFS esteso con parametri visivi profondi per tutti e 6 i motori
+- `render.js`: display engine name e composer status per tutti e 6 i composers
+
+---
+
+## [v1.5.0] – 2026-03-25
+
+**Tre nuovi motori compositivi (6 totali) + miglioramenti musicali.**
+
+### Aggiunto
+- `composer4.js` — VORTICE (F Phrygian, 138 BPM): step sequencer tribale a 16th note resolution, 4 pool pattern kick, 4 ghost, 3 bass, micro-loop poliritmici A(8)+B(5)+C(3) steps
+- `composer5.js` — CRISTALLO (Eb Lydian, 54 BPM): ambient cristallino, shimmer arpeggios dal chord, sub-drone ogni 16 beat, pad sustain ×4, grain high register sparkle
+- `composer6.js` — ABISSO (Bb Phrygian, 76 BPM): drone rituale root+fifth ogni 12 beat, heartbeat pulse, risalita ottava in rottura
+- `config.js`: COMPOSER4, COMPOSER5, COMPOSER6 con fasi, presence, rupture, parametri specifici
+- `main.js`: import/toggle/update per tutti e 6 i composers, keyboard 1-6
+
+### Modificato
+- `midi-patterns.js`: ENGINE_BEHAVIORS esteso con vortice, cristallo, abisso (identita visiva per canale)
+- `director.js`: ENGINE_PREFS per vortice, cristallo, abisso (palette, scene, behaviours)
+
+---
+
+## [v1.4.0] – 2026-03-25
+
+**Identita musicale e visiva distinta per motore.**
+
+### Aggiunto
+- `midi-patterns.js`: ENGINE_BEHAVIORS con varianti visive per-engine (TERRENO/MECCANICA/DERIVA), forme/decay/colori distinti per canale per ciascun motore
+- `director.js`: ENGINE_PREFS con palette e scene preferenziali per motore attivo, applicazione palette all'attivazione
+- TERRENO: BPM portato da 116 a 72 (dub lento)
+- MECCANICA: BPM portato da 108 a 98 (techno strutturato)
+- DERIVA: tonalita principale cambiata da D Dorian ad A Lydian, PULSE e BASS rimossi dalle presence (ambient beatless), brightness trigger adattivo per VOICE
+- `composer3.js`: grain convertito da percussione GM (hihat/claves/side stick) a texture pitched dalla scala corrente
+
+### Modificato
+- `render.js`: engine tag passato a sistema visivo, forceInvert per engine override
+- `config.js`: aggiornati BPM, tonalita, parametri brightness trigger
+
+---
+
+## [v1.3.0] – 2026-03-24
+
+**Tre motori compositivi autonomi + MIDI unificato a 8 canali.**
+
+### Aggiunto
+- `composer.js` — Composer 1 (D Dorian, 116 BPM): EuclideanEngine E(5,16), Markov 2° ordine, 5 fasi GERMOGLIO→PULSAZIONE→DENSITÀ→ROTTURA→DISSOLUZIONE, PresenceManager, RuptureEngine 4 stadi
+- `composer2.js` — Composer 2 (C# Dorian, 108 BPM): 4 layer oscillatori sfasati (harmonic/rhythmic/textural/melodic), VoidManager silence ≥40%, director event bus (tension/void/grain_entry/chord_change/rupture_stage/density_peak)
+- `composer3.js` — Composer 3 (D Dorian DERIVA, 84 BPM motorik): 8 tracce fedeli alla spec `new/`, GrainEngine percussioni GM (hihat/claves/sideStick/clap/tom), ChordEngine progressioni fisse (Dm→F→Dm→C), MarkovEngine peso ×3 su note accordo, RuptureEngine con note off-scale in presagio (Bb/F#, vel 28)
+- `midi-clock.worker.js` — Web Worker clock MIDI: tick preciso anche con Ableton in primo piano (nessun throttling rAF)
+- `midi-patterns.js` v1.3: mapping canonico 8 canali (CH0=PULSE CH1=GRAIN CH2=DRONE CH3=BASS CH4=CHORDS CH5=VOICE CH6=LEAD CH7=RUPTURE), rotation automatica pattern ogni 12–20 bar
+- Mutua esclusione completa tra i tre composer (tasti `1`, `2`, `3`)
+- Gain audio input controllabile live (`è`/`+`, range 0.5–8.0×, visibile in HUD)
+
+### Stack
+- ES modules nativi
+- Canvas 2D API
+- Web Audio API (stereo via BlackHole)
+- WebMIDI API + Web Worker clock
+
+---
+
+## [v1.2.0] – 2026-03-23
+
+**Colori puri + forme MIDI per tipo di suono + arco audio-driven.**
+
+### Aggiunto
+- 6 fasi arco narrative RMS-driven: SILENCE / BUILDING / ACTIVE / INTENSE / PEAK / DECAY con isteresi configurabile
+- Region fillColor: aree delle composizioni con colore tinta (accent1/2/3) anziché solo densità
+- Camera narrativa per fase arc: SILENCE→WIDE, BUILDING→MEDIUM, PEAK→MACRO, DECAY→PAN
+- 5 canali MIDI distinti per ruolo visivo: KICK, BASS, HARMONY, LEAD, TEXTURE con comportamenti indipendenti
+- Forme MIDI per ruolo: pulse (kick), column (bass), band (harmony/chords), trail (voice/lead), scatter (grain)
+- Scene MONDRIAN e HORIZON aggiunte
+
+---
+
+## [v1.1.0] – 2026-03-23
+
+**Audio-driven density: spazio negativo reale.**
+
+### Aggiunto
+- `densityVoidThreshold`: sotto la soglia → zero assoluto (non rumore, nero puro)
+- Compressione non-lineare del campo: `(d - voidThreshold)^1.6`
+- `densityFloor` ridotto a 0.01 per consentire veri vuoti
+- `densityMax` ampliato a 0.65 per range dinamico più ampio
+- Band audio → spazialità: sub/low verso basso del campo, high/air verso alto
+
+---
+
+## [v1.0.0] – 2026-03-23
+
+**Piano narrativo Mondrian.**
+
+### Aggiunto
+- 8 scene estetiche con nome: BAYER_CLASSIC, COLORED_GROUND, SPARSE, DENSE, MONOCHROME, NEGATIVE, MONDRIAN, HORIZON
+- 8 composizioni rettangolari (spatial density layouts): MONDRIAN_A/B, ISLANDS, COLUMNS, FRAME, ASYMMETRIC, HORIZON
+- 7 palette dinamiche con lerp smooth: default, amber, cyan, bw, magenta, warm, cold
+- Arco narrativo INTRO→CLIMAX→RELEASE guidato dal Director
+- Onset wave: onda di densità radiale che si espande dall'origine dell'onset
+- Blend smooth tra scene con transizione per-primitivo
+
+---
+
+## [v0.9.0] – 2026-03-22
+
+**Sinestesia geometrica MIDI.**
+
+### Aggiunto
+- `midi-patterns.js`: 5 canali separati con ruolo musicale (KICK/BASS/HARMONY/LEAD/TEXTURE)
+- Colori MIDI per canale: amber, deep red, cyan, violet, steel
+- Forme geometriche distinte: pulse, column, band, trail, scatter
+- `xMode` per canale: pitch (melodico), center (bass), spread (kick), random (texture)
+- Zone spaziali per canale: BASS occupa metà inferiore, LEAD metà superiore, HARMONY banda centrale
+- Radius audio-linked: CH0 PULSE modulato da velocity, CH1 GRAIN da banda air, CH2 DRONE da sub
+- Pattern rotation automatica su base bar
+
+---
+
 ## [v0.8.0] – 2026-03-22
 
 **Collegamento audio reale — da sandbox monolitico a ES modules modulari.**

@@ -3,7 +3,6 @@
 // ═══════════════════════════════════════════════════════════
 
 import { CFG } from './config.js';
-import { getEngine } from './midi-patterns.js';
 
 // ── Base color constants (defaults) ──
 export const COLOR_A = [255, 68, 0];
@@ -19,22 +18,6 @@ export const MIDI_COLORS = [
   [180, 200, 220],  // TEXTURE — steel
 ];
 
-// ── Engine-specific MIDI color overrides ──
-const ENGINE_MIDI_COLORS = {
-  cristallo: [
-    [190,200,220], [170,185,210], [150,175,205], [130,160,200], [210,215,225],
-  ],
-  vortice: [
-    [255,255,255], [210,0,0], [255,255,255], [210,0,0], [180,180,180],
-  ],
-  abisso: [
-    [30,40,100], [20,50,130], [40,60,140], [75,35,115], [15,30,80],
-  ],
-  meccanica: [
-    [135,145,160], [85,100,120], [65,85,115], [115,125,145], [155,165,175],
-  ],
-};
-
 // ── Dynamic palette (mutated by director) ──
 export const PALETTES = {
   default:    { bg: [0,0,0],     fg: [255,255,255], accent1: [255,68,0],   accent2: [0,170,204],   accent3: [230,0,126] },
@@ -44,11 +27,6 @@ export const PALETTES = {
   magenta:    { bg: [70,0,45],   fg: [240,180,220], accent1: [230,0,126],  accent2: [180,40,100],   accent3: [255,60,160] },
   warm:       { bg: [80,28,0],   fg: [255,240,200], accent1: [255,100,20], accent2: [200,60,30],    accent3: [255,180,40] },
   cold:       { bg: [0,28,60],   fg: [200,220,240], accent1: [60,140,200], accent2: [0,180,210],    accent3: [140,180,220] },
-  // ── Engine-dedicated palettes ──
-  ice:        { bg: [235,240,245], fg: [90,110,130],  accent1: [160,185,210], accent2: [130,160,195], accent3: [190,200,215] },
-  abyssal:    { bg: [5,8,20],      fg: [55,65,95],    accent1: [35,45,110],   accent2: [20,55,85],    accent3: [75,35,95] },
-  steel:      { bg: [15,18,22],    fg: [165,175,185], accent1: [95,115,135],  accent2: [55,75,105],   accent3: [135,145,155] },
-  ikeda:      { bg: [0,0,0],       fg: [255,255,255], accent1: [210,0,0],     accent2: [255,255,255], accent3: [210,0,0] },
 };
 
 export const palette = {
@@ -176,25 +154,21 @@ export function getCellColor(colorId, colorAlpha, _fgVal) {
   ];
 }
 
-// Get pixel color for MIDI channel — engine-aware
+// Get pixel color for MIDI channel — pure saturated color
 export function getMidiColor(ch, alpha, _fgVal) {
   if (ch === null || alpha < 0.01) return null;
-  const engine = getEngine();
-  // Color 'C' = magenta RUPTURE (engine can override)
+  // Color 'C' = magenta RUPTURE
   if (ch === 'C') {
-    const ruptureColor = (engine && ENGINE_MIDI_COLORS[engine])
-      ? ENGINE_MIDI_COLORS[engine][2] : COLOR_C;
     const a = Math.min(1, Math.pow(alpha, 0.5));
     const bg = palette.bg;
     return [
-      Math.round(bg[0] + (ruptureColor[0] - bg[0]) * a),
-      Math.round(bg[1] + (ruptureColor[1] - bg[1]) * a),
-      Math.round(bg[2] + (ruptureColor[2] - bg[2]) * a),
+      Math.round(bg[0] + (COLOR_C[0] - bg[0]) * a),
+      Math.round(bg[1] + (COLOR_C[1] - bg[1]) * a),
+      Math.round(bg[2] + (COLOR_C[2] - bg[2]) * a),
     ];
   }
   if (typeof ch !== 'number' || ch < 0 || ch >= 5 || alpha < 0.01) return null;
-  const colors = (engine && ENGINE_MIDI_COLORS[engine]) || MIDI_COLORS;
-  const rgb = colors[ch];
+  const rgb = MIDI_COLORS[ch];
   const a = Math.min(1, Math.pow(alpha, 0.5));
   const bg = palette.bg;
   return [

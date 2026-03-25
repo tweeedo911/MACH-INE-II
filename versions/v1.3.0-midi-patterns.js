@@ -73,68 +73,11 @@ const ALL_BEHAVIORS = [
   RUPTURE_BEHAVIORS, // CH7
 ];
 
-// ── Engine-specific behaviors (fixed visual identity per engine) ──
-// When an engine is active, its channels use a canonical behavior
-// instead of the random pool. Channels not listed fall back to the pool.
-const ENGINE_BEHAVIORS = {
-  terreno: {
-    0: { zone: [0.20, 0.80], xMode: 'center', shape: 'band',    size: 0.20, decay: 0.94,   color: 0 },
-    1: { zone: [0.00, 1.00], xMode: 'random', shape: 'scatter', size: 0.06, decay: 0.97,   color: null },
-    2: { zone: [0.00, 1.00], xMode: 'center', shape: 'scatter', size: 0.10, decay: 0.9999, color: null },
-    3: { zone: [0.10, 0.90], xMode: 'center', shape: 'column',  size: 0.14, decay: 0.998,  color: 1 },
-    4: { zone: [0.20, 0.80], xMode: 'pitch',  shape: 'band',    size: 0.13, decay: 0.990,  color: 2 },
-    5: { zone: [0.05, 0.55], xMode: 'pitch',  shape: 'trail',   size: 0.08, decay: 0.988,  color: 3 },
-  },
-  meccanica: {
-    0: { zone: [0.30, 0.90], xMode: 'spread', shape: 'pulse',   size: 0.16, decay: 0.82,  color: 0 },
-    1: { zone: [0.00, 1.00], xMode: 'pitch',  shape: 'scatter', size: 0.04, decay: 0.88,  color: 4 },
-    4: { zone: [0.20, 0.80], xMode: 'stereo', shape: 'band',    size: 0.12, decay: 0.975, color: 2 },
-    5: { zone: [0.10, 0.60], xMode: 'pitch',  shape: 'trail',   size: 0.07, decay: 0.978, color: 3 },
-    6: { zone: [0.10, 0.60], xMode: 'pitch',  shape: 'pulse',   size: 0.09, decay: 0.95,  color: 3 },
-  },
-  deriva: {
-    1: { zone: [0.00, 1.00], xMode: 'random', shape: 'scatter', size: 0.05, decay: 0.965,  color: null },
-    2: { zone: [0.00, 1.00], xMode: 'center', shape: 'scatter', size: 0.10, decay: 0.9999, color: null },
-    4: { zone: [0.20, 0.80], xMode: 'pitch',  shape: 'band',    size: 0.09, decay: 0.993,  color: 2 },
-    5: { zone: [0.05, 0.55], xMode: 'pitch',  shape: 'trail',   size: 0.06, decay: 0.992,  color: 3 },
-    6: { zone: [0.10, 0.60], xMode: 'pitch',  shape: 'trail',   size: 0.05, decay: 0.988,  color: 3 },
-  },
-  vortice: {
-    0: { zone: [0.45, 0.55], xMode: 'spread', shape: 'column',  size: 0.30, decay: 0.68, color: 0 },   // kick: sharp vertical columns, hard flash
-    1: { zone: [0.00, 1.00], xMode: 'pitch',  shape: 'band',    size: 0.02, decay: 0.88, color: 4 },   // grain: thin horizontal lines, pitch-organized
-    3: { zone: [0.60, 0.95], xMode: 'center', shape: 'column',  size: 0.22, decay: 0.85, color: 1 },   // bass: heavy bottom columns
-    4: { zone: [0.15, 0.85], xMode: 'stereo', shape: 'band',    size: 0.08, decay: 0.97, color: 2 },   // chords: wide structured bands
-    5: { zone: [0.00, 0.20], xMode: 'pitch',  shape: 'band',    size: 0.06, decay: 0.93, color: 3 },   // voice: thin band at top
-    7: { zone: [0.00, 1.00], xMode: 'spread', shape: 'rupture', size: 0.28, decay: 0.75, color: 'C' }, // rupture: full field
-  },
-  cristallo: {
-    0: { zone: [0.45, 0.55], xMode: 'center', shape: 'pulse',   size: 0.08, decay: 0.96,   color: null }, // barely visible pulse
-    1: { zone: [0.00, 1.00], xMode: 'random', shape: 'scatter', size: 0.02, decay: 0.995,  color: null }, // tiny sparkles, very long
-    2: { zone: [0.00, 1.00], xMode: 'center', shape: 'scatter', size: 0.12, decay: 0.9999, color: null }, // wide drone field
-    3: { zone: [0.60, 1.00], xMode: 'center', shape: 'column',  size: 0.06, decay: 0.999,  color: null }, // sub-bass, barely visible
-    4: { zone: [0.10, 0.90], xMode: 'pitch',  shape: 'band',    size: 0.15, decay: 0.996,  color: 2 },   // wide pad bands
-    5: { zone: [0.00, 0.50], xMode: 'pitch',  shape: 'trail',   size: 0.04, decay: 0.996,  color: 3 },   // shimmer trails
-  },
-  abisso: {
-    0: { zone: [0.70, 0.95], xMode: 'center', shape: 'pulse',   size: 0.10, decay: 0.94,   color: 0 },   // heartbeat — deep, bottom
-    1: { zone: [0.50, 1.00], xMode: 'random', shape: 'scatter', size: 0.04, decay: 0.98,   color: null }, // sediment particles
-    2: { zone: [0.30, 1.00], xMode: 'center', shape: 'scatter', size: 0.14, decay: 0.9999, color: null }, // omnipresent drone
-    3: { zone: [0.60, 1.00], xMode: 'center', shape: 'column',  size: 0.20, decay: 0.998,  color: 1 },   // heavy bass column, bottom
-    5: { zone: [0.00, 0.30], xMode: 'pitch',  shape: 'trail',   size: 0.04, decay: 0.994,  color: 3 },   // distant voice, top
-    6: { zone: [0.10, 0.40], xMode: 'pitch',  shape: 'trail',   size: 0.03, decay: 0.992,  color: 3 },   // echo, top
-  },
-};
-
 // ── Current state ──
-let currentEngine = null;   // 'terreno' | 'meccanica' | 'deriva' | 'vortice' | 'cristallo' | 'abisso' | null
 const channelMapping = [];
 const channelChangeBar = [];
 
 function pickBehavior(ch) {
-  // If an engine is active and defines this channel, use its canonical behavior
-  if (currentEngine && ENGINE_BEHAVIORS[currentEngine]?.[ch]) {
-    return ENGINE_BEHAVIORS[currentEngine][ch];
-  }
   const pool = ALL_BEHAVIORS[ch];
   return pool[Math.floor(Math.random() * pool.length)];
 }
@@ -154,18 +97,6 @@ export function checkPatternChange(barNum, ch) {
     return old !== channelMapping[ch];
   }
   return false;
-}
-
-export function setEngine(engineId) {
-  currentEngine = engineId;  // 'terreno' | 'meccanica' | 'deriva' | null
-  // Re-pick all channels with the new engine context
-  for (let i = 0; i < 8; i++) {
-    channelMapping[i] = pickBehavior(i);
-  }
-}
-
-export function getEngine() {
-  return currentEngine;
 }
 
 export function mutateChannel(ch) {
