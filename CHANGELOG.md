@@ -5,6 +5,16 @@ Formato: `[versione] – data – descrizione`
 
 ---
 
+## [v2.1.1] – 2026-03-25
+
+**Fix critici: motori muti dopo rottura (dt undefined in residuo).**
+
+### Corretto (Bug fix)
+- **`dt` undefined in TERRENO residuo** (`composer.js`): il blocco residuo era dentro `onStep()` dove `dt` non esiste — presence diventava NaN dopo il primo takeover, motore completamente muto. Spostato in `updateComposer(dt)` dove `dt` è disponibile
+- **`dt` undefined in SOLCO residuo** (`composer7.js`): `updateClimax()` non riceveva `dt` — il fade del drone in residuo produceva NaN. Aggiunto parametro `dt` alla funzione
+
+---
+
 ## [v2.1.0] – 2026-03-25
 
 **7 motori compositivi + MIDI timing anti-drift + phase bridge visuale + debug canali.**
