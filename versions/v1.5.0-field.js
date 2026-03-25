@@ -40,9 +40,9 @@ export function addMidiNote(ch, noteNorm, velNorm) {
   const pos = getNotePosition(ch, noteNorm, velNorm);
   if (!pos) return;
 
-  // Scale radius by scene midiScale (engine override if active) + engine shapeScale
+  // Scale radius by scene midiScale (engine override if active)
   const mScale = (engineRender.active && engineRender.midiScale != null) ? engineRender.midiScale : scene.midiScale;
-  const scaledRadius = pos.radius * mScale * engineRender.shapeScale;
+  const scaledRadius = pos.radius * mScale;
 
   // Reinforce: if a similar note exists from same channel, boost it
   for (const n of midiTrail) {
@@ -66,15 +66,13 @@ export function addMidiNote(ch, noteNorm, velNorm) {
     time: 0,
   });
 
-  const maxTrail = engineRender.active ? engineRender.trailMax : MAX_TRAIL;
-  if (midiTrail.length > maxTrail) midiTrail.shift();
+  if (midiTrail.length > MAX_TRAIL) midiTrail.shift();
 }
 
 export function updateWaves(dt) {
   for (let i = onsetWaves.length - 1; i >= 0; i--) {
     const w = onsetWaves[i];
-    const waveSpeed = (engineRender.active && engineRender.onsetWaveSpeed != null) ? engineRender.onsetWaveSpeed : CFG.onsetWaveSpeed;
-    w.radius += waveSpeed * dt;
+    w.radius += CFG.onsetWaveSpeed * dt;
     w.alpha *= CFG.onsetDecayRate;
     if (w.alpha < 0.01) onsetWaves.splice(i, 1);
   }
@@ -191,10 +189,9 @@ function computeDensity(nx, ny, px, py, state, globalTime, W, H) {
 
   d += state.brightness * CFG.brightnessDensityBoost * localIntensity;
 
-  // Flicker only in reactive zones — per-zone speed and amplitude (engine override)
+  // Flicker only in reactive zones — per-zone speed and amplitude
   if (r > 0.3 && state.rhythmicity > 0.01) {
-    const baseFlicker = (engineRender.active && engineRender.flickerSpeed != null) ? engineRender.flickerSpeed : CFG.rhythmFlickerSpeed;
-    const speed = zone.flickerSpeed || baseFlicker;
+    const speed = zone.flickerSpeed || CFG.rhythmFlickerSpeed;
     const flickerT = globalTime * speed + zone.flickerPhase * Math.PI * 2;
     const amp = zone.flickerAmp || CFG.rhythmFlickerAmp;
     d += Math.sin(flickerT * Math.PI * 2) * amp * state.rhythmicity * r * r;
@@ -230,13 +227,6 @@ function computeDensity(nx, ny, px, py, state, globalTime, W, H) {
   if (ny > 0.6) d += subLow * 0.08 * (ny - 0.6) / 0.4;
   else if (ny > 0.3) d += mid * 0.06 * (1 - Math.abs(ny - 0.5) / 0.2);
   if (ny < 0.4) d += highAir * 0.07 * (0.4 - ny) / 0.4;
-
-  // Engine density gravity — shift density weight vertically
-  // positive = bottom-heavy (ABISSO), negative = top-light (CRISTALLO)
-  if (engineRender.active && engineRender.densityGravity !== 0) {
-    const g = engineRender.densityGravity;
-    d *= 1 + g * (ny - 0.5);  // ny 0=top 1=bottom: g>0 boosts bottom, g<0 boosts top
-  }
 
   const pd = primitiveDensity(nx, ny, state, W, H);
   if (pd === -1) return 0;
@@ -308,7 +298,7 @@ function computeDensity(nx, ny, px, py, state, globalTime, W, H) {
 
     if (midiD > maxMidiD) maxMidiD = midiD;
   }
-  d += maxMidiD * engineRender.midiDensityMul;
+  d += maxMidiD * 0.4;
 
   // Melodic contour: lines between consecutive TRAIL notes of same channel
   if (midiTrail.length >= 2) {

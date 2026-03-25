@@ -11,7 +11,7 @@ import {
   inverted, invertDissolving, invertDissolveProgress, invertTarget,
   climaxProgress, inClimax, getCellColor, getMidiColor, palette,
 } from './colors.js';
-import { scene, engineRender } from './director.js';
+import { scene } from './director.js';
 
 // ── Bayer 8x8 ──
 const BAYER8 = new Float32Array([
@@ -40,9 +40,8 @@ export function addMidiNote(ch, noteNorm, velNorm) {
   const pos = getNotePosition(ch, noteNorm, velNorm);
   if (!pos) return;
 
-  // Scale radius by scene midiScale (engine override if active) + engine shapeScale
-  const mScale = (engineRender.active && engineRender.midiScale != null) ? engineRender.midiScale : scene.midiScale;
-  const scaledRadius = pos.radius * mScale * engineRender.shapeScale;
+  // Scale radius by scene midiScale
+  const scaledRadius = pos.radius * scene.midiScale;
 
   // Reinforce: if a similar note exists from same channel, boost it
   for (const n of midiTrail) {
@@ -66,15 +65,13 @@ export function addMidiNote(ch, noteNorm, velNorm) {
     time: 0,
   });
 
-  const maxTrail = engineRender.active ? engineRender.trailMax : MAX_TRAIL;
-  if (midiTrail.length > maxTrail) midiTrail.shift();
+  if (midiTrail.length > MAX_TRAIL) midiTrail.shift();
 }
 
 export function updateWaves(dt) {
   for (let i = onsetWaves.length - 1; i >= 0; i--) {
     const w = onsetWaves[i];
-    const waveSpeed = (engineRender.active && engineRender.onsetWaveSpeed != null) ? engineRender.onsetWaveSpeed : CFG.onsetWaveSpeed;
-    w.radius += waveSpeed * dt;
+    w.radius += CFG.onsetWaveSpeed * dt;
     w.alpha *= CFG.onsetDecayRate;
     if (w.alpha < 0.01) onsetWaves.splice(i, 1);
   }
@@ -191,19 +188,17 @@ function computeDensity(nx, ny, px, py, state, globalTime, W, H) {
 
   d += state.brightness * CFG.brightnessDensityBoost * localIntensity;
 
-  // Flicker only in reactive zones — per-zone speed and amplitude (engine override)
+  // Flicker only in reactive zones — per-zone speed and amplitude
   if (r > 0.3 && state.rhythmicity > 0.01) {
-    const baseFlicker = (engineRender.active && engineRender.flickerSpeed != null) ? engineRender.flickerSpeed : CFG.rhythmFlickerSpeed;
-    const speed = zone.flickerSpeed || baseFlicker;
+    const speed = zone.flickerSpeed || CFG.rhythmFlickerSpeed;
     const flickerT = globalTime * speed + zone.flickerPhase * Math.PI * 2;
     const amp = zone.flickerAmp || CFG.rhythmFlickerAmp;
     d += Math.sin(flickerT * Math.PI * 2) * amp * state.rhythmicity * r * r;
   }
   d *= zone.densityMul;
 
-  // Scene density multiplier (engine override multiplies on top)
+  // Scene density multiplier
   d *= scene.densityMul;
-  if (engineRender.active && engineRender.densityMul != null) d *= engineRender.densityMul;
 
   // Composition regions — spatial density override
   for (const reg of scene.regions) {
@@ -230,13 +225,6 @@ function computeDensity(nx, ny, px, py, state, globalTime, W, H) {
   if (ny > 0.6) d += subLow * 0.08 * (ny - 0.6) / 0.4;
   else if (ny > 0.3) d += mid * 0.06 * (1 - Math.abs(ny - 0.5) / 0.2);
   if (ny < 0.4) d += highAir * 0.07 * (0.4 - ny) / 0.4;
-
-  // Engine density gravity — shift density weight vertically
-  // positive = bottom-heavy (ABISSO), negative = top-light (CRISTALLO)
-  if (engineRender.active && engineRender.densityGravity !== 0) {
-    const g = engineRender.densityGravity;
-    d *= 1 + g * (ny - 0.5);  // ny 0=top 1=bottom: g>0 boosts bottom, g<0 boosts top
-  }
 
   const pd = primitiveDensity(nx, ny, state, W, H);
   if (pd === -1) return 0;
@@ -308,7 +296,7 @@ function computeDensity(nx, ny, px, py, state, globalTime, W, H) {
 
     if (midiD > maxMidiD) maxMidiD = midiD;
   }
-  d += maxMidiD * engineRender.midiDensityMul;
+  d += maxMidiD * 0.4;
 
   // Melodic contour: lines between consecutive TRAIL notes of same channel
   if (midiTrail.length >= 2) {
@@ -343,17 +331,16 @@ function renderFillRect(ctx, dotSize, state, globalTime, W, H) {
   const cols = Math.ceil(W / dotSize);
   const rows = Math.ceil(H / dotSize);
   let lastFill = '';
-  const baseInv = (engineRender.active && engineRender.forceInvert != null) ? engineRender.forceInvert : inverted;
 
   for (let row = 0; row < rows; row++) {
     const py = row * dotSize, ny = py / H;
     for (let col = 0; col < cols; col++) {
       const px = col * dotSize, nx = px / W;
 
-      let cellInv = baseInv;
+      let cellInv = inverted;
       if (invertDissolving) {
         const bayerVal = BAYER8[(row & 7) * 8 + (col & 7)];
-        cellInv = invertDissolveProgress > bayerVal ? invertTarget : baseInv;
+        cellInv = invertDissolveProgress > bayerVal ? invertTarget : inverted;
       }
 
       const zone = getZone(nx, ny);
@@ -409,8 +396,7 @@ function renderBuffer(ctx, dotSize, state, globalTime, W, H) {
 
   const imgData = bufferCtx.createImageData(bw, bh);
   const data = imgData.data;
-  const baseInv = (engineRender.active && engineRender.forceInvert != null) ? engineRender.forceInvert : inverted;
-  const fgVal = baseInv ? 0 : 255;
+  const fgVal = inverted ? 0 : 255;
 
   for (let row = 0; row < bh; row++) {
     const ny = row / bh, py = row * dotSize;
@@ -499,8 +485,8 @@ export function renderField(ctx, W, H, state, globalTime) {
   // Update smoothed intensity for low-reactivity zones
   smoothedIntensity += (state.intensity - smoothedIntensity) * 0.0008;
 
-  // Dot size from scene, engine override takes priority
-  let dotSize = Math.max(1, (engineRender.active && engineRender.dotSize != null) ? engineRender.dotSize : scene.dotSize);
+  // Dot size from scene (stable, no audio pulsation)
+  let dotSize = Math.max(1, scene.dotSize);
 
   if (climaxProgress > 0.1) {
     const compress = 1 - (1 - CFG.climaxDotCompress) * climaxProgress;

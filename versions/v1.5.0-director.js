@@ -102,9 +102,6 @@ const ENGINE_PREFS = {
     cameraAllow: new Set(['WIDE', 'DRIFT']),
     // render overrides
     dotSize: 8, densityMul: 1.0, midiScale: 1.2, forceInvert: null,
-    // visual identity
-    shapeScale: 1.2, trailMax: 48, densityGravity: 0.15,
-    onsetWaveSpeed: 800, flickerSpeed: 3.0, midiDensityMul: 0.4,
   },
   meccanica: {
     sceneBoost: ['MONDRIAN', 'NEGATIVE', 'MONOCHROME'],
@@ -113,8 +110,6 @@ const ENGINE_PREFS = {
     camera: 'MEDIUM',
     cameraAllow: new Set(['MEDIUM', 'MACRO', 'DRIFT']),
     dotSize: 4, densityMul: 1.3, midiScale: 1.0, forceInvert: null,
-    shapeScale: 0.7, trailMax: 40, densityGravity: 0,
-    onsetWaveSpeed: 1200, flickerSpeed: 6.0, midiDensityMul: 0.4,
   },
   deriva: {
     sceneBoost: ['HORIZON', 'SPARSE', 'MONOCHROME'],
@@ -123,8 +118,6 @@ const ENGINE_PREFS = {
     camera: 'DRIFT',
     cameraAllow: new Set(['WIDE', 'DRIFT']),
     dotSize: 5, densityMul: 0.5, midiScale: 1.8, forceInvert: null,
-    shapeScale: 2.5, trailMax: 24, densityGravity: 0,
-    onsetWaveSpeed: 400, flickerSpeed: 0.5, midiDensityMul: 0.3,
   },
   vortice: {
     sceneBoost: ['NEGATIVE', 'MONOCHROME', 'SPARSE'],
@@ -133,8 +126,6 @@ const ENGINE_PREFS = {
     camera: 'MEDIUM',
     cameraAllow: new Set(['MEDIUM', 'WIDE']),
     dotSize: 3, densityMul: 1.4, midiScale: 1.5, forceInvert: true,
-    shapeScale: 0.5, trailMax: 64, densityGravity: 0,
-    onsetWaveSpeed: 1600, flickerSpeed: 8.0, midiDensityMul: 0.5,
   },
   cristallo: {
     sceneBoost: ['SPARSE', 'HORIZON', 'BAYER_CLASSIC'],
@@ -143,8 +134,6 @@ const ENGINE_PREFS = {
     camera: 'WIDE',
     cameraAllow: new Set(['WIDE']),
     dotSize: 10, densityMul: 0.4, midiScale: 2.0, forceInvert: null,
-    shapeScale: 0.4, trailMax: 48, densityGravity: -0.3,
-    onsetWaveSpeed: 200, flickerSpeed: 0.2, midiDensityMul: 0.5,
   },
   abisso: {
     sceneBoost: ['DENSE', 'MONOCHROME', 'COLORED_GROUND'],
@@ -153,8 +142,6 @@ const ENGINE_PREFS = {
     camera: 'DRIFT',
     cameraAllow: new Set(['WIDE', 'DRIFT']),
     dotSize: 7, densityMul: 1.6, midiScale: 0.8, forceInvert: false,
-    shapeScale: 1.8, trailMax: 32, densityGravity: 0.6,
-    onsetWaveSpeed: 600, flickerSpeed: 1.0, midiDensityMul: 0.6,
   },
 };
 
@@ -396,13 +383,6 @@ export const engineRender = {
   densityMul: null,    // multiply scene densityMul
   midiScale: null,     // override scene midiScale
   forceInvert: null,   // true/false override, null = scene decides
-  // visual identity
-  shapeScale: 1.0,
-  trailMax: 64,
-  densityGravity: 0,
-  onsetWaveSpeed: null,
-  flickerSpeed: null,
-  midiDensityMul: 0.4,
 };
 
 function transitionToScene(newScene, instant) {
@@ -674,6 +654,7 @@ export function updateDirector(dt, state, globalTime, W, H) {
     // Detect engine change → apply palette immediately
     if (!engineRender.active || engineRender._engine !== curEngine) {
       setPalette(curPrefs.palette);
+      // Force invert transition if needed
       if (curPrefs.forceInvert != null && curPrefs.forceInvert !== scene.invertBase) {
         startInvertDissolve();
       }
@@ -684,15 +665,9 @@ export function updateDirector(dt, state, globalTime, W, H) {
     engineRender.densityMul = curPrefs.densityMul;
     engineRender.midiScale = curPrefs.midiScale;
     engineRender.forceInvert = curPrefs.forceInvert;
-    // visual identity
-    engineRender.shapeScale = curPrefs.shapeScale ?? 1.0;
-    engineRender.trailMax = curPrefs.trailMax ?? 64;
-    engineRender.densityGravity = curPrefs.densityGravity ?? 0;
-    engineRender.onsetWaveSpeed = curPrefs.onsetWaveSpeed ?? null;
-    engineRender.flickerSpeed = curPrefs.flickerSpeed ?? null;
-    engineRender.midiDensityMul = curPrefs.midiDensityMul ?? 0.4;
   } else {
     if (engineRender.active) {
+      // Engine deactivated → restore scene palette
       setPalette(scene.target.palette || 'default');
     }
     engineRender.active = false;
@@ -701,12 +676,6 @@ export function updateDirector(dt, state, globalTime, W, H) {
     engineRender.densityMul = null;
     engineRender.midiScale = null;
     engineRender.forceInvert = null;
-    engineRender.shapeScale = 1.0;
-    engineRender.trailMax = 64;
-    engineRender.densityGravity = 0;
-    engineRender.onsetWaveSpeed = null;
-    engineRender.flickerSpeed = null;
-    engineRender.midiDensityMul = 0.4;
   }
 
   director.sceneTime += dt;

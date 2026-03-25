@@ -17,7 +17,6 @@ import { getComposer4Status } from './composer4.js';
 import { getComposer5Status } from './composer5.js';
 import { getComposer6Status } from './composer6.js';
 import { getEngine } from './midi-patterns.js';
-import { getSequencerStatus } from './sequencer.js';
 import { renderField, updateWaves, addOnsetWave, addMidiNote } from './field.js';
 
 let canvas, ctx;
@@ -125,20 +124,10 @@ function updateHUDMinimal() {
   if (!hudMinimal) return;
   const primList = dna ? dna.primitives.join('+') : '——';
   const eng = getEngine();
-  const seq = getSequencerStatus();
-  let seqTag = '';
-  if (seq.active) {
-    const min = Math.floor(seq.elapsed / 60);
-    const sec = seq.elapsed % 60;
-    seqTag = seq.transitioning
-      ? `  SEQ:TRANS`
-      : `  SEQ:${seq.step}/${seq.total} ${min}:${sec < 10 ? '0' : ''}${sec}`;
-  }
   hudMinimal.textContent =
     (eng ? eng.toUpperCase() + '  ' : '') +
     `${primList}  ${framing.current}` +
     (audio.bpm ? `  ${audio.bpm}BPM` : '') +
-    seqTag +
     (midi.connected ? `  MIDI:${midi.inputCount}` : '') +
     `  G:${getAudioGain().toFixed(1)}`;
 }
@@ -187,17 +176,8 @@ function updateHUDDebug() {
     `CLIMAX ${climaxProgress > 0.1 ? (climaxProgress * 100).toFixed(0) + '%' : 'OFF'}\n` +
     `\n` +
     `ENGINE ${getEngine() ? getEngine().toUpperCase() : 'NONE'}\n` +
-    (() => {
-      const s = getSequencerStatus();
-      if (!s.active) return 'SEQ OFF\n';
-      if (s.transitioning) return `SEQ TRANSITION → next\n`;
-      const pct = (s.progress * 100).toFixed(0);
-      const min = Math.floor(s.elapsed / 60);
-      const sec = s.elapsed % 60;
-      return `SEQ ${s.step}/${s.total} ${s.engine} ${min}:${sec < 10 ? '0' : ''}${sec} (${pct}%)\n`;
-    })() +
     `KEYS  H=hud D=debug F=full R=regen N=mutate è/+=gain\n` +
-    `      1=DERIVA 2=CRISTALLO 3=ABISSO 4=TERRENO 5=MECCANICA 6=VORTICE  0=SEQ  →=SKIP\n` +
+    `      1=TERRENO 2=MECCANICA 3=DERIVA 4=VORTICE 5=CRISTALLO 6=ABISSO\n` +
     (() => { const s = getComposer2Status(); return s.active ? `COMP2 ${s.phase}  L:${s.activeCount}/4  ${s.ruptureStage}` : 'COMP2 OFF'; })() + '\n' +
     (() => { const s = getComposer3Status(); return s.active ? `COMP3 ${s.phase}  root:${s.chordRoot}  bar:${s.bar}  ${s.ruptureStage}` : 'COMP3 OFF'; })() + '\n' +
     (() => { const s = getComposer4Status(); return s.active ? `COMP4 ${s.phase}  L:${s.activeCount}  ${s.ruptureStage}` : 'COMP4 OFF'; })() + '\n' +

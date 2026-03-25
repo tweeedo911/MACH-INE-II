@@ -303,14 +303,14 @@ export const CFG = {
       takeoverAt: 0.85, residuoAt: 0.92,
     },
     chordProgressions: {
-      germoglio:    [[63,67,70,74]],                                                          // Ebmaj7 (pad sostenuto)
-      pulsazione:   [[63,67,70,74],[65,69,72,75],[63,67,70,74],[70,74,77,81]],               // Ebmaj7→Fmaj7→Ebmaj7→Bbmaj7
-      densita:      [[63,67,70,74],[65,69,72,77],[67,70,74,79],[70,74,77,81],[63,67,72,74],[60,65,67,72]], // Ebmaj7→Fadd9→Gadd11→Bbmaj7→Ebadd9→Cm9
+      germoglio:    null,
+      pulsazione:   [[63,67,70],[65,69,72],[63,67,70],[70,74,77]],                       // Eb→F→Eb→Bb
+      densita:      [[63,67,70],[65,69,72],[67,70,74],[70,74,77],[63,67,70],[72,75,79]],  // Eb→F→G→Bb→Eb→C
       rottura:      null,
-      dissoluzione: [[63,67,70,74],[70,74,77,81],[63,67,70,74]],                             // Ebmaj7→Bbmaj7→Ebmaj7
+      dissoluzione: [[63,67,70],[70,74,77],[63,67,70]],                                  // Eb→Bb→Eb
     },
     chordRhythm: {
-      germoglio: 8, pulsazione: 8, densita: 4, rottura: 0, dissoluzione: 16,
+      germoglio: 0, pulsazione: 8, densita: 4, rottura: 0, dissoluzione: 16,
     },
     voiceLeadingMax: 2,
     midiOutputName: null,
