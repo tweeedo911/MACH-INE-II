@@ -439,12 +439,6 @@ function onStep(step) {
       if (i !== 4) presence[i] = 0; // keep drone
     }
   }
-  if (ruptureStage === 'residuo') {
-    for (let i = 0; i < presence.length; i++) {
-      if (i !== 4) presence[i] = Math.max(0, presence[i] - dt * 2.0);
-      else presence[i] = Math.max(0.1, presence[i] - dt * 0.3);
-    }
-  }
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -475,6 +469,14 @@ export function updateComposer(dt) {
   if (currentStep > lastStep) {
     for (let s = lastStep + 1; s <= currentStep; s++) onStep(s);
     lastStep = currentStep;
+  }
+
+  // Residuo presence fade (needs dt — must be here, not in onStep)
+  if (ruptureStage === 'residuo') {
+    for (let i = 0; i < presence.length; i++) {
+      if (i !== 4) presence[i] = Math.max(0, presence[i] - dt * 2.0);
+      else presence[i] = Math.max(0.1, presence[i] - dt * 0.3);
+    }
   }
 
   injectState();

@@ -274,7 +274,7 @@ function updatePresence(dt) {
 //  less dynamic. Then hard cut to total silence.
 // ═══════════════════════════════════════════════════════════
 
-function updateClimax() {
+function updateClimax(dt) {
   const name = currentPhase();
   if (name !== 'rottura') {
     if (ruptureStage !== 'idle') {
@@ -555,7 +555,7 @@ function injectState() {
 export function updateComposer7(dt) {
   updatePhase(dt);
   updatePresence(dt);
-  updateClimax();
+  updateClimax(dt);
 
   const bpm = CFG.COMPOSER7.bpm;
   const stepsPerSec = bpm * 4 / 60;
