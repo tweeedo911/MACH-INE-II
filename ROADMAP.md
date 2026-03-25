@@ -63,36 +63,45 @@ Tre motori compositivi autonomi + MIDI unificato a 8 canali. Web Worker clock.
 
 ---
 
-## v1.7.0 — DONE (corrente)
+## v1.7.0 — DONE
 
 **Qualita musicale + MIDI Clock reale + debug generale.**
 
-- MIDI Clock output 24ppqn: Start (0xFA), Stop (0xFC), Clock tick (0xF8) — sincronizzazione Ableton/DAW
-- Auto Start/Stop MIDI clock all'attivazione/disattivazione motore
-- TERRENO: progressioni accordali fisse (Dm→G→F→Dm), bass patterns sincopati per fase, swing kick, memoria motivica nella voce
-- MECCANICA: progressioni fisse (C#m→E→F#m→C#m), groove shuffle attivo, bass cromatico, call-and-response VOICE↔LEAD
-- DERIVA: grain da percussione GM a texture pitched (A Lydian high register), LEAD derivato dall'accordo corrente, contour rule Narmour
-- VORTICE: rotazione pattern sfalsata (kick/ghost/bass/micro-loop a intervalli diversi), bass con b2 Phrygian, micro-loop transposition
-- CRISTALLO: shimmer patterns variabili (up/down/suspend/scatter), grain piu denso con double sparkle, chord voicings estesi (maj7, add9, add11)
-- ABISSO: CH4 chords con pad Bbm/Cb rituali, 5 canali presence (bass, drone, voice, grain, chords), bass root→Cb→root→Eb, grain a frequenza variabile
+- MIDI Clock output 24ppqn — sincronizzazione Ableton/DAW
+- Qualita musicale avanzata per tutti e 6 i motori
 - Launcher su porta 8282
-- Bugfix: lastPatternBar undeclared in VORTICE init
 
 ---
 
-## v1.8.0 — PROSSIMO
+## v2.0.0 — DONE (corrente)
 
-**Sessione salvabile + stabilita.**
+**Concerto narrativo a 5 atti — struttura drammaturgica completa.**
 
-- [ ] Preset DNA + fase composer esportabili come JSON
-- [ ] Load preset da file / URL param
+- Sequencer v3: 5 atti (EMERGENZA / DISCESA / MACCHINA / VORTICE / RITORNO) con sovrapposizione multi-motore
+- Presence multiplier system: crossfade tra motori sovrapposti, channel gating in tutti i 6 composer
+- Momenti-firma: GELO, CONVERGENZA, INVERSIONE (climax globale), VUOTO TOTALE
+- Apertura/chiusura concerto: emersione quadratica 120s / dissoluzione 90s
+- Colore progressivo per atto: monocromo → +A → +B → +C
+- Climax cromatico reale: bg tinting + boost alpha
+- Palette e MIDI colors engine-specific (ice, abyssal, steel, ikeda)
+- Camera breathing + shot DRIFT
+- Tensione narrativa + impatto + contrasto temporale
+- Audio input gain 5.0× default
+
+---
+
+## v2.1.0 — PROSSIMO
+
+**Raffinamento composizioni musicali + stabilita.**
+
+- [ ] Revisione qualita musicale di tutti i 6 composer
+- [ ] Sessione salvabile: preset DNA + fase composer come JSON
 - [ ] Snapshot visivo (canvas toBlob → download PNG)
-- [ ] Rimuovere console.log residui in produzione (flag `CFG.debug`)
-- [ ] MIDI out feedback visivo: canale attivo evidenziato nell'HUD
+- [ ] Rimuovere console.log residui (flag `CFG.debug`)
 
 ---
 
-## v2.0.0
+## v3.0.0
 
 **Performance lunghe + ecosistema aperto.**
 

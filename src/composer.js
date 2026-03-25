@@ -6,11 +6,23 @@
 
 import { CFG } from './config.js';
 import { state } from './state.js';
-import { sendMIDINote, sendMIDIAllNotesOff } from './midi.js';
+import { sendMIDINote as _rawSend, sendMIDIAllNotesOff } from './midi.js';
 import { setArcPhaseForced, releaseArcHold } from './director.js';
 import { setComposerClimax } from './colors.js';
-import { addMidiNote, addOnsetWave } from './field.js';
+import { addMidiNote as _rawAddMidi, addOnsetWave } from './field.js';
 import { setEngine } from './midi-patterns.js';
+import { getPresenceMultiplier, isChannelAllowed } from './presence-multiplier.js';
+
+// ── Presence-scaled MIDI output (with channel priority) ──
+function sendMIDINote(ch, note, vel, dur) {
+  const pm = getPresenceMultiplier('terreno');
+  if (pm < 0.05) return;
+  if (!isChannelAllowed('terreno', ch)) return;
+  _rawSend(ch, note, Math.max(1, Math.round(vel * pm)), dur);
+}
+function addMidiNote(ch, x, intensity) {
+  _rawAddMidi(ch, x, intensity * getPresenceMultiplier('terreno'));
+}
 
 // ═══════════════════════════════════════════════════════════
 //  SCALE DEFINITIONS (pitch class sets, 2 ottave da C3=48)
@@ -237,14 +249,15 @@ function updateRupture(dt) {
 // ═══════════════════════════════════════════════════════════
 
 function injectState() {
+  const pm = getPresenceMultiplier('terreno');
   // Intensità = media pesata delle presence attive
   const weights = [1.2, 1.0, 0.8, 0.7, 0.4, 0.9, 1.5];
   let wSum = 0, wTotal = 0;
   for (let i = 0; i < 7; i++) { wSum += presence[i] * weights[i]; wTotal += weights[i]; }
-  state.intensity = Math.min(1, wSum / wTotal);
+  state.intensity = Math.min(1, wSum / wTotal) * pm;
 
   // Rhythmicity = presence KICK + GRAIN
-  state.rhythmicity = Math.min(1, (presence[0] * 1.5 + presence[5]) * 0.7);
+  state.rhythmicity = Math.min(1, (presence[0] * 1.5 + presence[5]) * 0.7) * pm;
 
   // Trajectory
   if (phase === 'densita')      state.trajectory = 1;

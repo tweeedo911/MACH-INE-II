@@ -45,9 +45,20 @@ GERMOGLIO → PULSAZIONE → DENSITA → ROTTURA → DISSOLUZIONE
 | 5 | MECCANICA | C# Dorian | 98 | Layer poliritmici, techno strutturato |
 | 6 | VORTICE | F Phrygian | 138 | Step sequencer tribale, micro-loop |
 
-### Sequencer Autopilot
+### Concerto Autonomo (Sequencer v3)
 
-Premi `0` per attivare il pilota automatico: performance di ~40 minuti che attraversa tutti e 6 i motori nell'ordine drammaturgico (DERIVA → CRISTALLO → ABISSO → TERRENO → MECCANICA → VORTICE), con transizioni visive tra un motore e l'altro. `→` salta al motore successivo.
+Premi `0` per avviare una performance autonoma di 40 minuti strutturata in 5 atti drammaturgici:
+
+| Atto | Tempo | Motori | Carattere |
+|------|-------|--------|-----------|
+| I EMERGENZA | 0:00–8:00 | DERIVA → CRISTALLO | Emersione dal silenzio |
+| II DISCESA | 8:00–18:00 | CRISTALLO → ABISSO → TERRENO | Discesa nelle profondita |
+| III MACCHINA | 18:00–28:00 | TERRENO → MECCANICA | Meccanismo industriale |
+| IV VORTICE | 28:00–36:00 | MECCANICA → VORTICE + climax globale | Vortice e convergenza |
+| V RITORNO | 36:00–40:00 | Dissoluzione | Ritorno al silenzio |
+
+Momenti-firma: GELO (min 24), CONVERGENZA (min 33), INVERSIONE (min 34), VUOTO TOTALE (min 36).
+Sovrapposizione multi-motore con crossfade a presenza variabile. `→` salta alla cue successiva.
 
 ---
 
@@ -95,11 +106,15 @@ Il sistema invia MIDI Clock a 24 ppqn su qualsiasi uscita MIDI collegata. Start/
 - 8 primitivi strutturali: BANDA, BLOCCO, VETTORE, VUOTO, FRONTE, SCIAME, STRISCIA, MATRICE
 - DNA di sessione: combinazione unica di primitivi a ogni avvio
 - Generazioni con ciclo vita (nascita → crescita → morte → fossile)
-- Sistema cromatico A (#FF4400 onset) / B (#00AACC MIDI) / C (#E6007E climax)
+- Sistema cromatico progressivo: colori sbloccati per atto (I mono → II +A → III +B → IV +C in climax)
+- Palette engine-specific: ice (CRISTALLO), abyssal (ABISSO), steel (MECCANICA), ikeda (VORTICE)
+- Climax cromatico reale: saturazione bg verso magenta scuro + boost alpha entita
 - 5 mutazioni: PRIMITIVE, INVERT, RESET_PARTIAL, CHROMATIC, SCALE
-- Camera 2D: 4 shot (WIDE/MEDIUM/MACRO/PAN) con POI tracking
-- Arco narrativo audio-driven: SILENCE → BUILDING → ACTIVE → INTENSE → PEAK → DECAY
+- Camera 2D: 5 shot (WIDE/MEDIUM/MACRO/PAN/DRIFT) con POI tracking e breathing ritmico
+- Arco narrativo con tensione: SILENCE → BUILDING → ACTIVE → INTENSE → PEAK → DECAY + modulazione soglie
 - Identita visiva per motore: palette, forme, decay e comportamento distinti
+- Apertura concerto: emersione quadratica da zero in 120s con densityCap globale
+- Momenti-firma: gelo (freeze entita), convergenza (attrazione centro), vuoto totale (blackout)
 
 ---
 
@@ -124,7 +139,8 @@ MACH:INE II/
 │   ├── director-events.js   event bus del regista
 │   ├── field.js             campo halftone, onset waves, MIDI columns
 │   ├── render.js            orchestratore render + HUD
-│   ├── sequencer.js         autopilot 40min, transizioni
+│   ├── presence-multiplier.js  sistema presenza multi-motore (0→1 per engine)
+│   ├── sequencer.js         concerto 5 atti, momenti-firma, crossfade
 │   ├── composer.js          TERRENO (D Dorian 72bpm)
 │   ├── composer2.js         MECCANICA (C# Dorian 98bpm)
 │   ├── composer3.js         DERIVA (A Lydian, beatless)
@@ -163,7 +179,7 @@ MACH:INE II/
 
 ## Versione corrente
 
-`v1.7.0` — vedi [CHANGELOG.md](CHANGELOG.md) per i dettagli.
+`v2.0.0` — vedi [CHANGELOG.md](CHANGELOG.md) per i dettagli.
 
 ---
 

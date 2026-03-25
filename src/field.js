@@ -12,6 +12,7 @@ import {
   climaxProgress, inClimax, getCellColor, getMidiColor, palette,
 } from './colors.js';
 import { scene, engineRender } from './director.js';
+import { firma } from './sequencer.js';
 
 // ── Bayer 8x8 ──
 const BAYER8 = new Float32Array([
@@ -332,6 +333,9 @@ function computeDensity(nx, ny, px, py, state, globalTime, W, H) {
 
   if (inClimax) d += CFG.climaxDensityBoost * climaxProgress;
 
+  // Concert opening/closing density cap
+  if (firma.densityCap < 1) d *= firma.densityCap;
+
   // Non-linear compression: create true negative space
   d = Math.max(0, Math.min(1, d));
   if (d < CFG.densityVoidThreshold) return 0;
@@ -384,7 +388,8 @@ function renderFillRect(ctx, dotSize, state, globalTime, W, H) {
         }
         if (!fill) {
           const [cId, cAlpha] = entityColorAt(nx, ny, W, H);
-          const cellColor = getCellColor(cId, cAlpha, fgVal);
+          const climaxAlpha = inClimax ? Math.min(1, cAlpha * (1 + climaxProgress * 2)) : cAlpha;
+          const cellColor = getCellColor(cId, climaxAlpha, fgVal);
           if (cellColor) fill = `rgb(${cellColor[0]},${cellColor[1]},${cellColor[2]})`;
           else fill = cellInv ? '#000000' : '#FFFFFF';
         }
@@ -450,7 +455,8 @@ function renderBuffer(ctx, dotSize, state, globalTime, W, H) {
         }
         if (!colored) {
           const [cId, cAlpha] = entityColorAt(nx, ny, W, H);
-          const cellColor = getCellColor(cId, cAlpha, cellFg);
+          const climaxAlpha = inClimax ? Math.min(1, cAlpha * (1 + climaxProgress * 2)) : cAlpha;
+          const cellColor = getCellColor(cId, climaxAlpha, cellFg);
           if (cellColor) { data[idx] = cellColor[0]; data[idx+1] = cellColor[1]; data[idx+2] = cellColor[2]; }
           else { data[idx] = cellFg; data[idx+1] = cellFg; data[idx+2] = cellFg; }
         }
@@ -514,10 +520,4 @@ export function renderField(ctx, W, H, state, globalTime) {
   }
 
   drawMatrice(ctx, state, globalTime, W, H);
-
-  // Climax overlay
-  if (climaxProgress > 0.01) {
-    ctx.fillStyle = `rgba(230,0,126,${climaxProgress * 0.08})`;
-    ctx.fillRect(0, 0, W, H);
-  }
 }

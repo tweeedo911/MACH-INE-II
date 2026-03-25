@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════
 //  MACH:INE II — Boot & Module Wiring
-//  v1.6.0: 6 engines + sequencer autopilot
+//  v2.0.0: 5-act concert + multi-engine overlap + channel priority
 // ═══════════════════════════════════════════════════════════
 
 import { CFG } from './config.js';
@@ -19,6 +19,7 @@ import { initComposer4, updateComposer4, toggleComposer4, composer4Active } from
 import { initComposer5, updateComposer5, toggleComposer5, composer5Active } from './composer5.js';
 import { initComposer6, updateComposer6, toggleComposer6, composer6Active } from './composer6.js';
 import { initSequencer, toggleSequencer, skipToNext, updateSequencer, isSequencerActive } from './sequencer.js';
+import { resetAllMultipliers, getPresenceMultiplier } from './presence-multiplier.js';
 
 // ── DOM refs ──
 const canvas = document.getElementById('c');
@@ -53,10 +54,24 @@ const ENGINE_TOGGLE = {
   abisso:    toggleComposer6,
 };
 
-function activateEngine(engineKey) {
+// Activate a single engine without killing others (used by sequencer crossfade)
+function activateSingle(engineKey) {
+  const isActive = {
+    terreno: composerActive, meccanica: composer2Active, deriva: composer3Active,
+    vortice: composer4Active, cristallo: composer5Active, abisso: composer6Active,
+  };
+  if (!isActive[engineKey]) {
+    const toggle = ENGINE_TOGGLE[engineKey];
+    if (toggle) toggle();
+  }
+}
+
+// Manual engine toggle — stops sequencer, resets multipliers
+function manualToggle(toggleFn) {
+  if (isSequencerActive()) toggleSequencer();
   allOff();
-  const toggle = ENGINE_TOGGLE[engineKey];
-  if (toggle) toggle();
+  resetAllMultipliers();
+  toggleFn();
 }
 
 // ── Boot on click ──
@@ -83,7 +98,7 @@ startScreen.addEventListener('click', async () => {
   initComposer4();
   initComposer5();
   initComposer6();
-  initSequencer(activateEngine, allOff);
+  initSequencer(activateSingle, allOff);
   initDirectorEvents();
 
   startScreen.style.display = 'none';
@@ -107,13 +122,13 @@ document.addEventListener('keydown', (e) => {
   if (e.code === 'Digit0') { toggleSequencer(); return; }
   if (e.code === 'ArrowRight' && isSequencerActive()) { skipToNext(); return; }
 
-  // Manual composer toggle (stops sequencer implicitly)
-  if (e.code === CFG.composer1Key)        { allOff(); toggleComposer();  return; }
-  if (e.code === CFG.COMPOSER2.toggleKey) { allOff(); toggleComposer2(); return; }
-  if (e.code === CFG.COMPOSER3.toggleKey) { allOff(); toggleComposer3(); return; }
-  if (e.code === CFG.COMPOSER4.toggleKey) { allOff(); toggleComposer4(); return; }
-  if (e.code === CFG.COMPOSER5.toggleKey) { allOff(); toggleComposer5(); return; }
-  if (e.code === CFG.COMPOSER6.toggleKey) { allOff(); toggleComposer6(); return; }
+  // Manual composer toggle — stops sequencer, resets multipliers
+  if (e.code === CFG.composer1Key)        { manualToggle(toggleComposer);  return; }
+  if (e.code === CFG.COMPOSER2.toggleKey) { manualToggle(toggleComposer2); return; }
+  if (e.code === CFG.COMPOSER3.toggleKey) { manualToggle(toggleComposer3); return; }
+  if (e.code === CFG.COMPOSER4.toggleKey) { manualToggle(toggleComposer4); return; }
+  if (e.code === CFG.COMPOSER5.toggleKey) { manualToggle(toggleComposer5); return; }
+  if (e.code === CFG.COMPOSER6.toggleKey) { manualToggle(toggleComposer6); return; }
 
   const result = handleKey(e.code);
   if (result === 'REGEN') {
@@ -131,14 +146,22 @@ let lastClockBpm = 120;
 let wasAnyComposerActive = false;
 
 function getActiveBpm() {
-  let bpm = null;
-  if (composerActive)  bpm = CFG.COMPOSER.bpm;
-  if (composer2Active) bpm = CFG.COMPOSER2.bpm;
-  if (composer3Active) bpm = CFG.COMPOSER3.bpm; // null for DERIVA
-  if (composer4Active) bpm = CFG.COMPOSER4.bpm;
-  if (composer5Active) bpm = CFG.COMPOSER5.bpm;
-  if (composer6Active) bpm = CFG.COMPOSER6.bpm;
-  if (bpm) lastClockBpm = bpm;
+  // Pick BPM from engine with highest presence multiplier
+  const engines = [
+    { active: composerActive,  bpm: CFG.COMPOSER.bpm,  pm: getPresenceMultiplier('terreno') },
+    { active: composer2Active, bpm: CFG.COMPOSER2.bpm, pm: getPresenceMultiplier('meccanica') },
+    { active: composer3Active, bpm: CFG.COMPOSER3.bpm, pm: getPresenceMultiplier('deriva') },
+    { active: composer4Active, bpm: CFG.COMPOSER4.bpm, pm: getPresenceMultiplier('vortice') },
+    { active: composer5Active, bpm: CFG.COMPOSER5.bpm, pm: getPresenceMultiplier('cristallo') },
+    { active: composer6Active, bpm: CFG.COMPOSER6.bpm, pm: getPresenceMultiplier('abisso') },
+  ];
+  let bestPm = 0;
+  for (const e of engines) {
+    if (e.active && e.bpm && e.pm > bestPm) {
+      bestPm = e.pm;
+      lastClockBpm = e.bpm;
+    }
+  }
   return lastClockBpm;
 }
 
@@ -179,6 +202,6 @@ function loop(now) {
   updateAudio();
   updateMIDI();
   updateState();
-  updateSequencer(dt, now / 1000);
+  updateSequencer(dt);
   renderFrame(now, dt);
 }

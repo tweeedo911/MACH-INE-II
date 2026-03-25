@@ -17,7 +17,7 @@ import { getComposer4Status } from './composer4.js';
 import { getComposer5Status } from './composer5.js';
 import { getComposer6Status } from './composer6.js';
 import { getEngine } from './midi-patterns.js';
-import { getSequencerStatus } from './sequencer.js';
+import { getSequencerStatus, firma } from './sequencer.js';
 import { renderField, updateWaves, addOnsetWave, addMidiNote } from './field.js';
 
 let canvas, ctx;
@@ -77,18 +77,24 @@ export function renderFrame(_now, dt) {
   updateWaves(dt);
   buildEntityGrid(W, H);
 
-  // Draw — background from palette (dynamic)
-  const bg = palette.bg;
-  const bgInv = (engineRender.active && engineRender.forceInvert != null) ? engineRender.forceInvert : inverted;
-  ctx.fillStyle = bgInv
-    ? `rgb(${255 - Math.round(bg[0])},${255 - Math.round(bg[1])},${255 - Math.round(bg[2])})`
-    : `rgb(${Math.round(bg[0])},${Math.round(bg[1])},${Math.round(bg[2])})`;
-  ctx.fillRect(0, 0, W, H);
+  // VUOTO TOTALE — total black, skip field
+  if (firma.vuotoTotale) {
+    ctx.fillStyle = 'rgb(0,0,0)';
+    ctx.fillRect(0, 0, W, H);
+  } else {
+    // Draw — background from palette (dynamic)
+    const bg = palette.bg;
+    const bgInv = (engineRender.active && engineRender.forceInvert != null) ? engineRender.forceInvert : inverted;
+    ctx.fillStyle = bgInv
+      ? `rgb(${255 - Math.round(bg[0])},${255 - Math.round(bg[1])},${255 - Math.round(bg[2])})`
+      : `rgb(${Math.round(bg[0])},${Math.round(bg[1])},${Math.round(bg[2])})`;
+    ctx.fillRect(0, 0, W, H);
 
-  ctx.save();
-  applyCamera(ctx, W, H);
-  renderField(ctx, W, H, state, globalTime);
-  ctx.restore();
+    ctx.save();
+    applyCamera(ctx, W, H);
+    renderField(ctx, W, H, state, globalTime);
+    ctx.restore();
+  }
 
   // HUD
   if (frameCount % CFG.hudUpdateInterval === 0) {
@@ -130,9 +136,8 @@ function updateHUDMinimal() {
   if (seq.active) {
     const min = Math.floor(seq.elapsed / 60);
     const sec = seq.elapsed % 60;
-    seqTag = seq.transitioning
-      ? `  SEQ:TRANS`
-      : `  SEQ:${seq.step}/${seq.total} ${min}:${sec < 10 ? '0' : ''}${sec}`;
+    const time = `${min}:${sec < 10 ? '0' : ''}${sec}`;
+    seqTag = `  SEQ:${seq.act || ''} ${seq.engine} ${time}`;
   }
   hudMinimal.textContent =
     (eng ? eng.toUpperCase() + '  ' : '') +
@@ -180,21 +185,23 @@ function updateHUDDebug() {
     `CAM  ${framing.current} ×${framing.zoom.toFixed(1)}\n` +
     `DIR  ${director.lastChangeType}  ${director.sceneTime.toFixed(0)}s\n` +
     `SCENE ${scene.target.name}  ${scene.target.composition}  blend:${scene.blend.toFixed(2)}\n` +
-    `ARC  ${arc.phase}  rms:${(arc._smoothRms||0).toFixed(2)}  ${Math.floor(arc.totalTime)}s\n` +
+    `ARC  ${arc.phase}  rms:${(arc._smoothRms||0).toFixed(2)}  T:${arc.tension.toFixed(2)}  ${Math.floor(arc.totalTime)}s\n` +
     `\n` +
     `MIDI ${midi.connected ? 'OK ' + midi.inputCount : 'OFF'}  ${lastNote}  CH:${midi.lastNote ? midi.lastNote.ch : '-'}\n` +
     `CH  ${midi.channels.map((c, i) => c.density > 0 ? i + ':' + c.density.toFixed(1) : '').filter(Boolean).join('  ') || 'no activity'}\n` +
-    `CLIMAX ${climaxProgress > 0.1 ? (climaxProgress * 100).toFixed(0) + '%' : 'OFF'}\n` +
+    `CLIMAX ${climaxProgress > 0.1 ? (climaxProgress * 100).toFixed(0) + '%' : 'OFF'}` +
+    `  IMP ${state.impact.toFixed(2)}` +
+    (firma.gelo ? '  GELO' : '') + (firma.convergenza ? '  CONV' : '') + (firma.vuotoTotale ? '  VUOTO' : '') + '\n' +
     `\n` +
     `ENGINE ${getEngine() ? getEngine().toUpperCase() : 'NONE'}\n` +
     (() => {
       const s = getSequencerStatus();
       if (!s.active) return 'SEQ OFF\n';
-      if (s.transitioning) return `SEQ TRANSITION → next\n`;
       const pct = (s.progress * 100).toFixed(0);
       const min = Math.floor(s.elapsed / 60);
       const sec = s.elapsed % 60;
-      return `SEQ ${s.step}/${s.total} ${s.engine} ${min}:${sec < 10 ? '0' : ''}${sec} (${pct}%)\n`;
+      const time = `${min}:${sec < 10 ? '0' : ''}${sec}`;
+      return `SEQ ${s.act || ''} ${s.engine} ${time} (${pct}%)${s.transitioning ? ' TRANS' : ''}\n`;
     })() +
     `KEYS  H=hud D=debug F=full R=regen N=mutate è/+=gain\n` +
     `      1=DERIVA 2=CRISTALLO 3=ABISSO 4=TERRENO 5=MECCANICA 6=VORTICE  0=SEQ  →=SKIP\n` +

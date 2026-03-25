@@ -5,6 +5,17 @@
 import { CFG } from './config.js';
 import { getEngine } from './midi-patterns.js';
 
+// ── Colore progressivo — concert time gating ──
+let _concertTime = -1;
+export function setConcertTime(t) { _concertTime = t; }
+
+function desaturateColor(color, amount) {
+  const grey = 0.299 * color[0] + 0.587 * color[1] + 0.114 * color[2];
+  for (let i = 0; i < 3; i++) {
+    color[i] += (grey - color[i]) * amount;
+  }
+}
+
 // ── Base color constants (defaults) ──
 export const COLOR_A = [255, 68, 0];
 export const COLOR_B = [0, 170, 204];
@@ -22,7 +33,7 @@ export const MIDI_COLORS = [
 // ── Engine-specific MIDI color overrides ──
 const ENGINE_MIDI_COLORS = {
   cristallo: [
-    [190,200,220], [170,185,210], [150,175,205], [130,160,200], [210,215,225],
+    [40,140,210], [30,120,190], [50,160,220], [20,100,180], [70,170,230],
   ],
   vortice: [
     [255,255,255], [210,0,0], [255,255,255], [210,0,0], [180,180,180],
@@ -31,7 +42,7 @@ const ENGINE_MIDI_COLORS = {
     [30,40,100], [20,50,130], [40,60,140], [75,35,115], [15,30,80],
   ],
   meccanica: [
-    [135,145,160], [85,100,120], [65,85,115], [115,125,145], [155,165,175],
+    [200,40,40], [160,25,25], [220,60,60], [180,30,30], [240,80,80],
   ],
 };
 
@@ -45,9 +56,9 @@ export const PALETTES = {
   warm:       { bg: [80,28,0],   fg: [255,240,200], accent1: [255,100,20], accent2: [200,60,30],    accent3: [255,180,40] },
   cold:       { bg: [0,28,60],   fg: [200,220,240], accent1: [60,140,200], accent2: [0,180,210],    accent3: [140,180,220] },
   // ── Engine-dedicated palettes ──
-  ice:        { bg: [235,240,245], fg: [90,110,130],  accent1: [160,185,210], accent2: [130,160,195], accent3: [190,200,215] },
-  abyssal:    { bg: [5,8,20],      fg: [55,65,95],    accent1: [35,45,110],   accent2: [20,55,85],    accent3: [75,35,95] },
-  steel:      { bg: [15,18,22],    fg: [165,175,185], accent1: [95,115,135],  accent2: [55,75,105],   accent3: [135,145,155] },
+  ice:        { bg: [250,252,255], fg: [20,25,35],    accent1: [60,160,220],  accent2: [40,130,200],  accent3: [100,190,240] },
+  abyssal:    { bg: [2,3,12],      fg: [45,55,90],    accent1: [25,35,120],   accent2: [15,45,100],   accent3: [80,30,110] },
+  steel:      { bg: [5,5,8],       fg: [240,245,250], accent1: [200,30,30],   accent2: [160,20,20],   accent3: [240,50,50] },
   ikeda:      { bg: [0,0,0],       fg: [255,255,255], accent1: [210,0,0],     accent2: [255,255,255], accent3: [210,0,0] },
 };
 
@@ -118,6 +129,24 @@ export function startInvertDissolve() {
 export function updateColors(dt, state) {
   // Palette lerp (dt-based)
   updatePalette(dt);
+
+  // Colore progressivo — gate accents by concert act
+  if (_concertTime >= 0) {
+    // Atto I (0-480s): monochrome; Atto II: +A; Atto III: +B; Atto IV+: all, C only in climax
+    const desatA = _concertTime < 480 ? 1 : Math.max(0, 1 - (_concertTime - 480) / 30);
+    const desatB = _concertTime < 1080 ? 1 : Math.max(0, 1 - (_concertTime - 1080) / 30);
+    const desatC = inClimax ? Math.max(0, 1 - climaxProgress * 3) : 1;
+    if (desatA > 0.01) desaturateColor(palette.accent1, desatA);
+    if (desatB > 0.01) desaturateColor(palette.accent2, desatB);
+    if (desatC > 0.01) desaturateColor(palette.accent3, desatC);
+  }
+
+  // Climax cromatico — bg tints toward dark magenta from below
+  if (inClimax && climaxProgress > 0.1) {
+    const t = climaxProgress * climaxProgress;
+    palette.bg[0] = Math.min(255, palette.bg[0] + t * 35);
+    palette.bg[2] = Math.min(255, palette.bg[2] + t * 22);
+  }
 
   // Climax
   if (state.intensity > CFG.climaxIntensityThreshold) climaxTimer += dt;
