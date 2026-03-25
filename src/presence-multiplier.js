@@ -6,18 +6,20 @@
 
 const _pm = {
   terreno: 1.0, meccanica: 1.0, deriva: 1.0,
-  vortice: 1.0, cristallo: 1.0, abisso: 1.0,
+  vortice: 1.0, cristallo: 1.0, abisso: 1.0, solco: 1.0,
 };
 
-// Primary MIDI channels per engine — identity-defining channels
-// When multiple engines overlap, each only plays on its primaries
+// Allowed MIDI channels per engine — all channels the engine actually uses.
+// PM-scaling already handles volume during crossfade; this only prevents
+// engines from accidentally writing to channels they never use.
 const PRIMARY_CH = {
-  terreno:   [0, 3, 4],    // PULSE(kick), BASS(dub), CHORDS(pads)
-  meccanica: [0, 1, 3],    // PULSE(groove), GRAIN(texture), BASS(chromatic)
-  deriva:    [2, 4, 5],    // DRONE, CHORDS, VOICE
-  vortice:   [0, 1, 3],    // PULSE(tribal), GRAIN(micro-loop), BASS
-  cristallo: [1, 4, 5],    // GRAIN(sparkle), CHORDS(pads), VOICE(shimmer)
-  abisso:    [0, 2, 3],    // PULSE(heartbeat), DRONE, BASS(ritual)
+  terreno:   [0, 1, 2, 3, 4, 5],    // PULSE, GRAIN, DRONE, BASS, CHORDS, VOICE
+  meccanica: [0, 1, 2, 3, 4, 5, 6], // PULSE, GRAIN, DRONE, BASS, CHORDS, VOICE, LEAD
+  deriva:    [1, 2, 4, 5, 6],        // GRAIN, DRONE, CHORDS, VOICE, LEAD
+  vortice:   [0, 1, 2, 3, 4, 5, 6], // PULSE, GRAIN, DRONE, BASS, CHORDS, VOICE, LEAD
+  cristallo: [0, 1, 2, 3, 4, 5, 7], // PULSE, GRAIN, DRONE, BASS, CHORDS, VOICE, RUPTURE
+  abisso:    [0, 1, 2, 3, 4, 5, 6], // PULSE, GRAIN, DRONE, BASS, CHORDS, VOICE, LEAD
+  solco:     [0, 1, 2, 3, 4, 5, 7], // KICK, HAT, DRONE, BASS, CHORD, VOICE, RIDE
 };
 
 export function setPresenceMultiplier(engine, val) {
@@ -49,4 +51,17 @@ export function resetAllMultipliers() {
 
 export function getAllMultipliers() {
   return { ..._pm };
+}
+
+// ── Musical phase registry ──
+// Composers call setEnginePhase() on phase change.
+// Director reads getEnginePhase() for visual evolution.
+const _phase = {};
+
+export function setEnginePhase(engine, phase, ruptureStage = 'idle') {
+  _phase[engine] = { phase, ruptureStage };
+}
+
+export function getEnginePhase(engine) {
+  return _phase[engine] || { phase: 'germoglio', ruptureStage: 'idle' };
 }

@@ -18,8 +18,9 @@ import { initComposer3, updateComposer3, toggleComposer3, composer3Active } from
 import { initComposer4, updateComposer4, toggleComposer4, composer4Active } from './composer4.js';
 import { initComposer5, updateComposer5, toggleComposer5, composer5Active } from './composer5.js';
 import { initComposer6, updateComposer6, toggleComposer6, composer6Active } from './composer6.js';
+import { initComposer7, updateComposer7, toggleComposer7, composer7Active } from './composer7.js';
 import { initSequencer, toggleSequencer, skipToNext, updateSequencer, isSequencerActive } from './sequencer.js';
-import { resetAllMultipliers, getPresenceMultiplier } from './presence-multiplier.js';
+import { resetAllMultipliers, setPresenceMultiplier, getPresenceMultiplier } from './presence-multiplier.js';
 
 // ── DOM refs ──
 const canvas = document.getElementById('c');
@@ -43,6 +44,7 @@ function allOff() {
   if (composer4Active) toggleComposer4();
   if (composer5Active) toggleComposer5();
   if (composer6Active) toggleComposer6();
+  if (composer7Active) toggleComposer7();
 }
 
 const ENGINE_TOGGLE = {
@@ -52,13 +54,14 @@ const ENGINE_TOGGLE = {
   vortice:   toggleComposer4,
   cristallo: toggleComposer5,
   abisso:    toggleComposer6,
+  solco:     toggleComposer7,
 };
 
 // Activate a single engine without killing others (used by sequencer crossfade)
 function activateSingle(engineKey) {
   const isActive = {
     terreno: composerActive, meccanica: composer2Active, deriva: composer3Active,
-    vortice: composer4Active, cristallo: composer5Active, abisso: composer6Active,
+    vortice: composer4Active, cristallo: composer5Active, abisso: composer6Active, solco: composer7Active,
   };
   if (!isActive[engineKey]) {
     const toggle = ENGINE_TOGGLE[engineKey];
@@ -72,6 +75,14 @@ function manualToggle(toggleFn) {
   allOff();
   resetAllMultipliers();
   toggleFn();
+  // Zero pm for inactive engines so isChannelAllowed doesn't block channels
+  const activeMap = {
+    terreno: composerActive, meccanica: composer2Active, deriva: composer3Active,
+    vortice: composer4Active, cristallo: composer5Active, abisso: composer6Active, solco: composer7Active,
+  };
+  for (const [key, active] of Object.entries(activeMap)) {
+    if (!active) setPresenceMultiplier(key, 0);
+  }
 }
 
 // ── Boot on click ──
@@ -98,6 +109,7 @@ startScreen.addEventListener('click', async () => {
   initComposer4();
   initComposer5();
   initComposer6();
+  initComposer7();
   initSequencer(activateSingle, allOff);
   initDirectorEvents();
 
@@ -129,6 +141,7 @@ document.addEventListener('keydown', (e) => {
   if (e.code === CFG.COMPOSER4.toggleKey) { manualToggle(toggleComposer4); return; }
   if (e.code === CFG.COMPOSER5.toggleKey) { manualToggle(toggleComposer5); return; }
   if (e.code === CFG.COMPOSER6.toggleKey) { manualToggle(toggleComposer6); return; }
+  if (e.code === CFG.COMPOSER7.toggleKey) { manualToggle(toggleComposer7); return; }
 
   const result = handleKey(e.code);
   if (result === 'REGEN') {
@@ -154,6 +167,7 @@ function getActiveBpm() {
     { active: composer4Active, bpm: CFG.COMPOSER4.bpm, pm: getPresenceMultiplier('vortice') },
     { active: composer5Active, bpm: CFG.COMPOSER5.bpm, pm: getPresenceMultiplier('cristallo') },
     { active: composer6Active, bpm: CFG.COMPOSER6.bpm, pm: getPresenceMultiplier('abisso') },
+    { active: composer7Active, bpm: CFG.COMPOSER7.bpm, pm: getPresenceMultiplier('solco') },
   ];
   let bestPm = 0;
   for (const e of engines) {
@@ -169,7 +183,7 @@ midiWorker.onmessage = ({ data: { dt } }) => {
   if (!running) return;
 
   const anyActive = composerActive || composer2Active || composer3Active ||
-                    composer4Active || composer5Active || composer6Active;
+                    composer4Active || composer5Active || composer6Active || composer7Active;
 
   // Auto MIDI Start/Stop on engine activation
   if (anyActive && !wasAnyComposerActive) sendMIDIStart();
@@ -182,9 +196,10 @@ midiWorker.onmessage = ({ data: { dt } }) => {
   if (composer4Active) updateComposer4(dt);
   if (composer5Active) updateComposer5(dt);
   if (composer6Active) updateComposer6(dt);
+  if (composer7Active) updateComposer7(dt);
 
   // Send MIDI Clock ticks at 24 ppqn
-  if (anyActive) updateMIDIClock(dt, getActiveBpm());
+  if (anyActive) updateMIDIClock(getActiveBpm());
 };
 
 function startMidiClock() {

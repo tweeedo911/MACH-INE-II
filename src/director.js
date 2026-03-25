@@ -10,6 +10,7 @@ import { entities } from './generations.js';
 import { startInvertDissolve, setChromaticShift, setPalette, setComposerClimax } from './colors.js';
 import { on as onDirectorEvent } from './director-events.js';
 import { checkPatternChange, getEngine } from './midi-patterns.js';
+import { getEnginePhase } from './presence-multiplier.js';
 
 // ═══════════════════════════════════════════════════════════
 //  SCENES — Coherent aesthetic states
@@ -157,7 +158,101 @@ const ENGINE_PREFS = {
     shapeScale: 1.8, trailMax: 32, densityGravity: 0.6,
     onsetWaveSpeed: 600, flickerSpeed: 1.0, midiDensityMul: 0.6,
   },
+  solco: {
+    sceneBoost: ['MONDRIAN', 'BAYER_CLASSIC', 'COLUMNS'],
+    sceneAvoid: ['SPARSE', 'HORIZON'],
+    palette: 'warm',
+    camera: 'MEDIUM',
+    cameraAllow: new Set(['MEDIUM', 'WIDE']),
+    dotSize: 4, densityMul: 1.2, midiScale: 1.0, forceInvert: null,
+    shapeScale: 1.0, trailMax: 56, densityGravity: 0.1,
+    onsetWaveSpeed: 1000, flickerSpeed: 4.0, midiDensityMul: 0.5,
+  },
 };
+
+// ═══════════════════════════════════════════════════════════
+//  PHASE-DRIVEN VISUAL PARAMETERS (6B)
+//  Each engine × phase → visual target. Lerped in updateDirector.
+// ═══════════════════════════════════════════════════════════
+
+const ENGINE_VISUAL_PHASES = {
+  terreno: {
+    germoglio:    { dotSize: 14, densityMul: 0.3, midiScale: 2.0, flickerSpeed: 0.5, midiDensityMul: 0.8, shapeScale: 2.0 },
+    pulsazione:   { dotSize: 8,  densityMul: 0.7, midiScale: 1.5, flickerSpeed: 2.0, midiDensityMul: 0.5, shapeScale: 1.5 },
+    densita:      { dotSize: 5,  densityMul: 1.4, midiScale: 1.0, flickerSpeed: 4.0, midiDensityMul: 0.3, shapeScale: 1.0 },
+    rottura:      { dotSize: 3,  densityMul: 2.0, midiScale: 0.6, flickerSpeed: 8.0, midiDensityMul: 0.2, shapeScale: 0.8 },
+    dissoluzione: { dotSize: 10, densityMul: 0.4, midiScale: 1.8, flickerSpeed: 1.0, midiDensityMul: 0.6, shapeScale: 1.8 },
+  },
+  meccanica: {
+    germoglio:    { dotSize: 10, densityMul: 0.4, midiScale: 1.8, flickerSpeed: 1.0, midiDensityMul: 0.6, shapeScale: 1.2 },
+    pulsazione:   { dotSize: 6,  densityMul: 0.9, midiScale: 1.2, flickerSpeed: 3.0, midiDensityMul: 0.4, shapeScale: 0.9 },
+    densita:      { dotSize: 4,  densityMul: 1.5, midiScale: 1.0, flickerSpeed: 6.0, midiDensityMul: 0.3, shapeScale: 0.7 },
+    rottura:      { dotSize: 2,  densityMul: 2.0, midiScale: 0.5, flickerSpeed: 10.0, midiDensityMul: 0.2, shapeScale: 0.5 },
+    dissoluzione: { dotSize: 8,  densityMul: 0.5, midiScale: 1.5, flickerSpeed: 2.0, midiDensityMul: 0.5, shapeScale: 1.0 },
+  },
+  deriva: {
+    germoglio:    { dotSize: 16, densityMul: 0.2, midiScale: 2.5, flickerSpeed: 0.2, midiDensityMul: 0.8, shapeScale: 3.0 },
+    pulsazione:   { dotSize: 10, densityMul: 0.4, midiScale: 2.0, flickerSpeed: 0.5, midiDensityMul: 0.7, shapeScale: 2.5 },
+    densita:      { dotSize: 6,  densityMul: 0.7, midiScale: 1.5, flickerSpeed: 1.5, midiDensityMul: 0.5, shapeScale: 2.0 },
+    rottura:      { dotSize: 4,  densityMul: 1.0, midiScale: 1.0, flickerSpeed: 3.0, midiDensityMul: 0.4, shapeScale: 1.5 },
+    dissoluzione: { dotSize: 12, densityMul: 0.3, midiScale: 2.2, flickerSpeed: 0.3, midiDensityMul: 0.7, shapeScale: 2.8 },
+  },
+  vortice: {
+    germoglio:    { dotSize: 8,  densityMul: 0.5, midiScale: 2.0, flickerSpeed: 2.0, midiDensityMul: 0.6, shapeScale: 0.8 },
+    pulsazione:   { dotSize: 5,  densityMul: 1.0, midiScale: 1.5, flickerSpeed: 4.0, midiDensityMul: 0.5, shapeScale: 0.6 },
+    densita:      { dotSize: 3,  densityMul: 1.6, midiScale: 1.0, flickerSpeed: 8.0, midiDensityMul: 0.3, shapeScale: 0.5 },
+    rottura:      { dotSize: 2,  densityMul: 2.2, midiScale: 0.5, flickerSpeed: 12.0, midiDensityMul: 0.2, shapeScale: 0.4 },
+    dissoluzione: { dotSize: 6,  densityMul: 0.6, midiScale: 1.8, flickerSpeed: 2.0, midiDensityMul: 0.5, shapeScale: 0.7 },
+  },
+  cristallo: {
+    germoglio:    { dotSize: 16, densityMul: 0.15, midiScale: 2.5, flickerSpeed: 0.2, midiDensityMul: 0.8, shapeScale: 0.6 },
+    pulsazione:   { dotSize: 10, densityMul: 0.4,  midiScale: 2.0, flickerSpeed: 0.5, midiDensityMul: 0.6, shapeScale: 0.5 },
+    densita:      { dotSize: 6,  densityMul: 0.8,  midiScale: 1.2, flickerSpeed: 1.5, midiDensityMul: 0.4, shapeScale: 0.4 },
+    rottura:      { dotSize: 3,  densityMul: 1.2,  midiScale: 0.8, flickerSpeed: 4.0, midiDensityMul: 0.3, shapeScale: 0.3 },
+    dissoluzione: { dotSize: 12, densityMul: 0.25, midiScale: 2.2, flickerSpeed: 0.3, midiDensityMul: 0.7, shapeScale: 0.5 },
+  },
+  abisso: {
+    germoglio:    { dotSize: 12, densityMul: 0.5, midiScale: 1.5, flickerSpeed: 0.3, midiDensityMul: 0.7, shapeScale: 2.0 },
+    pulsazione:   { dotSize: 8,  densityMul: 1.0, midiScale: 1.0, flickerSpeed: 1.0, midiDensityMul: 0.5, shapeScale: 1.8 },
+    densita:      { dotSize: 5,  densityMul: 1.8, midiScale: 0.8, flickerSpeed: 2.0, midiDensityMul: 0.4, shapeScale: 1.5 },
+    rottura:      { dotSize: 3,  densityMul: 2.2, midiScale: 0.5, flickerSpeed: 5.0, midiDensityMul: 0.2, shapeScale: 1.2 },
+    dissoluzione: { dotSize: 10, densityMul: 0.6, midiScale: 1.2, flickerSpeed: 0.5, midiDensityMul: 0.6, shapeScale: 1.8 },
+  },
+  solco: {
+    germoglio:    { dotSize: 14, densityMul: 0.3, midiScale: 1.8, flickerSpeed: 0.5, midiDensityMul: 0.6, shapeScale: 1.2 },
+    pulsazione:   { dotSize: 6,  densityMul: 0.8, midiScale: 1.2, flickerSpeed: 2.5, midiDensityMul: 0.5, shapeScale: 1.0 },
+    densita:      { dotSize: 3,  densityMul: 1.5, midiScale: 1.0, flickerSpeed: 5.0, midiDensityMul: 0.3, shapeScale: 0.8 },
+    rottura:      { dotSize: 2,  densityMul: 2.0, midiScale: 0.6, flickerSpeed: 8.0, midiDensityMul: 0.2, shapeScale: 0.6 },
+    dissoluzione: { dotSize: 10, densityMul: 0.4, midiScale: 1.5, flickerSpeed: 1.0, midiDensityMul: 0.5, shapeScale: 1.0 },
+  },
+};
+
+// ── Phase-driven compositions (6C) ──
+const ENGINE_COMPOSITIONS = {
+  terreno:   { germoglio: 'HORIZON',    pulsazione: 'ASYMMETRIC', densita: 'MONDRIAN_A', rottura: 'COLUMNS',   dissoluzione: 'ISLANDS' },
+  meccanica: { germoglio: 'MONDRIAN',   pulsazione: 'MONDRIAN_A', densita: 'MONDRIAN_B', rottura: 'COLUMNS',   dissoluzione: 'MONOCHROME' },
+  deriva:    { germoglio: 'HORIZON',    pulsazione: 'SPARSE',     densita: 'ASYMMETRIC', rottura: 'ISLANDS',   dissoluzione: 'HORIZON' },
+  vortice:   { germoglio: 'ASYMMETRIC', pulsazione: 'COLUMNS',    densita: 'MONDRIAN_B', rottura: 'DENSE',     dissoluzione: 'SPARSE' },
+  cristallo: { germoglio: 'UNIFORM',    pulsazione: 'HORIZON',    densita: 'FRAME',      rottura: 'ISLANDS',   dissoluzione: 'UNIFORM' },
+  abisso:    { germoglio: 'SPARSE',     pulsazione: 'DENSE',      densita: 'MONDRIAN_A', rottura: 'COLUMNS',   dissoluzione: 'HORIZON' },
+  solco:     { germoglio: 'HORIZON',    pulsazione: 'MONDRIAN_A', densita: 'COLUMNS',    rottura: 'DENSE',     dissoluzione: 'ISLANDS' },
+};
+
+// ── Inversions as narrative gesture (6D) ──
+// Each engine gets ONE inversion at a specific phase transition.
+// null = never invert. Value = phase name that triggers inversion on entry.
+const ENGINE_INVERSIONS = {
+  terreno: null,       // dub warmth, no binary contrast
+  meccanica: 'rottura',  // layer convergence moment
+  deriva: null,        // stays as DNA decides
+  vortice: 'rottura',   // maximum energy inverts everything
+  cristallo: 'pulsazione', // first beat is a polarity change
+  abisso: 'densita',    // descent into darkness is literal
+  solco: null,         // hypnotic mantra, not dramatic
+};
+
+// Track which engines have already triggered their inversion
+let _invertTriggered = {};
 
 // ═══════════════════════════════════════════════════════════
 //  COMPOSITIONS — Spatial density layouts
@@ -408,6 +503,7 @@ export const scene = {
 export const engineRender = {
   active: false,
   _engine: null,       // track current engine for change detection
+  _lastMusicalPhase: null, // track phase for transition detection
   dotSize: null,       // override scene dotSize
   densityMul: null,    // multiply scene densityMul
   midiScale: null,     // override scene midiScale
@@ -699,33 +795,91 @@ export function updateDirector(dt, state, globalTime, W, H) {
   // Update engine render overrides + detect engine change
   const curEngine = getEngine();
   const curPrefs = curEngine ? ENGINE_PREFS[curEngine] : null;
-  if (curPrefs && curPrefs.dotSize != null) {
-    // Detect engine change → apply palette immediately
+  const enginePhaseData = curEngine ? getEnginePhase(curEngine) : null;
+  const musicalPhase = enginePhaseData?.phase || 'germoglio';
+  const phaseVisuals = curEngine ? ENGINE_VISUAL_PHASES[curEngine]?.[musicalPhase] : null;
+
+  if (curPrefs) {
+    // Detect engine change → apply palette + reset inversion tracking
     if (!engineRender.active || engineRender._engine !== curEngine) {
       setPalette(curPrefs.palette);
-      if (curPrefs.forceInvert != null && curPrefs.forceInvert !== scene.invertBase) {
+      _invertTriggered = {};  // reset on engine change
+      engineRender._lastMusicalPhase = null;
+
+      // Phase-driven composition on engine entry
+      const compName = ENGINE_COMPOSITIONS[curEngine]?.[musicalPhase];
+      if (compName && COMPOSITIONS[compName]) {
+        scene._regionsCurrent = scene.regions.map(r => ({ ...r }));
+        scene._regionsTarget = COMPOSITIONS[compName];
+        scene.blend = 0;
+        scene.blendSpeed = 0.4;
+      }
+    }
+
+    // Detect musical phase change → trigger composition + inversion
+    if (engineRender._lastMusicalPhase && engineRender._lastMusicalPhase !== musicalPhase) {
+      // Phase-driven composition transition
+      const compName = ENGINE_COMPOSITIONS[curEngine]?.[musicalPhase];
+      if (compName && COMPOSITIONS[compName]) {
+        scene._regionsCurrent = scene.regions.map(r => ({ ...r }));
+        scene._regionsTarget = COMPOSITIONS[compName];
+        scene.blend = 0;
+        scene.blendSpeed = 0.3;
+      }
+
+      // Narrative inversion (6D) — one per engine per activation
+      const invertPhase = ENGINE_INVERSIONS[curEngine];
+      if (invertPhase === musicalPhase && !_invertTriggered[curEngine]) {
+        _invertTriggered[curEngine] = true;
         startInvertDissolve();
       }
     }
+    engineRender._lastMusicalPhase = musicalPhase;
+
     engineRender.active = true;
     engineRender._engine = curEngine;
-    engineRender.dotSize = curPrefs.dotSize;
-    engineRender.densityMul = curPrefs.densityMul;
-    engineRender.midiScale = curPrefs.midiScale;
     engineRender.forceInvert = curPrefs.forceInvert;
-    // visual identity
-    engineRender.shapeScale = curPrefs.shapeScale ?? 1.0;
+    // Static identity params from ENGINE_PREFS
     engineRender.trailMax = curPrefs.trailMax ?? 64;
     engineRender.densityGravity = curPrefs.densityGravity ?? 0;
     engineRender.onsetWaveSpeed = curPrefs.onsetWaveSpeed ?? null;
-    engineRender.flickerSpeed = curPrefs.flickerSpeed ?? null;
-    engineRender.midiDensityMul = curPrefs.midiDensityMul ?? 0.4;
+
+    // Phase-driven params: lerp toward phase target (smooth ~0.05/frame)
+    if (phaseVisuals) {
+      const lerpRate = dt * 0.8;  // ~0.05 at 60fps
+      engineRender.dotSize    += (phaseVisuals.dotSize    - engineRender.dotSize)    * lerpRate;
+      engineRender.densityMul += (phaseVisuals.densityMul - engineRender.densityMul) * lerpRate;
+      engineRender.midiScale  += (phaseVisuals.midiScale  - engineRender.midiScale)  * lerpRate;
+      engineRender.flickerSpeed  = (engineRender.flickerSpeed ?? phaseVisuals.flickerSpeed)
+        + (phaseVisuals.flickerSpeed - (engineRender.flickerSpeed ?? phaseVisuals.flickerSpeed)) * lerpRate;
+      engineRender.midiDensityMul += (phaseVisuals.midiDensityMul - engineRender.midiDensityMul) * lerpRate;
+      engineRender.shapeScale += (phaseVisuals.shapeScale - engineRender.shapeScale) * lerpRate;
+    } else {
+      // Fallback to static prefs
+      engineRender.dotSize = curPrefs.dotSize;
+      engineRender.densityMul = curPrefs.densityMul;
+      engineRender.midiScale = curPrefs.midiScale;
+      engineRender.shapeScale = curPrefs.shapeScale ?? 1.0;
+      engineRender.flickerSpeed = curPrefs.flickerSpeed ?? null;
+      engineRender.midiDensityMul = curPrefs.midiDensityMul ?? 0.4;
+    }
+
+    // SOLCO velocity visual (6H) — bass velocity modulates density + dotSize
+    if (curEngine === 'solco') {
+      const bassNote = midi.channels[3]?.lastNote;
+      if (bassNote) {
+        const sweepVel = bassNote.vel / 127;
+        engineRender.densityMul *= (0.8 + sweepVel * 0.4);  // ×0.8 → ×1.2
+        engineRender.dotSize += (sweepVel - 0.5) * 2;       // ±1 dot
+      }
+    }
   } else {
     if (engineRender.active) {
       setPalette(scene.target.palette || 'default');
     }
     engineRender.active = false;
     engineRender._engine = null;
+    engineRender._lastMusicalPhase = null;
     engineRender.dotSize = null;
     engineRender.densityMul = null;
     engineRender.midiScale = null;

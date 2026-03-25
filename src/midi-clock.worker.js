@@ -1,20 +1,29 @@
 // ═══════════════════════════════════════════════════════════
-//  MACH:INE II — MIDI Clock Worker
-//  Gira su thread separato: non viene throttolato dal browser
-//  anche quando il focus è su un'altra app (es. Ableton)
+//  MACH:INE II — MIDI Clock Worker (high-resolution)
+//  Thread separato: non throttolato dal browser.
+//  Tick ogni ~2ms per timing MIDI sub-millisecondo.
+//  Usa absolute time per eliminare drift cumulativo.
 // ═══════════════════════════════════════════════════════════
 
-let last = 0;
+let running = false;
+let lastNow = 0;
 
 function tick() {
+  if (!running) return;
   const now = performance.now();
-  if (last === 0) last = now;
-  const dt = Math.min((now - last) / 1000, 0.05);
-  last = now;
-  self.postMessage({ dt });
-  setTimeout(tick, 14); // ~16ms, leggermente sotto per evitare drift
+  const dt = lastNow ? Math.min((now - lastNow) / 1000, 0.05) : 0;
+  lastNow = now;
+  if (dt > 0) self.postMessage({ dt, now });
+  setTimeout(tick, 2);
 }
 
 self.onmessage = (e) => {
-  if (e.data === 'start') tick();
+  if (e.data === 'start' && !running) {
+    running = true;
+    lastNow = performance.now();
+    tick();
+  }
+  if (e.data === 'stop') {
+    running = false;
+  }
 };

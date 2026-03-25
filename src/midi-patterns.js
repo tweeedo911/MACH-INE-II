@@ -123,6 +123,15 @@ const ENGINE_BEHAVIORS = {
     5: { zone: [0.00, 0.30], xMode: 'pitch',  shape: 'trail',   size: 0.04, decay: 0.994,  color: 3 },   // distant voice, top
     6: { zone: [0.10, 0.40], xMode: 'pitch',  shape: 'trail',   size: 0.03, decay: 0.992,  color: 3 },   // echo, top
   },
+  solco: {
+    0: { zone: [0.40, 0.60], xMode: 'center', shape: 'band',    size: 0.25, decay: 0.90,   color: 0 },   // kick: 4/4, strong center band
+    1: { zone: [0.00, 1.00], xMode: 'pitch',  shape: 'scatter', size: 0.03, decay: 0.92,   color: null }, // hi-hat: fine metallic scatter
+    2: { zone: [0.00, 1.00], xMode: 'center', shape: 'scatter', size: 0.10, decay: 0.9999, color: null }, // drone: sub, omnipresent
+    3: { zone: [0.20, 0.90], xMode: 'center', shape: 'column',  size: 0.18, decay: 0.996,  color: 1 },   // bass: rolling columns
+    4: { zone: [0.15, 0.85], xMode: 'stereo', shape: 'band',    size: 0.10, decay: 0.985,  color: 2 },   // chords: stab bands
+    5: { zone: [0.05, 0.50], xMode: 'pitch',  shape: 'trail',   size: 0.05, decay: 0.990,  color: 3 },   // voice: rare fragments
+    7: { zone: [0.00, 1.00], xMode: 'pitch',  shape: 'scatter', size: 0.02, decay: 0.94,   color: 4 },   // ride: fine metallic
+  },
 };
 
 // ── Current state ──

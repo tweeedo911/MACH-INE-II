@@ -13,7 +13,7 @@ import { setArcPhaseForced, releaseArcHold } from './director.js';
 import { setComposerClimax } from './colors.js';
 import { addMidiNote as _rawAddMidi } from './field.js';
 import { setEngine } from './midi-patterns.js';
-import { getPresenceMultiplier, isChannelAllowed } from './presence-multiplier.js';
+import { getPresenceMultiplier, isChannelAllowed, setEnginePhase } from './presence-multiplier.js';
 
 // ── Presence-scaled MIDI output (with channel priority) ──
 function sendMIDINote(ch, note, vel, dur) {
@@ -34,14 +34,14 @@ const MODES3 = {
   Eb_locrian: [63,64,66,68,69,71,73,75,76,78,80,81,83,85,87],
 };
 
-// ── Presenza target per fase [PULSE, GRAIN, DRONE, BASS, CHORDS, VOICE, LEAD, RUPTURE] ──
+// ── Presenza target per fase [PULSE, GRAIN, DRONE, BASS, CHORDS, VOICE, LEAD] ──
 // DERIVA: CH0 PULSE = 0 always, CH3 BASS = 0 always
 const PHASE_PRESENCE3 = {
-  germoglio:    [0.0, 0.1, 1.0, 0.0, 0.3, 0.0, 0.0, 0.0],
-  pulsazione:   [0.0, 0.4, 0.7, 0.0, 0.6, 0.5, 0.0, 0.0],
-  densita:      [0.0, 0.7, 0.5, 0.0, 0.8, 0.9, 0.4, 0.0],
-  rottura:      [0.0, 0.5, 0.3, 0.0, 0.2, 0.3, 0.0, 1.0],
-  dissoluzione: [0.0, 0.3, 1.0, 0.0, 0.5, 0.7, 0.2, 0.0],
+  germoglio:    [0.0, 0.1, 1.0, 0.0, 0.3, 0.0, 0.0],
+  pulsazione:   [0.0, 0.4, 0.7, 0.0, 0.6, 0.5, 0.0],
+  densita:      [0.0, 0.7, 0.5, 0.0, 0.8, 0.9, 0.4],
+  rottura:      [0.0, 0.8, 0.3, 0.0, 0.4, 0.5, 0.0],
+  dissoluzione: [0.0, 0.3, 1.0, 0.0, 0.5, 0.7, 0.2],
 };
 
 // ── State ──
@@ -68,10 +68,14 @@ let brightnessCooldown = 0; // seconds until next trigger allowed
 // RuptureEngine
 let ruptureStage3 = 'idle';
 let ruptureProgress3 = 0;
-let ruptureNoteTimer = 2; // timer per note off-beat in presagio
-
 // Presence per traccia
-let presence3 = [0, 0, 0, 0, 0, 0, 0, 0];
+let presence3 = [0, 0, 0, 0, 0, 0, 0];
+
+// ── Dissoluzione transition state ──
+let grainRhythmicity = 0;   // 0→0.6 in dissoluzione — biases grain toward 36bpm grid
+let droneGlideProgress = 0; // 0→1 over 30s in dissoluzione — drone A→E
+let lastVoiceWasDs = false;  // track if D# farewell note was sent
+const INTERNAL_36BPM_16TH = 60 / 36 / 4; // ~0.4167 sec per 16th at 36bpm
 
 // ═══════════════════════════════════════════════════════════
 //  CHORD ENGINE — progressioni fisse per fase (A Lydian)
@@ -163,15 +167,9 @@ function updateRupture3(dt) {
   // Color C solo in takeover
   setComposerClimax(ruptureStage3 === 'takeover');
 
-  // Note off-beat in presagio: Bb=58, F#=54, vel bassa, timer irregolare
+  // Presagio: intensify grain presence
   if (ruptureStage3 === 'presagio') {
-    ruptureNoteTimer -= dt;
-    if (ruptureNoteTimer <= 0) {
-      ruptureNoteTimer = 4 + Math.random() * 4;
-      const note = Math.random() < 0.5 ? 58 : 54; // Bb3 o F#3
-      sendMIDINote(7, note, 28, 400);
-      addMidiNote(7, note / 127, 28 / 127);
-    }
+    presence3[1] = Math.min(1, presence3[1] + dt * 0.3);
   }
 }
 
@@ -186,6 +184,7 @@ function updatePhase3(dt) {
     phaseClock = 0;
     phaseIdx = (phaseIdx + 1) % CFG.COMPOSER3.phaseOrder.length;
     phase = CFG.COMPOSER3.phaseOrder[phaseIdx];
+    setEnginePhase('deriva', phase, ruptureStage3);
     initChord3();
     markovHistory3 = [null, null];
     console.log(`[COMPOSER3] → ${phase}`);
@@ -199,13 +198,13 @@ function updatePhase3(dt) {
 
 function updatePresence3(dt) {
   const targets = PHASE_PRESENCE3[phase] || PHASE_PRESENCE3.germoglio;
-  for (let i = 0; i < 8; i++) {
+  for (let i = 0; i < 7; i++) {
     presence3[i] += (targets[i] - presence3[i]) * Math.min(1, dt * 0.8);
   }
 
   // Verifica silence ratio
   const active = presence3.filter(p => p > 0.1).length;
-  const silenceRatio = 1 - active / 8;
+  const silenceRatio = 1 - active / 7;
   if (silenceRatio < CFG.COMPOSER3.minSilenceRatio) {
     // Muta il layer più debole (non DRONE né RUPTURE)
     const candidates = [0, 1, 3, 4, 5, 6];
@@ -261,8 +260,18 @@ function updateGrain3(dt) {
   // Higher air → more frequent grain events
   const rate = presence3[1] * (0.8 + airEnergy * 5); // events per second
   grainAccum += dt * rate;
-  if (grainAccum >= 1) {
-    grainAccum -= 1;
+
+  // In dissoluzione: grainRhythmicity biases timing toward 36bpm 16th grid
+  // The grain only fires when grainAccum >= threshold (higher = more quantized)
+  const threshold = 1 + grainRhythmicity * 1.5; // 1.0 → 1.9 (fires less often but more on-grid)
+  if (grainAccum >= threshold) {
+    // Snap to nearest grid point when rhythmicity is high
+    if (grainRhythmicity > 0.1) {
+      const gridPhase = timeSec % INTERNAL_36BPM_16TH;
+      const nearGrid = gridPhase < 0.05 || gridPhase > (INTERNAL_36BPM_16TH - 0.05);
+      if (!nearGrid && Math.random() < grainRhythmicity) return; // skip off-grid
+    }
+    grainAccum -= threshold;
     // Pitched grain from A Lydian scale — high register shimmering textures
     const phaseData = CFG.COMPOSER3.phases[phase];
     const scale = MODES3[phaseData.mode] || MODES3.A_lydian;
@@ -277,33 +286,29 @@ function updateGrain3(dt) {
 }
 
 // ═══════════════════════════════════════════════════════════
-//  RUPTURE TICK — CH7 events (presagio via timer, infiltrazione/takeover periodic)
+//  DISSOLUZIONE TRANSITION — grainRhythmicity + droneGlide + voice D#
 // ═══════════════════════════════════════════════════════════
 
-let ruptureTick = 0;
+function updateDissoluzioneTransition() {
+  if (phase === 'dissoluzione') {
+    // grainRhythmicity: 0 → 0.6 over dissoluzione duration
+    const dissolveDur = CFG.COMPOSER3.phases.dissoluzione.duration;
+    const t = Math.min(1, phaseClock / dissolveDur);
+    grainRhythmicity = t * 0.6;
 
-function updateRuptureNotes(dt) {
-  if (ruptureStage3 === 'infiltrazione') {
-    ruptureTick += dt;
-    if (ruptureTick >= 1.5) { // ~every 1.5 sec
-      ruptureTick = 0;
-      const scale = MODES3.Eb_locrian;
-      const note  = scale[Math.floor(Math.random() * scale.length)];
-      const vel   = Math.round(38 + ruptureProgress3 * 30);
-      sendMIDINote(7, note, Math.min(127, vel), 200);
-      addMidiNote(7, note / 127, vel / 127);
-    }
-  } else if (ruptureStage3 === 'takeover') {
-    ruptureTick += dt;
-    if (ruptureTick >= 0.8) { // ~every 0.8 sec
-      ruptureTick = 0;
-      const note = 64 + Math.round(Math.random() * 10);
-      const vel  = Math.round(70 + ruptureProgress3 * 40);
-      sendMIDINote(7, note, Math.min(127, vel), 300);
-      addMidiNote(7, note / 127, vel / 127);
+    // droneGlideProgress: 0 → 1 over 30 seconds
+    droneGlideProgress = Math.min(1, phaseClock / 30);
+
+    // Voice D# farewell: play once when dissoluzione is ~80% done
+    if (!lastVoiceWasDs && t > 0.8 && presence3[5] > 0.05) {
+      lastVoiceWasDs = true;
+      sendMIDINote(5, 63, 55, 2000); // D#4 — sensibile of E, bridge to CRISTALLO
+      addMidiNote(5, 63 / 127, 55 / 127);
     }
   } else {
-    ruptureTick = 0;
+    grainRhythmicity = 0;
+    droneGlideProgress = 0;
+    lastVoiceWasDs = false;
   }
 }
 
@@ -323,8 +328,14 @@ function onDriftBar3(driftBar) {
   }
 
   // CH2 DRONE — every 4 drift bars, root+fifth+octave, very long
+  // In dissoluzione: drone glides from A(57) → E(64) over 30s
   if (presence3[2] > 0.1 && driftBar % 4 === 0) {
-    const root   = phaseData.drone;
+    let root = phaseData.drone;
+    if (phase === 'dissoluzione') {
+      const glideFrom = 57; // A
+      const glideTo = 64;   // E (for CRISTALLO bridge)
+      root = Math.round(glideFrom + (glideTo - glideFrom) * droneGlideProgress);
+    }
     const fifth  = root + 7;
     const octave = root + 12;
     const vel    = Math.round(35 + presence3[2] * 30);
@@ -368,12 +379,10 @@ function onDriftBar3(driftBar) {
     }
   }
 
-  // CH7 RUPTURE residuo — sparse notes with decreasing velocity
-  if (ruptureStage3 === 'residuo' && driftBar % 2 === 0) {
-    const vel = Math.round(50 * (1 - ruptureProgress3));
-    if (vel > 10) {
-      sendMIDINote(7, 57, vel, 400); // A3
-      addMidiNote(7, 57 / 127, vel / 127);
+  // Residuo — drone pianissimo, nothing else
+  if (ruptureStage3 === 'residuo') {
+    for (let i = 0; i < presence3.length; i++) {
+      if (i !== 2) presence3[i] = Math.max(0, presence3[i] - 0.05);
     }
   }
 }
@@ -402,16 +411,18 @@ export function initComposer3() {
   phase    = CFG.COMPOSER3.phaseOrder[0];
   phaseIdx = 0;
   phaseClock = 0;
+  setEnginePhase('deriva', phase);
   presence3.fill(0);
   ruptureStage3    = 'idle';
   ruptureProgress3 = 0;
-  ruptureNoteTimer = 2;
   markovHistory3   = [null, null];
   centroidHistory  = [];
   centroidAvg      = 0;
   brightnessCooldown = 0;
   grainAccum       = 0;
-  ruptureTick      = 0;
+  grainRhythmicity = 0;
+  droneGlideProgress = 0;
+  lastVoiceWasDs   = false;
   initChord3();
 }
 
@@ -451,8 +462,8 @@ export function updateComposer3(dt) {
   // Air-energy-driven GRAIN
   updateGrain3(dt);
 
-  // Rupture note events
-  updateRuptureNotes(dt);
+  // Dissoluzione transition (grainRhythmicity, drone glide, voice D#)
+  updateDissoluzioneTransition(dt);
 
   injectState3();
 }

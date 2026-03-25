@@ -35,9 +35,13 @@ let W = window.innerWidth;
 let midiOut = null;
 
 // ── MIDI Clock (24 ppqn sync for Ableton / DAWs) ──
-let midiClockAccum = 0;
+// Lookahead scheduling: pre-schedule ticks with hardware timestamps.
+// The MIDI driver sends them at the exact right time regardless of
+// main thread load — eliminates jitter/drift completely.
 let midiClockRunning = false;
-let lastClockBpm = 120;
+let clockBpm = 120;
+let nextTickTime = 0;       // performance.now() of next scheduled tick
+const CLOCK_LOOKAHEAD = 50; // schedule ticks up to 50ms ahead
 
 // Keep canvas width in sync
 export function setCanvasWidth(width) {
@@ -134,10 +138,14 @@ export function updateMIDI() {
 }
 
 // ── MIDI Output ──
+// Hardware-timed note-off: WebMIDI send() accetta un timestamp DOMHighRes.
+// Il driver MIDI schedula il note-off con precisione hardware,
+// eliminando il drift del setTimeout sul main thread.
 export function sendMIDINote(ch, note, vel, durationMs = 200) {
   if (!midiOut) return;
-  midiOut.send([0x90 | (ch & 0x0F), note, vel]);
-  setTimeout(() => midiOut.send([0x80 | (ch & 0x0F), note, 0]), durationMs);
+  const chByte = ch & 0x0F;
+  midiOut.send([0x90 | chByte, note, vel]);
+  midiOut.send([0x80 | chByte, note, 0], performance.now() + durationMs);
 }
 
 export function sendMIDIAllNotesOff() {
@@ -149,7 +157,7 @@ export function sendMIDIAllNotesOff() {
 export function sendMIDIStart() {
   if (!midiOut) return;
   midiOut.send([0xFA]); // MIDI Start
-  midiClockAccum = 0;
+  nextTickTime = performance.now();
   midiClockRunning = true;
   console.log('[MIDI CLOCK] START');
 }
@@ -158,19 +166,20 @@ export function sendMIDIStop() {
   if (!midiOut) return;
   midiOut.send([0xFC]); // MIDI Stop
   midiClockRunning = false;
-  midiClockAccum = 0;
   console.log('[MIDI CLOCK] STOP');
 }
 
-export function updateMIDIClock(dt, bpm) {
+export function updateMIDIClock(bpm) {
   if (!midiOut || !midiClockRunning || !bpm) return;
-  lastClockBpm = bpm;
-  // 24 pulses per quarter note
-  const pulsesPerSec = (bpm / 60) * 24;
-  midiClockAccum += dt * pulsesPerSec;
-  while (midiClockAccum >= 1) {
-    midiOut.send([0xF8]); // MIDI Clock tick
-    midiClockAccum -= 1;
+  clockBpm = bpm;
+  // Lookahead: pre-schedule ticks with hardware timestamps.
+  // The MIDI driver delivers them at the exact right time,
+  // regardless of main thread rendering load.
+  const tickIntervalMs = 60000 / (clockBpm * 24);
+  const scheduleHorizon = performance.now() + CLOCK_LOOKAHEAD;
+  while (nextTickTime <= scheduleHorizon) {
+    midiOut.send([0xF8], nextTickTime);
+    nextTickTime += tickIntervalMs;
   }
 }
 

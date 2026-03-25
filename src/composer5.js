@@ -11,7 +11,7 @@ import { setComposerClimax } from './colors.js';
 import { addMidiNote as _rawAddMidi } from './field.js';
 import { emit } from './director-events.js';
 import { setEngine } from './midi-patterns.js';
-import { getPresenceMultiplier, isChannelAllowed } from './presence-multiplier.js';
+import { getPresenceMultiplier, isChannelAllowed, setEnginePhase } from './presence-multiplier.js';
 
 // ── Presence-scaled MIDI output (with channel priority) ──
 function sendMIDINote(ch, note, vel, dur) {
@@ -73,6 +73,7 @@ export function initComposer5() {
   ruptureStage = 'idle';
   lastRuptureStage = 'idle';
   presence.fill(0);
+  setEnginePhase('cristallo', CFG.COMPOSER5.phaseOrder[0]);
   currentMode = 'E_lydian';
   currentDrone = 52;
   lastChord = [64, 68, 71];
@@ -114,6 +115,7 @@ function updatePhase(dt) {
     phaseTime = 0;
     arcProgress = 0;
     chordBarCount = 0;
+    setEnginePhase('cristallo', currentPhase(), ruptureStage);
     console.log(`[COMPOSER5] → ${currentPhase()}`);
   }
 }
