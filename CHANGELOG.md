@@ -5,6 +5,34 @@ Formato: `[versione] – data – descrizione`
 
 ---
 
+## [v2.1.0] – 2026-03-25
+
+**7 motori compositivi + MIDI timing anti-drift + phase bridge visuale + debug canali.**
+
+### Aggiunto
+- **SOLCO** (`composer7.js`): settimo motore compositivo — G Dorian Berlin Techno 128bpm con velocity sweep bass, 7-slot presence [KICK, HAT, DRONE, BASS, CHORD, VOICE, RIDE]
+- **Phase bridge**: ogni composer emette `setEnginePhase()` ad ogni transizione di fase; il director legge `getEnginePhase()` per evoluzione visiva reattiva alla fase musicale corrente
+- **Phase-driven visual evolution** in `director.js`: parametri visivi (densityCap, cameraSpeed, palette intensity) evolvono in base alla fase del composer attivo
+- **MIDI Clock lookahead scheduling** (`midi.js`): pre-scheduling tick con hardware timestamps — il driver MIDI li invia con precisione hardware, eliminando jitter/drift dal main thread
+- **MIDI Clock worker** (`midi-clock.worker.js`): worker dedicato per timing sub-millisecondo del clock 24ppqn
+- **Hardware-timed note-off**: `sendMIDINote()` usa `performance.now() + durationMs` per note-off con precisione hardware
+- **Dissoluzione transition** in DERIVA (`composer3.js`): sistema di transizione continuo con grainRhythmicity e droneGlideProgress — presagio/infiltrazione/takeover/residuo senza note discrete di rupture
+
+### Corretto (Bug fix)
+- **PRIMARY_CH troppo restrittivo** (`presence-multiplier.js`): ogni motore aveva solo 3 canali primari ma ne usa 5-7 — durante i crossfade il channel gating bloccava la maggior parte degli strumenti. Espanso a tutti i canali effettivamente usati da ogni motore
+- **`ruptureProgress` undefined** in `composer2.js`, `composer4.js`, `composer6.js`: variabile mai dichiarata, il hard cut nel takeover non scattava mai. Corretto con `arcProgress`
+- **SOLCO assente dal sequencer** (`sequencer.js`): `primaryEngine()` e `activeEngineCount()` non includevano 'solco' — il motore era invisibile al display e al conteggio
+- **Presence multiplier non azzerato** (`main.js`): durante toggle manuale dei motori, i pm delle engine inattive non venivano azzerati — canali fantasma persistenti
+- **Canali SOLCO silenziosi**: presence levels troppo bassi in `composer7.js` — aumentati per garantire output su tutti i canali verso Ableton
+
+### Modificato
+- **MECCANICA** (`config.js`): allineamento armonico a C# Dorian (era disallineato)
+- **MIDI output**: note-off schedulato via hardware timestamp invece di setTimeout — elimina drift su main thread carico
+- **MIDI clock**: algoritmo assoluto con catch-up istantaneo (niente drift cumulativo)
+- `midi-patterns.js`: supporto visivo per canali aggiuntivi
+
+---
+
 ## [v2.0.0] – 2026-03-25
 
 **Concerto narrativo a 5 atti — struttura drammaturgica completa per performance 40 minuti.**

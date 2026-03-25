@@ -121,7 +121,7 @@ function currentAct() {
 
 // Find the engine with highest presence (for display)
 function primaryEngine() {
-  const engines = ['terreno', 'meccanica', 'deriva', 'vortice', 'cristallo', 'abisso'];
+  const engines = ['terreno', 'meccanica', 'deriva', 'vortice', 'cristallo', 'abisso', 'solco'];
   let best = null, bestPm = 0;
   for (const e of engines) {
     const pm = getPresenceMultiplier(e);
@@ -132,7 +132,7 @@ function primaryEngine() {
 
 // Count engines with presence > threshold
 function activeEngineCount(threshold) {
-  const engines = ['terreno', 'meccanica', 'deriva', 'vortice', 'cristallo', 'abisso'];
+  const engines = ['terreno', 'meccanica', 'deriva', 'vortice', 'cristallo', 'abisso', 'solco'];
   return engines.filter(e => getPresenceMultiplier(e) > threshold).length;
 }
 

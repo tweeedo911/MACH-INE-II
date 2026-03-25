@@ -1,6 +1,7 @@
 // ═══════════════════════════════════════════════════════════
-//  MACH:INE II — Composer 2 (Secondo Organismo Compositivo)
-//  Centro gravitazionale: A Dorian · layer sfasati · dialogo col director
+//  MACH:INE II — Composer 2 (MECCANICA)
+//  C# Dorian · 98 BPM · poliritmia jazz · layer system
+//  v3 — step clock per kick/bass, voicings jazz, shell chords
 // ═══════════════════════════════════════════════════════════
 
 import { CFG } from './config.js';
@@ -11,9 +12,8 @@ import { setComposerClimax } from './colors.js';
 import { addMidiNote as _rawAddMidi } from './field.js';
 import { emit } from './director-events.js';
 import { setEngine } from './midi-patterns.js';
-import { getPresenceMultiplier, isChannelAllowed } from './presence-multiplier.js';
+import { getPresenceMultiplier, isChannelAllowed, setEnginePhase } from './presence-multiplier.js';
 
-// ── Presence-scaled MIDI output (with channel priority) ──
 function sendMIDINote(ch, note, vel, dur) {
   const pm = getPresenceMultiplier('meccanica');
   if (pm < 0.05) return;
@@ -24,89 +24,159 @@ function addMidiNote(ch, x, intensity) {
   _rawAddMidi(ch, x, intensity * getPresenceMultiplier('meccanica'));
 }
 
-// ── Scale modes A (nota MIDI: A3 = 57) ──
+// ═══════════════════════════════════════════════════════════
+//  SCALES — C# Dorian root C#3=61
+//  C# D# E F# G# A# B C# — Dorian color: A# (natural 6th)
+// ═══════════════════════════════════════════════════════════
+
 const MODES2 = {
-  A_dorian:   [45,47,48,50,52,54,55,57,59,60,62,64,66,67,69,71,72,74,76,78,79,81],
-  A_phrygian: [45,46,48,50,52,53,55,57,58,60,62,64,65,67,69,70,72,74,76,77,79,81],
-  E_lydian:   [52,54,56,58,59,61,63,64,66,68,70,71,73,75,76,78,80,82,83,85,87],
+  Cs_dorian:  [37,49,51,52,54,56,58,59,61,63,64,66,68,70,71,73,75,76,78,80],
+  Cs_lydian:  [37,49,51,53,54,56,58,60,61,63,65,66,68,70,72,73,75,77],
+  Fs_phrygian:[42,54,55,57,59,61,62,64,66,67,69,71,73,74,76,78],
   Bb_locrian: [46,47,49,51,52,54,56,58,59,61,63,64,66,68,70,71,73,75,76,78,80],
 };
 
-// Pivot pitch classes: A=9, C=0, E=4 (mod 12)
-const PIVOT_CLASSES2 = new Set([9, 0, 4]);
+// C# Dorian pivot pitch classes: C#=1, E=4, G#=8
+const PIVOT_CLASSES2 = new Set([1, 4, 8]);
 
-// Presenza target per layer [harmonic, rhythmic, textural, melodic] per fase
-const PHASE_PRESENCE2 = {
-  germoglio:    [0.3, 0.0, 0.0, 0.0],
-  pulsazione:   [0.5, 0.7, 0.0, 0.3],
-  densita:      [0.8, 0.9, 0.6, 0.7],
-  rottura:      [0.2, 0.9, 0.8, 0.0],
-  dissoluzione: [0.4, 0.1, 0.0, 0.2],
+// ═══════════════════════════════════════════════════════════
+//  CHORD VOICINGS — C# Dorian jazz shell voicings
+//  Principio: root in basso (CH3), chord voicing è CH4 separato
+//  Si usano drop-2 e shell voicings per evitare saturazione
+//  Dorian color: includi A#(58) per il carattere modale
+// ═══════════════════════════════════════════════════════════
+
+// C#m7:  C#, E, G#, B  — [49+12=61, 64, 68, 71]
+// F#m7:  F#, A, C#, E  — [54+12=66, 69, 73, 76]
+// Amaj7: A, C#, E, G#  — [57+12=69, 73, 76, 80]  ← Dorian IV chord
+// G#m7:  G#, B, D#, F# — [56+12=68, 71, 75, 78]
+// B7:    B, D#, F#, A# — [47+12=59, 63, 66, 70]  ← Dorian VII chord
+
+const CHORD_PROGS2 = {
+  germoglio:    [[61,64,68]],                                      // C#m (open triad)
+  pulsazione:   [[61,64,68],[66,70,73],[64,68,71],[61,66,68]],     // C#m→F#m→Em→C#sus
+  densita:      [[61,64,68,71],[66,70,73,76],[64,68,71,75],        // C#m7→F#m7→Em7
+                 [68,73,76,80],[66,70,73,76],[61,68,71,76]],       // Amaj7→F#m7→C#m9
+  rottura:      null,
+  dissoluzione: [[61,64,68,71],[66,70,73,76],[61,64,68]],
+};
+let chordProgIdx2 = 0;
+let lastChord = [61, 64, 68];
+
+// ═══════════════════════════════════════════════════════════
+//  KICK PATTERNS — E(5,16) variants per 98 BPM
+//  Jazz feel: off-beat accentuations, non 4/4 classico
+// ═══════════════════════════════════════════════════════════
+
+const KICK_PATS2 = [
+  [1,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0],  // [0] single (germoglio)
+  [1,0,0,0, 0,0,0,0, 1,0,0,0, 0,1,0,0],  // [1] 1+3+"4e" — jazz pocket
+  [1,0,0,0, 1,0,0,0, 0,0,1,0, 0,0,1,0],  // [2] 1+2+"and3"+"and4" — funky
+  [1,0,1,0, 0,0,1,0, 0,1,0,0, 1,0,0,0],  // [3] E(5,16) jazz variant
+  [1,0,0,0, 0,1,0,0, 1,0,0,1, 0,0,1,0],  // [4] dense syncopated
+];
+
+// ═══════════════════════════════════════════════════════════
+//  BASS PATTERNS — C# Dorian melodic motifs
+//  Bass root C#1=37.  Note offsets from C#1:
+//  0=C#1, 3=E1, 4=F1 (avoid!), 7=G#1, 10=A#1(Dorian6!), 12=C#2
+//  REGOLA: MAI il bII (D=semitono sopra C#) come nota melodica lunga
+// ═══════════════════════════════════════════════════════════
+
+const BASS_SEQS2 = [
+  // 0: root held long (germoglio)
+  { p:[1,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0], n:[0],          gate:12.0 },
+
+  // 1: root + fifth — jazz minimal
+  { p:[1,0,0,0, 0,0,0,0, 0,0,7,0, 0,0,0,0], n:[0,7],        gate:7.0  },
+
+  // 2: root + minor3rd + fifth — C# jazz groove
+  { p:[1,0,0,0, 0,0,0,1, 0,0,7,0, 0,0,0,0], n:[0,3,7],      gate:3.5  },
+
+  // 3: Dorian color — root + A#(6th) + G#(5th) anticipation
+  { p:[1,0,0,0, 0,0,0,0, 0,0,7,0, 10,0,0,0], n:[0,7,10],    gate:3.0  },
+
+  // 4: dense jazz walking (densita)
+  { p:[1,0,0,0, 0,1,0,0, 7,0,0,0, 10,0,12,0], n:[0,3,7,10,12], gate:2.0 },
+];
+
+const BASS_FOR_PHASE2 = {
+  germoglio:    [0, 0],
+  pulsazione:   [1, 2],
+  densita:      [3, 4, 3],
+  rottura:      [4, 2],
+  dissoluzione: [1, 0],
 };
 
-// ── Layer — oscillatore ciclico indipendente ──
+// ═══════════════════════════════════════════════════════════
+//  LAYER SYSTEM — oscillatori a cicli primi
+//  harmonic=4bar, rhythmic=3bar, textural=5bar, melodic=7bar
+//  Si riallineano ogni 420 bar (~10min) — ogni performance è unica
+// ═══════════════════════════════════════════════════════════
+
 class Layer {
   constructor(cycleBars, offset) {
     this.cycleBars = cycleBars;
-    this.phase = offset;       // 0..1, avanza ogni frame
+    this.phase = offset;
     this._prevPhase = offset;
   }
-
   update(dt, bpm) {
     this._prevPhase = this.phase;
-    // bars/s = bpm / 60 / 4 (4 beat per bar)
     const barsPerSec = bpm / (60 * 4);
     this.phase = (this.phase + barsPerSec * dt / this.cycleBars) % 1;
   }
-
-  // True se il layer ha attraversato threshold questo frame
   crossed(threshold) {
     const p = this._prevPhase, n = this.phase;
-    // gestisce il wrap 0.99→0.01
     if (p <= n) return p < threshold && n >= threshold;
     return p < threshold || n >= threshold;
   }
 }
 
-// ── Stato modulo ──
+// ═══════════════════════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════════════════════
+
 export let composer2Active = false;
 
 let phaseIndex = 0;
 let phaseTime = 0;
 let arcProgress = 0;
-let clock = 0;        // in beat
+let clock = 0;       // beat clock
 let lastBeat = -1;
+let clockStep = 0;   // step clock per kick/bass
+let lastStep2 = -1;
 
-const layers = {};    // { harmonic, rhythmic, textural, melodic }
-const presence = [0, 0, 0, 0]; // presenza corrente per layer
+const layers = {};
+const presence = [0,0,0,0]; // [harmonic, rhythmic, textural, melodic]
 
-let currentMode = 'A_dorian';
-let currentDrone = 57;
-let lastChord = [57, 60, 64];  // A C E iniziale
+let currentMode = 'Cs_dorian';
+let currentDrone = 61;  // C#3
 
 let ruptureStage = 'idle';
 let lastRuptureStage = 'idle';
 
-// Edge detection per emitLayerEvents (evita chiamate 60×/s al director)
+let kickPat2 = KICK_PATS2[0];
+let lastKickPatBar = -1;
+let bassSeq2 = BASS_SEQS2[0];
+let bassNoteIdx2 = 0;
+let lastBassSeqBar = -1;
+
 let _lastTensionActive = false;
 let _lastVoidActive    = false;
 let _lastDensityPeak   = false;
-
 let debugTimer = 0;
 
 // ── Inizializzazione ──
 export function initComposer2() {
-  phaseIndex = 0;
-  phaseTime = 0;
-  arcProgress = 0;
-  clock = 0;
-  lastBeat = -1;
-  ruptureStage = 'idle';
-  lastRuptureStage = 'idle';
-  _lastTensionActive = false;
-  _lastVoidActive    = false;
-  _lastDensityPeak   = false;
+  phaseIndex = 0; phaseTime = 0; arcProgress = 0;
+  clock = 0; lastBeat = -1; clockStep = 0; lastStep2 = -1;
+  ruptureStage = 'idle'; lastRuptureStage = 'idle';
+  _lastTensionActive = _lastVoidActive = _lastDensityPeak = false;
   presence.fill(0);
+  setEnginePhase('meccanica', currentPhaseName());
+  chordProgIdx2 = 0; lastChord = [61, 64, 68];
+  kickPat2 = KICK_PATS2[0]; lastKickPatBar = -1;
+  bassSeq2 = BASS_SEQS2[0]; bassNoteIdx2 = 0; lastBassSeqBar = -1;
 
   const L = CFG.COMPOSER2.layers;
   layers.harmonic = new Layer(L.harmonic.cycleBars, L.harmonic.offset);
@@ -121,7 +191,7 @@ export function toggleComposer2() {
   if (composer2Active) {
     initComposer2();
     setEngine('meccanica');
-    console.log('[COMPOSER2] ON — A Dorian MECCANICA 98bpm');
+    console.log('[COMPOSER2] ON — C# Dorian MECCANICA 98bpm');
   } else {
     sendMIDIAllNotesOff();
     setComposerClimax(false);
@@ -132,29 +202,22 @@ export function toggleComposer2() {
 }
 
 // ── Phase system ──
-function currentPhaseName() {
-  return CFG.COMPOSER2.phaseOrder[phaseIndex];
-}
+function currentPhaseName() { return CFG.COMPOSER2.phaseOrder[phaseIndex]; }
 
 function updatePhase(dt) {
   phaseTime += dt;
   const phaseName = currentPhaseName();
   const phaseCfg = CFG.COMPOSER2.phases[phaseName];
   arcProgress = Math.min(1, phaseTime / phaseCfg.duration);
-
-  // Aggiorna modo e drone
   currentMode = phaseCfg.mode;
   currentDrone = phaseCfg.drone;
-
-  // Blocca il director arc sulla fase corrente
   setArcPhaseForced(phaseCfg.arc);
-
-  // Avanza alla fase successiva
   if (phaseTime >= phaseCfg.duration) {
     phaseIndex = (phaseIndex + 1) % CFG.COMPOSER2.phaseOrder.length;
-    phaseTime = 0;
-    arcProgress = 0;
-    chordProgIdx2 = 0;
+    phaseTime = 0; arcProgress = 0; chordProgIdx2 = 0;
+    kickPat2 = KICK_PATS2[0]; lastKickPatBar = -1;
+    bassSeq2 = BASS_SEQS2[0]; bassNoteIdx2 = 0; lastBassSeqBar = -1;
+    setEnginePhase('meccanica', currentPhaseName(), ruptureStage);
     console.log(`[COMPOSER2] → ${currentPhaseName()}`);
   }
 }
@@ -168,29 +231,27 @@ function updateLayers(dt) {
   layers.melodic.update(dt, bpm);
 }
 
-// ── VoidManager — mantiene il silence ratio ──
+// ── VoidManager ──
 function updatePresence(dt) {
   const phaseName = currentPhaseName();
-  const target = PHASE_PRESENCE2[phaseName] || [0.5, 0.5, 0.3, 0.3];
+  const target = {
+    germoglio:    [0.3, 0.0, 0.0, 0.0],
+    pulsazione:   [0.5, 0.7, 0.0, 0.3],
+    densita:      [0.8, 0.9, 0.6, 0.7],
+    rottura:      [0.2, 0.9, 0.8, 0.0],
+    dissoluzione: [0.4, 0.1, 0.0, 0.2],
+  }[phaseName] || [0.5,0.5,0.3,0.3];
   const silTarget = CFG.COMPOSER2.silenceTarget[phaseName] || 0.4;
-
-  // Lerp presenza verso target (velocità adattiva)
   for (let i = 0; i < 4; i++) {
     presence[i] += (target[i] - presence[i]) * dt * 0.3;
   }
-
-  // Calcola void ratio
   const activeCount = presence.filter(p => p > 0.3).length;
   const voidRatio = 1 - activeCount / 4;
-
-  // VoidManager: troppo denso → muta il layer più debole
   if (voidRatio < silTarget) {
     let minIdx = 0;
     for (let i = 1; i < 4; i++) { if (presence[i] < presence[minIdx]) minIdx = i; }
     presence[minIdx] *= 0.85;
   }
-
-  // VoidManager: troppo silenzioso → riattiva il layer più silenzioso
   if (voidRatio > silTarget + 0.20) {
     let minIdx = 0;
     for (let i = 1; i < 4; i++) { if (presence[i] < presence[minIdx]) minIdx = i; }
@@ -202,13 +263,9 @@ function updatePresence(dt) {
 function updateRupture() {
   const phaseName = currentPhaseName();
   if (phaseName !== 'rottura') {
-    if (ruptureStage !== 'idle') {
-      ruptureStage = 'idle';
-      setComposerClimax(false);
-    }
+    if (ruptureStage !== 'idle') { ruptureStage = 'idle'; setComposerClimax(false); }
     return;
   }
-
   const R = CFG.COMPOSER2.rupture;
   const p = arcProgress;
   if      (p < R.presagioAt)      ruptureStage = 'idle';
@@ -216,78 +273,166 @@ function updateRupture() {
   else if (p < R.takeoverAt)      ruptureStage = 'infiltrazione';
   else if (p < R.residuoAt)       ruptureStage = 'takeover';
   else                            ruptureStage = 'residuo';
-
   if (ruptureStage !== lastRuptureStage) {
     lastRuptureStage = ruptureStage;
     emit('rupture_stage', { stage: ruptureStage, progress: p });
-
-    // Color C (magenta) solo in TAKEOVER
     setComposerClimax(ruptureStage === 'takeover');
   }
 }
 
-// Fixed chord progressions per phase (MIDI absolute — A Dorian / E Lydian)
-const CHORD_PROGS2 = {
-  germoglio:    [[57,60,64]],                                                      // Am
-  pulsazione:   [[57,60,64],[60,64,67],[62,65,69],[57,60,64]],                    // Am → C → Dm → Am
-  densita:      [[57,60,64],[60,64,67],[62,65,69],[64,67,71],[60,64,67],[57,62,64]], // Am→C→Dm→Em→C→Asus
-  rottura:      null,
-  dissoluzione: [[57,60,64],[60,64,67],[57,60,64]],                                // Am → C → Am
-};
-let chordProgIdx2 = 0;
+// ═══════════════════════════════════════════════════════════
+//  CHORD BUILDER — voice leading jazz-informed
+// ═══════════════════════════════════════════════════════════
 
-// ── Chord builder — structured progressions with voice leading ──
 function buildChord(mode) {
-  const prog = CHORD_PROGS2[currentPhaseName()];
+  const scale = MODES2[mode] || MODES2.Cs_dorian;
+  const maxLeap = (CFG.COMPOSER2.voiceLeadingMax || 3) * 2;
+  const newChord = lastChord.map(note => {
+    const candidates = scale.filter(n => Math.abs(n - note) <= maxLeap);
+    if (!candidates.length) {
+      return scale.reduce((best, n) => Math.abs(n - note) < Math.abs(best - note) ? n : best);
+    }
+    // Prefer pivot pitch classes for smooth voice leading
+    const pivot = candidates.filter(n => PIVOT_CLASSES2.has(n % 12));
+    if (pivot.length > 0 && Math.random() < 0.5) {
+      return pivot[Math.floor(Math.random() * pivot.length)];
+    }
+    return candidates[Math.floor(Math.random() * candidates.length)];
+  });
+  lastChord = newChord;
+  return newChord;
+}
+
+function getChordFromProg(phaseName) {
+  const prog = CHORD_PROGS2[phaseName];
   if (prog) {
     chordProgIdx2 = (chordProgIdx2 + 1) % prog.length;
-    const notes = [...prog[chordProgIdx2]];
-    if (lastChord) {
-      for (let i = 0; i < notes.length; i++) {
-        const diff = notes[i] - lastChord[i];
-        if (Math.abs(diff) > 7) notes[i] += diff > 0 ? -12 : 12;
-      }
-    }
-    lastChord = notes;
-    return notes;
+    lastChord = [...prog[chordProgIdx2]];
+    return lastChord;
   }
-  // Rottura: dissonant cluster
-  const scale = MODES2[mode];
-  const idx = Math.floor(Math.random() * (scale.length - 2));
-  const notes = [scale[idx], scale[idx + 1], scale[idx + 2]]; // cluster
-  lastChord = notes;
-  return notes;
+  return buildChord(currentMode);
 }
 
-// ── Melodia con bias pivot ──
+// ═══════════════════════════════════════════════════════════
+//  MELODIC NOTE PICKER — for layer crossings
+// ═══════════════════════════════════════════════════════════
+
 function pickMelodicNote(mode) {
-  const scale = MODES2[mode];
-  // Filtro registro mid (60-84)
-  const mid = scale.filter(n => n >= 60 && n <= 84);
-  const pool = mid.length > 0 ? mid : scale;
-  // Bias pivot 40% (pitch class indipendente dall'ottava)
-  const pivots = pool.filter(n => PIVOT_CLASSES2.has(n % 12));
-  if (pivots.length > 0 && Math.random() < 0.4) {
-    return pivots[Math.floor(Math.random() * pivots.length)];
+  const scale = MODES2[mode] || MODES2.Cs_dorian;
+  // Prefer mid-high register (C#4=61 to C#5=73), bias toward chord tones + pivot
+  const pool = [];
+  for (const n of scale) {
+    if (n < 59 || n > 80) continue;
+    let w = 1.0;
+    if (PIVOT_CLASSES2.has(n % 12)) w *= 2.5;
+    if (lastChord.some(c => c % 12 === n % 12)) w *= 3.0;
+    pool.push({ n, w });
   }
-  return pool[Math.floor(Math.random() * pool.length)];
+  if (!pool.length) return scale[Math.floor(Math.random() * scale.length)];
+  const total = pool.reduce((s, e) => s + e.w, 0);
+  let r = Math.random() * total;
+  for (const e of pool) { r -= e.w; if (r <= 0) return e.n; }
+  return pool[pool.length - 1].n;
 }
 
-// ── Crossing-triggered notes (ogni frame — non legati al beat clock) ──
+// ═══════════════════════════════════════════════════════════
+//  STEP SEQUENCER — kick e bass a 16th-note resolution
+//  Il layer system rimane per melodia/armonia/grain
+// ═══════════════════════════════════════════════════════════
+
+function onKickBassStep(step) {
+  const bpm    = CFG.COMPOSER2.bpm;
+  const stepMs = (60 / bpm / 4) * 1000;   // ~153ms a 98 BPM
+  const barMs  = stepMs * 16;
+  const s16    = step % 16;
+  const bar2   = Math.floor(step / 16);
+  const rc     = ruptureStage === 'takeover'     ? 0.8
+               : ruptureStage === 'infiltrazione' ? 0.4
+               : ruptureStage === 'presagio'      ? 0.15 : 0;
+
+  // Staggered kick pattern rotation (ogni 6 bar)
+  if (bar2 !== lastKickPatBar && bar2 % 6 === 0) {
+    lastKickPatBar = bar2;
+    const kickPool = {
+      germoglio:    [0],
+      pulsazione:   [1, 2],
+      densita:      [2, 3, 4],
+      rottura:      [4, 3],
+      dissoluzione: [1, 0],
+    }[currentPhaseName()] || [1];
+    const ki = bar2 % kickPool.length;
+    kickPat2 = KICK_PATS2[kickPool[ki]];
+  }
+
+  // Staggered bass motif rotation (ogni 8 bar)
+  if (bar2 !== lastBassSeqBar && bar2 % 8 === 0) {
+    lastBassSeqBar = bar2;
+    const bpool = BASS_FOR_PHASE2[currentPhaseName()] || [1];
+    const bi = (bar2 / 8) % bpool.length;
+    bassSeq2 = BASS_SEQS2[bpool[bi]];
+    bassNoteIdx2 = 0;
+  }
+
+  // ── CH0 PULSE — kick jazz ──
+  if (presence[1] > 0.3 && rc < 0.6 && kickPat2[s16]) {
+    const vel = s16 === 0 ? 105 : Math.floor(75 + presence[1] * 28 + (Math.random()-0.5)*8);
+    // Groove humanization: offset ±12ms on off-beat kicks
+    const humanMs = s16 !== 0 ? Math.round((Math.random() - 0.5) * 24) : 0;
+    setTimeout(() => {
+      if (!composer2Active) return;
+      sendMIDINote(0, currentDrone - 12, vel, Math.round(stepMs * 0.4));
+      addMidiNote(0, (currentDrone - 12) / 127, vel / 127);
+    }, Math.max(0, humanMs));
+  }
+
+  // ── CH3 BASS — C# Dorian melodic motif ──
+  if (presence[1] > 0.2 && currentPhaseName() !== 'rottura' && bassSeq2.p[s16]) {
+    const offsets = [0, 3, 7, 10, 12, -2]; // C#1, E1, G#1, A#1(Dorian6), C#2, B0(leadingtone)
+    const off = bassSeq2.n[bassNoteIdx2 % bassSeq2.n.length];
+    bassNoteIdx2++;
+    const bassNote = currentDrone - 24 + (offsets[off] !== undefined ? offsets[off] : off);
+    const vel = s16 === 0
+      ? Math.floor(88 + presence[1] * 25)
+      : Math.floor(70 + presence[1] * 22 + (Math.random()-0.5)*7);
+    const dur = s16 === 0
+      ? Math.round(stepMs * bassSeq2.gate)
+      : Math.round(stepMs * Math.max(1.5, bassSeq2.gate * 0.4));
+    sendMIDINote(3, Math.max(24, Math.min(96, bassNote)), vel, dur);
+    addMidiNote(3, bassNote / 127, vel / 127);
+  }
+
+  // ── CLIMAX HARD CUT — takeover finale → silenzio ──
+  if (ruptureStage === 'takeover' && arcProgress > 0.78) {
+    sendMIDIAllNotesOff();
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  LAYER CROSSINGS — CH4 chords, CH1 grain, CH5/CH6 voice
+//  Questi rimangono time-continuous (non sul beat grid):
+//  è la caratteristica jazz-organica di questo engine
+// ═══════════════════════════════════════════════════════════
+
 function checkLayerCrossings() {
   const bpm    = CFG.COMPOSER2.bpm;
   const beatMs = (60 / bpm) * 1000;
-  const rc     = ruptureStage === 'takeover'     ? 0.8 :
-                 ruptureStage === 'infiltrazione' ? 0.4 :
-                 ruptureStage === 'presagio'      ? 0.15 : 0;
+  const phaseName = currentPhaseName();
+  const rc = ruptureStage === 'takeover'     ? 0.8
+           : ruptureStage === 'infiltrazione' ? 0.4
+           : ruptureStage === 'presagio'      ? 0.15 : 0;
 
   // CH4 CHORDS — harmonic layer crossing 0.0, 0.5
+  // Voicings: usa progressioni fisse in germoglio/pulsazione, buildChord in densita
   if (presence[0] > 0.3) {
     if (layers.harmonic.crossed(0.0) || layers.harmonic.crossed(0.5)) {
-      const chord = buildChord(currentMode);
-      const vel   = Math.floor(52 + presence[0] * 40);
+      const chord = phaseName === 'densita'
+        ? buildChord(currentMode)
+        : getChordFromProg(phaseName);
+      const vel = Math.floor(48 + presence[0] * 38);
+      // Durata lunga: lascia respirare il pad (6-8 beat)
+      const dur = Math.round(beatMs * (5 + Math.random() * 3));
       for (const note of chord) {
-        sendMIDINote(4, note, vel, beatMs * 6);
+        sendMIDINote(4, note, vel, dur);
         addMidiNote(4, note / 127, vel / 127);
       }
       emit('chord_change', { root: chord[0], mode: currentMode });
@@ -295,143 +440,86 @@ function checkLayerCrossings() {
   }
 
   // CH1 GRAIN — textural layer crossing 0.2, 0.4, 0.6, 0.8
+  // Note brevi dalla scala, registro alto — tessiture
   if (presence[2] > 0.25 && rc < 0.5) {
     for (const th of [0.2, 0.4, 0.6, 0.8]) {
       if (layers.textural.crossed(th)) {
-        const scale = MODES2[currentMode];
-        const hi    = scale.filter(n => n >= 72 && n <= 88);
-        const pool  = hi.length > 0 ? hi : scale;
-        const note  = pool[Math.floor(Math.random() * pool.length)];
-        const vel   = Math.floor(38 + presence[2] * 35);
-        sendMIDINote(1, note, vel, beatMs * 0.35);
+        const scale = MODES2[currentMode] || MODES2.Cs_dorian;
+        // Solo note nel registro brillante (F#4=66 → C#5=73)
+        const hi   = scale.filter(n => n >= 66 && n <= 78);
+        const pool = hi.length > 0 ? hi : scale;
+        const note = pool[Math.floor(Math.random() * pool.length)];
+        const vel  = Math.floor(35 + presence[2] * 32);
+        sendMIDINote(1, note, vel, Math.round(beatMs * 0.3));
         addMidiNote(1, note / 127, vel / 127);
         emit('grain_entry', { intensity: presence[2] });
       }
     }
   }
 
-  // CH5 VOICE + CH6 LEAD — call-and-response melodic system
+  // CH5 VOICE + CH6 LEAD — call and response sul layer melodico
   if (presence[3] > 0.3 && rc < 0.5) {
     for (const th of [0.25, 0.5, 0.75]) {
       if (layers.melodic.crossed(th)) {
-        if (Math.random() < presence[3] * 0.7) {
+        if (Math.random() < presence[3] * 0.72) {
           const note = pickMelodicNote(currentMode);
-          const vel  = Math.floor(48 + presence[3] * 50);
-          // CH5 VOICE — the call
-          sendMIDINote(5, note, vel, beatMs * 1.8);
+          const vel  = Math.floor(50 + presence[3] * 45);
+          // CH5 VOICE — the call (durata 2 beat)
+          sendMIDINote(5, note, vel, Math.round(beatMs * 2.2));
           addMidiNote(5, note / 127, vel / 127);
-          // CH6 LEAD — response: invert the interval from last chord root
-          if (presence[3] > 0.5 && Math.random() < 0.5) {
-            const chordRoot = lastChord[0];
-            const interval = note - chordRoot;
-            // Response mirrors the interval (call goes up, response goes down)
+          // CH6 LEAD — response: stesso intervallo invertito, ritardato (~1.5 beat dopo)
+          if (presence[3] > 0.5 && Math.random() < 0.55) {
+            const chordRoot = lastChord[0] || 61;
+            const interval  = note - chordRoot;
+            // Risposta speculare: sale→scende, scende→sale
             const responseNote = Math.max(48, Math.min(96, chordRoot - interval));
             setTimeout(() => {
               if (!composer2Active) return;
-              sendMIDINote(6, responseNote, Math.floor(vel * 0.65), beatMs * 1.5);
-              addMidiNote(6, responseNote / 127, (vel * 0.65) / 127);
-            }, Math.round(beatMs * 0.75));
+              sendMIDINote(6, responseNote, Math.floor(vel * 0.62), Math.round(beatMs * 1.8));
+              addMidiNote(6, responseNote / 127, (vel * 0.62) / 127);
+            }, Math.round(beatMs * 1.5));
           }
         }
       }
     }
   }
+
+  // CH2 DRONE — ogni 16 beat (invariato)
+  // Gestito in onBeat per semplicità
 }
 
-// ── Beat-triggered notes (CH0 PULSE, CH2 DRONE, CH3 BASS, CH7 RUPTURE) ──
+// ═══════════════════════════════════════════════════════════
+//  BEAT CLOCK — solo CH2 DRONE (tutto il resto è in step/layer)
+// ═══════════════════════════════════════════════════════════
+
 function onBeat(beat) {
-  const bpm       = CFG.COMPOSER2.bpm;
-  const beatMs    = (60 / bpm) * 1000;
-  const shuffleMs = CFG.COMPOSER2.grooveShuffleMs || 10;
+  const bpm    = CFG.COMPOSER2.bpm;
+  const beatMs = (60 / bpm) * 1000;
   const phaseName = currentPhaseName();
-  const barBeat   = beat % 4;
-  const bar       = Math.floor(beat / 4);
-  const rc        = ruptureStage === 'takeover'     ? 0.8 :
-                    ruptureStage === 'infiltrazione' ? 0.4 :
-                    ruptureStage === 'presagio'      ? 0.15 : 0;
 
-  // Groove shuffle: offset on even beats (±shuffleMs humanization)
-  const swing = (barBeat % 2 === 0 && barBeat > 0)
-    ? Math.round(shuffleMs + (Math.random() - 0.5) * shuffleMs)
-    : Math.round((Math.random() - 0.5) * shuffleMs * 0.5);
-
-  // CH0 PULSE — 4-on-the-floor kick with groove
-  if (presence[1] > 0.3 && rc < 0.6) {
-    const pulseEvery = presence[1] > 0.7 ? 1 : 2;
-    if (beat % pulseEvery === 0) {
-      const vel = barBeat === 0 ? 110 : Math.floor(78 + presence[1] * 30);
-      setTimeout(() => {
-        if (!composer2Active) return;
-        sendMIDINote(0, currentDrone - 12, vel, beatMs * 0.3);
-        addMidiNote(0, (currentDrone - 12) / 127, vel / 127);
-      }, Math.max(0, swing));
-    }
-  }
-
-  // CH3 BASS — chromatic movement: root, chromatic approach, fifth, minor third
-  if (presence[1] > 0.2 && phaseName !== 'rottura') {
-    const bassRoot = currentDrone - 24;
-    const bassEvery = presence[1] > 0.6 ? 1 : 2;
-    if (beat % bassEvery === 0) {
-      // Chromatic bass pattern: root → root+1 (chromatic) → fifth → minor 3rd
-      const bassPattern = [bassRoot, bassRoot + 1, bassRoot + 7, bassRoot + 3];
-      const bassNote = bassPattern[barBeat % bassPattern.length];
-      const vel = barBeat === 0
-        ? Math.floor(90 + presence[1] * 27)
-        : Math.floor(72 + presence[1] * 22);
-      const gate = presence[1] > 0.7 ? 0.85 : 0.6;
-      setTimeout(() => {
-        if (!composer2Active) return;
-        sendMIDINote(3, bassNote, vel, beatMs * gate);
-        addMidiNote(3, bassNote / 127, vel / 127);
-      }, Math.max(0, swing));
-    }
-  }
-
-  // CH2 DRONE — bordone ogni 16 beat, root + fifth
+  // CH2 DRONE — root+quinta ogni 16 beat
   if (beat % 16 === 0 && phaseName !== 'rottura') {
-    const vel = Math.floor(28 + arcProgress * 22);
-    sendMIDINote(2, currentDrone, vel, beatMs * 13);
-    sendMIDINote(2, currentDrone + 7, Math.round(vel * 0.6), beatMs * 13);
+    const vel = Math.floor(25 + arcProgress * 20);
+    sendMIDINote(2, currentDrone, vel, Math.round(beatMs * 14));
+    sendMIDINote(2, currentDrone + 7, Math.round(vel * 0.55), Math.round(beatMs * 14));
     addMidiNote(2, currentDrone / 127, vel / 127);
   }
-
-  // CH7 RUPTURE — downbeat sparso in base allo stadio
-  if (ruptureStage !== 'idle' && ruptureStage !== 'residuo') {
-    const ruptureEvery = ruptureStage === 'presagio' ? 8 : 4;
-    if (barBeat === 0 && bar % ruptureEvery === 0) {
-      const scale = MODES2['Bb_locrian'];
-      const note  = scale[Math.floor(Math.random() * scale.length)];
-      const vel   = Math.floor(55 + rc * 55);
-      sendMIDINote(7, note, vel, beatMs * 0.6);
-      addMidiNote(7, note / 127, vel / 127);
-    }
-  }
 }
 
-// ── Emissione eventi semantici — solo sul fronte di salita ──
+// ── Semantic events ──
 function emitLayerEvents() {
   const phaseName   = currentPhaseName();
   const silTarget   = CFG.COMPOSER2.silenceTarget[phaseName] || 0.4;
   const activeCount = presence.filter(p => p > 0.3).length;
   const voidRatio   = 1 - activeCount / 4;
-
-  const tensionNow = activeCount >= 2 && arcProgress > 0.4;
-  if (tensionNow && !_lastTensionActive) {
-    emit('tension', { level: (activeCount - 1) / 3 * arcProgress });
-  }
+  const tensionNow  = activeCount >= 2 && arcProgress > 0.4;
+  if (tensionNow && !_lastTensionActive) emit('tension', { level: (activeCount-1)/3*arcProgress });
   _lastTensionActive = tensionNow;
-
   const voidNow = voidRatio > silTarget + 0.05;
-  if (voidNow && !_lastVoidActive) {
-    emit('void', { ratio: voidRatio });
-  }
+  if (voidNow && !_lastVoidActive) emit('void', { ratio: voidRatio });
   _lastVoidActive = voidNow;
-
   const peakNow = activeCount === 4;
-  if (peakNow && !_lastDensityPeak) {
-    emit('density_peak', { level: arcProgress });
-  }
+  if (peakNow && !_lastDensityPeak) emit('density_peak', { level: arcProgress });
   _lastDensityPeak = peakNow;
 }
 
@@ -439,9 +527,9 @@ function emitLayerEvents() {
 function injectState() {
   const pm = getPresenceMultiplier('meccanica');
   const activeCount = presence.filter(p => p > 0.3).length;
-  state.intensity    = Math.min(1, 0.2 + arcProgress * 0.5 + activeCount * 0.1) * pm;
-  state.rhythmicity  = Math.min(1, presence[1] * 0.8 + presence[2] * 0.2) * pm;
-  state.trajectory   = arcProgress > 0.7 ? -1 : arcProgress > 0.3 ? 0 : 1;
+  state.intensity   = Math.min(1, 0.2 + arcProgress * 0.5 + activeCount * 0.1) * pm;
+  state.rhythmicity = Math.min(1, presence[1] * 0.8 + presence[2] * 0.2) * pm;
+  state.trajectory  = arcProgress > 0.7 ? -1 : arcProgress > 0.3 ? 0 : 1;
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -449,58 +537,52 @@ function injectState() {
 // ═══════════════════════════════════════════════════════════
 
 export function updateComposer2(dt) {
-  // Fase formale
   updatePhase(dt);
-
-  // Oscillatori layer
   updateLayers(dt);
-
-  // VoidManager
   updatePresence(dt);
-
-  // Rupture
   updateRupture();
 
-  // Crossing-triggered notes (ogni frame — CH4 chords, CH1 grain)
+  // Layer crossings (armonia/grain/voce) — ogni frame
   checkLayerCrossings();
 
-  // Beat clock
+  // Beat clock per drone
   const bpm = CFG.COMPOSER2.bpm;
   const beatsPerSec = bpm / 60;
   clock += dt * beatsPerSec;
   const currentBeat = Math.floor(clock);
-  if (currentBeat > lastBeat) {
-    lastBeat = currentBeat;
-    onBeat(currentBeat);
+  if (currentBeat > lastBeat) { lastBeat = currentBeat; onBeat(currentBeat); }
+
+  // Step clock per kick/bass (16th note)
+  const stepsPerSec = bpm * 4 / 60;
+  clockStep += dt * stepsPerSec;
+  const currentStep2 = Math.floor(clockStep);
+  if (currentStep2 > lastStep2) {
+    for (let s = lastStep2 + 1; s <= currentStep2; s++) onKickBassStep(s);
+    lastStep2 = currentStep2;
   }
 
-  // Eventi semantici (ogni frame)
   emitLayerEvents();
-
-  // State injection
   injectState();
 
-  // Debug console ogni 10s
   debugTimer += dt;
   if (debugTimer >= 10) {
     debugTimer = 0;
-    const activeCount = presence.filter(p => p > 0.3).length;
+    const ac = presence.filter(p => p > 0.3).length;
     console.log(
       `[COMPOSER2] ${currentPhaseName()} | ` +
-      `layers: H${presence[0].toFixed(1)} R${presence[1].toFixed(1)} ` +
+      `H${presence[0].toFixed(1)} R${presence[1].toFixed(1)} ` +
       `T${presence[2].toFixed(1)} M${presence[3].toFixed(1)} ` +
-      `| rupture: ${ruptureStage} | active: ${activeCount}/4`
+      `| rupture: ${ruptureStage} | active: ${ac}/4`
     );
   }
 }
 
-// ── Export status per HUD ──
+// ── Export status ──
 export function getComposer2Status() {
-  const activeCount = presence.filter(p => p > 0.3).length;
   return {
     active: composer2Active,
     phase: currentPhaseName(),
-    activeCount,
+    activeCount: presence.filter(p => p > 0.3).length,
     ruptureStage,
   };
 }
