@@ -10,6 +10,11 @@ export let entities = [];
 export let fossils = [];
 let birthAccum = 0;
 
+// ── Object pools — reuse entity/fossil objects to avoid GC ──
+const _entityPool = [];
+const _fossilPool = [];
+let _youngestAge = null;  // pre-allocated TypedArray, reused every frame
+
 // ── Spatial hash for entity density + color ──
 export let entityGrid = null;
 export let entityColorGrid = null;
@@ -50,15 +55,15 @@ function spawnEntity(state, color) {
   // Zone color affinity: if zone has a color, entities born there inherit it
   const finalColor = color || zone.colorAffinity || null;
   const life = CFG.entityLifeMin + Math.random() * (CFG.entityLifeMax - CFG.entityLifeMin);
-  return {
-    x: pos.x, y: pos.y,
-    density: 0.4 + Math.random() * 0.5,
-    age: 0,
-    maxAge: life / (dna ? dna.evolutionSpeed : 1),
-    dotSizeOffset: 0,
-    color: finalColor,
-    colorAlpha: finalColor ? 0.8 : 0,
-  };
+  const e = _entityPool.length > 0 ? _entityPool.pop() : {};
+  e.x = pos.x; e.y = pos.y;
+  e.density = 0.4 + Math.random() * 0.5;
+  e.age = 0;
+  e.maxAge = life / (dna ? dna.evolutionSpeed : 1);
+  e.dotSizeOffset = 0;
+  e.color = finalColor;
+  e.colorAlpha = finalColor ? 0.8 : 0;
+  return e;
 }
 
 // ── Spawn entities from audio onset ──
@@ -197,7 +202,10 @@ export function updateGenerations(dt, state, evoSpeed, inClimax, climaxProgress,
     }
 
     if (ageNorm >= 1) {
-      fossils.push({ x: e.x, y: e.y, density: CFG.fossilDensity, life: CFG.fossilDuration, age: 0 });
+      const f = _fossilPool.length > 0 ? _fossilPool.pop() : {};
+      f.x = e.x; f.y = e.y; f.density = CFG.fossilDensity; f.life = CFG.fossilDuration; f.age = 0;
+      fossils.push(f);
+      _entityPool.push(e);
       entities[i] = entities[entities.length - 1];
       entities.length--;
     }
@@ -206,6 +214,7 @@ export function updateGenerations(dt, state, evoSpeed, inClimax, climaxProgress,
   for (let i = fossils.length - 1; i >= 0; i--) {
     fossils[i].age += dt;
     if (fossils[i].age >= fossils[i].life) {
+      _fossilPool.push(fossils[i]);
       fossils[i] = fossils[fossils.length - 1];
       fossils.length--;
     }
@@ -227,8 +236,8 @@ export function buildEntityGrid(W, H) {
   entityColorGrid.fill(0);
   entityColorAlphaGrid.fill(0);
 
-  const youngestAge = new Float32Array(cells);
-  youngestAge.fill(999);
+  if (!_youngestAge || _youngestAge.length !== cells) _youngestAge = new Float32Array(cells);
+  _youngestAge.fill(999);
 
   for (const e of entities) {
     const ageNorm = e.age / e.maxAge;
@@ -241,8 +250,8 @@ export function buildEntityGrid(W, H) {
     if (col >= 0 && col < entityGridCols && row >= 0 && row < entityGridRows) {
       const idx = row * entityGridCols + col;
       entityGrid[idx] += eDensity;
-      if (e.color && e.colorAlpha > 0.01 && ageNorm < youngestAge[idx]) {
-        youngestAge[idx] = ageNorm;
+      if (e.color && e.colorAlpha > 0.01 && ageNorm < _youngestAge[idx]) {
+        _youngestAge[idx] = ageNorm;
         entityColorGrid[idx] = COLOR_ID[e.color] || 0;
         entityColorAlphaGrid[idx] = e.colorAlpha;
       }
@@ -278,6 +287,8 @@ export function entityColorAt(nx, ny, W, H) {
 
 // ── Reset ──
 export function resetGenerations() {
+  for (const e of entities) _entityPool.push(e);
+  for (const f of fossils) _fossilPool.push(f);
   entities = [];
   fossils = [];
   birthAccum = 0;

@@ -31,7 +31,7 @@ Poi apri `http://localhost:8282` nel browser.
 
 ---
 
-## 6 Motori Compositivi
+## 7 Motori Compositivi
 
 Ogni motore e un organismo musicale autonomo con 5 fasi narrative:
 GERMOGLIO → PULSAZIONE → DENSITA → ROTTURA → DISSOLUZIONE
@@ -44,6 +44,7 @@ GERMOGLIO → PULSAZIONE → DENSITA → ROTTURA → DISSOLUZIONE
 | 4 | TERRENO | D Dorian | 72 | Dub lento, groove organico |
 | 5 | MECCANICA | C# Dorian | 98 | Layer poliritmici, techno strutturato |
 | 6 | VORTICE | F Phrygian | 138 | Step sequencer tribale, micro-loop |
+| 7 | SOLCO | G Dorian | 128 | Berlin techno, kick-first, groove industriale |
 
 ### Concerto Autonomo (Sequencer v3)
 
@@ -66,7 +67,7 @@ Sovrapposizione multi-motore con crossfade a presenza variabile. `→` salta all
 
 | Tasto | Azione |
 |-------|--------|
-| 1–6 | Attiva motore (mutua esclusione) |
+| 1–7 | Attiva motore (mutua esclusione) |
 | 0 | Sequencer autopilot on/off |
 | → | Skip al prossimo motore (in sequencer) |
 | H | Toggle HUD minimal |
@@ -146,7 +147,8 @@ MACH:INE II/
 │   ├── composer3.js         DERIVA (A Lydian, beatless)
 │   ├── composer4.js         VORTICE (F Phrygian 138bpm)
 │   ├── composer5.js         CRISTALLO (Eb Lydian 54bpm)
-│   └── composer6.js         ABISSO (Bb Phrygian 76bpm)
+│   ├── composer6.js         ABISSO (Bb Phrygian 76bpm)
+│   └── composer7.js         SOLCO (G Dorian 128bpm)
 ├── midi/                    file MIDI di test
 ├── versions/                snapshot di ogni versione
 ├── docs/                    task storici e riferimenti visivi
@@ -179,7 +181,7 @@ MACH:INE II/
 
 ## Versione corrente
 
-`v2.0.0` — vedi [CHANGELOG.md](CHANGELOG.md) per i dettagli.
+`v2.7.0` — vedi [CHANGELOG.md](CHANGELOG.md) per i dettagli.
 
 ---
 

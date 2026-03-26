@@ -5,6 +5,51 @@ Formato: `[versione] – data – descrizione`
 
 ---
 
+## [v2.7.0] – 2026-03-26
+
+**Performance runtime — eliminazione allocazioni hot-path, object pool entità, debug gate.**
+
+### Ottimizzato
+- **Object pool entità/fossili** (`generations.js`): `spawnEntity` recupera oggetti da `_entityPool` invece di allocare `{}` ogni spawn; fossili recuperati da `_fossilPool`; morte restituisce al pool — zero allocazioni steady-state
+- **`_youngestAge` pre-allocata** (`generations.js`): `new Float32Array(cells)` era allocata ogni frame in `buildEntityGrid` (~8 KB/frame) — ora array module-level con resize solo se la canvas cambia
+- **Filter→loop hot-path** (`composer.js/2/3/4/5/6/7`): tutte le occorrenze di `.filter(p => p > X).length` nei metodi `updatePresence()`, `emitLayerEvents()`, `injectState()` sostituite con loop espliciti — zero array temporanei per frame
+- **Ring buffer centroide** (`composer3.js`): `centroidHistory.push/shift/reduce` O(n) → `Float32Array(30)` circolare con running sum O(1); stati `_centroidBuf/Idx/Sum/Fill` inizializzati in `initComposer3`
+- **Audio fallback DERIVA** (`composer3.js`): `audio.bands.air.L/R` ora con null-safety `?? audio.rms * 0.15` — previene crash se l'analizzatore non ha la banda air
+
+### Aggiunto
+- **`CFG.debug`** (`config.js`): flag globale `false` — tutti i blocchi `debugTimer >= 10` nei composer gati con `if (CFG.debug && ...)` — zero console spam durante performance live
+
+---
+
+## [v2.6.0] – 2026-03-26
+
+**Completamento partitura v2.6.0 — Markov rupture, clamp ABISSO, frame feedback, inversion VORTICE.**
+
+### Aggiunto
+- **CRISTALLO Markov rupture** (`composer5.js`): CH7 cluster durante rottura usa zone registrali Markov (low/mid/high da F locrian); matrice di transizione biased upward; `_ruptureZone5` si resetta a 0 al rientro in 'presagio'
+- **Frame buffer feedback** (`render.js`, `director.js`): background fill con alpha = `1 - feedbackDecay` invece di fillRect opaco — trail visivi persistenti; `engineRender.feedbackDecay` cablato da `ENGINE_PREFS` (terreno 0.94, deriva 0.97, cristallo 0.95)
+- **VORTICE rhythmic inversion** (`director.js`): `startInvertDissolve()` ogni 4 beat a 138 BPM (~1.739s) via `_vorticeInvTimer` accumulato con dt
+
+### Corretto
+- **ABISSO CH4/CH5 clamp** (`composer6.js`): note di accordo e voce clampate a `Math.min(84, ...)` (C6) — elimina MIDI out-of-range in ottave alte
+- **CRISTALLO shimmerPatIdx reset** (`composer5.js`): `shimmerPatIdx = 0` al cambio di fase — pattern shimmer non parte da indice residuo della fase precedente
+
+---
+
+## [v2.5.0] – 2026-03-26
+
+**Identità cromatica MIDI per motore + comportamenti channel aggiuntivi.**
+
+### Aggiunto
+- **`ENGINE_MIDI_COLORS`** (`colors.js`): palette MIDI distinte per terreno (terra/cera), deriva (acqua/aria), solco (ferro/cemento) — i trail MIDI assumono cromaticità coerente con il carattere del motore
+- **TERRENO CH6 LEAD** (`midi-patterns.js`): comportamento visivo dedicato per il canale melodia di TERRENO — trail più lunghi, intensità legata alla velocity
+- **ABISSO CH4 CHORDS** (`midi-patterns.js`): comportamento visivo dedicato per accordi ABISSO — area più larga, decay lento coerente con il carattere rituale
+
+### Modificato
+- **SOLCO palette** (`director.js`): `warm` → `bw` — identità visiva monocromatica coerente con Berlin techno
+
+---
+
 ## [v2.4.0] – 2026-03-26
 
 **PARTITURA — presenze drone, voice germoglio, evoluzione droni.**
