@@ -92,9 +92,10 @@ const BASS_FOR_PHASE6 = {
 
 const PHASE_PRESENCE6 = {
   //              [bass, drone, voice, grain, chords]
-  germoglio:    [0.0, 0.4, 0.0, 0.0, 0.2],
+  // voice germoglio 0.0→0.1 per PARTITURA; drone densita 0.8→0.5 per Regola 4
+  germoglio:    [0.0, 0.4, 0.1, 0.0, 0.2],
   pulsazione:   [0.5, 0.7, 0.3, 0.1, 0.5],
-  densita:      [0.8, 0.8, 0.5, 0.3, 0.7],
+  densita:      [0.8, 0.5, 0.5, 0.3, 0.7],
   rottura:      [0.7, 0.2, 0.0, 0.7, 0.1],
   dissoluzione: [0.2, 0.6, 0.3, 0.0, 0.4],
 };
@@ -125,6 +126,7 @@ let bassNoteIdx6 = 0;
 let lastBassVarBar6 = -1;
 let lastChordBar6 = -2;
 let lastDroneStep6 = -999;
+let chordsRevealBar = 0; // bars since germoglio started, for gradual chord entry
 
 // ── Inizializzazione ──
 export function initComposer6() {
@@ -136,7 +138,7 @@ export function initComposer6() {
   currentMode = 'Bb_phrygian'; currentDrone = 46;
   chordProgIdx6 = 0; lastChord6 = [58, 61, 65];
   bassSeq6 = BASS_SEQS6[0]; bassNoteIdx6 = 0; lastBassVarBar6 = -1;
-  lastChordBar6 = -2; lastDroneStep6 = -999;
+  lastChordBar6 = -2; lastDroneStep6 = -999; chordsRevealBar = 0;
 }
 
 // ── Toggle ──
@@ -169,7 +171,7 @@ function updatePhase(dt) {
   if (phaseTime >= cfg.duration) {
     phaseIndex = (phaseIndex + 1) % CFG.COMPOSER6.phaseOrder.length;
     phaseTime = 0; arcProgress = 0; chordProgIdx6 = 0;
-    bassNoteIdx6 = 0; lastBassVarBar6 = -1;
+    bassNoteIdx6 = 0; lastBassVarBar6 = -1; chordsRevealBar = 0;
     setEnginePhase('abisso', currentPhase(), ruptureStage);
     console.log(`[COMPOSER6] → ${currentPhase()}`);
   }
@@ -288,16 +290,21 @@ function onStep(step) {
     const chordBars = 8;
     if (bar !== lastChordBar6 && bar % chordBars === 0) {
       lastChordBar6 = bar;
+      chordsRevealBar++;
       const prog = CHORD_PROGS6[name];
       if (prog) {
         chordProgIdx6 = (chordProgIdx6 + 1) % prog.length;
         lastChord6 = [...prog[chordProgIdx6]];
       }
       const chord = lastChord6;
+      // Gradual chord entry in germoglio: 1 note (bar 0-3), 2 notes (bar 4-7), full triad (bar 8+)
+      const noteCount = name === 'germoglio'
+        ? (chordsRevealBar < 4 ? 1 : chordsRevealBar < 8 ? 2 : chord.length)
+        : chord.length;
       const vel = Math.floor(30 + presence[4] * 28);
       const dur = Math.round(barMs * 7.5);
-      for (const n of chord) {
-        const note = Math.min(127, n + octShift);
+      for (let ci = 0; ci < noteCount; ci++) {
+        const note = Math.min(127, chord[ci] + octShift);
         sendMIDINote(4, note, vel, dur);
         addMidiNote(4, note / 127, vel / 127);
       }

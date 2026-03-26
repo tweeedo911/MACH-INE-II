@@ -167,6 +167,8 @@ export const CFG = {
       silenceBarsRange: [4, 6],
     },
     voiceLeadingMax: 2,
+    droneOscillationBars: 16, // D3<->A2 cycle length in bars (PARTITURA Regola 2)
+    droneNoteAlt: 45,         // A2 — alternate drone note for TERRENO tidal oscillation
     midiOutputName: null,
   },
 
@@ -190,6 +192,9 @@ export const CFG = {
       melodic:  { cycleBars: 7, offset: 0.00 },
     },
     grooveShuffleMs: 10,  // ±10ms humanization on rhythmic crossings
+    swingMsMax: 12,       // max swing offset in ms at peak phase (densita) — PARTITURA
+    ghostNoteProb: 0.30,  // probability of ghost note on offbeats — PARTITURA
+    texturalOscBars: 32,  // bars per sinusoidal cycle for TEXTURAL layer presence — PARTITURA
     silenceTarget: {
       germoglio:    0.65,
       pulsazione:   0.45,
@@ -226,6 +231,8 @@ export const CFG = {
     },
     phaseOrder: ['germoglio', 'pulsazione', 'densita', 'rottura', 'dissoluzione'],
     driftBarSec: 4,           // virtual "bar" length in seconds (no BPM)
+    droneExpansionSec: 90,    // seconds to expand root to root+fifth+octave in germoglio — PARTITURA
+    voiceGermoglioThreshold: 0.7, // higher brightness threshold in germoglio for rare notes — PARTITURA
     minSilenceRatio: 0.40,
     rupture: {
       presagio:      [0.00, 0.25],

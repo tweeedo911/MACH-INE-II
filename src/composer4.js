@@ -164,11 +164,12 @@ let chordVoiceIdx4 = 0;
 // ═══════════════════════════════════════════════════════════
 
 const PHASE_PRESENCE4 = {
-  germoglio:    [0.7, 0.3, 0.6, 0.0],
-  pulsazione:   [0.9, 0.6, 0.8, 0.1],
-  densita:      [1.0, 0.9, 0.9, 0.4],
-  rottura:      [1.0, 1.0, 0.7, 0.0],
-  dissoluzione: [0.5, 0.2, 0.3, 0.0],
+  // [KICK, GRAIN, DRONE, VOICE] — drone capped per PARTITURA Regola 4 (max 0.2)
+  germoglio:    [0.7, 0.3, 0.2,  0.0],
+  pulsazione:   [0.9, 0.6, 0.15, 0.1],
+  densita:      [1.0, 0.9, 0.1,  0.4],
+  rottura:      [1.0, 1.0, 0.0,  0.0],
+  dissoluzione: [0.5, 0.2, 0.2,  0.0],
 };
 
 // ═══════════════════════════════════════════════════════════
