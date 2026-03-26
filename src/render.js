@@ -254,16 +254,19 @@ function updateHUDDebug() {
     (() => {
       const pm = getAllMultipliers();
       const parts = [
-        ['TER', pm.terreno], ['MEC', pm.meccanica], ['DER', pm.deriva],
-        ['VOR', pm.vortice], ['CRI', pm.cristallo], ['ABI', pm.abisso], ['SOL', pm.solco],
+        ['1:DER', pm.deriva], ['2:CRI', pm.cristallo], ['3:ABI', pm.abisso],
+        ['4:TER', pm.terreno], ['5:MEC', pm.meccanica], ['6:VOR', pm.vortice], ['7:SOL', pm.solco],
       ].filter(([, v]) => v > 0).map(([k, v]) => `${k}:${v.toFixed(1)}`);
       return parts.length ? `PM  ${parts.join('  ')}\n` : '';
     })() +
-    (() => { const s = getComposerStatus();  return s.active ? `TERRENO   ${s.phase}  ${s.ruptureStage}` : 'TERRENO   OFF'; })() + '\n' +
-    (() => { const s = getComposer2Status(); return s.active ? `MECCANICA ${s.phase}  L:${s.activeCount}/4  ${s.ruptureStage}` : 'MECCANICA OFF'; })() + '\n' +
-    (() => { const s = getComposer3Status(); return s.active ? `DERIVA    ${s.phase}  root:${s.chordRoot}  bar:${s.bar}  ${s.ruptureStage}` : 'DERIVA    OFF'; })() + '\n' +
-    (() => { const s = getComposer4Status(); return s.active ? `VORTICE   ${s.phase}  L:${s.activeCount}  ${s.ruptureStage}` : 'VORTICE   OFF'; })() + '\n' +
-    (() => { const s = getComposer5Status(); return s.active ? `CRISTALLO ${s.phase}  L:${s.activeCount}  ${s.ruptureStage}` : 'CRISTALLO OFF'; })() + '\n' +
-    (() => { const s = getComposer6Status(); return s.active ? `ABISSO    ${s.phase}  L:${s.activeCount}  ${s.ruptureStage}` : 'ABISSO    OFF'; })() + '\n' +
-    (() => { const s = getComposer7Status(); return s.active ? `SOLCO     ${s.phase}  L:${s.activeCount}  ${s.ruptureStage}` : 'SOLCO     OFF'; })();
+    (() => { const s = getComposer3Status(); return s.active ? `1 DERIVA    ${s.phase}  root:${s.chordRoot}  bar:${s.bar}  ${s.ruptureStage}` : '1 DERIVA    OFF'; })() + '\n' +
+    (() => { const s = getComposer5Status(); return s.active ? `2 CRISTALLO ${s.phase}  L:${s.activeCount}  ${s.ruptureStage}` : '2 CRISTALLO OFF'; })() + '\n' +
+    (() => { const s = getComposer6Status(); return s.active ? `3 ABISSO    ${s.phase}  L:${s.activeCount}  ${s.ruptureStage}` : '3 ABISSO    OFF'; })() + '\n' +
+    (() => { const s = getComposerStatus();  return s.active ? `4 TERRENO   ${s.phase}  ${s.ruptureStage}` : '4 TERRENO   OFF'; })() + '\n' +
+    (() => { const s = getComposer2Status(); return s.active ? `5 MECCANICA ${s.phase}  L:${s.activeCount}/4  ${s.ruptureStage}` : '5 MECCANICA OFF'; })() + '\n' +
+    (() => { const s = getComposer4Status(); return s.active ? `6 VORTICE   ${s.phase}  L:${s.activeCount}  ${s.ruptureStage}` : '6 VORTICE   OFF'; })() + '\n' +
+    (() => { const s = getComposer7Status(); return s.active ? `7 SOLCO     ${s.phase}  L:${s.activeCount}  ${s.ruptureStage}` : '7 SOLCO     OFF'; })() + '\n' +
+    `\n` +
+    `H HUD  D DEBUG  F FULL  P PROJ\n` +
+    `R REGEN  N MUTATE  è GAIN▼  + GAIN▲`;
 }

@@ -20,7 +20,7 @@ import { initComposer5, updateComposer5, toggleComposer5, composer5Active } from
 import { initComposer6, updateComposer6, toggleComposer6, composer6Active } from './composer6.js';
 import { initComposer7, updateComposer7, toggleComposer7, composer7Active } from './composer7.js';
 import { initSequencer, toggleSequencer, skipToNext, skipToPrev, skipToAct, togglePause, toggleLoop, canRecover, recoverState, updateSequencer, isSequencerActive } from './sequencer.js';
-import { resetAllMultipliers, setPresenceMultiplier, getPresenceMultiplier } from './presence-multiplier.js';
+import { setPresenceMultiplier, getPresenceMultiplier } from './presence-multiplier.js';
 import { WakeLockManager } from '../.claude/skills/runtime-expert/scripts/perf-utils.js';
 
 // ── DOM refs ──
@@ -75,15 +75,15 @@ function activateSingle(engineKey) {
 function manualToggle(toggleFn) {
   if (isSequencerActive()) toggleSequencer();
   allOff();
-  resetAllMultipliers();
   toggleFn();
-  // Zero pm for inactive engines so isChannelAllowed doesn't block channels
+  // Set active engine to 1.0, zero all others — no intermediate resetAllMultipliers()
+  // to avoid a frame where all 7 engines have pm=1.0 simultaneously
   const activeMap = {
     terreno: composerActive, meccanica: composer2Active, deriva: composer3Active,
     vortice: composer4Active, cristallo: composer5Active, abisso: composer6Active, solco: composer7Active,
   };
   for (const [key, active] of Object.entries(activeMap)) {
-    if (!active) setPresenceMultiplier(key, 0);
+    setPresenceMultiplier(key, active ? 1.0 : 0.0);
   }
 }
 
@@ -150,9 +150,9 @@ startScreen.addEventListener('click', async () => {
 document.addEventListener('keydown', (e) => {
   if (!running) return;
 
-  // Gain audio input — è (diminuisce) / + (aumenta)
-  if (e.key === 'è') { setAudioGain(getAudioGain() - CFG.audioInputGainStep); return; }
-  if (e.key === '+') { setAudioGain(getAudioGain() + CFG.audioInputGainStep); return; }
+  // Gain audio input — BracketLeft=è (diminuisce) / BracketRight=+ (aumenta)
+  if (e.code === 'BracketLeft')  { e.preventDefault(); setAudioGain(getAudioGain() - CFG.audioInputGainStep); return; }
+  if (e.code === 'BracketRight') { e.preventDefault(); setAudioGain(getAudioGain() + CFG.audioInputGainStep); return; }
 
   // Sequencer: 0 = START (solo), Shift+0 = STOP con reset, Space = pause
   if (e.code === 'Digit0') {
