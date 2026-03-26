@@ -5,6 +5,38 @@ Formato: `[versione] – data – descrizione`
 
 ---
 
+## [v2.4.0] – 2026-03-26
+
+**PARTITURA — presenze drone, voice germoglio, evoluzione droni.**
+
+### Regola 4 — Presenze drone ridotte sui motori ritmici
+- **VORTICE** (`composer4.js`): drone cap 0.2/0.15/0.1/0.0/0.2 — non copre più il groove
+- **SOLCO** (`composer7.js`): drone ridotto a 0.3/0.3/0.2/0.1/0.4
+- **TERRENO** (`composer.js`): drone 0.5/0.6/0.3/0.1/0.7
+- **MECCANICA** (`composer2.js`): drone cap 0.15/0.15/0.1/0.0/0.1
+- **CRISTALLO** (`composer5.js`): drone disattivato quando `pm < 0.5` (CRISTALLO in secondo piano)
+- **ABISSO** (`composer6.js`): drone densita 0.8→0.5
+
+### Voice germoglio — vita nei momenti fondanti
+- **DERIVA** (`composer3.js`): VOICE 0.0→0.15 in germoglio; brightness threshold 0.40→0.70 (note rarissime, solo su picchi)
+- **CRISTALLO** (`composer5.js`): VOICE 0.0→0.15 (allineato alla soglia shimmer 0.15)
+- **ABISSO** (`composer6.js`): VOICE 0.0→0.1
+
+### Evoluzione droni — movimento nel tempo
+- **TERRENO** (`composer.js`): oscillazione D3↔A2 ogni 16 bar (`droneBarCount`) — drone respira come marea
+- **DERIVA** (`composer3.js`): espansione germoglio root→quinta (60s)→ottava (90s) (`droneAge`) — il drone cresce con la fase
+- **ABISSO** (`composer6.js`): CHORDS ingresso graduale in germoglio — root (bar 0–3), +b3 (bar 4–7), triade completa (bar 8+) (`chordsRevealBar`)
+
+### MECCANICA — carattere jazz potenziato
+- **Ghost notes** 30% su offbeat ritmici (layer rhythmic 0.25/0.75)
+- **Swing progressivo** 0→12ms da germoglio a densita (beats 2 e 4)
+- **TEXTURAL sinusoidale** — presenza oscilla tra 0.3–0.7 su ciclo 32 bar
+
+### Config (`config.js`)
+Nuovi parametri: `droneOscillationBars`, `droneNoteAlt`, `swingMsMax`, `ghostNoteProb`, `texturalOscBars`, `droneExpansionSec`, `voiceGermoglioThreshold`
+
+---
+
 ## [v2.3.0] – 2026-03-26
 
 **Wake Lock + fix compositivi SOLCO + HUD debug completo.**
