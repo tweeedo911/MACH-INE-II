@@ -35,11 +35,12 @@ const PIVOT_CLASSES5 = new Set([4, 8, 11]);
 
 // Presenza target [chords, voice, grain, pulse] per fase
 const PHASE_PRESENCE5 = {
-  germoglio:    [0.3, 0.0, 0.0, 0.0],
-  pulsazione:   [0.6, 0.4, 0.1, 0.1],
-  densita:      [0.9, 0.8, 0.5, 0.3],
-  rottura:      [0.2, 0.0, 0.9, 0.0],
-  dissoluzione: [0.4, 0.2, 0.0, 0.0],
+  // voice in germoglio 0.15 = barely-active shimmer per PARTITURA
+  germoglio:    [0.3, 0.15, 0.0, 0.0],
+  pulsazione:   [0.6, 0.4,  0.1, 0.1],
+  densita:      [0.9, 0.8,  0.5, 0.3],
+  rottura:      [0.2, 0.0,  0.9, 0.0],
+  dissoluzione: [0.4, 0.2,  0.0, 0.0],
 };
 
 // ── Stato modulo ──
@@ -282,11 +283,14 @@ function onBeat(beat) {
     addMidiNote(3, (currentDrone - 24) / 127, vel / 127);
   }
 
-  // CH2 DRONE — ever-present, every 24 beats
+  // CH2 DRONE — only when CRISTALLO is foreground (pm >= 0.5), per PARTITURA
   if (beat % 24 === 0 && name !== 'rottura') {
-    const vel = Math.floor(28 + arcProgress * 18);
-    sendMIDINote(2, currentDrone, vel, beatMs * sustain * 20);
-    addMidiNote(2, currentDrone / 127, vel / 127);
+    const pm5 = getPresenceMultiplier('cristallo');
+    if (pm5 >= 0.5) {
+      const vel = Math.floor(28 + arcProgress * 18);
+      sendMIDINote(2, currentDrone, vel, beatMs * sustain * 20);
+      addMidiNote(2, currentDrone / 127, vel / 127);
+    }
   }
 
   // CH1 GRAIN — constant micro-sparkles, high register (Promises-style shimmer)

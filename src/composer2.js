@@ -150,7 +150,9 @@ const layers = {};
 const presence = [0,0,0,0]; // [harmonic, rhythmic, textural, melodic]
 
 let currentMode = 'Cs_dorian';
-let currentDrone = 61;  // C#3
+let currentDrone = 61;        // C#3
+let currentDroneNote = 61;    // follows chord root for harmonic pad effect (per PARTITURA)
+let texturalBarCount = 0;     // bar counter for sinusoidal TEXTURAL presence oscillation
 
 let ruptureStage = 'idle';
 let lastRuptureStage = 'idle';
@@ -175,6 +177,7 @@ export function initComposer2() {
   presence.fill(0);
   setEnginePhase('meccanica', currentPhaseName());
   chordProgIdx2 = 0; lastChord = [61, 64, 68];
+  currentDroneNote = 61; texturalBarCount = 0;
   kickPat2 = KICK_PATS2[0]; lastKickPatBar = -1;
   bassSeq2 = BASS_SEQS2[0]; bassNoteIdx2 = 0; lastBassSeqBar = -1;
 
@@ -214,7 +217,7 @@ function updatePhase(dt) {
   setArcPhaseForced(phaseCfg.arc);
   if (phaseTime >= phaseCfg.duration) {
     phaseIndex = (phaseIndex + 1) % CFG.COMPOSER2.phaseOrder.length;
-    phaseTime = 0; arcProgress = 0; chordProgIdx2 = 0;
+    phaseTime = 0; arcProgress = 0; chordProgIdx2 = 0; texturalBarCount = 0;
     kickPat2 = KICK_PATS2[0]; lastKickPatBar = -1;
     bassSeq2 = BASS_SEQS2[0]; bassNoteIdx2 = 0; lastBassSeqBar = -1;
     setEnginePhase('meccanica', currentPhaseName(), ruptureStage);
@@ -350,6 +353,15 @@ function onKickBassStep(step) {
                : ruptureStage === 'infiltrazione' ? 0.4
                : ruptureStage === 'presagio'      ? 0.15 : 0;
 
+  // Increment bar counter for TEXTURAL sinusoidal oscillation
+  if (s16 === 0) texturalBarCount++;
+
+  // Progressive swing: 0ms in germoglio → swingMsMax in densita, applied to beats 2+4
+  const swingFactorMap = { germoglio:0, pulsazione:1, densita:2, rottura:3, dissoluzione:2 };
+  const swingFactor = (swingFactorMap[currentPhaseName()] ?? 0) / 4.0;
+  const swingMs = Math.round(CFG.COMPOSER2.swingMsMax * swingFactor);
+  const kickSwing = (s16 === 4 || s16 === 12) ? swingMs : 0;
+
   // Staggered kick pattern rotation (ogni 6 bar)
   if (bar2 !== lastKickPatBar && bar2 % 6 === 0) {
     lastKickPatBar = bar2;
@@ -382,7 +394,7 @@ function onKickBassStep(step) {
       if (!composer2Active) return;
       sendMIDINote(0, currentDrone - 12, vel, Math.round(stepMs * 0.4));
       addMidiNote(0, (currentDrone - 12) / 127, vel / 127);
-    }, Math.max(0, humanMs));
+    }, Math.max(0, humanMs + kickSwing));
   }
 
   // ── CH3 BASS — C# Dorian melodic motif ──
@@ -428,6 +440,8 @@ function checkLayerCrossings() {
       const chord = phaseName === 'densita'
         ? buildChord(currentMode)
         : getChordFromProg(phaseName);
+      // Update drone note to follow chord root (harmonic pad effect, per PARTITURA)
+      currentDroneNote = Math.min(...chord);
       const vel = Math.floor(48 + presence[0] * 38);
       // Durata lunga: lascia respirare il pad (6-8 beat)
       const dur = Math.round(beatMs * (5 + Math.random() * 3));
@@ -439,9 +453,23 @@ function checkLayerCrossings() {
     }
   }
 
+  // CH0 GHOST NOTES — rhythmic layer offbeats (0.25, 0.75) at 30% probability per PARTITURA
+  if (presence[1] > 0.3 && rc < 0.5) {
+    for (const th of [0.25, 0.75]) {
+      if (layers.rhythmic.crossed(th)) {
+        if (Math.random() < CFG.COMPOSER2.ghostNoteProb) {
+          const vel = Math.floor(25 + Math.random() * 15);
+          sendMIDINote(0, currentDrone - 12, vel, Math.round(beatMs * 0.15));
+          addMidiNote(0, (currentDrone - 12) / 127, vel / 127);
+        }
+      }
+    }
+  }
+
   // CH1 GRAIN — textural layer crossing 0.2, 0.4, 0.6, 0.8
-  // Note brevi dalla scala, registro alto — tessiture
-  if (presence[2] > 0.25 && rc < 0.5) {
+  // Sinusoidal oscillation on TEXTURAL presence (per PARTITURA)
+  const texturalPm = 0.5 + 0.2 * Math.sin(2 * Math.PI * texturalBarCount / CFG.COMPOSER2.texturalOscBars);
+  if (presence[2] * texturalPm > 0.25 && rc < 0.5) {
     for (const th of [0.2, 0.4, 0.6, 0.8]) {
       if (layers.textural.crossed(th)) {
         const scale = MODES2[currentMode] || MODES2.Cs_dorian;
@@ -497,12 +525,13 @@ function onBeat(beat) {
   const beatMs = (60 / bpm) * 1000;
   const phaseName = currentPhaseName();
 
-  // CH2 DRONE — root+quinta ogni 16 beat
-  if (beat % 16 === 0 && phaseName !== 'rottura') {
-    const vel = Math.floor(25 + arcProgress * 20);
-    sendMIDINote(2, currentDrone, vel, Math.round(beatMs * 14));
-    sendMIDINote(2, currentDrone + 7, Math.round(vel * 0.55), Math.round(beatMs * 14));
-    addMidiNote(2, currentDrone / 127, vel / 127);
+  // CH2 DRONE — follows chord root, capped per PARTITURA Regola 4
+  const droneCap = { germoglio:0.15, pulsazione:0.15, densita:0.1, rottura:0.0, dissoluzione:0.1 }[phaseName] ?? 0.1;
+  if (beat % 16 === 0 && droneCap > 0) {
+    const vel = Math.floor(25 + droneCap * 80); // ~37 at 0.15, ~33 at 0.1
+    sendMIDINote(2, currentDroneNote, vel, Math.round(beatMs * 14));
+    sendMIDINote(2, currentDroneNote + 7, Math.round(vel * 0.55), Math.round(beatMs * 14));
+    addMidiNote(2, currentDroneNote / 127, vel / 127);
   }
 }
 

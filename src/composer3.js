@@ -37,7 +37,8 @@ const MODES3 = {
 // ── Presenza target per fase [PULSE, GRAIN, DRONE, BASS, CHORDS, VOICE, LEAD] ──
 // DERIVA: CH0 PULSE = 0 always, CH3 BASS = 0 always
 const PHASE_PRESENCE3 = {
-  germoglio:    [0.0, 0.1, 1.0, 0.0, 0.3, 0.0, 0.0],
+  // voice germoglio 0.0→0.15 per PARTITURA (shimmer brevissimo su brightness alta)
+  germoglio:    [0.0, 0.1, 1.0, 0.0, 0.3, 0.15, 0.0],
   pulsazione:   [0.0, 0.4, 0.7, 0.0, 0.6, 0.5, 0.0],
   densita:      [0.0, 0.7, 0.5, 0.0, 0.8, 0.9, 0.4],
   rottura:      [0.0, 0.8, 0.3, 0.0, 0.4, 0.5, 0.0],
@@ -75,6 +76,7 @@ let presence3 = [0, 0, 0, 0, 0, 0, 0];
 let grainRhythmicity = 0;   // 0→0.6 in dissoluzione — biases grain toward 36bpm grid
 let droneGlideProgress = 0; // 0→1 over 30s in dissoluzione — drone A→E
 let lastVoiceWasDs = false;  // track if D# farewell note was sent
+let droneAge = 0;            // seconds in germoglio — drives root→fifth→octave expansion
 const INTERNAL_36BPM_16TH = 60 / 36 / 4; // ~0.4167 sec per 16th at 36bpm
 
 // ═══════════════════════════════════════════════════════════
@@ -184,6 +186,7 @@ function updatePhase3(dt) {
     phaseClock = 0;
     phaseIdx = (phaseIdx + 1) % CFG.COMPOSER3.phaseOrder.length;
     phase = CFG.COMPOSER3.phaseOrder[phaseIdx];
+    droneAge = 0; // reset on phase change
     setEnginePhase('deriva', phase, ruptureStage3);
     initChord3();
     markovHistory3 = [null, null];
@@ -226,8 +229,10 @@ function updateBrightnessTrigger(dt) {
   if (centroidHistory.length > cfg.adaptiveWindow) centroidHistory.shift();
   centroidAvg = centroidHistory.reduce((s, v) => s + v, 0) / centroidHistory.length;
 
-  // Adaptive threshold
-  const threshold = Math.max(cfg.minThreshold, centroidAvg * cfg.adaptiveMultiplier);
+  // Adaptive threshold — higher in germoglio for rare VOICE events
+  const threshold = phase === 'germoglio'
+    ? CFG.COMPOSER3.voiceGermoglioThreshold
+    : Math.max(cfg.minThreshold, centroidAvg * cfg.adaptiveMultiplier);
 
   // Cooldown
   if (brightnessCooldown > 0) {
@@ -328,7 +333,8 @@ function onDriftBar3(driftBar) {
   }
 
   // CH2 DRONE — every 4 drift bars, root+fifth+octave, very long
-  // In dissoluzione: drone glides from A(57) → E(64) over 30s
+  // In germoglio: expands from root→fifth→octave over droneAge seconds (per PARTITURA)
+  // In dissoluzione: glides A(57)→E(64) over 30s
   if (presence3[2] > 0.1 && driftBar % 4 === 0) {
     let root = phaseData.drone;
     if (phase === 'dissoluzione') {
@@ -336,13 +342,25 @@ function onDriftBar3(driftBar) {
       const glideTo = 64;   // E (for CRISTALLO bridge)
       root = Math.round(glideFrom + (glideTo - glideFrom) * droneGlideProgress);
     }
-    const fifth  = root + 7;
-    const octave = root + 12;
-    const vel    = Math.round(35 + presence3[2] * 30);
-    const dur    = Math.round(barMs * 3.5); // ~14 sec
-    for (const n of [root, fifth, octave]) {
-      sendMIDINote(2, n, vel, dur);
-      addMidiNote(2, n / 127, vel / 127);
+    const dur = Math.round(barMs * 3.5); // ~14 sec
+    if (phase === 'germoglio') {
+      // Germoglio expansion: root only → +fifth at 60s → +octave at droneExpansionSec
+      sendMIDINote(2, root, 30, dur);
+      addMidiNote(2, root / 127, 30 / 127);
+      if (droneAge >= 60) {
+        sendMIDINote(2, root + 7, 25, dur);
+        addMidiNote(2, (root + 7) / 127, 25 / 127);
+      }
+      if (droneAge >= CFG.COMPOSER3.droneExpansionSec) {
+        sendMIDINote(2, root + 12, 20, dur);
+        addMidiNote(2, (root + 12) / 127, 20 / 127);
+      }
+    } else {
+      const vel = Math.round(35 + presence3[2] * 30);
+      for (const n of [root, root + 7, root + 12]) {
+        sendMIDINote(2, n, vel, dur);
+        addMidiNote(2, n / 127, vel / 127);
+      }
     }
   }
 
@@ -423,6 +441,7 @@ export function initComposer3() {
   grainRhythmicity = 0;
   droneGlideProgress = 0;
   lastVoiceWasDs   = false;
+  droneAge         = 0;
   initChord3();
 }
 
@@ -445,6 +464,9 @@ export function updateComposer3(dt) {
   updatePhase3(dt);
   updatePresence3(dt);
   updateRupture3(dt);
+
+  // Advance droneAge only in germoglio (drives root→fifth→octave expansion)
+  if (phase === 'germoglio') droneAge += dt;
 
   // Time-based drift clock (no BPM)
   timeSec += dt;

@@ -144,11 +144,12 @@ let chordProgIdx7 = 0;
 
 const PHASE_PRESENCE7 = {
   //               KICK  HAT   DRONE BASS  CHORD VOICE RIDE
-  germoglio:      [1.0,  0.3,  0.5,  0.6,  0.0,  0.0,  0.0],
-  pulsazione:     [1.0,  0.6,  0.4,  0.8,  0.3,  0.1,  0.0],
-  densita:        [1.0,  0.8,  0.3,  1.0,  0.5,  0.2,  0.5],
-  rottura:        [1.0,  1.0,  0.2,  1.0,  0.4,  0.0,  0.8],
-  dissoluzione:   [0.7,  0.3,  0.6,  0.4,  0.2,  0.3,  0.0],
+  // drone reduced per PARTITURA Regola 4 (max 0.4 in dissoluzione)
+  germoglio:      [1.0,  0.3,  0.3,  0.6,  0.0,  0.0,  0.0],
+  pulsazione:     [1.0,  0.6,  0.3,  0.8,  0.3,  0.1,  0.0],
+  densita:        [1.0,  0.8,  0.2,  1.0,  0.5,  0.2,  0.5],
+  rottura:        [1.0,  1.0,  0.1,  1.0,  0.4,  0.0,  0.8],
+  dissoluzione:   [0.7,  0.3,  0.4,  0.4,  0.2,  0.3,  0.0],
 };
 
 // ═══════════════════════════════════════════════════════════

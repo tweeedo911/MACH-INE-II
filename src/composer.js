@@ -138,6 +138,7 @@ let ruptureProgress = 0;
 let lastChordBar = -2;
 let lastVoiceBar = -2;
 let lastDroneBar = -2;
+let droneBarCount = 0; // increments each bar, used for D3↔A2 oscillation
 
 // ═══════════════════════════════════════════════════════════
 //  MARKOV VOICE  (unchanged — already good)
@@ -206,12 +207,12 @@ function nextVoiceNote() {
 // ═══════════════════════════════════════════════════════════
 
 const PHASE_PRESENCE = {
-  //             [KICK, BASS, HARM, VOICE, DRONE, GRAIN]
-  germoglio:    [0.0, 0.3,  0.4,  0.2,  0.8,  0.0],
+  // [KICK, BASS, HARM, VOICE, DRONE, GRAIN] — drone updated per PARTITURA Regola 4
+  germoglio:    [0.0, 0.3,  0.4,  0.2,  0.5,  0.0],
   pulsazione:   [0.8, 0.6,  0.5,  0.4,  0.6,  0.3],
-  densita:      [0.9, 0.8,  0.8,  0.7,  0.5,  0.6],
-  rottura:      [1.0, 0.9,  0.6,  0.0,  0.3,  0.8],
-  dissoluzione: [0.2, 0.4,  0.5,  0.6,  0.9,  0.2],
+  densita:      [0.9, 0.8,  0.8,  0.7,  0.3,  0.6],
+  rottura:      [1.0, 0.9,  0.6,  0.0,  0.1,  0.8],
+  dissoluzione: [0.2, 0.4,  0.5,  0.6,  0.7,  0.2],
 };
 
 function updatePresence(dt) {
@@ -399,16 +400,22 @@ function onStep(step) {
   }
 
   // ─────────────────────────────────────────────────────────
-  //  CH2 DRONE — ogni 8 bar, root+quinta, lunghissimo
+  //  CH2 DRONE — ogni 8 bar, oscillazione D3↔A2 ogni 16 bar
+  //  droneBarCount % 32: bar 0-15 → root (D3), bar 16-31 → A2
   // ─────────────────────────────────────────────────────────
   if (presence[4] > 0.1 && s16 === 0 && bar !== lastDroneBar && bar % 8 === 0) {
     lastDroneBar = bar;
-    const drone = CFG.COMPOSER.phases[phase]?.drone ?? 50;
+    droneBarCount++;
+    const oscCycle = CFG.COMPOSER.droneOscillationBars * 2;
+    const droneBase = CFG.COMPOSER.phases[phase]?.drone ?? 50;
+    const droneNote = (droneBarCount % oscCycle) < CFG.COMPOSER.droneOscillationBars
+      ? droneBase
+      : CFG.COMPOSER.droneNoteAlt;
     const vel = Math.round(32 + presence[4] * 28);
     const dur = Math.round(barMs * 7.5);
-    sendMIDINote(2, drone, vel, dur);
-    sendMIDINote(2, drone + 7, Math.round(vel * 0.65), dur);
-    addMidiNote(2, drone / 127, vel / 127);
+    sendMIDINote(2, droneNote, vel, dur);
+    sendMIDINote(2, droneNote + 7, Math.round(vel * 0.65), dur);
+    addMidiNote(2, droneNote / 127, vel / 127);
   }
 
   // ─────────────────────────────────────────────────────────
@@ -454,7 +461,7 @@ export function initComposer() {
   ruptureStage = 'idle'; ruptureProgress = 0;
   kickPat = KICK_PATS[0]; kickVarIdx = 0; lastKickVarBar = -1;
   bassSeq = BASS_SEQS[0]; bassNoteIdx = 0; bassVarIdx = 0; lastBassVarBar = -1;
-  lastChordBar = -2; lastVoiceBar = -2; lastDroneBar = -2;
+  lastChordBar = -2; lastVoiceBar = -2; lastDroneBar = -2; droneBarCount = 0;
 }
 
 export function updateComposer(dt) {
