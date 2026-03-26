@@ -28,11 +28,12 @@ const canvas = document.getElementById('c');
 const startScreen = document.getElementById('start');
 const errorScreen = document.getElementById('error');
 const hudMinimal = document.getElementById('hud-minimal');
-const hudDebug = document.getElementById('hud-debug');
+const hudDebug   = document.getElementById('hud-debug');
+const hudSeq     = document.getElementById('seq-panel');
 
 // ── Init render ──
 initRender(canvas);
-setHUDElements(hudMinimal, hudDebug);
+setHUDElements(hudMinimal, hudDebug, hudSeq);
 
 // ── Keep layout in sync ──
 window.addEventListener('resize', resize);

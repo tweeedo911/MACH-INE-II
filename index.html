@@ -55,7 +55,7 @@
     #hud-debug {
       display: none;
       position: fixed;
-      bottom: 16px; right: 16px;
+      top: 16px; right: 16px;
       color: rgba(255,255,255,0.7);
       font-size: 9px;
       letter-spacing: 0.1em;
@@ -94,6 +94,54 @@
       text-align: right;
       line-height: 1.8;
     }
+
+    /* ── Sequencer panel ── */
+    #seq-panel {
+      display: none;
+      position: fixed;
+      bottom: 24px; right: 24px;
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 11px;
+      letter-spacing: 0.12em;
+      color: rgba(255,255,255,0.7);
+      background: rgba(0,0,0,0.68);
+      padding: 14px 18px;
+      border-radius: 3px;
+      border-left: 2px solid rgba(255,255,255,0.12);
+      pointer-events: none;
+      min-width: 270px;
+      line-height: 1.7;
+    }
+    #seq-panel .seq-act {
+      font-size: 15px;
+      letter-spacing: 0.28em;
+      color: #fff;
+      margin-bottom: 4px;
+    }
+    #seq-panel .seq-bar {
+      width: 100%;
+      height: 2px;
+      background: rgba(255,255,255,0.1);
+      margin: 7px 0;
+    }
+    #seq-panel .seq-fill {
+      height: 100%;
+      background: rgba(255,255,255,0.5);
+      transition: width 0.8s linear;
+    }
+    #seq-panel .seq-status {
+      font-size: 11px;
+    }
+    #seq-panel .seq-keys {
+      margin-top: 9px;
+      padding-top: 8px;
+      border-top: 1px solid rgba(255,255,255,0.07);
+      color: rgba(255,255,255,0.3);
+      font-size: 9px;
+      letter-spacing: 0.14em;
+      line-height: 1.9;
+      white-space: pre;
+    }
   </style>
 </head>
 <body>
@@ -107,6 +155,13 @@
 
 <div id="hud-minimal"></div>
 <div id="hud-debug"></div>
+
+<div id="seq-panel">
+  <div class="seq-act">SEQUENCER</div>
+  <div class="seq-bar"><div class="seq-fill" style="width:0%"></div></div>
+  <div class="seq-status"></div>
+  <div class="seq-keys">0 — START CONCERTO</div>
+</div>
 
 <div id="keys-hint">
   H — HUD<br>

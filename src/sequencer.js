@@ -18,11 +18,11 @@ export const firma = {
 
 // ── Act boundaries (seconds) ──
 const ACTS = [
-  { name: 'I EMERGENZA',  start: 0,    end: 480  },
-  { name: 'II DISCESA',   start: 480,  end: 1080 },
-  { name: 'III MACCHINA', start: 1080, end: 1680 },
-  { name: 'IV VORTICE',   start: 1680, end: 2160 },
-  { name: 'V RITORNO',    start: 2160, end: 2400 },
+  { name: 'I EMERGENZA',      start: 0,    end: 480  },
+  { name: 'II DISCESA',       start: 480,  end: 1080 },
+  { name: 'III MACCHINA',     start: 1080, end: 1680 },
+  { name: 'IV ACCELERAZIONE', start: 1680, end: 2520 },
+  { name: 'V DISSOLUZIONE',   start: 2520, end: 3000 },
 ];
 
 // ── Cue definitions — 5-act concert structure ──
@@ -56,37 +56,49 @@ const CUES = [
   { t: 1440, action: 'firma', effect: 'gelo', active: true },
   { t: 1470, action: 'firma', effect: 'gelo', active: false },
 
-  // ── ATTO IV — VORTICE (28:00–36:00) ──
+  // ── ATTO IV — ACCELERAZIONE (28:00–42:00) ──
   { t: 1680, action: 'camera', framing: 'DRIFT', shake: 0.04 }, // Atto III→IV: drift + shake
   { t: 1680, action: 'layer',     engine: 'vortice',   target: 0.3, duration: 15 },
+  { t: 1680, action: 'layer',     engine: 'abisso',    target: 0.3, duration: 30 },
   { t: 1740, action: 'fade_to',   engine: 'meccanica', target: 0.0, duration: 15 },
-  { t: 1740, action: 'fade_to',   engine: 'vortice',   target: 1.0, duration: 15 },
-  { t: 1860, action: 'fade_to',   engine: 'deriva',    target: 0.3, duration: 20 },
-  // MOMENTO-FIRMA: CONVERGENZA (min 33 — converge to center before climax)
-  { t: 1980, action: 'firma', effect: 'convergenza', active: true },
-  { t: 2020, action: 'firma', effect: 'convergenza', active: false },
-  // CLIMAX GLOBALE — 6 motori (MOMENTO-FIRMA: INVERSIONE)
-  { t: 2040, action: 'fade_to',   engine: 'terreno',   target: 1.0, duration: 10, visual: true },
-  { t: 2040, action: 'fade_to',   engine: 'meccanica', target: 1.0, duration: 10 },
-  { t: 2040, action: 'fade_to',   engine: 'abisso',    target: 1.0, duration: 10 },
-  { t: 2040, action: 'fade_to',   engine: 'cristallo', target: 1.0, duration: 10 },
-  { t: 2040, action: 'fade_to',   engine: 'deriva',    target: 1.0, duration: 10 },
-  { t: 2040, action: 'layer',     engine: 'solco',     target: 1.0, duration: 5  },
-  // Discesa dal climax — uscite scaglionate, ogni motore percepibile
-  { t: 2070, action: 'fade_to',   engine: 'solco',     target: 0.0, duration: 10 },
-  { t: 2075, action: 'fade_to',   engine: 'vortice',   target: 0.0, duration: 15 },
-  { t: 2080, action: 'fade_to',   engine: 'terreno',   target: 0.0, duration: 20 },
-  { t: 2080, action: 'fade_to',   engine: 'meccanica', target: 0.0, duration: 20 },
-  { t: 2085, action: 'fade_to',   engine: 'abisso',    target: 0.0, duration: 20 },
+  { t: 1740, action: 'fade_to',   engine: 'vortice',   target: 0.8, duration: 30 },
 
-  // ── ATTO V — RITORNO (36:00–40:00) ──
-  { t: 2160, action: 'camera', framing: 'MEDIUM' },   // Atto IV→V: slow zoom in
-  // MOMENTO-FIRMA: VUOTO TOTALE (min 36 — total emptiness)
-  { t: 2160, action: 'firma', effect: 'vuotoTotale', active: true },
-  { t: 2190, action: 'firma', effect: 'vuotoTotale', active: false },
-  { t: 2160, action: 'fade_to',   engine: 'cristallo', target: 0.0, duration: 60 },
-  { t: 2310, action: 'fade_to',   engine: 'deriva',    target: 0.0, duration: 60 },
-  { t: 2400, action: 'end' },
+  // t=1980: SOLCO entra (120s fade), VORTICE cala
+  { t: 1980, action: 'layer',     engine: 'solco',     target: 1.0, duration: 120 },
+  { t: 1980, action: 'fade_to',   engine: 'vortice',   target: 0.4, duration: 60  },
+
+  // t=2100: VORTICE si ritira mentre SOLCO domina
+  { t: 2100, action: 'fade_to',   engine: 'vortice',   target: 0.0, duration: 60  },
+
+  // t=2160: SOLCO solo — ABISSO esce, 2min purezza techno
+  { t: 2160, action: 'fade_to',   engine: 'abisso',    target: 0.0, duration: 30  },
+
+  // t=2280: GELO nel contesto techno — deflagrazione
+  { t: 2280, action: 'firma', effect: 'gelo',        active: true  },
+  { t: 2310, action: 'firma', effect: 'gelo',        active: false },
+
+  // MOMENTO-FIRMA: CONVERGENZA (presagio del climax)
+  { t: 2320, action: 'firma', effect: 'convergenza', active: true  },
+  { t: 2360, action: 'firma', effect: 'convergenza', active: false },
+
+  // t=2340: CLIMAX ridotto — SOLCO+VORTICE+ABISSO
+  { t: 2340, action: 'fade_to',   engine: 'vortice',   target: 1.0, duration: 20, visual: true },
+  { t: 2340, action: 'layer',     engine: 'abisso',    target: 1.0, duration: 20  },
+
+  // t=2460: dissoluzione verso Atto V
+  { t: 2460, action: 'fade_to',   engine: 'solco',     target: 0.0, duration: 30  },
+  { t: 2460, action: 'fade_to',   engine: 'vortice',   target: 0.0, duration: 30  },
+  { t: 2460, action: 'fade_to',   engine: 'abisso',    target: 0.0, duration: 30  },
+
+  // ── ATTO V — DISSOLUZIONE (42:00–50:00) ──
+  { t: 2520, action: 'camera', framing: 'MEDIUM' },   // Atto IV→V: slow zoom in
+  // MOMENTO-FIRMA: VUOTO TOTALE (min 42 — total emptiness)
+  { t: 2520, action: 'firma', effect: 'vuotoTotale', active: true  },
+  { t: 2550, action: 'firma', effect: 'vuotoTotale', active: false },
+  // DERIVA ritorna come eco spettrale — bookend con Atto I
+  { t: 2580, action: 'layer',     engine: 'deriva',    target: 0.3, duration: 60  },
+  { t: 2820, action: 'fade_to',   engine: 'deriva',    target: 0.0, duration: 120 },
+  { t: 3000, action: 'end' },
 ];
 
 // ── State ──
@@ -177,7 +189,7 @@ function startSequencer() {
   firma.densityCap = 0;
   resetAllMultipliers();
   if (_deactivateAll) _deactivateAll();
-  console.log('[SEQUENCER] START — v3 5-act 40min concert');
+  console.log('[SEQUENCER] START — v3 5-act 50min concert');
 }
 
 function stopSequencer() {
@@ -407,8 +419,8 @@ export function updateSequencer(dt) {
   // Concert opening/closing density cap
   if (globalTime < 120) {
     firma.densityCap = Math.min(1, Math.pow(globalTime / 120, 2));
-  } else if (globalTime > 2310) {
-    firma.densityCap = Math.max(0, Math.pow(1 - (globalTime - 2310) / 90, 2));
+  } else if (globalTime > 2910) {
+    firma.densityCap = Math.max(0, Math.pow(1 - (globalTime - 2910) / 90, 2));
   } else {
     firma.densityCap = 1;
   }

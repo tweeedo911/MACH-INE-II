@@ -1,11 +1,14 @@
 #!/bin/bash
 # ─────────────────────────────────────────────
-#  MACH:INE II v2.4.0 — Launcher
-#  Server HTTP locale + apertura browser
+#  MACH:INE II v2.4.0 — Avviabile (doppio-click dal Finder)
+#  Apre Terminal, avvia il server, lancia il browser
 # ─────────────────────────────────────────────
 
-PORT=8282
+# Portarsi nella cartella dello script anche se lanciato da Finder
 DIR="$(cd "$(dirname "$0")" && pwd)"
+cd "$DIR"
+
+PORT=8282
 
 echo ""
 echo "  ╔══════════════════════════════════════════╗"
@@ -25,21 +28,20 @@ echo "  ║  è = gain -      + = gain +              ║"
 echo "  ╚══════════════════════════════════════════╝"
 echo ""
 
-# Kill previous instance on same port
+# Kill eventuale istanza precedente sulla stessa porta
 lsof -ti tcp:$PORT | xargs kill -9 2>/dev/null
 
-# Start server
-cd "$DIR"
+# Avvia server HTTP
 python3 -m http.server $PORT --bind 127.0.0.1 &
 SERVER_PID=$!
 
-# Wait then open browser
+# Attendi avvio e apri browser
 sleep 0.8
 open "http://localhost:$PORT"
 
-echo "  Server attivo. CTRL+C per fermare."
+echo "  Server attivo su http://localhost:$PORT"
+echo "  CTRL+C per fermare."
 echo ""
 
-# Wait for CTRL+C
 trap "kill $SERVER_PID 2>/dev/null; echo ''; echo '  Server fermato.'; exit 0" INT
 wait $SERVER_PID
