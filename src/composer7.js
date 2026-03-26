@@ -375,7 +375,8 @@ function onStep(step) {
   //  Il mantra di SOLCO. Non cambia mai. L'unica variazione
   //  è la velocity: downbeat più forte, upbeat leggermente sotto.
   // ─────────────────────────────────────────────────────────
-  if (presence[0] > 0.1 && KICK_4x4[s16]) {
+  const dominantKick = getPresenceMultiplier('solco') >= CFG.kickDominanceThreshold;
+  if (dominantKick && presence[0] > 0.1 && KICK_4x4[s16]) {
     const isDown = s16 === 0;
     const baseVel = isDown ? 118 : 108;
     const vel = Math.min(127, Math.round(
@@ -487,18 +488,35 @@ function onStep(step) {
   }
 
   // ─────────────────────────────────────────────────────────
-  //  CH5 VOICE — frammenti rari, quasi assenti
-  //  Un ricordo melodico ogni 16 bar. Note lunghe.
-  //  La techno non ha melodia — quando appare, è speciale.
+  //  CH5 VOICE + CH6 LEAD — hocket in densita, frammenti rari altrove
+  //  Densita: melodia divisa CH5/CH6 ogni 2 bar su 8th positions
+  //  Altre fasi: ricordo melodico ogni 16 bar (techno = silenzio è musica)
   // ─────────────────────────────────────────────────────────
-  if (presence[5] > 0.1 && s16 === 12 && getPresenceMultiplier('solco') > 0.5) { // su beat 4 — inaspettato
+  if (name === 'densita' && presence[5] > 0.1) {
+    const hocketSteps = [0, 2, 4, 6];
+    const stepIdx = hocketSteps.indexOf(s16);
+    if (stepIdx >= 0 && bar % 2 === 0) {
+      const scale = MODES7[currentMode] || MODES7.G_dorian;
+      const pool = scale.filter(n => n >= 67 && n <= 79);
+      if (pool.length > 0) {
+        const noteIdx = (stepIdx + Math.floor(bar / 2)) % pool.length;
+        const note = pool[noteIdx];
+        let vel = Math.round(45 + presence[5] * 30);
+        // ── Modal characteristic note boost ──
+        const charInt7 = CFG.modalCharacteristicNotes['solco'];
+        if ((note % 12) === ((currentDrone % 12) + charInt7) % 12) vel = Math.min(127, vel + CFG.characteristicVelBoost);
+        const ch = (stepIdx % 2 === 0) ? 5 : 6;
+        sendMIDINote(ch, note, vel, Math.round(stepMs * 1.5));
+        addMidiNote(ch, note / 127, vel / 127);
+      }
+    }
+  } else if (presence[5] > 0.1 && s16 === 12 && getPresenceMultiplier('solco') > 0.5) {
+    // su beat 4 — inaspettato
     if (bar !== lastVoiceBar7 && bar % 16 === 0 && Math.random() < 0.75) {
       lastVoiceBar7 = bar;
       const scale = MODES7[currentMode] || MODES7.G_dorian;
-      // Registro melodico: G4(67)→G5(79) — sopra tutto il resto
       const hiPool = scale.filter(n => n >= 64 && n <= 74);
       if (hiPool.length > 0) {
-        // Prefer Dorian 6th (E=64) and root (G=67) for that Berlin longing
         const weighted = [];
         for (const n of hiPool) {
           let w = 1.0;
@@ -510,9 +528,8 @@ function onStep(step) {
         let r = Math.random() * total;
         let chosen = weighted[0].n;
         for (const e of weighted) { r -= e.w; if (r <= 0) { chosen = e.n; break; } }
-
         const vel = Math.round(42 + presence[5] * 35);
-        const dur = Math.round(barMs * 2); // note molto lunga — 2 bar
+        const dur = Math.round(barMs * 2);
         sendMIDINote(5, chosen, vel, dur);
         addMidiNote(5, chosen / 127, vel / 127);
       }

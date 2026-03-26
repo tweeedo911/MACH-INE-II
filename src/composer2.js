@@ -55,8 +55,8 @@ const PIVOT_CLASSES2 = new Set([1, 4, 8]);
 const CHORD_PROGS2 = {
   germoglio:    [[61,64,68]],                                      // C#m (open triad)
   pulsazione:   [[61,64,68],[66,70,73],[64,68,71],[61,66,68]],     // C#m→F#m→Em→C#sus
-  densita:      [[61,64,68,71],[66,70,73,76],[64,68,71,75],        // C#m7→F#m7→Em7
-                 [68,73,76,80],[66,70,73,76],[61,68,71,76]],       // Amaj7→F#m7→C#m9
+  densita:      [[61,64,68,71],[66,70,73,76],[64,68,71,75],[68,73,76,80],  // C#m7→F#m7→Em7→Amaj7
+                 [66,70,73,76],[64,68,71,75],[61,68,71,76],[61,64,68,71]], // F#m7→Em7→C#m9→C#m7 — 8×4=32
   rottura:      null,
   dissoluzione: [[61,64,68,71],[66,70,73,76],[61,64,68]],
 };
@@ -75,6 +75,8 @@ const KICK_PATS2 = [
   [1,0,1,0, 0,0,1,0, 0,1,0,0, 1,0,0,0],  // [3] E(5,16) jazz variant
   [1,0,0,0, 0,1,0,0, 1,0,0,1, 0,0,1,0],  // [4] dense syncopated
 ];
+
+const RIDE_PAT_JAZZ = [1,0,0,1, 0,0,1,0, 0,1,0,0, 1,0,0,1]; // jazz syncopated
 
 // ═══════════════════════════════════════════════════════════
 //  BASS PATTERNS — C# Dorian melodic motifs
@@ -386,7 +388,8 @@ function onKickBassStep(step) {
   }
 
   // ── CH0 PULSE — kick jazz ──
-  if (presence[1] > 0.3 && rc < 0.6 && kickPat2[s16]) {
+  const dominantKick = getPresenceMultiplier('meccanica') >= CFG.kickDominanceThreshold;
+  if (dominantKick && presence[1] > 0.3 && rc < 0.6 && kickPat2[s16]) {
     const vel = s16 === 0 ? 105 : Math.floor(75 + presence[1] * 28 + (Math.random()-0.5)*8);
     // Groove humanization: offset ±12ms on off-beat kicks
     const humanMs = s16 !== 0 ? Math.round((Math.random() - 0.5) * 24) : 0;
@@ -411,6 +414,28 @@ function onKickBassStep(step) {
       : Math.round(stepMs * Math.max(1.5, bassSeq2.gate * 0.4));
     sendMIDINote(3, Math.max(24, Math.min(96, bassNote)), vel, dur);
     addMidiNote(3, bassNote / 127, vel / 127);
+  }
+
+  // ─────────────────────────────────────────────────────────
+  //  CH7 RIDE — jazz ride pattern, syncopated with layer rhythmic
+  //  Integrates with 3-bar rhythmic cycle for phasing effect
+  // ─────────────────────────────────────────────────────────
+  const ridePresence2 = currentPhaseName() === 'germoglio' ? 0.0
+    : currentPhaseName() === 'pulsazione' ? 0.2
+    : currentPhaseName() === 'densita' ? 0.6
+    : currentPhaseName() === 'rottura' ? 0.3
+    : 0.1;
+
+  if (ridePresence2 > 0.05 && RIDE_PAT_JAZZ[s16]) {
+    const vel = Math.round(40 + ridePresence2 * 20 + (Math.random() - 0.5) * 8);
+    sendMIDINote(7, 82, vel, Math.round(stepMs * 0.6));
+    addMidiNote(7, 82 / 127, vel / 127);
+  }
+  // Open ride "respiro" every 8 bars on beat 1
+  if (ridePresence2 > 0.3 && s16 === 0 && bar2 % 8 === 0) {
+    const vel = Math.round(45 + ridePresence2 * 15);
+    sendMIDINote(7, 74, vel, Math.round(stepMs * 16));
+    addMidiNote(7, 74 / 127, vel / 127);
   }
 
   // ── CLIMAX HARD CUT — takeover finale → silenzio ──
@@ -440,16 +465,22 @@ function checkLayerCrossings() {
       const chord = phaseName === 'densita'
         ? buildChord(currentMode)
         : getChordFromProg(phaseName);
+      // ── Soft entry: first 8 bars of germoglio play root only (D→C# harmonic bridge) ──
+      const barDurSec = (60 / bpm) * 4;
+      const barsActive = Math.floor(phaseTime / barDurSec);
+      const chordToPlay = phaseName === 'germoglio' && barsActive < 8
+        ? [lastChord[0] || 61]
+        : chord;
       // Update drone note to follow chord root (harmonic pad effect, per PARTITURA)
-      currentDroneNote = Math.min(...chord);
+      currentDroneNote = Math.min(...chordToPlay);
       const vel = Math.floor(48 + presence[0] * 38);
       // Durata lunga: lascia respirare il pad (6-8 beat)
       const dur = Math.round(beatMs * (5 + Math.random() * 3));
-      for (const note of chord) {
+      for (const note of chordToPlay) {
         sendMIDINote(4, note, vel, dur);
         addMidiNote(4, note / 127, vel / 127);
       }
-      emit('chord_change', { root: chord[0], mode: currentMode });
+      emit('chord_change', { root: chordToPlay[0], mode: currentMode });
     }
   }
 
@@ -491,7 +522,10 @@ function checkLayerCrossings() {
       if (layers.melodic.crossed(th)) {
         if (Math.random() < presence[3] * 0.72) {
           const note = pickMelodicNote(currentMode);
-          const vel  = Math.floor(50 + presence[3] * 45);
+          let vel  = Math.floor(50 + presence[3] * 45);
+          // ── Modal characteristic note boost ──
+          const charInt2 = CFG.modalCharacteristicNotes['meccanica'];
+          if ((note % 12) === ((currentDroneNote % 12) + charInt2) % 12) vel = Math.min(127, vel + CFG.characteristicVelBoost);
           // CH5 VOICE — the call (durata 2 beat)
           sendMIDINote(5, note, vel, Math.round(beatMs * 2.2));
           addMidiNote(5, note / 127, vel / 127);

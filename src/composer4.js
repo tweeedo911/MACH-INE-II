@@ -75,6 +75,8 @@ const BASS_NOTE_SEQS = [
   [0, 0, 7, 1],    // E→E→B→F(release) per pattern 2
 ];
 
+const RIDE_PAT_TRIBAL = [0,0,1,0, 0,1,0,0, 0,0,1,0, 1,0,0,0]; // additive 3+3+3+3+4
+
 // ═══════════════════════════════════════════════════════════
 //  MICRO-LOOP PITCH CLASSES — FISSI PER LAYER
 //  Invece di scorrer la scala sequenzialmente, ogni layer
@@ -359,7 +361,9 @@ function onStep(step) {
   // ─────────────────────────────────────────────────────────
   //  CH0 PULSE — kick tribale + ghost
   // ─────────────────────────────────────────────────────────
-  if (kickPat[s16]) {
+  // ── Kick suppression: only fire kick when this engine dominates ──
+  const dominantKick = getPresenceMultiplier('vortice') >= CFG.kickDominanceThreshold;
+  if (dominantKick && kickPat[s16]) {
     const vel = s16 === 0 ? 120 : Math.floor(88 + presence[0] * 22);
     sendMIDINote(0, currentDrone - 12, vel, Math.round(stepMs * 0.55));
     addMidiNote(0, (currentDrone - 12) / 127, vel / 127);
@@ -465,11 +469,29 @@ function onStep(step) {
     const motif = voiceMotifPool[voiceMotifIdx] || voiceMotifPool[0];
     const note  = motif[noteInMotif];
     if (Math.random() < 0.75 + presence[3] * 0.2) { // probabilità alta = identità
-      const vel = Math.floor(55 + presence[3] * 42);
+      let vel = Math.floor(55 + presence[3] * 42);
+      // ── Modal characteristic note boost ──
+      const charInt4 = CFG.modalCharacteristicNotes['vortice'];
+      if ((note % 12) === ((currentDrone % 12) + charInt4) % 12) vel = Math.min(127, vel + CFG.characteristicVelBoost);
       // Nota più corta del beat — lascia spazio tra le note del motif
       const dur = Math.round(stepMs * 3.2);
       sendMIDINote(5, note, vel, dur);
       addMidiNote(5, note / 127, vel / 127);
+    }
+  }
+
+  // ── CH6 LEAD — interlocking: fires on 8th upbeats where CH5 is silent ──
+  if (presence[3] > 0.4 && (name === 'densita' || name === 'pulsazione')) {
+    const leadSteps = [2, 6, 10, 14];
+    if (leadSteps.includes(s16)) {
+      const scale = MODES4[currentMode] || MODES4.E_phrygian;
+      const hiPool = scale.filter(n => n >= 76 && n <= 83);
+      if (hiPool.length > 0) {
+        const note = hiPool[(s16 + bar) % hiPool.length];
+        const vel = Math.round(35 + presence[3] * 30);
+        sendMIDINote(6, note, vel, Math.round(stepMs * 1.2));
+        addMidiNote(6, note / 127, vel / 127);
+      }
     }
   }
 
@@ -480,6 +502,22 @@ function onStep(step) {
     const vel   = Math.floor(40 + presence[3] * 30);
     sendMIDINote(6, note, vel, Math.round(stepMs * 5));
     addMidiNote(6, note / 127, vel / 127);
+  }
+
+  // ─────────────────────────────────────────────────────────
+  //  CH7 RIDE — tribal additive pattern (3+3+3+3+4 = 16)
+  //  Asymmetric against the kick, dialogs with micro-loops
+  // ─────────────────────────────────────────────────────────
+  const ridePresence4 = name === 'germoglio' ? 0.0
+    : name === 'pulsazione' ? 0.1
+    : name === 'densita' ? 0.4
+    : name === 'rottura' ? 0.7
+    : 0.15;
+
+  if (ridePresence4 > 0.05 && RIDE_PAT_TRIBAL[s16]) {
+    const vel = Math.round(35 + ridePresence4 * 35 + (Math.random() - 0.5) * 6);
+    sendMIDINote(7, 82, vel, Math.round(stepMs * 0.5));
+    addMidiNote(7, 82 / 127, vel / 127);
   }
 
   // ── CLIMAX HARD CUT — takeover finale → silenzio totale ──

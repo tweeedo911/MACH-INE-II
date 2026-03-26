@@ -52,15 +52,23 @@ const CUES = [
   { t: 1140, action: 'fade_to',   engine: 'terreno',   target: 0.0, duration: 20 },
   { t: 1140, action: 'fade_to',   engine: 'meccanica', target: 1.0, duration: 20 },
 
+  // ── SOLCO entra sotto MECCANICA (min 22 = t:1320) ──
+  { t: 1320, action: 'layer',    engine: 'solco',     target: 0.3, duration: 30 },
+
+  // ── SOLCO cresce, MECCANICA sfuma (min 26 = t:1560) ──
+  { t: 1560, action: 'fade_to',  engine: 'solco',     target: 0.7, duration: 30 },
+  { t: 1560, action: 'fade_to',  engine: 'meccanica', target: 0.3, duration: 20 },
+
   // MOMENTO-FIRMA: GELO (min 24 — machine freezes)
   { t: 1440, action: 'firma', effect: 'gelo', active: true },
   { t: 1470, action: 'firma', effect: 'gelo', active: false },
 
   // ── ATTO IV — ACCELERAZIONE (28:00–42:00) ──
   { t: 1680, action: 'camera', framing: 'DRIFT', shake: 0.04 }, // Atto III→IV: drift + shake
-  { t: 1680, action: 'layer',     engine: 'vortice',   target: 0.3, duration: 15 },
-  { t: 1680, action: 'layer',     engine: 'abisso',    target: 0.3, duration: 30 },
-  { t: 1740, action: 'fade_to',   engine: 'meccanica', target: 0.0, duration: 15 },
+  { t: 1680, action: 'fade_to',  engine: 'solco',     target: 1.0, duration: 20 },
+  { t: 1680, action: 'fade_to',  engine: 'meccanica', target: 0.0, duration: 15 },
+  { t: 1680, action: 'layer',    engine: 'vortice',   target: 0.3, duration: 15 },
+  { t: 1680, action: 'layer',    engine: 'abisso',    target: 0.3, duration: 30 },
   { t: 1740, action: 'fade_to',   engine: 'vortice',   target: 0.8, duration: 30 },
 
   // t=1980: SOLCO entra (120s fade), VORTICE cala

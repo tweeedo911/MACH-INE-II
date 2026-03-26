@@ -45,10 +45,10 @@ const MODES6 = {
 
 const CHORD_PROGS6 = {
   germoglio:    [[58,61,65]],                              // Bbm open
-  pulsazione:   [[58,61,65],[59,63,66],[58,61,65]],        // Bbm→Cb→Bbm
+  pulsazione:   [[58,61,65],[59,63,66],[58,61,65],[58,61,65]],  // Bbm→Cb→Bbm→Bbm — 4×8=32
   densita:      [[58,61,65],[59,63,66],[63,66,70],[58,63,65]], // Bbm→Cb→Ebm→Bbsus
   rottura:      null,
-  dissoluzione: [[58,61,65],[59,63,66],[58,61,65]],
+  dissoluzione: [[58,61,65],[59,63,66],[58,61,65],[58,61,65]],  // Bbm→Cb→Bbm→Bbm — 4×8=32
 };
 let chordProgIdx6 = 0;
 let lastChord6 = [58, 61, 65];
@@ -252,7 +252,8 @@ function onStep(step) {
   //  Solo sul downbeat, rarissimo, autorità assoluta.
   //  Con octShift risale durante la ROTTURA.
   // ─────────────────────────────────────────────────────────
-  if (s16 === 0 && getPresenceMultiplier('abisso') > 0.2) {
+  const dominantKick = getPresenceMultiplier('abisso') >= CFG.kickDominanceThreshold;
+  if (dominantKick && s16 === 0) {
     const heartbeatEvery = CFG.COMPOSER6.heartbeatEvery || 2; // ogni N bar
     if (bar % heartbeatEvery === 0) {
       const vel  = Math.floor(42 + presence[0] * 22);
@@ -360,7 +361,10 @@ function onStep(step) {
       const hi   = scale.filter(n => n >= 63 && n <= 80);
       const pool = hi.length > 0 ? hi : scale;
       const note = Math.min(84, pool[Math.floor(Math.random() * pool.length)] + octShift);
-      const vel  = Math.floor(28 + presence[2] * 25);
+      let vel  = Math.floor(28 + presence[2] * 25);
+      // ── Modal characteristic note boost ──
+      const charInt6 = CFG.modalCharacteristicNotes['abisso'];
+      if ((note % 12) === ((currentDrone % 12) + charInt6) % 12) vel = Math.min(127, vel + CFG.characteristicVelBoost);
       sendMIDINote(5, note, vel, Math.round(stepMs * 16)); // ~4 beat
       addMidiNote(5, note / 127, vel / 127);
 
