@@ -355,7 +355,7 @@ function onStep(step) {
   }
 
   // ── Staggered bass pattern rotation (every 12 bars) ──
-  if (bar !== lastBassVarBar && bar % 12 === 0) {
+  if (bar !== lastBassVarBar && bar % 16 === 0) {
     lastBassVarBar = bar;
     const pool = BASS_FOR_PHASE7[name] || [1];
     bassVarIdx = (bassVarIdx + 1) % pool.length;
@@ -456,9 +456,9 @@ function onStep(step) {
     lastDroneBar7 = bar;
     const vel = Math.round(28 + presence[2] * 20);
     const dur = Math.round(barMs * 7.5);
-    sendMIDINote(2, 43, vel, dur);           // G2 root
-    sendMIDINote(2, 50, Math.round(vel * 0.6), dur); // D3 fifth
-    addMidiNote(2, 43 / 127, vel / 127);
+    sendMIDINote(2, currentDrone - 12, vel, dur);           // root one octave below currentDrone
+    sendMIDINote(2, currentDrone - 12 + 7, Math.round(vel * 0.6), dur); // fifth above root
+    addMidiNote(2, (currentDrone - 12) / 127, vel / 127);
   }
 
   // ─────────────────────────────────────────────────────────
@@ -524,7 +524,6 @@ function onStep(step) {
   //  Aggiunge brillantezza metallica sopra il groove
   // ─────────────────────────────────────────────────────────
   if (presence[6] > 0.1 && s16 % 2 === 0) { // ogni 8th note
-    const scale = MODES7[currentMode] || MODES7.G_dorian;
     // Registro brillante: Bb5=82, C6=84 — ping metallico
     const note = 82; // Bb5 — fisso, come un vero ride
     const vel = Math.round(25 + presence[6] * 20 + humanize * (Math.random() - 0.5) * 6);
