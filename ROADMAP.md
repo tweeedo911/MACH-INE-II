@@ -114,7 +114,7 @@ In `densita`, `noteCount` = 2–3 note via `setTimeout`. Durata note: 1.5–2.7s
 
 ---
 
-## v2.6.0 — PROSSIMO: Visual Directing + Qualità Musicale Profonda
+## v2.6.0 — DONE: Visual Directing + Qualità Musicale Profonda
 
 **Obiettivo:** implementare i profili visivi per engine (attualmente tutti vuoti), approfondire la qualità compositiva dei 7 engines, correggere i bug musicali secondari.
 
@@ -168,7 +168,7 @@ In `densita`, `noteCount` = 2–3 note via `setTimeout`. Durata note: 1.5–2.7s
 
 ---
 
-## v2.7.0 — Performance Runtime + Stabilità
+## v2.7.0 — DONE: Performance Runtime + Stabilità
 
 **Obiettivo:** eliminare gli anti-pattern noti che causano GC pressure e O(n) nascosti.
 
@@ -212,6 +212,48 @@ In `densita`, `noteCount` = 2–3 note via `setTimeout`. Durata note: 1.5–2.7s
 
 ---
 
+## v2.8.0 — DONE: Profondità Compositiva
+
+**Obiettivo:** aumentare la profondità compositiva dei 7 engine con soppressione kick, ride cymbal, tecniche vocali avanzate, transizione SOLCO anticipata, e boost note caratteristiche modali.
+
+### 2.8.1 — Kick dominance suppression (tutti gli engine)
+- Soglia globale `CFG.kickDominanceThreshold: 0.4` in `config.js`
+- Ogni engine sopprime CH0 kick se `getPresenceMultiplier(engine) < threshold`
+- Risolve il problema del multi-engine kick flam nelle transizioni
+
+### 2.8.2 — Kick evolution TERRENO + ghost notes
+- Aggiunto pattern kick E(4,16) e E(5,16) per densità/rottura
+- Ghost notes su CH0 nelle fasi densità/rottura (vel 18–28, prob 25–35%)
+
+### 2.8.3 — Ride cymbal CH8 (TERRENO/MECCANICA/VORTICE)
+- TERRENO: metallic drops sparsi event-based
+- MECCANICA: jazz ride `[1,0,0,1, 0,0,1,0, 0,1,0,0, 1,0,0,1]`
+- VORTICE: tribal ride `[0,0,1,0, 0,1,0,0, 0,0,1,0, 1,0,0,0]`
+
+### 2.8.4 — Tecniche vocali avanzate
+- TERRENO CH6: canone a 1 battuta (quinta superiore) nelle fasi mature
+- MECCANICA CH4: soft harmonic entry — prime 8 battute solo nota radice
+- SOLCO CH5/CH6: hocket tecnico su 4 step (alternanza canale per step)
+- VORTICE CH6: interlocking melodico su `leadSteps = [2,6,10,14]`
+
+### 2.8.5 — SOLCO anticipation (sequencer)
+- SOLCO entra a t=1320 (min ~22) con layer 0.3
+- Crossfade graduale SOLCO 0.3→0.7→1.0 con fadeout MECCANICA parallelo
+- Prima dell'arrivo SOLCO a pieno regime (t=1680) come da struttura Atto IV
+
+### 2.8.6 — Progressioni potenze di 2
+- TERRENO densità: 6→8 accordi
+- MECCANICA densità: 6→8 accordi
+- ABISSO pulsazione + dissoluzione: 3→4 accordi
+- CRISTALLO dissoluzione: 3→4 accordi
+
+### 2.8.7 — Modal characteristic note boost
+- `CFG.modalCharacteristicNotes`: intervallo chiave per ogni engine dalla radice
+- `CFG.characteristicVelBoost: 15` — boost velocità sulla nota caratteristica
+- Implementato in TERRENO, MECCANICA, VORTICE, ABISSO, SOLCO
+
+---
+
 ## v3.0.0 — Ecosistema Aperto (futuro)
 
 - Stabilità >2h: memory leak audit, fossil/entity pruning aggressivo
@@ -225,7 +267,7 @@ In `densita`, `noteCount` = 2–3 note via `setTimeout`. Durata note: 1.5–2.7s
 
 ## Priorità assoluta per performance imminente
 
-v2.5.0 completata — tutti i task pre-concerto implementati. Proseguire con v2.6.0.
+v2.8.0 completata — profondità compositiva implementata. Prossimo: v2.9.0 o v3.0.0 secondo priorità live.
 
 ---
 

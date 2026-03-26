@@ -54,11 +54,11 @@ Premi `0` per avviare una performance autonoma di 40 minuti strutturata in 5 att
 |------|-------|--------|-----------|
 | I EMERGENZA | 0:00–8:00 | DERIVA → CRISTALLO | Emersione dal silenzio |
 | II DISCESA | 8:00–18:00 | CRISTALLO → ABISSO → TERRENO | Discesa nelle profondita |
-| III MACCHINA | 18:00–28:00 | TERRENO → MECCANICA | Meccanismo industriale |
+| III MACCHINA | 18:00–28:00 | TERRENO → MECCANICA + SOLCO (da min 22) | Meccanismo industriale |
 | IV VORTICE | 28:00–36:00 | MECCANICA → VORTICE + climax globale | Vortice e convergenza |
 | V RITORNO | 36:00–40:00 | Dissoluzione | Ritorno al silenzio |
 
-Momenti-firma: GELO (min 24), CONVERGENZA (min 33), INVERSIONE (min 34), VUOTO TOTALE (min 36).
+Momenti-firma: SOLCO sotto (min 22), GELO (min 24), CONVERGENZA (min 33), INVERSIONE (min 34), VUOTO TOTALE (min 36).
 Sovrapposizione multi-motore con crossfade a presenza variabile. `→` salta alla cue successiva.
 
 ---
@@ -93,7 +93,7 @@ Mapping canonico per Ableton (CH 1-8):
 | 5 | CHORDS | Progressioni modali, pads |
 | 6 | VOICE | Melodia Markov 2° ordine |
 | 7 | LEAD | Motivo/eco, call-and-response |
-| 8 | RUPTURE | 4 stadi obbligatori (presagio → takeover) |
+| 8 | RIDE + RUPTURE | Piatto progressivo per fase + cluster rottura (4 stadi obbligatori) |
 
 ### MIDI Clock
 
@@ -181,7 +181,7 @@ MACH:INE II/
 
 ## Versione corrente
 
-`v2.7.0` — vedi [CHANGELOG.md](CHANGELOG.md) per i dettagli.
+`v2.8.0` — vedi [CHANGELOG.md](CHANGELOG.md) per i dettagli.
 
 ---
 

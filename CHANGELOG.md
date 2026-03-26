@@ -5,6 +5,29 @@ Formato: `[versione] – data – descrizione`
 
 ---
 
+## [v2.8.0] – 2026-03-26
+
+**Profondità compositiva — kick suppression, ride progressivo, arpeggi intrecciati, anticipo SOLCO.**
+
+### Aggiunto
+- **CH7 RIDE progressivo** (`composer.js/2/4`): ride introdotto in TERRENO (gocce metalliche sparse per fase), MECCANICA (pattern jazz sincopato + open ride ogni 8 bar), VORTICE (pattern tribale additivo 3+3+3+3+4) — prepara l'orecchio al piatto SOLCO prima dell'ingresso
+- **Canon alla quinta CH6 TERRENO** (`composer.js`): in densità/rottura, eco della frase voice trasposta +7 semitoni con 1 bar di ritardo — dialogo contrappuntistico
+- **Hocket CH5/CH6 SOLCO** (`composer7.js`): in densità la melodia è divisa tra CH5 (step pari) e CH6 (step dispari) su G Dorian G4–G5; fuori densità rimane il frammento raro ogni 16 bar
+- **Interlocking upbeat VORTICE** (`composer4.js`): CH6 suona sugli 8th upbeat (step 2,6,10,14) dove CH5 tace — dialogo complementare in E Phrygian registro alto (76–83)
+- **Ghost notes CH0 TERRENO** (`composer.js`): in densità/rottura, note ghost vel 18–28 sugli offbeat non occupati dal kick (prob 0.25/0.35)
+- **Boost nota caratteristica modale** (`config.js` + 5 composer): +15 velocity sulla nota definitoria di ogni modo — B in TERRENO, A# in MECCANICA, F in VORTICE, E in SOLCO, Cb in ABISSO
+
+### Modificato
+- **SOLCO anticipa Atto III** (`sequencer.js`): entra a t=1320 (min 22) sotto MECCANICA come layer pm=0.3; sale a 0.7 a t=1560; raggiunge 1.0 a t=1680 — MECCANICA esce a t=1680 (anticipo di 60s rispetto al precedente t=1740)
+- **TERRENO kick evolution** (`composer.js`): aggiunti E(4,16) e E(5,16) in `KICK_PATS`; `KICK_FOR_PHASE` rivisto per progressione graduale germoglio→densità→rottura
+- **Kick suppression multi-engine** (`config.js` + 6 composer): ogni motore sopprime il proprio kick CH0 quando pm < `CFG.kickDominanceThreshold` (0.4) — elimina flam CH0 durante sovrapposizioni
+
+### Corretto
+- **Progressioni non-potenza-di-2**: TERRENO densità 6→8 accordi (8×4=32 bar), MECCANICA densità 6→8 accordi (8×4=32 bar), CRISTALLO dissoluzione 3→4 accordi (4×8=32 bar), ABISSO pulsazione+dissoluzione 3→4 accordi (4×8=32 bar)
+- **Overlap armonico D→C#** (`composer2.js`): MECCANICA germoglio entra con sola radice C# per i primi 8 bar — bridge armonico prima della progressione piena
+
+---
+
 ## [v2.7.0] – 2026-03-26
 
 **Performance runtime — eliminazione allocazioni hot-path, object pool entità, debug gate.**
