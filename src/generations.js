@@ -198,13 +198,17 @@ export function updateGenerations(dt, state, evoSpeed, inClimax, climaxProgress,
 
     if (ageNorm >= 1) {
       fossils.push({ x: e.x, y: e.y, density: CFG.fossilDensity, life: CFG.fossilDuration, age: 0 });
-      entities.splice(i, 1);
+      entities[i] = entities[entities.length - 1];
+      entities.length--;
     }
   }
 
   for (let i = fossils.length - 1; i >= 0; i--) {
     fossils[i].age += dt;
-    if (fossils[i].age >= fossils[i].life) fossils.splice(i, 1);
+    if (fossils[i].age >= fossils[i].life) {
+      fossils[i] = fossils[fossils.length - 1];
+      fossils.length--;
+    }
   }
 }
 

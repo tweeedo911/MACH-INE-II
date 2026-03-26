@@ -7,7 +7,7 @@ import { CFG } from './config.js';
 import { initAudio, updateAudio, setAudioGain, getAudioGain } from './audio.js';
 import { initMIDI, updateMIDI, sendMIDIStart, sendMIDIStop, updateMIDIClock, isMIDIClockRunning } from './midi.js';
 import { state, updateState } from './state.js';
-import { initRender, renderFrame, resize, setHUDElements, handleKey } from './render.js';
+import { initRender, renderFrame, resize, setHUDElements, handleKey, setProjectorWindow } from './render.js';
 import { generateDNA } from './dna.js';
 import { resetGenerations } from './generations.js';
 import { resetClimax } from './colors.js';
@@ -19,7 +19,7 @@ import { initComposer4, updateComposer4, toggleComposer4, composer4Active } from
 import { initComposer5, updateComposer5, toggleComposer5, composer5Active } from './composer5.js';
 import { initComposer6, updateComposer6, toggleComposer6, composer6Active } from './composer6.js';
 import { initComposer7, updateComposer7, toggleComposer7, composer7Active } from './composer7.js';
-import { initSequencer, toggleSequencer, skipToNext, updateSequencer, isSequencerActive } from './sequencer.js';
+import { initSequencer, toggleSequencer, skipToNext, skipToPrev, skipToAct, togglePause, toggleLoop, canRecover, recoverState, updateSequencer, isSequencerActive } from './sequencer.js';
 import { resetAllMultipliers, setPresenceMultiplier, getPresenceMultiplier } from './presence-multiplier.js';
 
 // ── DOM refs ──
@@ -85,6 +85,24 @@ function manualToggle(toggleFn) {
   }
 }
 
+// ── Projector ──
+let projectorWindow = null;
+const projChannel = new BroadcastChannel('machine-projector');
+projChannel.onmessage = (e) => {
+  if (e.data.type === 'projector-closed') { projectorWindow = null; setProjectorWindow(null); }
+};
+
+function toggleProjector() {
+  if (projectorWindow && !projectorWindow.closed) {
+    projChannel.postMessage({ type: 'close' });
+    projectorWindow = null;
+    setProjectorWindow(null);
+  } else {
+    projectorWindow = window.open('projector.html', 'projector', 'width=1280,height=720');
+    setProjectorWindow(projectorWindow);
+  }
+}
+
 // ── Boot on click ──
 let running = false;
 let lastTime = 0;
@@ -113,6 +131,8 @@ startScreen.addEventListener('click', async () => {
   initSequencer(activateSingle, allOff);
   initDirectorEvents();
 
+  if (canRecover()) hudMinimal.textContent = 'PRESS Shift+R TO RECOVER';
+
   startScreen.style.display = 'none';
   hudMinimal.style.display = 'block';
 
@@ -130,9 +150,22 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'è') { setAudioGain(getAudioGain() - CFG.audioInputGainStep); return; }
   if (e.key === '+') { setAudioGain(getAudioGain() + CFG.audioInputGainStep); return; }
 
-  // Sequencer: 0 = start/stop, ArrowRight = skip
+  // Sequencer: 0 = start/stop, Space = pause, arrows = navigate, L = loop, Shift+R = recover
   if (e.code === 'Digit0') { toggleSequencer(); return; }
-  if (e.code === 'ArrowRight' && isSequencerActive()) { skipToNext(); return; }
+  if (e.code === 'Space') { e.preventDefault(); togglePause(); return; }
+  if (e.code === 'ArrowRight') {
+    if (e.shiftKey) skipToAct(+1);
+    else if (isSequencerActive()) skipToNext();
+    return;
+  }
+  if (e.code === 'ArrowLeft') {
+    if (e.shiftKey) skipToAct(-1);
+    else skipToPrev();
+    return;
+  }
+  if (e.code === 'KeyL') { toggleLoop(); return; }
+  if (e.code === 'KeyR' && e.shiftKey) { recoverState(); return; }
+  if (e.code === 'KeyP') { toggleProjector(); return; }
 
   // Manual composer toggle — stops sequencer, resets multipliers
   if (e.code === CFG.composer1Key)        { manualToggle(toggleComposer);  return; }

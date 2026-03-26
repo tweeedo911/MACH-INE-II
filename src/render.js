@@ -28,6 +28,9 @@ let lastOnset = false;
 let hudMinimal, hudDebug;
 let showHUD = true, showDebug = false;
 let frameCount = 0;
+let _projectorWin = null;
+
+export function setProjectorWindow(win) { _projectorWin = win; }
 
 export function initRender(cvs) {
   canvas = cvs;
@@ -60,8 +63,13 @@ export function renderFrame(_now, dt) {
   }
   lastOnset = audio.onset;
 
-  // Process all MIDI notes received since last frame
-  for (const n of midi.newNotes) {
+  // Process MIDI notes — cap per frame, prioritize by velocity
+  const notes = midi.newNotes;
+  if (notes.length > CFG.maxMidiNotesPerFrame) {
+    notes.sort((a, b) => b.vel - a.vel);
+    notes.length = CFG.maxMidiNotesPerFrame;
+  }
+  for (const n of notes) {
     const noteNorm = n.note / 127;
     const velNorm = n.vel / 127;
     triggerMIDI(state, colorEnabled, noteNorm, velNorm);
@@ -134,18 +142,22 @@ function updateHUDMinimal() {
   const seq = getSequencerStatus();
   let seqTag = '';
   if (seq.active) {
+    const icon = seq.paused ? '⏸' : '▶';
     const min = Math.floor(seq.elapsed / 60);
     const sec = seq.elapsed % 60;
     const time = `${min}:${sec < 10 ? '0' : ''}${sec}`;
-    seqTag = `  SEQ:${seq.act || ''} ${seq.engine} ${time}`;
+    const flags = (seq.looping ? ' [LOOP]' : '') + (seq.paused ? ' [PAUSED]' : '');
+    seqTag = `  ${icon} ${seq.act || ''} ${seq.engine} ${time}${flags}`;
   }
+  const projActive = _projectorWin && !_projectorWin.closed;
   hudMinimal.textContent =
     (eng ? eng.toUpperCase() + '  ' : '') +
     `${primList}  ${framing.current}` +
     (audio.bpm ? `  ${audio.bpm}BPM` : '') +
     seqTag +
     (midi.connected ? `  MIDI:${midi.inputCount}` : '') +
-    `  G:${getAudioGain().toFixed(1)}`;
+    `  G:${getAudioGain().toFixed(1)}` +
+    (projActive ? '  PROJ:ON' : '');
 }
 
 // ── HUD Debug ──

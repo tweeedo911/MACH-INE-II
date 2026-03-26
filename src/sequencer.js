@@ -91,9 +91,15 @@ const CUES = [
 let active = false;
 let globalTime = 0;
 let cueIndex = 0;
+let paused = false;
+let looping = false;
+let lastSaveTime = 0;
 
 // Multiple simultaneous transitions
 let transitions = [];  // [{ engine, startTime, duration, fromPm, toPm }]
+
+const SAVE_KEY = 'machine2-sequencer-state';
+const SAVE_INTERVAL = 10; // seconds
 
 // Callbacks set by main.js
 let _activateEngine = null;   // (engineKey) => void — turns on without killing others
@@ -153,6 +159,8 @@ export function getSequencerStatus() {
     duration: CUES[CUES.length - 1].t,
     transitioning: transitions.length > 0,
     progress: globalTime / CUES[CUES.length - 1].t,
+    paused,
+    looping,
   };
 }
 
@@ -161,6 +169,9 @@ function startSequencer() {
   globalTime = 0;
   cueIndex = 0;
   transitions = [];
+  paused = false;
+  looping = false;
+  lastSaveTime = 0;
   firma.densityCap = 0;
   resetAllMultipliers();
   if (_deactivateAll) _deactivateAll();
@@ -170,6 +181,8 @@ function startSequencer() {
 function stopSequencer() {
   active = false;
   transitions = [];
+  paused = false;
+  looping = false;
   firma.gelo = false;
   firma.convergenza = false;
   firma.vuotoTotale = false;
@@ -183,6 +196,98 @@ export function skipToNext() {
   // Jump to next cue time (skip cues at same timestamp)
   const nextT = CUES[cueIndex].t;
   globalTime = nextT - 0.01;
+}
+
+function formatTime(sec) {
+  const m = Math.floor(sec / 60);
+  const s = Math.floor(sec % 60);
+  return `${m}:${s < 10 ? '0' : ''}${s}`;
+}
+
+function _fastForwardTo(targetTime) {
+  transitions = [];
+  resetAllMultipliers();
+  if (_deactivateAll) _deactivateAll();
+  cueIndex = 0;
+  globalTime = 0;
+  firma.densityCap = 0;
+  firma.gelo = false;
+  firma.convergenza = false;
+  firma.vuotoTotale = false;
+  while (cueIndex < CUES.length && CUES[cueIndex].t <= targetTime) {
+    processCue(CUES[cueIndex]);
+    cueIndex++;
+  }
+  globalTime = targetTime;
+  console.log(`[SEQ] JUMP to ${formatTime(targetTime)}`);
+}
+
+export function skipToPrev() {
+  if (!active) return;
+  const targetIdx = Math.max(0, cueIndex - 2);
+  _fastForwardTo(CUES[targetIdx].t);
+}
+
+export function skipToAct(direction) {
+  if (!active) return;
+  const currentActObj = ACTS.find(a => globalTime >= a.start && globalTime < a.end)
+    || ACTS[ACTS.length - 1];
+  const currentIdx = ACTS.indexOf(currentActObj);
+  const targetIdx = Math.max(0, Math.min(ACTS.length - 1, currentIdx + direction));
+  _fastForwardTo(ACTS[targetIdx].start);
+}
+
+export function togglePause() {
+  if (!active) return;
+  paused = !paused;
+  console.log(`[SEQ] ${paused ? 'PAUSA' : 'RESUME'} at ${formatTime(globalTime)}`);
+}
+
+export function toggleLoop() {
+  if (!active) return;
+  looping = !looping;
+  if (!looping && cueIndex < CUES.length) {
+    // Riallinea il tempo alla prossima cue
+    globalTime = CUES[cueIndex].t - 0.01;
+  }
+  console.log(`[SEQ] LOOP ${looping ? 'ON' : 'OFF'} — cue ${cueIndex}`);
+}
+
+function saveState() {
+  const st = { globalTime, cueIndex, looping, presences: {}, timestamp: Date.now() };
+  const engines = ['terreno', 'meccanica', 'deriva', 'vortice', 'cristallo', 'abisso', 'solco'];
+  for (const e of engines) st.presences[e] = getPresenceMultiplier(e);
+  try { sessionStorage.setItem(SAVE_KEY, JSON.stringify(st)); } catch (_) { /* silent */ }
+}
+
+export function canRecover() {
+  try {
+    const saved = sessionStorage.getItem(SAVE_KEY);
+    if (!saved) return false;
+    const st = JSON.parse(saved);
+    return (Date.now() - st.timestamp) < 300000;
+  } catch (_) { return false; }
+}
+
+export function recoverState() {
+  try {
+    const st = JSON.parse(sessionStorage.getItem(SAVE_KEY));
+    active = true;
+    globalTime = st.globalTime;
+    cueIndex = st.cueIndex;
+    looping = st.looping || false;
+    paused = false;
+    transitions = [];
+    firma.densityCap = globalTime < 120 ? Math.min(1, Math.pow(globalTime / 120, 2)) : 1;
+    setConcertTime(globalTime);
+    for (const [engine, pm] of Object.entries(st.presences)) {
+      setPresenceMultiplier(engine, pm);
+      if (pm > 0.05 && _activateEngine) _activateEngine(engine);
+    }
+    console.log(`[SEQ] RECOVERED at ${formatTime(globalTime)} (cue ${cueIndex})`);
+  } catch (e) {
+    console.error('[SEQ] Recovery failed:', e);
+  }
 }
 
 // ── Transition management ──
@@ -289,6 +394,8 @@ function processCue(cue) {
 
 export function updateSequencer(dt) {
   if (!active) return;
+  if (paused) return;
+
   globalTime += dt;
   setConcertTime(globalTime);
 
@@ -301,12 +408,20 @@ export function updateSequencer(dt) {
     firma.densityCap = 1;
   }
 
-  // Process due cues
-  while (cueIndex < CUES.length && globalTime >= CUES[cueIndex].t) {
-    processCue(CUES[cueIndex]);
-    cueIndex++;
-    if (!active) return; // 'end' cue stops everything
+  // Process due cues (skipped when looping — time flows but no new cues fire)
+  if (!looping) {
+    while (cueIndex < CUES.length && globalTime >= CUES[cueIndex].t) {
+      processCue(CUES[cueIndex]);
+      cueIndex++;
+      if (!active) return; // 'end' cue stops everything
+    }
   }
 
   updateTransitions();
+
+  // Crash recovery — save state every SAVE_INTERVAL seconds
+  if (globalTime - lastSaveTime > SAVE_INTERVAL) {
+    saveState();
+    lastSaveTime = globalTime;
+  }
 }
