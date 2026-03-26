@@ -139,6 +139,7 @@ export const CFG = {
   // ── Render ──
   dotSizeBufferThreshold: 6,
   hudUpdateInterval: 6,
+  maxMidiNotesPerFrame: 20,
 
   // ── FPS limiter ──
   fpsAutoLimit: 30,

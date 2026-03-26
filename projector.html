@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <title>MACH:INE II — PROJECTOR</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { background: #000; overflow: hidden; width: 100%; height: 100%; }
+    canvas { display: block; cursor: none; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d');
+
+  function resize() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  // Signal main window that projector is ready
+  const ch = new BroadcastChannel('machine-projector');
+  ch.postMessage({ type: 'ready' });
+
+  // Close when main window closes or sends close signal
+  ch.onmessage = (e) => { if (e.data.type === 'close') window.close(); };
+  window.addEventListener('beforeunload', () => ch.postMessage({ type: 'projector-closed' }));
+
+  // Draw loop — pulls directly from main canvas (same-origin, zero-copy)
+  function draw() {
+    if (!window.opener || window.opener.closed) { window.close(); return; }
+    const src = window.opener.document.getElementById('c');
+    if (src) ctx.drawImage(src, 0, 0, canvas.width, canvas.height);
+    requestAnimationFrame(draw);
+  }
+  requestAnimationFrame(draw);
+</script>
+</body>
+</html>

@@ -497,6 +497,8 @@ export const scene = {
   regions: [],         // active composition regions [{x,y,w,h,mul}]
   _regionsCurrent: [],
   _regionsTarget: [],
+  _blendBuffer: [],    // pre-allocated: same-length blend interpolation
+  _dynBuffer: [],      // pre-allocated: dynamic arc modifications
 };
 
 // ── Engine render overrides (read by field.js) ──
@@ -574,14 +576,20 @@ function updateSceneBlend(dt) {
     scene.current = scene.target;
     scene.regions = scene._regionsTarget;
   } else if (scene._regionsCurrent && scene._regionsCurrent.length === scene._regionsTarget.length) {
-    // Same length: interpolate mul values
-    scene.regions = scene._regionsCurrent.map((r, i) => ({
-      x: r.x + (scene._regionsTarget[i].x - r.x) * t,
-      y: r.y + (scene._regionsTarget[i].y - r.y) * t,
-      w: r.w + (scene._regionsTarget[i].w - r.w) * t,
-      h: r.h + (scene._regionsTarget[i].h - r.h) * t,
-      mul: r.mul + (scene._regionsTarget[i].mul - r.mul) * t,
-    }));
+    // Same length: interpolate into pre-allocated _blendBuffer
+    const len = scene._regionsCurrent.length;
+    while (scene._blendBuffer.length < len) scene._blendBuffer.push({});
+    scene._blendBuffer.length = len;
+    for (let i = 0; i < len; i++) {
+      const r = scene._regionsCurrent[i], rt = scene._regionsTarget[i], b = scene._blendBuffer[i];
+      b.x = r.x + (rt.x - r.x) * t;
+      b.y = r.y + (rt.y - r.y) * t;
+      b.w = r.w + (rt.w - r.w) * t;
+      b.h = r.h + (rt.h - r.h) * t;
+      b.mul = r.mul + (rt.mul - r.mul) * t;
+      if (r.fillColor !== undefined) b.fillColor = r.fillColor;
+    }
+    scene.regions = scene._blendBuffer;
   } else {
     // Different lengths: cross-fade old (decreasing) + new (increasing)
     const oldRegs = (scene._regionsCurrent || []).map(r => ({ ...r, mul: r.mul * (1 - t) }));
@@ -901,9 +909,21 @@ export function updateDirector(dt, state, globalTime, W, H) {
 
   // Dynamic compositions — regions react to arc and intensity
   if (scene.regions.length > 0) {
-    // Work on copies to avoid corrupting static composition data
-    scene.regions = scene.regions.map(r => {
-      const dr = { ...r };
+    // If regions alias static data, copy to _dynBuffer first to avoid corruption
+    if (scene.regions === scene._regionsTarget || scene.regions === scene._blendBuffer) {
+      const len = scene.regions.length;
+      while (scene._dynBuffer.length < len) scene._dynBuffer.push({});
+      scene._dynBuffer.length = len;
+      for (let i = 0; i < len; i++) {
+        const r = scene.regions[i], d = scene._dynBuffer[i];
+        d.x = r.x; d.y = r.y; d.w = r.w; d.h = r.h; d.mul = r.mul;
+        d.fillColor = r.fillColor;
+      }
+      scene.regions = scene._dynBuffer;
+    }
+    // Modify in-place — no per-region object allocation
+    for (let ri = 0; ri < scene.regions.length; ri++) {
+      const dr = scene.regions[ri];
       if (arc.phase === 'PEAK') {
         // Collapse toward uniform (all mul → 1.0)
         dr.mul += (1.0 - dr.mul) * dt * 0.5;
@@ -920,8 +940,7 @@ export function updateDirector(dt, state, globalTime, W, H) {
       if (dr.mul > 2.5 && framing._zoomImpulse > 0.01) {
         dr.mul += framing._zoomImpulse * 8;
       }
-      return dr;
-    });
+    }
   }
 
   // Arc-driven density clamping

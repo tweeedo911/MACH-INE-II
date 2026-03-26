@@ -77,13 +77,19 @@ export function updateWaves(dt) {
     const waveSpeed = (engineRender.active && engineRender.onsetWaveSpeed != null) ? engineRender.onsetWaveSpeed : CFG.onsetWaveSpeed;
     w.radius += waveSpeed * dt;
     w.alpha *= CFG.onsetDecayRate;
-    if (w.alpha < 0.01) onsetWaves.splice(i, 1);
+    if (w.alpha < 0.01) {
+      onsetWaves[i] = onsetWaves[onsetWaves.length - 1];
+      onsetWaves.length--;
+    }
   }
   for (let i = midiTrail.length - 1; i >= 0; i--) {
     const n = midiTrail[i];
     n.time += dt;
     n.alpha *= n.decay || 0.97;
-    if (n.alpha < 0.01) midiTrail.splice(i, 1);
+    if (n.alpha < 0.01) {
+      midiTrail[i] = midiTrail[midiTrail.length - 1];
+      midiTrail.length--;
+    }
   }
 }
 
