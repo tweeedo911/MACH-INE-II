@@ -137,6 +137,7 @@ let ruptureStage = 'idle';
 let ruptureProgress = 0;
 
 // per-bar event guards
+let hardCutBar = -1;  // bar when rupture hard cut fired; -1 = not yet
 let lastChordBar = -2;
 let lastVoiceBar = -2;
 let lastDroneBar = -2;
@@ -219,8 +220,11 @@ const PHASE_PRESENCE = {
 
 function updatePresence(dt) {
   const targets = PHASE_PRESENCE[phase] || PHASE_PRESENCE.germoglio;
+  const suppressHarmDrone = phase === 'dissoluzione' && hardCutBar >= 0 &&
+    (bar - hardCutBar) < CFG.COMPOSER.dissoluzioneKickInBars;
   for (let i = 0; i < 6; i++) {
-    presence[i] += (targets[i] - presence[i]) * Math.min(1, dt * 0.8);
+    const target = suppressHarmDrone && (i === 2 || i === 4) ? 0 : targets[i];
+    presence[i] += (target - presence[i]) * Math.min(1, dt * 0.8);
   }
   let active = 0; for (let i = 0; i < presence.length; i++) if (presence[i] > 0.1) active++;
   const silenceRatio = 1 - active / 7;
@@ -261,8 +265,10 @@ function updatePhase(dt) {
   const d = CFG.COMPOSER.phases[phase];
   if (d && phaseClock >= d.duration) {
     phaseClock = 0;
+    const prevPhase = phase;
     phaseIdx = (phaseIdx + 1) % CFG.COMPOSER.phaseOrder.length;
     phase = CFG.COMPOSER.phaseOrder[phaseIdx];
+    if (prevPhase === 'dissoluzione') hardCutBar = -1; // reset for next cycle
     setEnginePhase('terreno', phase, ruptureStage);
     lastChord = null;
     chordProgIdx = 0;
@@ -272,7 +278,7 @@ function updatePhase(dt) {
     bassNoteIdx = 0;
     console.log(`[COMPOSER] → ${phase}`);
   }
-  setArcPhaseForced(CFG.COMPOSER.phases[phase]?.arc);
+  setArcPhaseForced(CFG.COMPOSER.phases[phase]?.arc, getPresenceMultiplier('terreno'));
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -498,13 +504,37 @@ function onStep(step) {
   }
 
   // ─────────────────────────────────────────────────────────
-  //  CLIMAX HARD CUT — takeover finale → silenzio
+  //  CH1 HAT — post-ruptura groove, entra con drone e accordi
+  //  Crome costanti (step pari), open sul "e del 4" ogni 4 bar, ghost 16mi
+  // ─────────────────────────────────────────────────────────
+  const barsPost = (phase === 'dissoluzione' && hardCutBar >= 0) ? (bar - hardCutBar) : -1;
+  if (barsPost >= CFG.COMPOSER.dissoluzioneKickInBars) {
+    const fadeIn = Math.min(1, (barsPost - CFG.COMPOSER.dissoluzioneKickInBars) / 4);
+    const isEighth = s16 % 2 === 0;
+    const isGhost16 = (s16 === 3 || s16 === 11) && (bar % 2 === 1) && Math.random() < 0.40;
+    if (isEighth) {
+      const isAccent = s16 === 0 || s16 === 8;
+      const isMedium = s16 === 4 || s16 === 12;
+      const isOpen   = s16 === 14 && bar % 4 === 2; // "e del 4" ogni 4 bar
+      const baseVel  = isAccent ? 78 : isMedium ? 64 : 50;
+      const vel = Math.round((baseVel + (Math.random() - 0.5) * 9) * fadeIn);
+      if (vel > 4) {
+        sendMIDINote(1, isOpen ? 46 : 42, vel, 20);
+        addMidiNote(1, 0.33, vel / 127);
+      }
+    } else if (isGhost16) {
+      const vel = Math.round((20 + Math.random() * 12) * fadeIn);
+      if (vel > 4) sendMIDINote(1, 42, vel, 15);
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────
+  //  CLIMAX HARD CUT — takeover finale → silenzio totale
   // ─────────────────────────────────────────────────────────
   if (ruptureStage === 'takeover' && ruptureProgress > 0.78) {
     sendMIDIAllNotesOff();
-    for (let i = 0; i < presence.length; i++) {
-      if (i !== 4) presence[i] = 0; // keep drone
-    }
+    for (let i = 0; i < presence.length; i++) presence[i] = 0;
+    if (hardCutBar < 0) hardCutBar = bar;
   }
 }
 
@@ -518,6 +548,7 @@ export function initComposer() {
   setEnginePhase('terreno', phase);
   lastChord = null; markovHistory = [null, null]; motifIntervals = []; chordProgIdx = 0;
   presence = [0,0,0,0,0,0,0];
+  hardCutBar = -1;
   ruptureStage = 'idle'; ruptureProgress = 0;
   kickPat = KICK_PATS[0]; kickVarIdx = 0; lastKickVarBar = -1;
   bassSeq = BASS_SEQS[0]; bassNoteIdx = 0; bassVarIdx = 0; lastBassVarBar = -1;

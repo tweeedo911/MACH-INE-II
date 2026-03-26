@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════
 //  MACH:INE II — Centralized Configuration
-//  v1.1.0: dynamic storytelling + density contrast
+//  v2.8.0: presence-multiplier arc competition + dissoluzione bass-kick rebuild
 // ═══════════════════════════════════════════════════════════
 
 export const CFG = {
@@ -46,7 +46,7 @@ export const CFG = {
   noteDensityWindowSec: 2,
 
   // ── Dot-size ──
-  dotSizeMin: 1,
+  dotSizeMin: 3,
   dotSizeMax: 16,
 
   // ── Density ──
@@ -146,7 +146,7 @@ export const CFG = {
   fpsAutoLimit: 30,
 
   // ── Multi-engine kick suppression ──
-  kickDominanceThreshold: 0.4,  // pm below this = kick suppressed (prevents CH0 overlap)
+  kickDominanceThreshold: 0.6,  // pm below this = kick suppressed (prevents CH0 overlap)
 
   // ── Modal characteristic note boost (voice CH5) ──
   // Interval in semitones from root that defines each engine's modal identity
@@ -189,6 +189,7 @@ export const CFG = {
     ghostNoteProbRottura: 0.35,   // ghost note probability in rottura
     ghostNoteVelMin: 18,
     ghostNoteVelMax: 28,
+    dissoluzioneKickInBars: 8,  // bars of bass+kick only after rupture hard cut before rest enters
   },
 
   // ── Composer 2 (MECCANICA — C# Dorian, layer poliritmici) ──
@@ -199,9 +200,9 @@ export const CFG = {
     phases: {
       germoglio:    { duration: 45, mode: 'Cs_dorian',   drone: 61, arc: 'SILENCE'  },
       pulsazione:   { duration: 65, mode: 'Cs_dorian',   drone: 61, arc: 'BUILDING' },
-      densita:      { duration: 85, mode: 'Cs_dorian',   drone: 61, arc: 'INTENSE'  },
+      densita:      { duration: 130, mode: 'Cs_dorian',   drone: 61, arc: 'INTENSE'  },
       rottura:      { duration: 35, mode: 'Cs_dorian',   drone: 61, arc: 'PEAK'     },
-      dissoluzione: { duration: 90, mode: 'Cs_dorian',   drone: 61, arc: 'RELEASE'  },
+      dissoluzione: { duration: 180, mode: 'Cs_dorian',   drone: 61, arc: 'RELEASE'  },
     },
     phaseOrder: ['germoglio', 'pulsazione', 'densita', 'rottura', 'dissoluzione'],
     layers: {
@@ -376,7 +377,7 @@ export const CFG = {
     bpm: 128,
     gravitationalCenter: 55, // G3
     phases: {
-      germoglio:    { duration: 35,  mode: 'G_dorian',   drone: 55, arc: 'SILENCE'  },
+      germoglio:    { duration: 60,  mode: 'G_dorian',   drone: 55, arc: 'SILENCE'  },
       pulsazione:   { duration: 55,  mode: 'G_dorian',   drone: 55, arc: 'BUILDING' },
       densita:      { duration: 80,  mode: 'G_dorian',   drone: 55, arc: 'INTENSE'  },
       rottura:      { duration: 28,  mode: 'G_dorian',   drone: 55, arc: 'PEAK'     },

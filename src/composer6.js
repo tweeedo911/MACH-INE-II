@@ -167,7 +167,7 @@ function updatePhase(dt) {
   arcProgress = Math.min(1, phaseTime / cfg.duration);
   currentMode = cfg.mode;
   currentDrone = cfg.drone;
-  setArcPhaseForced(cfg.arc);
+  setArcPhaseForced(cfg.arc, getPresenceMultiplier('abisso'));
   if (phaseTime >= cfg.duration) {
     phaseIndex = (phaseIndex + 1) % CFG.COMPOSER6.phaseOrder.length;
     phaseTime = 0; arcProgress = 0; chordProgIdx6 = 0;

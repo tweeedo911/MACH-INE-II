@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════
 //  MACH:INE II — Boot & Module Wiring
-//  v2.0.0: 5-act concert + multi-engine overlap + channel priority
+//  v2.8.0: 5-act concert + multi-engine overlap + channel priority
 // ═══════════════════════════════════════════════════════════
 
 import { CFG } from './config.js';
@@ -11,7 +11,7 @@ import { initRender, renderFrame, resize, setHUDElements, handleKey, setProjecto
 import { generateDNA } from './dna.js';
 import { resetGenerations } from './generations.js';
 import { resetClimax } from './colors.js';
-import { initDirector, initDirectorEvents } from './director.js';
+import { initDirector, initDirectorEvents, resetArcPriority } from './director.js';
 import { initComposer, updateComposer, toggleComposer, composerActive } from './composer.js';
 import { initComposer2, updateComposer2, toggleComposer2, composer2Active } from './composer2.js';
 import { initComposer3, updateComposer3, toggleComposer3, composer3Active } from './composer3.js';
@@ -222,6 +222,7 @@ function getActiveBpm() {
 
 midiWorker.onmessage = ({ data: { dt } }) => {
   if (!running) return;
+  resetArcPriority();
 
   const anyActive = composerActive || composer2Active || composer3Active ||
                     composer4Active || composer5Active || composer6Active || composer7Active;

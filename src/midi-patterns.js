@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════
 //  MACH:INE II — MIDI Visual Mapping Patterns
-//  v1.3: 8 canali canonici (CH0=PULSE CH1=GRAIN CH2=DRONE CH3=BASS
+//  v2.8.0: 8 canali canonici (CH0=PULSE CH1=GRAIN CH2=DRONE CH3=BASS
 //        CH4=CHORDS CH5=VOICE CH6=LEAD CH7=RUPTURE)
 // ═══════════════════════════════════════════════════════════
 

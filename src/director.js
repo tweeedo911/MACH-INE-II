@@ -1071,10 +1071,21 @@ export function requestCameraShake(intensity) {
 
 // ── Composer override ──
 // Forza una fase dell'arco e blocca le transizioni audio-reattive
-export function setArcPhaseForced(newPhase) {
-  arc.phase = newPhase;
-  arc.phaseTime = 0;
+let _arcForcedPm = 0;
+
+export function setArcPhaseForced(newPhase, pm = 1.0) {
+  // Only the engine with highest presence controls the arc
+  if (pm < _arcForcedPm - 0.05) return;  // hysteresis to prevent flutter
+  _arcForcedPm = pm;
+  if (arc.phase !== newPhase) {
+    arc.phase = newPhase;
+    arc.phaseTime = 0;
+  }
   arc._stateHold = 999;
+}
+
+export function resetArcPriority() {
+  _arcForcedPm = 0;
 }
 
 export function releaseArcHold() {

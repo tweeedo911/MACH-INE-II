@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════
 //  MACH:INE II — Render Orchestrator
-//  v0.8.0: halftone field + DNA + generations + color + camera
+//  v2.8.0: halftone field + DNA + generations + color + camera
 // ═══════════════════════════════════════════════════════════
 
 import { CFG } from './config.js';
