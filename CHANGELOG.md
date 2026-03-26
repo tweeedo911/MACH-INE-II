@@ -5,6 +5,23 @@ Formato: `[versione] – data – descrizione`
 
 ---
 
+## [v2.3.0] – 2026-03-26
+
+**Wake Lock + fix compositivi SOLCO + HUD debug completo.**
+
+### Aggiunto
+- **Wake Lock** (`main.js`): `WakeLockManager` acquisito al boot — lo schermo non si spegne durante la performance live; si ri-acquisisce automaticamente quando la tab torna visibile
+- **HUD debug COMP7**: SOLCO visibile nel pannello debug (`D`) con phase, activeCount e ruptureStage
+
+### Corretto
+- **SOLCO bass rotation** (`composer7.js`): variazione pattern ogni 12 bar → **16 bar** (regola potenze di 2; 12 causava groove off-grid rispetto alla struttura 4/4)
+- **SOLCO drone parametrico** (`composer7.js`): note drone hardcoded `43`/`50` → `currentDrone - 12` / `currentDrone - 12 + 7` — il pitch risponde ora alla config di fase in `CFG.COMPOSER7`
+
+### Rimosso
+- **Variabile morta** (`composer7.js`): `const scale` nel blocco CH7 RIDE era dichiarata ma mai usata (nota ride è fissa a 82)
+
+---
+
 ## [v2.2.0] – 2026-03-26
 
 **Sequencer avanzato + ottimizzazioni performance + secondo output proiettore.**

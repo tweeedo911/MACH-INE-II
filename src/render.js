@@ -16,6 +16,7 @@ import { getComposer3Status } from './composer3.js';
 import { getComposer4Status } from './composer4.js';
 import { getComposer5Status } from './composer5.js';
 import { getComposer6Status } from './composer6.js';
+import { getComposer7Status } from './composer7.js';
 import { getEngine } from './midi-patterns.js';
 import { getSequencerStatus, firma } from './sequencer.js';
 import { renderField, updateWaves, addOnsetWave, addMidiNote } from './field.js';
@@ -224,5 +225,6 @@ function updateHUDDebug() {
     (() => { const s = getComposer3Status(); return s.active ? `COMP3 ${s.phase}  root:${s.chordRoot}  bar:${s.bar}  ${s.ruptureStage}` : 'COMP3 OFF'; })() + '\n' +
     (() => { const s = getComposer4Status(); return s.active ? `COMP4 ${s.phase}  L:${s.activeCount}  ${s.ruptureStage}` : 'COMP4 OFF'; })() + '\n' +
     (() => { const s = getComposer5Status(); return s.active ? `COMP5 ${s.phase}  L:${s.activeCount}  ${s.ruptureStage}` : 'COMP5 OFF'; })() + '\n' +
-    (() => { const s = getComposer6Status(); return s.active ? `COMP6 ${s.phase}  L:${s.activeCount}  ${s.ruptureStage}` : 'COMP6 OFF'; })();
+    (() => { const s = getComposer6Status(); return s.active ? `COMP6 ${s.phase}  L:${s.activeCount}  ${s.ruptureStage}` : 'COMP6 OFF'; })() + '\n' +
+    (() => { const s = getComposer7Status(); return s.active ? `COMP7 ${s.phase}  L:${s.activeCount}  ${s.ruptureStage}` : 'COMP7 OFF'; })();
 }

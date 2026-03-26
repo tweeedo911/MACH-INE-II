@@ -21,6 +21,7 @@ import { initComposer6, updateComposer6, toggleComposer6, composer6Active } from
 import { initComposer7, updateComposer7, toggleComposer7, composer7Active } from './composer7.js';
 import { initSequencer, toggleSequencer, skipToNext, skipToPrev, skipToAct, togglePause, toggleLoop, canRecover, recoverState, updateSequencer, isSequencerActive } from './sequencer.js';
 import { resetAllMultipliers, setPresenceMultiplier, getPresenceMultiplier } from './presence-multiplier.js';
+import { WakeLockManager } from '../.claude/skills/runtime-expert/scripts/perf-utils.js';
 
 // ── DOM refs ──
 const canvas = document.getElementById('c');
@@ -106,6 +107,7 @@ function toggleProjector() {
 // ── Boot on click ──
 let running = false;
 let lastTime = 0;
+const _wakeLock = new WakeLockManager();
 
 startScreen.addEventListener('click', async () => {
   try {
@@ -139,6 +141,7 @@ startScreen.addEventListener('click', async () => {
   running = true;
   lastTime = 0;
   startMidiClock();
+  await _wakeLock.acquire();
   requestAnimationFrame(loop);
 });
 
