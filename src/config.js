@@ -145,6 +145,20 @@ export const CFG = {
   // ── FPS limiter ──
   fpsAutoLimit: 30,
 
+  // ── Multi-engine kick suppression ──
+  kickDominanceThreshold: 0.4,  // pm below this = kick suppressed (prevents CH0 overlap)
+
+  // ── Modal characteristic note boost (voice CH5) ──
+  // Interval in semitones from root that defines each engine's modal identity
+  modalCharacteristicNotes: {
+    terreno:   9,  // B natural — Dorian 6th from D
+    meccanica: 10, // A# — Dorian 6th from C#
+    vortice:   1,  // F — b2 (Phrygian identity) from E
+    solco:     9,  // E natural — Dorian 6th from G
+    abisso:    1,  // Cb — b2 (Phrygian identity) from Bb
+  },
+  characteristicVelBoost: 15,  // velocity bonus when characteristic note plays
+
   // ── Composer 1 (TERRENO — D Dorian, dub lento) ──
   composer1Key: 'Digit4',
   COMPOSER: {
@@ -171,6 +185,10 @@ export const CFG = {
     droneOscillationBars: 16, // D3<->A2 cycle length in bars (PARTITURA Regola 2)
     droneNoteAlt: 45,         // A2 — alternate drone note for TERRENO tidal oscillation
     midiOutputName: null,
+    ghostNoteProbDensita: 0.25,   // ghost note probability in densita
+    ghostNoteProbRottura: 0.35,   // ghost note probability in rottura
+    ghostNoteVelMin: 18,
+    ghostNoteVelMax: 28,
   },
 
   // ── Composer 2 (MECCANICA — C# Dorian, layer poliritmici) ──
@@ -316,7 +334,7 @@ export const CFG = {
       pulsazione:   [[64,68,71,75],[66,70,73,76],[64,68,71,75],[71,75,78,82]],               // Emaj7→F#maj7→Emaj7→Bmaj7
       densita:      [[64,68,71,75],[66,70,73,78],[68,71,75,80],[71,75,78,82],[64,68,73,75],[61,66,68,73],[63,71,75,82],[69,73,76,80]], // Emaj7→F#add9→G#add11→Bmaj7→Eadd9→C#m9→Bmaj7/D#→Amaj7
       rottura:      null,
-      dissoluzione: [[64,68,71,75],[71,75,78,82],[64,68,71,75]],                             // Emaj7→Bmaj7→Emaj7
+      dissoluzione: [[64,68,71,75],[71,75,78,82],[64,68,71,75],[64,68,71,75]],               // Emaj7→Bmaj7→Emaj7→Emaj7 — 4×8=32
     },
     chordRhythm: {
       germoglio: 8, pulsazione: 8, densita: 4, rottura: 0, dissoluzione: 16,

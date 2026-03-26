@@ -47,7 +47,7 @@ const CHORD_PROGRESSIONS = {
   germoglio:    [[38,50,53,57]],                                                       // Dm open
   pulsazione:   [[38,50,53,57],[43,55,59,62],[41,53,57,60],[38,50,53,57]],             // Dm→G→F→Dm
   densita:      [[38,50,53,57],[41,53,57,60],[43,55,59,62],[45,57,60,64],              // Dm→F→G→Am
-                 [41,53,57,60],[38,50,57,59]],                                         // F→Dsus2+6
+                 [41,53,57,60],[43,55,59,62],[38,50,57,59],[38,50,53,57]],             // F→G→Dsus2→Dm — 8 accordi × 4 bar = 32
   rottura:      null,
   dissoluzione: [[38,50,53,57],[43,55,59,62],[41,53,57,60],[38,50,53,57]],
 };
@@ -64,15 +64,17 @@ const KICK_PATS = [
   [1,0,0,0, 0,0,0,0, 1,0,0,0, 0,0,1,0],  // [2] 1+3+"and of 4" (dub push)
   [1,0,0,0, 0,0,0,1, 1,0,0,0, 0,0,0,0],  // [3] 1+anticipation-3 (dub feel)
   [1,0,0,0, 0,0,0,1, 1,0,0,0, 0,1,0,0],  // [4] densita full dub
+  [1,0,0,0, 1,0,0,0, 1,0,0,0, 0,0,1,0],  // [5] E(4,16) — 4 hits, groove stabile
+  [1,0,0,0, 1,0,0,1, 1,0,0,0, 0,1,0,0],  // [6] E(5,16) — pre-meccanica, denso
 ];
 
 // Phase → kick index sequence. Changes staggered every 8 bars.
 const KICK_FOR_PHASE = {
   germoglio:    [0, 0, 1],
-  pulsazione:   [1, 1, 2, 3],
-  densita:      [2, 3, 4, 3, 4],
-  rottura:      [4, 4, 3],
-  dissoluzione: [1, 1, 0],
+  pulsazione:   [1, 1, 2, 2, 3],
+  densita:      [3, 4, 5, 5, 6],
+  rottura:      [6, 6, 4],
+  dissoluzione: [2, 1, 1, 0],
 };
 let kickPat = KICK_PATS[0];
 let kickVarIdx = 0;
@@ -321,7 +323,9 @@ function onStep(step) {
   // ─────────────────────────────────────────────────────────
   //  CH0 PULSE — kick dub
   // ─────────────────────────────────────────────────────────
-  if (presence[0] > 0.1 && kickPat[s16]) {
+  // ── Kick suppression: only fire kick when this engine dominates ──
+  const dominantKick = getPresenceMultiplier('terreno') >= CFG.kickDominanceThreshold;
+  if (dominantKick && presence[0] > 0.1 && kickPat[s16]) {
     const isDown = s16 === 0;
     const vel = isDown
       ? Math.round(95 + presence[0] * 25)
@@ -329,6 +333,17 @@ function onStep(step) {
     sendMIDINote(0, 36, vel, 55);
     addMidiNote(0, 0.5, vel / 127);
     if (isDown) addOnsetWave(0.5, 0.5, 1, 1);
+  }
+
+  // ── CH0 GHOST NOTES — only in densita/rottura, probabilistic ──
+  if (dominantKick && (phase === 'densita' || phase === 'rottura')) {
+    const ghostProb = phase === 'densita' ? CFG.COMPOSER.ghostNoteProbDensita : CFG.COMPOSER.ghostNoteProbRottura;
+    const isOffBeat = s16 === 2 || s16 === 6 || s16 === 10 || s16 === 14;
+    if (isOffBeat && !kickPat[s16] && Math.random() < ghostProb) {
+      const ghostVel = Math.round(CFG.COMPOSER.ghostNoteVelMin + Math.random() * (CFG.COMPOSER.ghostNoteVelMax - CFG.COMPOSER.ghostNoteVelMin));
+      sendMIDINote(0, 36, ghostVel, 30);
+      addMidiNote(0, 0.5, ghostVel / 127);
+    }
   }
 
   // ─────────────────────────────────────────────────────────
@@ -388,7 +403,10 @@ function onStep(step) {
         let note = raw;
         while (note < 62) note += 12;
         while (note > 74) note -= 12;
-        const vel = Math.round(50 + presence[3] * 42 + (Math.random() - 0.5) * 10);
+        let vel = Math.round(50 + presence[3] * 42 + (Math.random() - 0.5) * 10);
+        // ── Modal characteristic note boost ──
+        const charInt = CFG.modalCharacteristicNotes['terreno'];
+        if ((note % 12) === ((currentDrone % 12) + charInt) % 12) vel = Math.min(127, vel + CFG.characteristicVelBoost);
         const durBeats = 1.8 + Math.random() * 1.4;
         const fullDur = Math.round(stepMs * 4 * durBeats);
         // Cap non-final notes to prevent overlap on monophonic instruments
@@ -398,8 +416,40 @@ function onStep(step) {
           if (!composerActive) return;
           sendMIDINote(5, Math.max(36, Math.min(96, note)), Math.max(30, Math.min(127, vel)), dur);
           addMidiNote(5, note / 127, vel / 127);
+          // ── CH6 LEAD — canon: same phrase delayed 1 bar, transposed up a fifth ──
+          if (presence[4] > 0.3 && getPresenceMultiplier('terreno') > 0.5) {
+            const canonNote = Math.min(96, note + 7);
+            const canonVel = Math.floor(vel * 0.6);
+            setTimeout(() => {
+              if (!composerActive) return;
+              sendMIDINote(6, canonNote, canonVel, Math.round(stepMs * 8));
+              addMidiNote(6, canonNote / 127, canonVel / 127);
+            }, Math.round(barMs));
+          }
         }, delay);
       }
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────
+  //  CH7 RIDE — metallic drops, sparse, event not grid
+  //  Pulsazione: 1 hit per 4 bars. Densita: 1 per 2 bars, alternating closed/open.
+  // ─────────────────────────────────────────────────────────
+  const ridePresence = phase === 'germoglio' ? 0.0
+    : phase === 'pulsazione' ? 0.15
+    : phase === 'densita' ? 0.35
+    : phase === 'rottura' ? 0.5
+    : 0.1; // dissoluzione
+
+  if (ridePresence > 0.05 && s16 === 0) {
+    const rideEveryBars = phase === 'pulsazione' ? 4 : phase === 'densita' ? 2 : 4;
+    if (bar % rideEveryBars === 0 && Math.random() < ridePresence * 2) {
+      const isOpen = phase === 'densita' && (bar % 4 === 2);
+      const note = isOpen ? 74 : 82;
+      const vel = Math.round(20 + ridePresence * 35 + Math.random() * 8);
+      const dur = isOpen ? Math.round(stepMs * 12) : Math.round(stepMs * 3.2);
+      sendMIDINote(7, note, vel, dur);
+      addMidiNote(7, note / 127, vel / 127);
     }
   }
 

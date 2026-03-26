@@ -292,7 +292,8 @@ function onBeat(beat) {
   }
 
   // CH0 PULSE — minimal, every 8 beats (barely perceptible)
-  if (presence[3] > 0.2 && beat % 8 === 0) {
+  const dominantKick = getPresenceMultiplier('cristallo') >= CFG.kickDominanceThreshold;
+  if (dominantKick && presence[3] > 0.2 && beat % 8 === 0) {
     const vel = Math.floor(30 + presence[3] * 25);
     sendMIDINote(0, currentDrone - 12, vel, beatMs * 0.5);
     addMidiNote(0, (currentDrone - 12) / 127, vel / 127);
