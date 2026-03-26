@@ -196,7 +196,7 @@ function updatePhase3(dt) {
     markovHistory3 = [null, null];
     console.log(`[COMPOSER3] → ${phase}`);
   }
-  setArcPhaseForced(CFG.COMPOSER3.phases[phase].arc);
+  setArcPhaseForced(CFG.COMPOSER3.phases[phase].arc, getPresenceMultiplier('deriva'));
 }
 
 // ═══════════════════════════════════════════════════════════

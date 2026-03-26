@@ -261,7 +261,7 @@ function updatePhase(dt) {
   arcProgress = Math.min(1, phaseTime / cfg.duration);
   currentMode = cfg.mode;
   currentDrone = cfg.drone;
-  setArcPhaseForced(cfg.arc);
+  setArcPhaseForced(cfg.arc, getPresenceMultiplier('vortice'));
   if (phaseTime >= cfg.duration) {
     phaseIndex = (phaseIndex + 1) % CFG.COMPOSER4.phaseOrder.length;
     phaseTime = 0; arcProgress = 0;

@@ -53,15 +53,21 @@ const CUES = [
   { t: 1140, action: 'fade_to',   engine: 'meccanica', target: 1.0, duration: 20 },
 
   // ── SOLCO entra sotto MECCANICA (min 22 = t:1320) ──
-  { t: 1320, action: 'layer',    engine: 'solco',     target: 0.3, duration: 30 },
-
-  // ── SOLCO cresce, MECCANICA sfuma (min 26 = t:1560) ──
-  { t: 1560, action: 'fade_to',  engine: 'solco',     target: 0.7, duration: 30 },
-  { t: 1560, action: 'fade_to',  engine: 'meccanica', target: 0.3, duration: 20 },
+  { t: 1320, action: 'layer',    engine: 'solco',     target: 0.3,  duration: 30 },
+  // MECCANICA inizia a scendere subito (non aspetta min 26)
+  { t: 1350, action: 'fade_to',  engine: 'meccanica', target: 0.7,  duration: 30 },
 
   // MOMENTO-FIRMA: GELO (min 24 — machine freezes)
   { t: 1440, action: 'firma', effect: 'gelo', active: true },
   { t: 1470, action: 'firma', effect: 'gelo', active: false },
+
+  // Dopo GELO: crossfade definitivo
+  { t: 1470, action: 'fade_to',  engine: 'solco',     target: 0.7,  duration: 30 },
+  { t: 1470, action: 'fade_to',  engine: 'meccanica', target: 0.2,  duration: 20 },
+
+  // Min 25.5: MECCANICA esce, SOLCO domina
+  { t: 1530, action: 'fade_to',  engine: 'meccanica', target: 0.0,  duration: 20 },
+  { t: 1530, action: 'fade_to',  engine: 'solco',     target: 1.0,  duration: 30 },
 
   // ── ATTO IV — ACCELERAZIONE (28:00–42:00) ──
   { t: 1680, action: 'camera', framing: 'DRIFT', shake: 0.04 }, // Atto III→IV: drift + shake
@@ -108,6 +114,9 @@ const CUES = [
   { t: 2820, action: 'fade_to',   engine: 'deriva',    target: 0.0, duration: 120 },
   { t: 3000, action: 'end' },
 ];
+
+// ── Ensure chronological cue order (fixes out-of-order cues) ──
+CUES.sort((a, b) => a.t - b.t);
 
 // ── State ──
 let active = false;

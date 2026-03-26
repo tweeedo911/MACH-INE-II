@@ -110,7 +110,7 @@ function updatePhase(dt) {
   arcProgress = Math.min(1, phaseTime / cfg.duration);
   currentMode = cfg.mode;
   currentDrone = cfg.drone;
-  setArcPhaseForced(cfg.arc);
+  setArcPhaseForced(cfg.arc, getPresenceMultiplier('cristallo'));
   if (phaseTime >= cfg.duration) {
     phaseIndex = (phaseIndex + 1) % CFG.COMPOSER5.phaseOrder.length;
     phaseTime = 0;

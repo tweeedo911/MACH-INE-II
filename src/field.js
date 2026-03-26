@@ -513,11 +513,11 @@ export function renderField(ctx, W, H, state, globalTime) {
   smoothedIntensity += (state.intensity - smoothedIntensity) * 0.0008;
 
   // Dot size from scene, engine override takes priority
-  let dotSize = Math.max(1, (engineRender.active && engineRender.dotSize != null) ? engineRender.dotSize : scene.dotSize);
+  let dotSize = Math.max(CFG.dotSizeMin, (engineRender.active && engineRender.dotSize != null) ? engineRender.dotSize : scene.dotSize);
 
   if (climaxProgress > 0.1) {
     const compress = 1 - (1 - CFG.climaxDotCompress) * climaxProgress;
-    dotSize = Math.max(1, Math.round(dotSize * compress));
+    dotSize = Math.max(CFG.dotSizeMin, Math.round(dotSize * compress));
   }
 
   if (dotSize >= CFG.dotSizeBufferThreshold) {

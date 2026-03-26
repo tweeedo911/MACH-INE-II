@@ -216,7 +216,7 @@ function updatePhase(dt) {
   arcProgress = Math.min(1, phaseTime / phaseCfg.duration);
   currentMode = phaseCfg.mode;
   currentDrone = phaseCfg.drone;
-  setArcPhaseForced(phaseCfg.arc);
+  setArcPhaseForced(phaseCfg.arc, getPresenceMultiplier('meccanica'));
   if (phaseTime >= phaseCfg.duration) {
     phaseIndex = (phaseIndex + 1) % CFG.COMPOSER2.phaseOrder.length;
     phaseTime = 0; arcProgress = 0; chordProgIdx2 = 0; texturalBarCount = 0;
