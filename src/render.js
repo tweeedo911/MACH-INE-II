@@ -146,8 +146,11 @@ function updateHUDMinimal() {
     const min = Math.floor(seq.elapsed / 60);
     const sec = seq.elapsed % 60;
     const time = `${min}:${sec < 10 ? '0' : ''}${sec}`;
+    const totalMin = Math.floor(seq.duration / 60);
+    const totalSec = seq.duration % 60;
+    const total = `${totalMin}:${totalSec < 10 ? '0' : ''}${totalSec}`;
     const flags = (seq.looping ? ' [LOOP]' : '') + (seq.paused ? ' [PAUSED]' : '');
-    seqTag = `  ${icon} ${seq.act || ''} ${seq.engine} ${time}${flags}`;
+    seqTag = `  ${icon} ${time}/${total} — ${seq.act || ''} ${seq.engine}${flags}`;
   }
   const projActive = _projectorWin && !_projectorWin.closed;
   hudMinimal.textContent =

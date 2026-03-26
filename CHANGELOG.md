@@ -5,6 +5,31 @@ Formato: `[versione] – data – descrizione`
 
 ---
 
+## [v2.2.0] – 2026-03-26
+
+**Sequencer avanzato + ottimizzazioni performance + secondo output proiettore.**
+
+### Aggiunto
+- **Sequencer: pausa/resume** (`Space`): il tempo si congela, i composer restano fermi
+- **Sequencer: loop cue** (`L`): il tempo scorre ma nessuna nuova cue viene processata — il motore attuale resta attivo indefinitamente
+- **Sequencer: navigazione cue** (`←` prev, `→` next invariato) e navigazione atto (`Shift+←`/`Shift+→`) con fast-forward da zero per coerenza di stato
+- **Sequencer: crash recovery** (`Shift+R`): stato salvato in `sessionStorage` ogni 10s, ripristinabile dopo crash/reload con `_deactivateAll()` prima del restore
+- **Sequencer: sicurezza live** (`0` = solo START, `Shift+0` = solo STOP) — previene stop accidentali durante performance
+- **Proiettore** (`P`): apre `projector.html` — canvas fullscreen zero-HUD che legge da `window.opener` (zero serializzazione, zero overhead su render loop); `PROJ:ON` nell'HUD
+- **`projector.html`**: pagina minimale con pull rendering via `window.opener`, handshake BroadcastChannel `machine-projector`
+- **`CFG.maxMidiNotesPerFrame = 20`**: cap MIDI visivo per frame, priorità per velocity
+
+### Ottimizzato
+- **`generations.js`**: `entities.splice` e `fossils.splice` → swap-and-pop O(1)
+- **`field.js`**: `onsetWaves.splice` e `midiTrail.splice` → swap-and-pop O(1)
+- **`director.js`**: blend scene pre-alloca `_blendBuffer` (no `map()`+spread ogni frame durante transizioni); dynamic compositions pre-alloca `_dynBuffer` (no `map()`+spread ogni frame)
+
+### Modificato
+- **Sequencer CUES**: SOLCO entra al climax globale (`t:2040`, duration:5) ed esce per primo (`t:2070`, duration:10); discesa dal climax scaglionata (SOLCO→VORTICE→TERRENO+MECCANICA→ABISSO) invece di uscita simultanea
+- **HUD**: formato sequencer `▶ 12:34/40:00 — III MACCHINA [LOOP]`
+
+---
+
 ## [v2.1.1] – 2026-03-25
 
 **Fix critici: motori muti dopo rottura (dt undefined in residuo).**
