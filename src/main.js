@@ -150,8 +150,12 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'è') { setAudioGain(getAudioGain() - CFG.audioInputGainStep); return; }
   if (e.key === '+') { setAudioGain(getAudioGain() + CFG.audioInputGainStep); return; }
 
-  // Sequencer: 0 = start/stop, Space = pause, arrows = navigate, L = loop, Shift+R = recover
-  if (e.code === 'Digit0') { toggleSequencer(); return; }
+  // Sequencer: 0 = START (solo), Shift+0 = STOP con reset, Space = pause
+  if (e.code === 'Digit0') {
+    if (e.shiftKey) { if (isSequencerActive()) toggleSequencer(); }
+    else { if (!isSequencerActive()) toggleSequencer(); }
+    return;
+  }
   if (e.code === 'Space') { e.preventDefault(); togglePause(); return; }
   if (e.code === 'ArrowRight') {
     if (e.shiftKey) skipToAct(+1);

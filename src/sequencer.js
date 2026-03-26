@@ -65,17 +65,19 @@ const CUES = [
   // MOMENTO-FIRMA: CONVERGENZA (min 33 — converge to center before climax)
   { t: 1980, action: 'firma', effect: 'convergenza', active: true },
   { t: 2020, action: 'firma', effect: 'convergenza', active: false },
-  // CLIMAX GLOBALE — all engines to full (MOMENTO-FIRMA: INVERSIONE)
+  // CLIMAX GLOBALE — 6 motori (MOMENTO-FIRMA: INVERSIONE)
   { t: 2040, action: 'fade_to',   engine: 'terreno',   target: 1.0, duration: 10, visual: true },
   { t: 2040, action: 'fade_to',   engine: 'meccanica', target: 1.0, duration: 10 },
   { t: 2040, action: 'fade_to',   engine: 'abisso',    target: 1.0, duration: 10 },
   { t: 2040, action: 'fade_to',   engine: 'cristallo', target: 1.0, duration: 10 },
   { t: 2040, action: 'fade_to',   engine: 'deriva',    target: 1.0, duration: 10 },
-  // After 30s — fade all except CRISTALLO + DERIVA
-  { t: 2070, action: 'fade_to',   engine: 'terreno',   target: 0.0, duration: 20 },
-  { t: 2070, action: 'fade_to',   engine: 'meccanica', target: 0.0, duration: 20 },
-  { t: 2070, action: 'fade_to',   engine: 'abisso',    target: 0.0, duration: 20 },
-  { t: 2070, action: 'fade_to',   engine: 'vortice',   target: 0.0, duration: 20 },
+  { t: 2040, action: 'layer',     engine: 'solco',     target: 1.0, duration: 5  },
+  // Discesa dal climax — uscite scaglionate, ogni motore percepibile
+  { t: 2070, action: 'fade_to',   engine: 'solco',     target: 0.0, duration: 10 },
+  { t: 2075, action: 'fade_to',   engine: 'vortice',   target: 0.0, duration: 15 },
+  { t: 2080, action: 'fade_to',   engine: 'terreno',   target: 0.0, duration: 20 },
+  { t: 2080, action: 'fade_to',   engine: 'meccanica', target: 0.0, duration: 20 },
+  { t: 2085, action: 'fade_to',   engine: 'abisso',    target: 0.0, duration: 20 },
 
   // ── ATTO V — RITORNO (36:00–40:00) ──
   { t: 2160, action: 'camera', framing: 'MEDIUM' },   // Atto IV→V: slow zoom in
@@ -272,6 +274,9 @@ export function canRecover() {
 export function recoverState() {
   try {
     const st = JSON.parse(sessionStorage.getItem(SAVE_KEY));
+    transitions = [];
+    if (_deactivateAll) _deactivateAll();
+    resetAllMultipliers();
     active = true;
     globalTime = st.globalTime;
     cueIndex = st.cueIndex;
