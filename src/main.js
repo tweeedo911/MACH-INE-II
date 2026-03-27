@@ -24,7 +24,7 @@ import { setPresenceMultiplier, getPresenceMultiplier } from './presence-multipl
 import { WakeLockManager } from '../.claude/skills/runtime-expert/scripts/perf-utils.js';
 
 // ── v3 layer system (Phase 1 + Phase 2 + Phase 3) ──
-import { initMacroComposer, updateMacroComposer, macroState } from './macro-composer.js';
+import { initMacroComposer, updateMacroComposer, macroState, jumpArc } from './macro-composer.js';
 import { initHarmonyLayer, updateHarmonyLayer } from './harmony-layer.js';
 import { initRhythmLayer, updateRhythmLayer } from './rhythm-layer.js';
 import { initMelodyTextureLayer, updateMelodyTextureLayer } from './melody-texture-layer.js';
@@ -192,6 +192,11 @@ document.addEventListener('keydown', (e) => {
     if (e.shiftKey) { if (isSequencerActive()) toggleSequencer(); }
     else { if (!isSequencerActive()) toggleSequencer(); }
     return;
+  }
+  // V3: tasti 1-5 saltano l'arco narrativo (intercettati prima dei toggle v2)
+  if (CFG.V3_MODE) {
+    const _arcMap = { Digit1: 0.00, Digit2: 0.22, Digit3: 0.50, Digit4: 0.75, Digit5: 0.90 };
+    if (_arcMap[e.code] !== undefined) { jumpArc(_arcMap[e.code]); return; }
   }
   if (e.code === 'Space') { e.preventDefault(); togglePause(); return; }
   if (e.code === 'ArrowRight') {
