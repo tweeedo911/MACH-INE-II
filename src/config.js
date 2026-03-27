@@ -46,7 +46,7 @@ export const CFG = {
   noteDensityWindowSec: 2,
 
   // ── Dot-size ──
-  dotSizeMin: 3,
+  dotSizeMin: 1,
   dotSizeMax: 16,
 
   // ── Density ──
@@ -152,10 +152,10 @@ export const CFG = {
   // Interval in semitones from root that defines each engine's modal identity
   modalCharacteristicNotes: {
     terreno:   9,  // B natural — Dorian 6th from D
-    meccanica: 10, // A# — Dorian 6th from C#
-    vortice:   1,  // F — b2 (Phrygian identity) from E
+    meccanica: 6,  // F# — Dorian 6th from A
+    vortice:   3,  // Eb — b2 (Phrygian identity) from D
     solco:     9,  // E natural — Dorian 6th from G
-    abisso:    1,  // Cb — b2 (Phrygian identity) from Bb
+    abisso:    10, // Bb — b2 (Phrygian identity) from A
   },
   characteristicVelBoost: 15,  // velocity bonus when characteristic note plays
 
@@ -163,7 +163,7 @@ export const CFG = {
   composer1Key: 'Digit4',
   COMPOSER: {
     enabled: false,
-    bpm: 72,
+    bpm: 80,
     phases: {
       germoglio:    { duration: 40,  mode: 'D_dorian',   drone: 62, arc: 'SILENCE'   },
       pulsazione:   { duration: 60,  mode: 'D_phrygian',  drone: 62, arc: 'BUILDING'  },
@@ -192,17 +192,17 @@ export const CFG = {
     dissoluzioneKickInBars: 8,  // bars of bass+kick only after rupture hard cut before rest enters
   },
 
-  // ── Composer 2 (MECCANICA — C# Dorian, layer poliritmici) ──
+  // ── Composer 2 (MECCANICA — A Dorian, layer poliritmici) ──
   COMPOSER2: {
     toggleKey: 'Digit5',
-    bpm: 98,
-    gravitationalCenter: 61, // C#3
+    bpm: 92,
+    gravitationalCenter: 57, // A3
     phases: {
-      germoglio:    { duration: 45, mode: 'Cs_dorian',   drone: 61, arc: 'SILENCE'  },
-      pulsazione:   { duration: 65, mode: 'Cs_dorian',   drone: 61, arc: 'BUILDING' },
-      densita:      { duration: 130, mode: 'Cs_dorian',   drone: 61, arc: 'INTENSE'  },
-      rottura:      { duration: 35, mode: 'Cs_dorian',   drone: 61, arc: 'PEAK'     },
-      dissoluzione: { duration: 180, mode: 'Cs_dorian',   drone: 61, arc: 'RELEASE'  },
+      germoglio:    { duration: 45,  mode: 'A_dorian',   drone: 57, arc: 'SILENCE'  },
+      pulsazione:   { duration: 65,  mode: 'A_dorian',   drone: 57, arc: 'BUILDING' },
+      densita:      { duration: 130, mode: 'A_dorian',   drone: 57, arc: 'INTENSE'  },
+      rottura:      { duration: 35,  mode: 'A_dorian',   drone: 57, arc: 'PEAK'     },
+      dissoluzione: { duration: 180, mode: 'A_dorian',   drone: 57, arc: 'RELEASE'  },
     },
     phaseOrder: ['germoglio', 'pulsazione', 'densita', 'rottura', 'dissoluzione'],
     layers: {
@@ -281,17 +281,17 @@ export const CFG = {
     midiOutputName: null,
   },
 
-  // ── Composer 4 (VORTICE — E Phrygian, breakbeat industriale 138bpm) ──
+  // ── Composer 4 (VORTICE — D Phrygian, groove driving ipnotico 112bpm) ──
   COMPOSER4: {
     toggleKey: 'Digit6',
-    bpm: 138,
-    gravitationalCenter: 64, // E4
+    bpm: 112,
+    gravitationalCenter: 62, // D4
     phases: {
-      germoglio:    { duration: 30,  mode: 'E_phrygian',  drone: 52, arc: 'SILENCE'  },
-      pulsazione:   { duration: 50,  mode: 'E_phrygian',  drone: 52, arc: 'BUILDING' },
-      densita:      { duration: 70,  mode: 'E_phrygian',  drone: 52, arc: 'INTENSE'  },
-      rottura:      { duration: 25,  mode: 'E_phrygian',  drone: 52, arc: 'PEAK'     },
-      dissoluzione: { duration: 60,  mode: 'E_phrygian',  drone: 52, arc: 'RELEASE'  },
+      germoglio:    { duration: 30,  mode: 'D_phrygian',  drone: 50, arc: 'SILENCE'  },
+      pulsazione:   { duration: 50,  mode: 'D_phrygian',  drone: 50, arc: 'BUILDING' },
+      densita:      { duration: 70,  mode: 'D_phrygian',  drone: 50, arc: 'INTENSE'  },
+      rottura:      { duration: 25,  mode: 'D_phrygian',  drone: 50, arc: 'PEAK'     },
+      dissoluzione: { duration: 60,  mode: 'D_phrygian',  drone: 50, arc: 'RELEASE'  },
     },
     phaseOrder: ['germoglio', 'pulsazione', 'densita', 'rottura', 'dissoluzione'],
     variationBars: 16,   // complete pattern change every N bars
@@ -307,17 +307,17 @@ export const CFG = {
     midiOutputName: null,
   },
 
-  // ── Composer 5 (CRISTALLO — E Lydian, ambient cristallino 54bpm) ──
+  // ── Composer 5 (CRISTALLO — D Lydian, ambient cristallino 54bpm) ──
   COMPOSER5: {
     toggleKey: 'Digit2',
     bpm: 54,
-    gravitationalCenter: 64, // E4
+    gravitationalCenter: 62, // D4
     phases: {
-      germoglio:    { duration: 60,  mode: 'E_lydian',    drone: 52, arc: 'SILENCE'  },
-      pulsazione:   { duration: 80,  mode: 'E_lydian',    drone: 52, arc: 'BUILDING' },
-      densita:      { duration: 120, mode: 'E_lydian',    drone: 52, arc: 'INTENSE'  },
-      rottura:      { duration: 20,  mode: 'F_locrian',   drone: 53, arc: 'PEAK'     },
-      dissoluzione: { duration: 100, mode: 'E_lydian',    drone: 52, arc: 'RELEASE'  },
+      germoglio:    { duration: 60,  mode: 'D_lydian',    drone: 50, arc: 'SILENCE'  },
+      pulsazione:   { duration: 80,  mode: 'D_lydian',    drone: 50, arc: 'BUILDING' },
+      densita:      { duration: 120, mode: 'D_lydian',    drone: 50, arc: 'INTENSE'  },
+      rottura:      { duration: 20,  mode: 'F_locrian',   drone: 51, arc: 'PEAK'     },
+      dissoluzione: { duration: 100, mode: 'D_lydian',    drone: 50, arc: 'RELEASE'  },
     },
     phaseOrder: ['germoglio', 'pulsazione', 'densita', 'rottura', 'dissoluzione'],
     shimmerInterval: 3,       // seconds between shimmer arpeggios
@@ -331,11 +331,11 @@ export const CFG = {
       takeoverAt: 0.85, residuoAt: 0.92,
     },
     chordProgressions: {
-      germoglio:    [[64,68,71,75]],                                                          // Emaj7 (pad sostenuto)
-      pulsazione:   [[64,68,71,75],[66,70,73,76],[64,68,71,75],[71,75,78,82]],               // Emaj7→F#maj7→Emaj7→Bmaj7
-      densita:      [[64,68,71,75],[66,70,73,78],[68,71,75,80],[71,75,78,82],[64,68,73,75],[61,66,68,73],[63,71,75,82],[69,73,76,80]], // Emaj7→F#add9→G#add11→Bmaj7→Eadd9→C#m9→Bmaj7/D#→Amaj7
+      germoglio:    [[62,66,69,73]],                                                          // Dmaj7 (pad sostenuto)
+      pulsazione:   [[62,66,69,73],[64,68,71,74],[62,66,69,73],[69,73,76,80]],               // Dmaj7→Emaj7→Dmaj7→Amaj7
+      densita:      [[62,66,69,73],[64,68,71,76],[66,69,73,78],[69,73,76,80],[62,66,71,73],[59,64,66,71],[61,69,73,80],[67,71,74,78]], // Dmaj7→Eadd9→F#add11→Amaj7→Dadd9→Bm9→Amaj7/C#→Gmaj7
       rottura:      null,
-      dissoluzione: [[64,68,71,75],[71,75,78,82],[64,68,71,75],[64,68,71,75]],               // Emaj7→Bmaj7→Emaj7→Emaj7 — 4×8=32
+      dissoluzione: [[62,66,69,73],[69,73,76,80],[62,66,69,73],[62,66,69,73]],               // Dmaj7→Amaj7→Dmaj7→Dmaj7 — 4×8=32
     },
     chordRhythm: {
       germoglio: 8, pulsazione: 8, densita: 4, rottura: 0, dissoluzione: 16,
@@ -348,13 +348,13 @@ export const CFG = {
   COMPOSER6: {
     toggleKey: 'Digit3',
     bpm: 76,
-    gravitationalCenter: 70, // Bb4
+    gravitationalCenter: 69, // A4
     phases: {
-      germoglio:    { duration: 50,  mode: 'Bb_phrygian', drone: 46, arc: 'SILENCE'  },
-      pulsazione:   { duration: 70,  mode: 'Bb_phrygian', drone: 46, arc: 'BUILDING' },
-      densita:      { duration: 100, mode: 'Bb_phrygian', drone: 46, arc: 'INTENSE'  },
-      rottura:      { duration: 30,  mode: 'Bb_phrygian', drone: 46, arc: 'PEAK'     },
-      dissoluzione: { duration: 90,  mode: 'Bb_phrygian', drone: 46, arc: 'RELEASE'  },
+      germoglio:    { duration: 50,  mode: 'A_phrygian', drone: 45, arc: 'SILENCE'  },
+      pulsazione:   { duration: 70,  mode: 'A_phrygian', drone: 45, arc: 'BUILDING' },
+      densita:      { duration: 100, mode: 'A_phrygian', drone: 45, arc: 'INTENSE'  },
+      rottura:      { duration: 30,  mode: 'A_phrygian', drone: 45, arc: 'PEAK'     },
+      dissoluzione: { duration: 90,  mode: 'A_phrygian', drone: 45, arc: 'RELEASE'  },
     },
     phaseOrder: ['germoglio', 'pulsazione', 'densita', 'rottura', 'dissoluzione'],
     heartbeatEvery: 2,        // PULSE every N beats (heartbeat feel)
@@ -374,7 +374,7 @@ export const CFG = {
   // ── Composer 7 (SOLCO — G Dorian, Berlin techno ipnotico 128bpm) ──
   COMPOSER7: {
     toggleKey: 'Digit7',
-    bpm: 128,
+    bpm: 120,
     gravitationalCenter: 55, // G3
     phases: {
       germoglio:    { duration: 60,  mode: 'G_dorian',   drone: 55, arc: 'SILENCE'  },

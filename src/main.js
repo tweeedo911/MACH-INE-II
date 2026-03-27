@@ -221,27 +221,33 @@ function getActiveBpm() {
 }
 
 midiWorker.onmessage = ({ data: { dt } }) => {
-  if (!running) return;
-  resetArcPriority();
+  try {
+    if (!running) return;
+    resetArcPriority();
 
-  const anyActive = composerActive || composer2Active || composer3Active ||
-                    composer4Active || composer5Active || composer6Active || composer7Active;
+    const anyActive = composerActive || composer2Active || composer3Active ||
+                      composer4Active || composer5Active || composer6Active || composer7Active;
 
-  // Auto MIDI Start/Stop on engine activation
-  if (anyActive && !wasAnyComposerActive) sendMIDIStart();
-  if (!anyActive && wasAnyComposerActive) sendMIDIStop();
-  wasAnyComposerActive = anyActive;
+    // Auto MIDI Start/Stop on engine activation
+    if (anyActive && !wasAnyComposerActive) sendMIDIStart();
+    if (!anyActive && wasAnyComposerActive) sendMIDIStop();
+    wasAnyComposerActive = anyActive;
 
-  if (composerActive)  updateComposer(dt);
-  if (composer2Active) updateComposer2(dt);
-  if (composer3Active) updateComposer3(dt);
-  if (composer4Active) updateComposer4(dt);
-  if (composer5Active) updateComposer5(dt);
-  if (composer6Active) updateComposer6(dt);
-  if (composer7Active) updateComposer7(dt);
+    if (composerActive)  updateComposer(dt);
+    if (composer2Active) updateComposer2(dt);
+    if (composer3Active) updateComposer3(dt);
+    if (composer4Active) updateComposer4(dt);
+    if (composer5Active) updateComposer5(dt);
+    if (composer6Active) updateComposer6(dt);
+    if (composer7Active) updateComposer7(dt);
 
-  // Send MIDI Clock ticks at 24 ppqn
-  if (anyActive) updateMIDIClock(getActiveBpm());
+    // Send MIDI Clock ticks at 24 ppqn
+    if (anyActive) updateMIDIClock(getActiveBpm());
+  } catch (e) {
+    // Log error but keep the clock alive — an uncaught exception here
+    // would silently kill the handler and stop all MIDI output
+    console.error('[MIDI CLOCK] Handler error (clock kept alive):', e);
+  }
 };
 
 function startMidiClock() {

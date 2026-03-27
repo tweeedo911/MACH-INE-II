@@ -504,26 +504,34 @@ function onStep(step) {
   }
 
   // ─────────────────────────────────────────────────────────
-  //  CH1 HAT — post-ruptura groove, entra con drone e accordi
-  //  Crome costanti (step pari), open sul "e del 4" ogni 4 bar, ghost 16mi
+  //  CH1 HAT — presente da pulsazione, groove pieno in dissoluzione
+  //  Pre-dissoluzione: crome, bassa velocity. Post-rupture: open/ghost attivi.
   // ─────────────────────────────────────────────────────────
   const barsPost = (phase === 'dissoluzione' && hardCutBar >= 0) ? (bar - hardCutBar) : -1;
-  if (barsPost >= CFG.COMPOSER.dissoluzioneKickInBars) {
-    const fadeIn = Math.min(1, (barsPost - CFG.COMPOSER.dissoluzioneKickInBars) / 4);
+  const hatPresence = phase === 'germoglio'  ? 0.0
+    : phase === 'pulsazione'                 ? 0.35
+    : phase === 'densita'                    ? 0.55
+    : phase === 'rottura'                    ? 0.70
+    : barsPost >= CFG.COMPOSER.dissoluzioneKickInBars
+      ? Math.min(1, (barsPost - CFG.COMPOSER.dissoluzioneKickInBars) / 4) : 0.0;
+  if (hatPresence > 0) {
     const isEighth = s16 % 2 === 0;
-    const isGhost16 = (s16 === 3 || s16 === 11) && (bar % 2 === 1) && Math.random() < 0.40;
+    const isDiss = phase === 'dissoluzione' && barsPost >= CFG.COMPOSER.dissoluzioneKickInBars;
+    const isGhost16 = isDiss && (s16 === 3 || s16 === 11) && (bar % 2 === 1) && Math.random() < 0.40;
     if (isEighth) {
       const isAccent = s16 === 0 || s16 === 8;
       const isMedium = s16 === 4 || s16 === 12;
-      const isOpen   = s16 === 14 && bar % 4 === 2; // "e del 4" ogni 4 bar
-      const baseVel  = isAccent ? 78 : isMedium ? 64 : 50;
-      const vel = Math.round((baseVel + (Math.random() - 0.5) * 9) * fadeIn);
+      const isOpen   = isDiss && s16 === 14 && bar % 4 === 2; // "e del 4" ogni 4 bar, solo dissoluzione
+      const baseVel  = isDiss
+        ? (isAccent ? 78 : isMedium ? 64 : 50)
+        : (isAccent ? 40 : isMedium ? 35 : 30);
+      const vel = Math.round((baseVel + (Math.random() - 0.5) * 9) * hatPresence);
       if (vel > 4) {
         sendMIDINote(1, isOpen ? 46 : 42, vel, 20);
         addMidiNote(1, 0.33, vel / 127);
       }
     } else if (isGhost16) {
-      const vel = Math.round((20 + Math.random() * 12) * fadeIn);
+      const vel = Math.round((20 + Math.random() * 12) * hatPresence);
       if (vel > 4) sendMIDINote(1, 42, vel, 15);
     }
   }

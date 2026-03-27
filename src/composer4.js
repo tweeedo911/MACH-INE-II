@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════
 //  MACH:INE II — Composer 4 (VORTICE)
-//  E Phrygian · 138 BPM · tribal-industriale · micro-loop
+//  D Phrygian · 112 BPM · tribal-industriale · micro-loop
 //  v3 — pitch classes fissi per layer, motivo VOICE ricorrente
 // ═══════════════════════════════════════════════════════════
 
@@ -31,7 +31,7 @@ function addMidiNote(ch, x, intensity) {
 // ═══════════════════════════════════════════════════════════
 
 const MODES4 = {
-  E_phrygian: [52,53,55,57,59,60,62, 64,65,67,69,71,72,74, 76,77,79,81,83,84,86],
+  D_phrygian: [50,51,53,55,57,58,60, 62,63,65,67,69,70,72, 74,75,77,79,81,82,84],
   F_locrian:  [53,54,56,58,59,61,63, 65,66,68,70,71,73,75, 77,78,80,82,83,85,87],
 };
 
@@ -61,21 +61,9 @@ const GHOST_PATTERNS = [
 //  PRINCIPIO: E e F sono il cuore del Phrygian — alternali con ritmo
 // ═══════════════════════════════════════════════════════════
 
-const BASS_PATTERNS = [
-  [1,0,0,0, 0,0,0,0, 1,0,0,0, 0,0,0,0],   // ogni downbeat (0)
-  [1,0,0,0, 0,0,1,0, 0,0,0,0, 0,0,1,0],   // sincopato (1)
-  [1,0,0,0, 1,0,0,0, 1,0,0,0, 1,0,0,0],   // ogni quarto (2)
-];
+// D Phrygian: root (D2=38) sul downbeat, quinta (A2=45) sul beat 3
+const VORTICE_BASS_PAT = [1,0,0,0, 0,0,0,0, 1,0,0,0, 0,0,0,0];
 
-// Note sequence per ciascun BASS_PATTERN step trigger
-// Offsets da E1(40): 0=E1, 1=F1(b2!), 3=G1, 5=A1, 7=B1, 8=C2, 10=D2, 12=E2
-const BASS_NOTE_SEQS = [
-  [0, 7],          // E + B (root/fifth) per pattern 0
-  [0, 1, 7, 0],    // E→F(tension)→B→E per pattern 1 (Phrygian pulse)
-  [0, 0, 7, 1],    // E→E→B→F(release) per pattern 2
-];
-
-const RIDE_PAT_TRIBAL = [0,0,1,0, 0,1,0,0, 0,0,1,0, 1,0,0,0]; // additive 3+3+3+3+4
 
 // ═══════════════════════════════════════════════════════════
 //  MICRO-LOOP PITCH CLASSES — FISSI PER LAYER
@@ -86,48 +74,6 @@ const RIDE_PAT_TRIBAL = [0,0,1,0, 0,1,0,0, 0,0,1,0, 1,0,0,0]; // additive 3+3+3+
 //  Layer C (altissimo): E5, G5, B4 — solo triadic
 // ═══════════════════════════════════════════════════════════
 
-// LAYER A — 8-step, registro alto [64,67,71,72]
-// E4=64, G4=67, B4=71, C5=72
-const MICRO_A_PITCHES = [
-  [64, 67, 71, 72],   // standard E Phrygian triad + root
-  [64, 65, 69, 72],   // with b2 (F4=65) for tension
-  [67, 71, 72, 74],   // upper structure G/B/C/D
-  [64, 67, 71, 74],   // E/G/B/D — m7
-];
-
-// LAYER B — 5-step, registro medio [52,53,57,59]
-// E3=52, F3=53, A3=57, B3=59
-const MICRO_B_PITCHES = [
-  [52, 53, 57, 59],   // E/F(b2)/A/B — full Phrygian color
-  [52, 55, 57, 60],   // E/G/A/C — open triad
-  [53, 57, 59, 62],   // F/A/B/D — tension cluster
-  [52, 55, 59, 60],   // E/G/B/C
-];
-
-// LAYER C — 3-step, registro altissimo [76,79,83]
-// E5=76, G5=79, B4=71→B5=83
-const MICRO_C_PITCHES = [
-  [76, 79, 83],   // E/G/B top
-  [76, 77, 81],   // E/F/A high (Phrygian tension in alto)
-  [71, 76, 79],   // B/E/G descent
-];
-
-// Pattern step shapes (i pattern triggers rimangono identici)
-const MICRO_A_POOL = [
-  [1,0,0,1,0,0,1,0],
-  [1,0,1,0,0,1,0,0],
-  [1,0,0,0,1,0,0,1],
-];
-const MICRO_B_POOL = [
-  [1,0,0,1,0],
-  [1,0,1,0,0],
-  [0,1,0,0,1],
-];
-const MICRO_C_POOL = [
-  [1,0,1],
-  [1,1,0],
-  [0,1,1],
-];
 
 // ═══════════════════════════════════════════════════════════
 //  VOICE MOTIF — frase ricorrente ancorata a E Phrygian
@@ -136,30 +82,6 @@ const MICRO_C_POOL = [
 
 // Motif base: E4→F4→E4→B3 (root→b2→root→5th — quintessenza Phrygian)
 // Varianti per fase:
-const VOICE_MOTIFS = {
-  germoglio:    [[64, 65, 64, 59]],                        // E→F→E→B (base)
-  pulsazione:   [[64, 65, 64, 59], [67, 65, 64, 62]],     // + G→F→E→D
-  densita:      [[64, 65, 67, 64], [72, 71, 69, 67],       // E→F→G→E, C→B→A→G
-                 [64, 65, 64, 59], [67, 65, 62, 60]],      // base + G→F→D→C
-  rottura:      [[65, 64, 62, 60], [53, 52, 50, 48]],     // discesa cromatica + bassa
-  dissoluzione: [[64, 65, 64, 59]],                        // ritorno alla cell base
-};
-
-let voiceMotifPool = VOICE_MOTIFS.germoglio;
-let voiceMotifIdx = 0;
-let voiceStepInMotif = 0;
-
-// CHORD voicings per VORTICE — E Phrygian
-// Em (E,G,B), Fmaj (F,A,C), Cmaj(C,E,G), Dm(D,F,A), Gm(G,B,D)
-const CHORD_VOICINGS4 = {
-  germoglio:    [[52,55,59]],                        // Em
-  pulsazione:   [[52,55,59],[53,57,60]],             // Em → Fmaj
-  densita:      [[52,55,59],[53,57,60],[48,52,55],   // Em→Fmaj→Cmaj
-                 [50,53,57]],                         // Dm
-  rottura:      null,
-  dissoluzione: [[52,55,59],[53,57,60]],
-};
-let chordVoiceIdx4 = 0;
 
 // ═══════════════════════════════════════════════════════════
 //  PRESENZA — invariata (già buona)
@@ -186,8 +108,8 @@ let arcProgress = 0;
 let clock = 0;
 let lastStep = -1;
 
-let currentMode = 'E_phrygian';
-let currentDrone = 52;  // E3
+let currentMode = 'D_phrygian';
+let currentDrone = 50;  // D3
 
 let ruptureStage = 'idle';
 let lastRuptureStage = 'idle';
@@ -196,29 +118,15 @@ const presence = [0, 0, 0, 0];
 let debugTimer = 0;
 
 // Pattern attivi
-let kickPat, ghostPat, bassPat, microA, microB, microC;
-let microAPitches, microBPitches, microCPitches;
-let bassNoteSeq, bassNoteIdx4;
-let lastKickBar = -1, lastGhostBar = -1, lastBassBar = -1, lastMicroBar = -1;
+let kickPat, ghostPat;
+let lastKickBar = -1, lastGhostBar = -1;
 
 const KICK_VAR_BARS  = 8;
 const GHOST_VAR_BARS = 16;
-const BASS_VAR_BARS  = 16;
-const MICRO_VAR_BARS = 8;
 
 function pickPatterns() {
-  kickPat      = KICK_PATTERNS[Math.floor(Math.random() * KICK_PATTERNS.length)];
-  ghostPat     = GHOST_PATTERNS[Math.floor(Math.random() * GHOST_PATTERNS.length)];
-  const bpi    = Math.floor(Math.random() * BASS_PATTERNS.length);
-  bassPat      = BASS_PATTERNS[bpi];
-  bassNoteSeq  = BASS_NOTE_SEQS[bpi];
-  bassNoteIdx4 = 0;
-  microA       = MICRO_A_POOL[Math.floor(Math.random() * MICRO_A_POOL.length)];
-  microB       = MICRO_B_POOL[Math.floor(Math.random() * MICRO_B_POOL.length)];
-  microC       = MICRO_C_POOL[Math.floor(Math.random() * MICRO_C_POOL.length)];
-  microAPitches = MICRO_A_PITCHES[Math.floor(Math.random() * MICRO_A_PITCHES.length)];
-  microBPitches = MICRO_B_PITCHES[Math.floor(Math.random() * MICRO_B_PITCHES.length)];
-  microCPitches = MICRO_C_PITCHES[Math.floor(Math.random() * MICRO_C_PITCHES.length)];
+  kickPat  = KICK_PATTERNS[1]; // 4-on-floor default
+  ghostPat = GHOST_PATTERNS[Math.floor(Math.random() * GHOST_PATTERNS.length)];
 }
 
 // ── Inizializzazione ──
@@ -228,10 +136,8 @@ export function initComposer4() {
   ruptureStage = 'idle'; lastRuptureStage = 'idle';
   setEnginePhase('vortice', CFG.COMPOSER4.phaseOrder[0]);
   presence.fill(0);
-  currentMode = 'E_phrygian'; currentDrone = 52;
-  lastKickBar = lastGhostBar = lastBassBar = lastMicroBar = -1;
-  voiceMotifPool = VOICE_MOTIFS.germoglio; voiceMotifIdx = 0; voiceStepInMotif = 0;
-  chordVoiceIdx4 = 0;
+  currentMode = 'D_phrygian'; currentDrone = 50;
+  lastKickBar = lastGhostBar = -1;
   pickPatterns();
 }
 
@@ -241,7 +147,7 @@ export function toggleComposer4() {
   if (composer4Active) {
     initComposer4();
     setEngine('vortice');
-    console.log('[COMPOSER4] ON — E Phrygian VORTICE 138bpm');
+    console.log('[COMPOSER4] ON — D Phrygian VORTICE 112bpm');
   } else {
     sendMIDIAllNotesOff();
     setComposerClimax(false);
@@ -266,8 +172,6 @@ function updatePhase(dt) {
     phaseIndex = (phaseIndex + 1) % CFG.COMPOSER4.phaseOrder.length;
     phaseTime = 0; arcProgress = 0;
     setEnginePhase('vortice', currentPhase(), ruptureStage);
-    voiceMotifPool = VOICE_MOTIFS[currentPhase()] || VOICE_MOTIFS.germoglio;
-    voiceMotifIdx  = 0; voiceStepInMotif = 0; chordVoiceIdx4 = 0;
     console.log(`[COMPOSER4] → ${currentPhase()}`);
   }
 }
@@ -329,33 +233,16 @@ function onStep(step) {
                : ruptureStage === 'infiltrazione' ? 0.4
                : ruptureStage === 'presagio'      ? 0.15 : 0;
 
-  // ── Staggered pattern rotation (sfalsato per evoluzione naturale) ──
+  // ── Staggered pattern rotation ──
   if (bar !== lastKickBar && bar % KICK_VAR_BARS === 0) {
     lastKickBar = bar;
-    // Fase guida la scelta: densita prende kick più tribale
-    const pool = { germoglio:[0,1], pulsazione:[0,1,2], densita:[2,3,4,3], rottura:[3,4], dissoluzione:[0,1] }[name] || [1];
-    kickPat = KICK_PATTERNS[pool[bar % pool.length]];
+    kickPat = (name === 'densita' && Math.random() < 0.25)
+      ? KICK_PATTERNS[Math.floor(Math.random() * KICK_PATTERNS.length)]
+      : KICK_PATTERNS[1]; // 4-on-floor default
   }
   if (bar !== lastGhostBar && bar % GHOST_VAR_BARS === 0) {
     lastGhostBar = bar;
     ghostPat = GHOST_PATTERNS[Math.floor(Math.random() * GHOST_PATTERNS.length)];
-  }
-  if (bar !== lastBassBar && bar % BASS_VAR_BARS === 0) {
-    lastBassBar = bar;
-    const bpi   = Math.floor(Math.random() * BASS_PATTERNS.length);
-    bassPat     = BASS_PATTERNS[bpi];
-    bassNoteSeq = BASS_NOTE_SEQS[bpi];
-    bassNoteIdx4 = 0;
-  }
-  if (bar !== lastMicroBar && bar % MICRO_VAR_BARS === 0) {
-    lastMicroBar = bar;
-    microA = MICRO_A_POOL[Math.floor(Math.random() * MICRO_A_POOL.length)];
-    microB = MICRO_B_POOL[Math.floor(Math.random() * MICRO_B_POOL.length)];
-    microC = MICRO_C_POOL[Math.floor(Math.random() * MICRO_C_POOL.length)];
-    // Ruota anche i pitch pools per evoluzione timbrica
-    microAPitches = MICRO_A_PITCHES[Math.floor(Math.random() * MICRO_A_PITCHES.length)];
-    microBPitches = MICRO_B_PITCHES[Math.floor(Math.random() * MICRO_B_PITCHES.length)];
-    microCPitches = MICRO_C_PITCHES[Math.floor(Math.random() * MICRO_C_PITCHES.length)];
   }
 
   // ─────────────────────────────────────────────────────────
@@ -376,55 +263,33 @@ function onStep(step) {
   }
 
   // ─────────────────────────────────────────────────────────
-  //  CH3 BASS — melodia E Phrygian con tensione b2 (F)
-  //  offsets: 0=E1(40), 1=F1(41/b2), 3=G1(43), 5=A1(45), 7=B1(47), 8=C2(48), 10=D2(50), 12=E2(52)
+  //  CH3 BASS — root sul downbeat, quinta sul beat 3
   // ─────────────────────────────────────────────────────────
-  if (bassPat[s16] && name !== 'rottura') {
-    const bassRoot = currentDrone - 12; // E2=40
-    const offsets  = [0, 1, 3, 5, 7, 8, 10, 12];
-    const off      = bassNoteSeq[bassNoteIdx4 % bassNoteSeq.length];
-    bassNoteIdx4++;
-    const bassNote = bassRoot + offsets[Math.min(off, offsets.length - 1)];
-    const vel = s16 === 0
-      ? Math.floor(98 + presence[2] * 18)
-      : Math.floor(80 + presence[2] * 20);
-    // Gate corto = pulse tribale, lungo = sustained
-    const gate = name === 'densita' ? 2.8 : 4.0;
-    sendMIDINote(3, Math.min(127, bassNote), vel, Math.round(stepMs * gate));
-    addMidiNote(3, bassNote / 127, vel / 127);
+  if (VORTICE_BASS_PAT[s16] && name !== 'rottura') {
+    const bassRoot = currentDrone - 12; // D2=38
+    const note = s16 === 0 ? bassRoot : bassRoot + 7; // root / quinta
+    const vel  = s16 === 0 ? 98 : 82;
+    sendMIDINote(3, Math.min(127, note), vel, Math.round(stepMs * (s16 === 0 ? 3.8 : 2.8)));
+    addMidiNote(3, note / 127, vel / 127);
   }
 
   // ─────────────────────────────────────────────────────────
-  //  CH1 GRAIN — 3 micro-loop con pitch classes FISSI
-  //  La chiave: ogni layer ha il suo vocabolario armonico
+  //  CH1 HAT — 16th pulse + open on beats 2,4
   // ─────────────────────────────────────────────────────────
+  const hatPres4 = name === 'germoglio' ? 0.0
+    : name === 'pulsazione' ? 0.3
+    : name === 'densita' ? 0.7
+    : name === 'rottura' ? 1.0 : 0.2;
 
-  // Layer A: 8-step, alto [E4,G4,B4,C5] — triade + ottava
-  if (microA[step % microA.length] && presence[1] > 0.2) {
-    const pitches = microAPitches;
-    // Cicla tra le note del pool (non la scala) — suona come arpeggio, non scala run
-    const note = pitches[(step + Math.floor(step / 3)) % pitches.length];
-    const vel  = Math.floor(48 + presence[1] * 32);
-    sendMIDINote(1, note, vel, Math.round(stepMs * 1.4));
-    addMidiNote(1, note / 127, vel / 127);
-  }
-
-  // Layer B: 5-step, medio [E3,F3,A3,B3] — colore Phrygian
-  if (microB[step % microB.length] && presence[1] > 0.4) {
-    const pitches = microBPitches;
-    const note = pitches[(step + 2) % pitches.length]; // offset 2 per sfasamento
-    const vel  = Math.floor(42 + presence[1] * 28);
-    sendMIDINote(1, note, vel, Math.round(stepMs * 1.2));
-    addMidiNote(1, note / 127, vel / 127);
-  }
-
-  // Layer C: 3-step, altissimo [E5,G5,B5] — triade aperta
-  if (microC[step % microC.length] && presence[1] > 0.6) {
-    const pitches = microCPitches;
-    const note = pitches[step % pitches.length]; // sfasamento diverso
-    const vel  = Math.floor(35 + presence[1] * 22);
-    sendMIDINote(1, note, vel, Math.round(stepMs * 0.75));
-    addMidiNote(1, note / 127, vel / 127);
+  if (hatPres4 > 0) {
+    const isOpen = s16 === 4 || s16 === 12;
+    const vel = Math.round(
+      (isOpen ? 44 + Math.random() * 10 : 20 + Math.random() * 15) * hatPres4
+    );
+    if (vel > 4) {
+      sendMIDINote(1, isOpen ? 46 : 42, vel, 18);
+      addMidiNote(1, 0.33, vel / 127);
+    }
   }
 
   // ─────────────────────────────────────────────────────────
@@ -434,90 +299,6 @@ function onStep(step) {
     const vel = Math.floor(22 + arcProgress * 14);
     sendMIDINote(2, currentDrone, vel, Math.round(stepMs * 58));
     addMidiNote(2, currentDrone / 127, vel / 127);
-  }
-
-  // ─────────────────────────────────────────────────────────
-  //  CH4 CHORDS — voicings E Phrygian, ogni 2 bar
-  // ─────────────────────────────────────────────────────────
-  if (presence[0] > 0.7 && s16 === 0 && step % 32 === 0) {
-    const prog = CHORD_VOICINGS4[name];
-    if (prog) {
-      chordVoiceIdx4 = (chordVoiceIdx4 + 1) % prog.length;
-      const chord = prog[chordVoiceIdx4];
-      const vel   = Math.floor(42 + presence[0] * 28);
-      const dur   = Math.round(stepMs * 26); // ~2 bar
-      for (const note of chord) {
-        sendMIDINote(4, note, vel, dur);
-        addMidiNote(4, note / 127, vel / 127);
-      }
-      emit('chord_change', { root: chord[0], mode: currentMode });
-    }
-  }
-
-  // ─────────────────────────────────────────────────────────
-  //  CH5 VOICE — motivo ricorrente ogni 16 step (1 bar)
-  //  La frase è [E→F→E→B] e varianti per fase
-  //  Ogni nota della frase appare ogni 4 step (quarter note)
-  // ─────────────────────────────────────────────────────────
-  if (presence[3] > 0.2 && s16 % 4 === 0 && getPresenceMultiplier('vortice') > 0.5) {  // sui 4 beat della bar
-    const noteInMotif = (s16 / 4) % 4; // 0,1,2,3
-    // Avanza il motif pool ogni 4 bar
-    if (s16 === 0 && bar % 4 === 0 && bar > 0) {
-      voiceMotifPool = VOICE_MOTIFS[name] || VOICE_MOTIFS.germoglio;
-      voiceMotifIdx = (voiceMotifIdx + 1) % voiceMotifPool.length;
-    }
-    const motif = voiceMotifPool[voiceMotifIdx] || voiceMotifPool[0];
-    const note  = motif[noteInMotif];
-    if (Math.random() < 0.75 + presence[3] * 0.2) { // probabilità alta = identità
-      let vel = Math.floor(55 + presence[3] * 42);
-      // ── Modal characteristic note boost ──
-      const charInt4 = CFG.modalCharacteristicNotes['vortice'];
-      if ((note % 12) === ((currentDrone % 12) + charInt4) % 12) vel = Math.min(127, vel + CFG.characteristicVelBoost);
-      // Nota più corta del beat — lascia spazio tra le note del motif
-      const dur = Math.round(stepMs * 3.2);
-      sendMIDINote(5, note, vel, dur);
-      addMidiNote(5, note / 127, vel / 127);
-    }
-  }
-
-  // ── CH6 LEAD — interlocking: fires on 8th upbeats where CH5 is silent ──
-  if (presence[3] > 0.4 && (name === 'densita' || name === 'pulsazione')) {
-    const leadSteps = [2, 6, 10, 14];
-    if (leadSteps.includes(s16)) {
-      const scale = MODES4[currentMode] || MODES4.E_phrygian;
-      const hiPool = scale.filter(n => n >= 76 && n <= 83);
-      if (hiPool.length > 0) {
-        const note = hiPool[(s16 + bar) % hiPool.length];
-        const vel = Math.round(35 + presence[3] * 30);
-        sendMIDINote(6, note, vel, Math.round(stepMs * 1.2));
-        addMidiNote(6, note / 127, vel / 127);
-      }
-    }
-  }
-
-  // CH6 LEAD — eco del motivo VOICE, ottava sotto, ritardato
-  if (presence[3] > 0.5 && s16 === 8 && step % 32 === 8) { // sul beat 3, ogni 2 bar
-    const motif = voiceMotifPool[voiceMotifIdx] || voiceMotifPool[0];
-    const note  = Math.max(40, motif[0] - 12); // root ottava sotto
-    const vel   = Math.floor(40 + presence[3] * 30);
-    sendMIDINote(6, note, vel, Math.round(stepMs * 5));
-    addMidiNote(6, note / 127, vel / 127);
-  }
-
-  // ─────────────────────────────────────────────────────────
-  //  CH7 RIDE — tribal additive pattern (3+3+3+3+4 = 16)
-  //  Asymmetric against the kick, dialogs with micro-loops
-  // ─────────────────────────────────────────────────────────
-  const ridePresence4 = name === 'germoglio' ? 0.0
-    : name === 'pulsazione' ? 0.1
-    : name === 'densita' ? 0.4
-    : name === 'rottura' ? 0.7
-    : 0.15;
-
-  if (ridePresence4 > 0.05 && RIDE_PAT_TRIBAL[s16]) {
-    const vel = Math.round(35 + ridePresence4 * 35 + (Math.random() - 0.5) * 6);
-    sendMIDINote(7, 82, vel, Math.round(stepMs * 0.5));
-    addMidiNote(7, 82 / 127, vel / 127);
   }
 
   // ── CLIMAX HARD CUT — takeover finale → silenzio totale ──
