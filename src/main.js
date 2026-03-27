@@ -19,7 +19,7 @@ import { initComposer4, updateComposer4, toggleComposer4, composer4Active } from
 import { initComposer5, updateComposer5, toggleComposer5, composer5Active } from './composer5.js';
 import { initComposer6, updateComposer6, toggleComposer6, composer6Active } from './composer6.js';
 import { initComposer7, updateComposer7, toggleComposer7, composer7Active } from './composer7.js';
-import { initSequencer, toggleSequencer, skipToNext, skipToPrev, skipToAct, togglePause, toggleLoop, canRecover, recoverState, updateSequencer, isSequencerActive } from './sequencer.js';
+import { initSequencer, toggleSequencer, skipToNext, skipToPrev, skipToAct, togglePause, toggleLoop, canRecover, recoverState, updateSequencer, isSequencerActive, setGlobalTime } from './sequencer.js';
 import { setPresenceMultiplier, getPresenceMultiplier } from './presence-multiplier.js';
 import { WakeLockManager } from '../.claude/skills/runtime-expert/scripts/perf-utils.js';
 
@@ -196,7 +196,12 @@ document.addEventListener('keydown', (e) => {
   // V3: tasti 1-5 saltano l'arco narrativo (intercettati prima dei toggle v2)
   if (CFG.V3_MODE) {
     const _arcMap = { Digit1: 0.00, Digit2: 0.22, Digit3: 0.50, Digit4: 0.75, Digit5: 0.90 };
-    if (_arcMap[e.code] !== undefined) { jumpArc(_arcMap[e.code]); return; }
+    if (_arcMap[e.code] !== undefined) {
+      const _pct = _arcMap[e.code];
+      jumpArc(_pct);
+      setGlobalTime(_pct * CFG.MACRO.concertDurationSec);
+      return;
+    }
   }
   if (e.code === 'Space') { e.preventDefault(); togglePause(); return; }
   if (e.code === 'ArrowRight') {
