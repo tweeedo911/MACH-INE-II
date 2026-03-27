@@ -54,13 +54,18 @@ export function initMacroComposer() {
 // ── Update — chiamato ogni ~2ms dal Worker ────────────────────────────────────
 export function updateMacroComposer(dt) {
   // Step A — Calcolo arcPercent
-  // Usa sequencer se attivo, altrimenti fallback clock interno (Pitfall 1)
-  const status = getSequencerStatus();
-  if (status.active) {
-    macroState.arcPercent = status.progress;
+  // Debug override: se window._m._debugArc è definito, usa quello (test MARC-04)
+  if (macroState._debugArc !== undefined) {
+    macroState.arcPercent = macroState._debugArc;
   } else {
-    _internalClock += dt / 1000;
-    macroState.arcPercent = Math.min(1, _internalClock / CFG.MACRO.concertDurationSec);
+    // Usa sequencer se attivo, altrimenti fallback clock interno (Pitfall 1)
+    const status = getSequencerStatus();
+    if (status.active) {
+      macroState.arcPercent = status.progress;
+    } else {
+      _internalClock += dt / 1000;
+      macroState.arcPercent = Math.min(1, _internalClock / CFG.MACRO.concertDurationSec);
+    }
   }
   const pct = macroState.arcPercent;
 
