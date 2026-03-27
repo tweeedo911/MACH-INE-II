@@ -63,7 +63,7 @@ export function updateMacroComposer(dt) {
     if (status.active) {
       macroState.arcPercent = status.progress;
     } else {
-      _internalClock += dt / 1000;
+      _internalClock += dt;
       macroState.arcPercent = Math.min(1, _internalClock / CFG.MACRO.concertDurationSec);
     }
   }
@@ -89,11 +89,11 @@ export function updateMacroComposer(dt) {
   const targetTD = cpLo.tD + (cpHi.tD - cpLo.tD) * ease;
 
   // Step D — Micro-drift: oscillazione sinusoidale asincrona per evitare plateau (D-02)
-  _driftPhase += (dt / 1000) / CFG.MACRO.microDriftFreqSec;
+  _driftPhase += dt / CFG.MACRO.microDriftFreqSec;
   const drift = Math.sin(_driftPhase * Math.PI * 2) * CFG.MACRO.microDriftAmp;
 
   // Step E — EMA smoothing con bypass per checkpoint instant (Pitfall 5)
-  const dtSec = dt / 1000;
+  const dtSec = dt;  // dt già in secondi dal Worker (performance.now() / 1000)
   const tau   = CFG.MACRO.emaTau;
   const alpha = Math.min(1, dtSec / tau);
 
@@ -131,7 +131,7 @@ export function updateMacroComposer(dt) {
 
   // Step I — Contatore bar (per HarmonyLayer — 4/4 a bpmReference)
   const barsPerSec = CFG.MACRO.bpmReference / 60 / 4;
-  macroState.barClock += (dt / 1000) * barsPerSec;
+  macroState.barClock += dt * barsPerSec;
 
   // Step J — Disattiva pivot dopo 1 bar
   if (macroState.pivotActive && (macroState.barClock - _pivotBarStart) >= 1) {
