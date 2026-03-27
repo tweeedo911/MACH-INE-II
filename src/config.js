@@ -400,4 +400,100 @@ export const CFG = {
     voiceLeadingMax: 2,
     midiOutputName: null,
   },
+
+  // ── MacroComposer v3 — arco narrativo 4D ──────────────────────────────────
+  MACRO: {
+    // Parametri base
+    concertDurationSec: 2700,     // 45 minuti (durata target v3)
+    bpmReference:       88,        // BPM di riferimento per calcolo bar duration in HarmonyLayer
+    microDriftAmp:      0.07,      // ampiezza oscillazione ±7% attorno al target (D-02)
+    microDriftFreqSec:  23,        // periodo oscillazione in secondi (numero primo per asimmetria)
+    emaTau:             4.0,       // time constant EMA per smoothing valori 4D in secondi
+
+    // Checkpoint array — arco 4D precomposto su 45 minuti
+    // rD=rhythmicDensity, hC=harmonicColor, mA=melodicActivity, tD=textureDepth
+    checkpoints: [
+      { pct: 0.00, rD: 0.0, hC: 0.1, mA: 0.0, tD: 0.1, mode: 'A_lydian' },
+      { pct: 0.22, rD: 0.1, hC: 0.3, mA: 0.1, tD: 0.2, mode: 'A_lydian' },
+      { pct: 0.44, rD: 0.3, hC: 0.7, mA: 0.4, tD: 0.4, mode: 'Bb_phrygian' },
+      { pct: 0.62, rD: 0.5, hC: 1.0, mA: 0.5, tD: 0.5, mode: 'Bb_phrygian' },   // harmonicColor PEAK ~min28
+      { pct: 0.73, rD: 0.7, hC: 0.7, mA: 0.6, tD: 0.6, mode: 'D_dorian' },       // density building
+      { pct: 0.75, rD: 0.0, hC: 0.5, mA: 0.3, tD: 0.4, mode: 'D_dorian', instant: true }, // FALSE RESOLUTION start
+      { pct: 0.78, rD: 0.0, hC: 0.5, mA: 0.3, tD: 0.4, mode: 'D_dorian' },       // FALSE RESOLUTION hold
+      { pct: 0.80, rD: 0.9, hC: 0.6, mA: 0.7, tD: 0.7, mode: 'C#_dorian' },      // rebound above previous
+      { pct: 0.84, rD: 1.0, hC: 0.6, mA: 0.8, tD: 0.7, mode: 'C#_dorian' },      // rhythmicDensity PEAK ~min38
+      { pct: 0.89, rD: 0.5, hC: 0.4, mA: 0.5, tD: 0.5, mode: 'E_phrygian' },
+      { pct: 0.95, rD: 0.2, hC: 0.2, mA: 0.1, tD: 0.2, mode: 'A_lydian' },       // dissoluzione
+      { pct: 1.00, rD: 0.0, hC: 0.0, mA: 0.0, tD: 0.0, mode: 'A_lydian' },       // fine
+    ],
+
+    // Sequenza modale — percorso tonale del concerto (D-10)
+    modalSequence: ['A_lydian', 'Bb_phrygian', 'D_dorian', 'C#_dorian', 'E_phrygian', 'A_lydian'],
+
+    // Scale note sets — diatoniche estese (2 ottave minimo) per ogni modo
+    modes: {
+      'A_lydian':    [45, 57, 59, 61, 63, 64, 66, 68, 69, 71, 73, 75, 76, 78, 80, 81], // A3=57, #4=D#
+      'Bb_phrygian': [46, 58, 59, 61, 63, 65, 66, 68, 70, 71, 73, 75, 77, 78, 80, 82], // Bb3=58, b2=Cb=B
+      'D_dorian':    [38, 50, 52, 53, 55, 57, 59, 60, 62, 64, 65, 67, 69, 71, 72, 74], // D3=50, natural B
+      'C#_dorian':   [37, 49, 51, 52, 54, 56, 58, 59, 61, 63, 64, 66, 68, 70, 71, 73], // C#3=49, natural A#
+      'E_phrygian':  [40, 52, 53, 55, 57, 59, 60, 62, 64, 65, 67, 69, 71, 72, 74, 76], // E3=52, b2=F
+    },
+
+    // Pentatonic subsets per ogni modo (HARM-05 — usati da HarmonyLayer)
+    pentatonic: {
+      'A_lydian':    [57, 59, 61, 64, 66, 69, 71, 73, 76, 78], // A B C# E F# (no #4, no 7)
+      'Bb_phrygian': [58, 61, 63, 65, 68, 70, 73, 75, 77, 80], // Bb Db Eb F Ab
+      'D_dorian':    [50, 52, 55, 57, 59, 62, 64, 67, 69, 71], // D E G A B
+      'C#_dorian':   [49, 51, 54, 56, 58, 61, 63, 66, 68, 70], // C# D# F# G# A#
+      'E_phrygian':  [52, 55, 57, 59, 62, 64, 67, 69, 71, 74], // E G A B D
+    },
+
+    // Drone root mapping — radice armonica per modo (HARM-01, D-15)
+    droneRoot: {
+      'A_lydian':    57, // A3 — root
+      'Bb_phrygian': 57, // A3 — anchor condiviso (modal interchange sopra A)
+      'D_dorian':    50, // D3 — root
+      'C#_dorian':   57, // A3 — continuita' armonica tra D e E
+      'E_phrygian':  57, // A3 — E Phrygian su radice A con colore frigio
+    },
+
+    // Pivot notes per transizioni modali (D-11)
+    pivotNotes: {
+      'A_lydian->Bb_phrygian':  57, // A3
+      'Bb_phrygian->D_dorian':  62, // D4
+      'D_dorian->C#_dorian':    57, // A3 (nota comune)
+      'C#_dorian->E_phrygian':  64, // E4
+      'E_phrygian->A_lydian':   57, // A3
+    },
+
+    // Anchor voicings per modo (D-13) — 3 voicings: apertura, pivot, picco
+    // Formato: { ch2: [note, note], ch4: [note, note, note], bass: note }
+    anchors: {
+      'A_lydian': [
+        { bass: 45, ch2: [57, 69], ch4: [64, 66, 69] },      // apertura: A2 bass, A3+A4 drone, E4+F#4+A4
+        { bass: 45, ch2: [57, 68], ch4: [61, 64, 68] },      // pivot: A2, A3+Ab4, C#4+E4+Ab4 (tensione lydian)
+        { bass: 45, ch2: [57, 69], ch4: [66, 69, 73] },      // picco: A2, A3+A4, F#4+A4+C#5
+      ],
+      'Bb_phrygian': [
+        { bass: 46, ch2: [57, 70], ch4: [63, 65, 70] },      // apertura: Bb2, A3+Bb4, Eb4+F4+Bb4
+        { bass: 46, ch2: [57, 70], ch4: [65, 68, 70] },      // pivot: Bb2, A3+Bb4, F4+Ab4+Bb4
+        { bass: 46, ch2: [57, 70], ch4: [63, 66, 70] },      // picco: Bb2, A3+Bb4, Eb4+F#4+Bb4
+      ],
+      'D_dorian': [
+        { bass: 38, ch2: [50, 62], ch4: [57, 60, 62] },      // apertura: D2, D3+D4, A3+C4+D4
+        { bass: 38, ch2: [50, 62], ch4: [59, 62, 65] },      // pivot: D2, D3+D4, B3+D4+F4
+        { bass: 38, ch2: [50, 62], ch4: [57, 60, 64] },      // picco: D2, D3+D4, A3+C4+E4 (color dorico: B naturale)
+      ],
+      'C#_dorian': [
+        { bass: 37, ch2: [57, 61], ch4: [56, 58, 61] },      // apertura: C#2, A3+C#4, G#3+A#3+C#4
+        { bass: 37, ch2: [57, 61], ch4: [58, 61, 64] },      // pivot: C#2, A3+C#4, A#3+C#4+E4
+        { bass: 37, ch2: [57, 61], ch4: [56, 59, 63] },      // picco: C#2, A3+C#4, G#3+B3+Eb4
+      ],
+      'E_phrygian': [
+        { bass: 40, ch2: [57, 64], ch4: [59, 62, 64] },      // apertura: E2, A3+E4, B3+D4+E4
+        { bass: 40, ch2: [57, 64], ch4: [60, 64, 67] },      // pivot: E2, A3+E4, C4+E4+G4
+        { bass: 40, ch2: [57, 64], ch4: [59, 62, 65] },      // picco: E2, A3+E4, B3+D4+F4
+      ],
+    },
+  },
 };
