@@ -24,7 +24,7 @@ import { setPresenceMultiplier, getPresenceMultiplier } from './presence-multipl
 import { WakeLockManager } from '../.claude/skills/runtime-expert/scripts/perf-utils.js';
 
 // ── v3 layer system (Phase 1 + Phase 2 + Phase 3) ──
-import { initMacroComposer, updateMacroComposer } from './macro-composer.js';
+import { initMacroComposer, updateMacroComposer, macroState } from './macro-composer.js';
 import { initHarmonyLayer, updateHarmonyLayer } from './harmony-layer.js';
 import { initRhythmLayer, updateRhythmLayer } from './rhythm-layer.js';
 import { initMelodyTextureLayer, updateMelodyTextureLayer } from './melody-texture-layer.js';
@@ -150,6 +150,12 @@ startScreen.addEventListener('click', async () => {
     initMelodyTextureLayer();
     sendMIDIStart(); // avvia MIDI clock per v3 (i composer v2 non lo farebbero)
     console.log('[V3] MacroComposer + HarmonyLayer + RhythmLayer + MelodyTextureLayer initialized');
+    // Debug helper per checkpoint MARC-04 (D-10) — override arcPercent da console
+    // Uso: window._m.arcPercent = 0.5 (con sequencer fermo: Shift+0)
+    if (CFG.debug) {
+      window._m = macroState;
+      console.log('[V3] Debug: window._m disponibile — usa window._m.arcPercent = N per test');
+    }
   }
 
   if (canRecover()) hudMinimal.textContent = 'PRESS Shift+R TO RECOVER';
