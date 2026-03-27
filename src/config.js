@@ -418,8 +418,8 @@ export const CFG = {
       { pct: 0.44, rD: 0.3, hC: 0.7, mA: 0.4, tD: 0.4, mode: 'Bb_phrygian' },
       { pct: 0.62, rD: 0.5, hC: 1.0, mA: 0.5, tD: 0.5, mode: 'Bb_phrygian' },   // harmonicColor PEAK ~min28
       { pct: 0.73, rD: 0.7, hC: 0.7, mA: 0.6, tD: 0.6, mode: 'D_dorian' },       // density building
-      { pct: 0.75, rD: 0.0, hC: 0.5, mA: 0.3, tD: 0.4, mode: 'D_dorian', instant: true }, // FALSE RESOLUTION start
-      { pct: 0.78, rD: 0.0, hC: 0.5, mA: 0.3, tD: 0.4, mode: 'D_dorian' },       // FALSE RESOLUTION hold
+      { pct: 0.75,  rD: 0.0, hC: 0.5, mA: 0.3, tD: 0.4, mode: 'D_dorian', instant: true }, // FALSE RESOLUTION start
+      { pct: 0.758, rD: 0.0, hC: 0.5, mA: 0.3, tD: 0.4, mode: 'D_dorian' },              // FALSE RESOLUTION hold — 8 bar a 88BPM (~21.8s = 0.008 pct)
       { pct: 0.80, rD: 0.9, hC: 0.6, mA: 0.7, tD: 0.7, mode: 'C#_dorian' },      // rebound above previous
       { pct: 0.84, rD: 1.0, hC: 0.6, mA: 0.8, tD: 0.7, mode: 'C#_dorian' },      // rhythmicDensity PEAK ~min38
       { pct: 0.89, rD: 0.5, hC: 0.4, mA: 0.5, tD: 0.5, mode: 'E_phrygian' },
