@@ -104,8 +104,8 @@ export function updateHarmonyLayer(dt) {
     // Durante pivot, il drone usa la nota pivot (D-11 — convergenza cromatica)
     const noteToSend = macroState.pivotActive ? macroState.pivotNote : droneNote;
 
-    // Velocity bassa (30-60): il drone e' tappeto, non primo piano
-    const vel = 30 + Math.round(macroState.harmonicColor * 30);
+    // Velocity tappeto (50-70): udibile in performance, non in primo piano
+    const vel = 50 + Math.round(macroState.harmonicColor * 20);
 
     // Drone root su CH2 — nota molto lunga, rinnovata ogni 2 bar per continuita'
     _rawSend(2, noteToSend,      Math.max(1, vel),                      barMs * 7.5);
