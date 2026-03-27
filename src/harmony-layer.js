@@ -25,7 +25,7 @@ let _anchorIdx       = 0;    // indice anchor corrente nel modo
 
 // Ritmo armonico
 const _droneUpdateEvery = 2; // drone refresh ogni 2 bar (nota lunga 7.5 bar)
-const _chordUpdateEvery = 4; // cambio accordo ogni 4 bar (ritmo house/dub)
+const _chordUpdateEvery = 2; // cambio accordo ogni 2 bar (Fix C: faster harmonic rhythm)
 
 // ── Init ────────────────────────────────────────────────────────────────────
 export function initHarmonyLayer() {
