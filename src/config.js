@@ -4,8 +4,9 @@
 // ═══════════════════════════════════════════════════════════
 
 export const CFG = {
-  V3_MODE: false,  // false = v2 behavior (7 motori); true = v3 layer system (Phase 1+)
-  debug: false,    // set true to enable periodic composer debug logs
+  V3_MODE: false,       // false = v2 behavior (7 motori); true = v3 layer system (Phase 1+)
+  bpmLerpBeats: 2,      // BPM transition lerp duration in beats (tempo-relative smoothing)
+  debug: false,         // set true to enable periodic composer debug logs
   // ── Audio analyser ──
   fftSize: 2048,
   smoothing: 0.82,
