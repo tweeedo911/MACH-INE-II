@@ -271,7 +271,7 @@ midiWorker.onmessage = ({ data: { dt } }) => {
 
       // MIDI clock: usa bpmReference dal MacroComposer config
       const bpm = CFG.MACRO.bpmReference;
-      const beatsPerTick = (dt / 1000) * (bpm / 60);
+      const beatsPerTick = dt * (bpm / 60);
       const lerpRate = beatsPerTick / CFG.bpmLerpBeats;
       _currentClockBpm += (bpm - _currentClockBpm) * Math.min(lerpRate, 1);
       updateMIDIClock(_currentClockBpm);
@@ -297,7 +297,7 @@ midiWorker.onmessage = ({ data: { dt } }) => {
       if (anyActive) {
         getActiveBpm(); // updates _targetClockBpm
         // Lerp _currentClockBpm toward _targetClockBpm over CFG.bpmLerpBeats beats
-        const beatsPerTick = (dt / 1000) * (_currentClockBpm / 60);
+        const beatsPerTick = dt * (_currentClockBpm / 60);
         const lerpRate = beatsPerTick / CFG.bpmLerpBeats;
         _currentClockBpm += (_targetClockBpm - _currentClockBpm) * Math.min(lerpRate, 1);
         updateMIDIClock(_currentClockBpm);
