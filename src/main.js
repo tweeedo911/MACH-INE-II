@@ -23,9 +23,10 @@ import { initSequencer, toggleSequencer, skipToNext, skipToPrev, skipToAct, togg
 import { setPresenceMultiplier, getPresenceMultiplier } from './presence-multiplier.js';
 import { WakeLockManager } from '../.claude/skills/runtime-expert/scripts/perf-utils.js';
 
-// ── v3 layer system (Phase 1) ──
+// ── v3 layer system (Phase 1 + Phase 2) ──
 import { initMacroComposer, updateMacroComposer } from './macro-composer.js';
 import { initHarmonyLayer, updateHarmonyLayer } from './harmony-layer.js';
+import { initRhythmLayer, updateRhythmLayer } from './rhythm-layer.js';
 
 // ── DOM refs ──
 const canvas = document.getElementById('c');
@@ -144,8 +145,9 @@ startScreen.addEventListener('click', async () => {
   if (CFG.V3_MODE) {
     initMacroComposer();
     initHarmonyLayer();
+    initRhythmLayer();
     sendMIDIStart(); // avvia MIDI clock per v3 (i composer v2 non lo farebbero)
-    console.log('[V3] MacroComposer + HarmonyLayer initialized');
+    console.log('[V3] MacroComposer + HarmonyLayer + RhythmLayer initialized');
   }
 
   if (canRecover()) hudMinimal.textContent = 'PRESS Shift+R TO RECOVER';
@@ -243,10 +245,11 @@ midiWorker.onmessage = ({ data: { dt } }) => {
     resetArcPriority();
 
     if (CFG.V3_MODE) {
-      // ── v3 layer system: MacroComposer + HarmonyLayer ──
+      // ── v3 layer system: MacroComposer + HarmonyLayer + RhythmLayer ──
       // I composer v2 non vengono chiamati (D-08: rimangono intatti come reference/fallback)
       updateMacroComposer(dt);
       updateHarmonyLayer(dt);
+      updateRhythmLayer(dt);
 
       // MIDI clock: usa bpmReference dal MacroComposer config
       const bpm = CFG.MACRO.bpmReference;
