@@ -495,6 +495,16 @@ export const CFG = {
         { bass: 47, ch2: [57, 64], ch4: [59, 62, 65] },      // picco: B2 (quinta), A3+E4, B3+D4+F4
       ],
     },
+
+    // Cicli progressione per modo — sequenza indici anchor (0=apertura 1=pivot 2=picco)
+    // ogni step = _chordUpdateEvery bar (2 bar) → ciclo 8 step ≈ 43s a 88 BPM
+    progressionCycle: {
+      'A_lydian':    [0, 0, 0, 1, 0, 0, 2, 1],  // lidia: dwell tonica, occasionale sesta
+      'Bb_phrygian': [0, 1, 0, 0, 2, 0, 1, 2],  // frigia: tonica e quarta, sale
+      'D_dorian':    [0, 0, 1, 0, 2, 1, 0, 0],  // dorica: sale e torna alla radice
+      'C#_dorian':   [1, 2, 1, 2, 0, 1, 2, 1],  // climax: quinta e picco dominanti
+      'E_phrygian':  [0, 0, 1, 0, 0, 0, 1, 0],  // dissoluzione: ritorno alla tonica
+    },
   },
 
   // ── RhythmLayer v3 ──────────────────────────────────────────────────────────
@@ -667,8 +677,8 @@ export const CFG = {
 
     // ── Markov voice weights (pattern da composer.js nextVoiceNote) ──
     markov: {
-      stepBonus:   2.5,    // bonus movimento per grado (intervallo <= 3 semitoni)
-      jumpPenalty: 0.15,   // penalty salto grande (intervallo > 7 semitoni)
+      stepBonus:   1.5,    // bonus movimento per grado — ridotto per frasi con più carattere
+      jumpPenalty: 0.35,   // penalty salto grande — aumentato per consentire salti melodici
       seedAffinity:     1.8,    // bonus se intervallo corrisponde al seed
       seedNearAffinity: 1.3,    // bonus se intervallo vicino al seed (diff 1)
       ch6JumpPreference: 1.6,   // CH6 preferisce salti — carattere angoloso (D-03)
@@ -681,6 +691,12 @@ export const CFG = {
       noteSpacingMs: 350,    // spacing tra note arpeggio
       threshold:    0.5,     // melodicActivity minima per attivare cross-arpeggio
       delayStp:     2,       // steps CH6 arpeggiation delay rispetto a CH5
+    },
+
+    // ── Phrase repetition CH5 — cellula melodica ripetuta prima di variare (Reich/Nyman) ──
+    phrase: {
+      ch5Length:      4,   // note per frase (cellula melodica)
+      ch5RepeatCount: 4,   // ripetizioni prima di generare nuova frase
     },
 
     // ── MIDI optimization (pattern da RHYTHM) ──

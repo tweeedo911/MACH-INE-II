@@ -22,6 +22,7 @@ let _lastChordBar    = -1;   // ultimo bar in cui l'accordo e' stato inviato
 let _currentVoicing  = null; // array note MIDI ultimo voicing CH4 (per voice leading)
 let _lastMode        = 'A_lydian'; // ultimo modo processato (per detect mode change)
 let _anchorIdx       = 0;    // indice anchor corrente nel modo
+let _chordCycleIdx   = 0;    // posizione nella sequenza progressionCycle
 
 // Ritmo armonico
 const _droneUpdateEvery = 2; // drone refresh ogni 2 bar (nota lunga 7.5 bar)
@@ -34,6 +35,7 @@ export function initHarmonyLayer() {
   _currentVoicing = null;
   _lastMode       = 'A_lydian';
   _anchorIdx      = 0;
+  _chordCycleIdx  = 0;
 
   sendMIDIAllNotesOff(); // pulire note residue da sessioni precedenti
 
@@ -87,8 +89,9 @@ export function updateHarmonyLayer(dt) {
 
   // Step B — Detect mode change e reset ancora
   if (macroState.currentMode !== _lastMode) {
-    _lastMode  = macroState.currentMode;
-    _anchorIdx = 0;
+    _lastMode       = macroState.currentMode;
+    _anchorIdx      = 0;
+    _chordCycleIdx  = 0;
     // NON resettare _currentVoicing — serve per voice leading nella transizione
     console.log('[HARMONY] mode change to:', _lastMode);
   }
@@ -125,15 +128,13 @@ export function updateHarmonyLayer(dt) {
       return;
     }
 
-    // Seleziona anchor voicing basato su harmonicColor (apertura / pivot / picco)
+    // Seleziona anchor voicing dalla progressionCycle predefinita per modo (narrativa ciclica)
     const anchors = CFG.MACRO.anchors[macroState.currentMode];
     if (!anchors || anchors.length === 0) return;
 
-    // Mappa harmonicColor all'indice anchor: 0=apertura (<0.4), 1=pivot (0.4-0.7), 2=picco (>0.7)
-    let anchorTarget;
-    if (macroState.harmonicColor < 0.4)      anchorTarget = 0;
-    else if (macroState.harmonicColor < 0.7) anchorTarget = 1;
-    else                                      anchorTarget = 2;
+    const cycle = CFG.MACRO.progressionCycle[macroState.currentMode] || [0];
+    const anchorTarget = cycle[_chordCycleIdx % cycle.length];
+    _chordCycleIdx++;
 
     const anchor = anchors[Math.min(anchorTarget, anchors.length - 1)];
 
