@@ -471,28 +471,28 @@ export const CFG = {
     anchors: {
       'A_lydian': [
         { bass: 45, ch2: [57, 69], ch4: [64, 66, 69] },      // apertura: A2 bass, A3+A4 drone, E4+F#4+A4
-        { bass: 45, ch2: [57, 68], ch4: [61, 64, 68] },      // pivot: A2, A3+Ab4, C#4+E4+Ab4 (tensione lydian)
-        { bass: 45, ch2: [57, 69], ch4: [66, 69, 73] },      // picco: A2, A3+A4, F#4+A4+C#5
+        { bass: 40, ch2: [57, 68], ch4: [61, 64, 68] },      // pivot: E2 (quinta), A3+Ab4, C#4+E4+Ab4
+        { bass: 42, ch2: [57, 69], ch4: [66, 69, 73] },      // picco: F#2 (sesta lidia), A3+A4, F#4+A4+C#5
       ],
       'Bb_phrygian': [
         { bass: 46, ch2: [57, 70], ch4: [63, 65, 70] },      // apertura: Bb2, A3+Bb4, Eb4+F4+Bb4
-        { bass: 46, ch2: [57, 70], ch4: [65, 68, 70] },      // pivot: Bb2, A3+Bb4, F4+Ab4+Bb4
-        { bass: 46, ch2: [57, 70], ch4: [63, 66, 70] },      // picco: Bb2, A3+Bb4, Eb4+F#4+Bb4
+        { bass: 39, ch2: [57, 70], ch4: [65, 68, 70] },      // pivot: Eb2 (quarta), A3+Bb4, F4+Ab4+Bb4
+        { bass: 41, ch2: [57, 70], ch4: [63, 66, 70] },      // picco: F2 (quinta), A3+Bb4, Eb4+F#4+Bb4
       ],
       'D_dorian': [
         { bass: 38, ch2: [50, 62], ch4: [57, 60, 62] },      // apertura: D2, D3+D4, A3+C4+D4
-        { bass: 38, ch2: [50, 62], ch4: [59, 62, 65] },      // pivot: D2, D3+D4, B3+D4+F4
-        { bass: 38, ch2: [50, 62], ch4: [57, 60, 64] },      // picco: D2, D3+D4, A3+C4+E4 (color dorico: B naturale)
+        { bass: 45, ch2: [50, 62], ch4: [59, 62, 65] },      // pivot: A2 (quinta), D3+D4, B3+D4+F4
+        { bass: 43, ch2: [50, 62], ch4: [57, 60, 64] },      // picco: G2 (quarta), D3+D4, A3+C4+E4
       ],
       'C#_dorian': [
         { bass: 37, ch2: [57, 61], ch4: [56, 58, 61] },      // apertura: C#2, A3+C#4, G#3+A#3+C#4
-        { bass: 37, ch2: [57, 61], ch4: [58, 61, 64] },      // pivot: C#2, A3+C#4, A#3+C#4+E4
-        { bass: 37, ch2: [57, 61], ch4: [56, 59, 63] },      // picco: C#2, A3+C#4, G#3+B3+Eb4
+        { bass: 44, ch2: [57, 61], ch4: [58, 61, 64] },      // pivot: G#2 (quinta), A3+C#4, A#3+C#4+E4
+        { bass: 42, ch2: [57, 61], ch4: [56, 59, 63] },      // picco: F#2 (quarta), A3+C#4, G#3+B3+Eb4
       ],
       'E_phrygian': [
         { bass: 40, ch2: [57, 64], ch4: [59, 62, 64] },      // apertura: E2, A3+E4, B3+D4+E4
-        { bass: 40, ch2: [57, 64], ch4: [60, 64, 67] },      // pivot: E2, A3+E4, C4+E4+G4
-        { bass: 40, ch2: [57, 64], ch4: [59, 62, 65] },      // picco: E2, A3+E4, B3+D4+F4
+        { bass: 45, ch2: [57, 64], ch4: [60, 64, 67] },      // pivot: A2 (quarta), A3+E4, C4+E4+G4
+        { bass: 47, ch2: [57, 64], ch4: [59, 62, 65] },      // picco: B2 (quinta), A3+E4, B3+D4+F4
       ],
     },
   },
@@ -603,7 +603,7 @@ export const CFG = {
       },
 
       // MIDI-03: phrase shaping — offset note per evitare attacchi simultanei
-      noteOffsetMs: { min: 5, max: 30 },    // range random di sfasamento
+      noteOffsetMs: { min: 2, max: 12 },    // range random di sfasamento (Fix A: tightened for on-grid feel)
       // legato/staccato ratio per canale (1.0 = full legato, 0.0 = staccatissimo)
       legatoRatio: {
         ch0: 0.3,   // kick secco
