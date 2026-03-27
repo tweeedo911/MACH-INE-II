@@ -21,11 +21,11 @@ const ACTS = [
   { name: 'I EMERGENZA',      start: 0,    end: 480  },
   { name: 'II DISCESA',       start: 480,  end: 1080 },
   { name: 'III MACCHINA',     start: 1080, end: 1680 },
-  { name: 'IV ACCELERAZIONE', start: 1680, end: 2520 },
+  { name: 'IV INTENSITÀ',     start: 1800, end: 2520 },
   { name: 'V DISSOLUZIONE',   start: 2520, end: 3000 },
 ];
 
-// ── Cue definitions — 5-act concert structure ──
+// ── Cue definitions — 5-act concert structure v2.9.0 ──
 // layer: activate engine (if needed) + fade to target presence
 // fade_to: change one engine's presence (engine must already be active)
 const CUES = [
@@ -38,7 +38,7 @@ const CUES = [
   { t: 420,  action: 'fade_to',   engine: 'deriva',    target: 0.0, duration: 30 },
 
   // ── ATTO II — DISCESA (8:00–18:00) ──
-  { t: 480,  action: 'camera', framing: 'WIDE' },     // Atto I→II: slow zoom out
+  { t: 480,  action: 'camera',    framing: 'WIDE' },
   { t: 480,  action: 'layer',     engine: 'abisso',    target: 0.3, duration: 30 },
   { t: 570,  action: 'fade_to',   engine: 'cristallo', target: 0.0, duration: 30 },
   { t: 570,  action: 'fade_to',   engine: 'abisso',    target: 1.0, duration: 30 },
@@ -46,72 +46,46 @@ const CUES = [
   { t: 840,  action: 'fade_to',   engine: 'abisso',    target: 0.0, duration: 25 },
   { t: 840,  action: 'fade_to',   engine: 'terreno',   target: 1.0, duration: 25 },
 
-  // ── ATTO III — MACCHINA (18:00–28:00) ──
-  { t: 1080, action: 'camera', framing: 'MACRO' },    // Atto II→III: cut to macro
+  // ── ATTO III — MACCHINA (18:00–30:00) ──
+  { t: 1080, action: 'camera',    framing: 'MACRO' },
   { t: 1080, action: 'layer',     engine: 'meccanica', target: 0.3, duration: 20 },
   { t: 1140, action: 'fade_to',   engine: 'terreno',   target: 0.0, duration: 20 },
   { t: 1140, action: 'fade_to',   engine: 'meccanica', target: 1.0, duration: 20 },
+  // GELO breve a min 25 — 4 battute senza kick (~8s a 92bpm)
+  { t: 1500, action: 'firma',     effect: 'gelo',      active: true  },
+  { t: 1508, action: 'firma',     effect: 'gelo',      active: false },
+  // Dissoluzione MECCANICA + momento DERIVA fantasma (eco dell'inizio)
+  { t: 1560, action: 'fade_to',   engine: 'meccanica', target: 0.3, duration: 60 },
+  { t: 1680, action: 'layer',     engine: 'deriva',    target: 0.2, duration: 15 },
+  { t: 1710, action: 'fade_to',   engine: 'deriva',    target: 0.0, duration: 15 },
+  { t: 1710, action: 'fade_to',   engine: 'meccanica', target: 0.0, duration: 90 },
 
-  // ── SOLCO entra sotto MECCANICA (min 22 = t:1320) ──
-  { t: 1320, action: 'layer',    engine: 'solco',     target: 0.3,  duration: 30 },
-  // MECCANICA inizia a scendere subito (non aspetta min 26)
-  { t: 1350, action: 'fade_to',  engine: 'meccanica', target: 0.7,  duration: 30 },
+  // ── ATTO IV — INTENSITÀ (30:00–42:00) ──
+  { t: 1800, action: 'camera',    framing: 'DRIFT',    shake: 0.02 },
+  { t: 1800, action: 'layer',     engine: 'vortice',   target: 0.8, duration: 10 },
+  { t: 1810, action: 'fade_to',   engine: 'vortice',   target: 1.0, duration: 30 },
+  // CONVERGENZA a min 35 — visiva, non sonora
+  { t: 2100, action: 'firma',     effect: 'convergenza', active: true  },
+  { t: 2130, action: 'firma',     effect: 'convergenza', active: false },
+  { t: 2100, action: 'fade_to',   engine: 'vortice',   target: 0.3, duration: 60 },
+  // Transizione VORTICE → SOLCO (+8bpm, quasi impercettibile)
+  { t: 2160, action: 'layer',     engine: 'solco',     target: 0.7, duration: 30 },
+  { t: 2160, action: 'fade_to',   engine: 'vortice',   target: 0.0, duration: 15 },
+  { t: 2190, action: 'fade_to',   engine: 'solco',     target: 1.0, duration: 20 },
+  // CLIMAX: SOLCO + ABISSO — solo peso, nessun tritono
+  { t: 2400, action: 'layer',     engine: 'abisso',    target: 1.0, duration: 15 },
+  { t: 2430, action: 'fade_to',   engine: 'solco',     target: 0.0, duration: 15 },
+  { t: 2460, action: 'fade_to',   engine: 'abisso',    target: 0.0, duration: 60 },
 
-  // MOMENTO-FIRMA: GELO (min 24 — machine freezes)
-  { t: 1440, action: 'firma', effect: 'gelo', active: true },
-  { t: 1470, action: 'firma', effect: 'gelo', active: false },
-
-  // Dopo GELO: crossfade definitivo
-  { t: 1470, action: 'fade_to',  engine: 'solco',     target: 0.7,  duration: 30 },
-  { t: 1470, action: 'fade_to',  engine: 'meccanica', target: 0.2,  duration: 20 },
-
-  // Min 25.5: MECCANICA esce, SOLCO domina
-  { t: 1530, action: 'fade_to',  engine: 'meccanica', target: 0.0,  duration: 20 },
-  { t: 1530, action: 'fade_to',  engine: 'solco',     target: 1.0,  duration: 30 },
-
-  // ── ATTO IV — ACCELERAZIONE (28:00–42:00) ──
-  { t: 1680, action: 'camera', framing: 'DRIFT', shake: 0.04 }, // Atto III→IV: drift + shake
-  { t: 1680, action: 'fade_to',  engine: 'solco',     target: 1.0, duration: 20 },
-  { t: 1680, action: 'fade_to',  engine: 'meccanica', target: 0.0, duration: 15 },
-  { t: 1680, action: 'layer',    engine: 'vortice',   target: 0.3, duration: 15 },
-  { t: 1680, action: 'layer',    engine: 'abisso',    target: 0.3, duration: 30 },
-  { t: 1740, action: 'fade_to',   engine: 'vortice',   target: 0.8, duration: 30 },
-
-  // t=1980: SOLCO entra (120s fade), VORTICE cala
-  { t: 1980, action: 'layer',     engine: 'solco',     target: 1.0, duration: 120 },
-  { t: 1980, action: 'fade_to',   engine: 'vortice',   target: 0.4, duration: 60  },
-
-  // t=2100: VORTICE si ritira mentre SOLCO domina
-  { t: 2100, action: 'fade_to',   engine: 'vortice',   target: 0.0, duration: 60  },
-
-  // t=2160: SOLCO solo — ABISSO esce, 2min purezza techno
-  { t: 2160, action: 'fade_to',   engine: 'abisso',    target: 0.0, duration: 30  },
-
-  // t=2280: GELO nel contesto techno — deflagrazione
-  { t: 2280, action: 'firma', effect: 'gelo',        active: true  },
-  { t: 2310, action: 'firma', effect: 'gelo',        active: false },
-
-  // MOMENTO-FIRMA: CONVERGENZA (presagio del climax)
-  { t: 2320, action: 'firma', effect: 'convergenza', active: true  },
-  { t: 2360, action: 'firma', effect: 'convergenza', active: false },
-
-  // t=2340: CLIMAX ridotto — SOLCO+VORTICE+ABISSO
-  { t: 2340, action: 'fade_to',   engine: 'vortice',   target: 1.0, duration: 20, visual: true },
-  { t: 2340, action: 'layer',     engine: 'abisso',    target: 1.0, duration: 20  },
-
-  // t=2460: dissoluzione verso Atto V
-  { t: 2460, action: 'fade_to',   engine: 'solco',     target: 0.0, duration: 30  },
-  { t: 2460, action: 'fade_to',   engine: 'vortice',   target: 0.0, duration: 30  },
-  { t: 2460, action: 'fade_to',   engine: 'abisso',    target: 0.0, duration: 30  },
-
-  // ── ATTO V — DISSOLUZIONE (42:00–50:00) ──
-  { t: 2520, action: 'camera', framing: 'MEDIUM' },   // Atto IV→V: slow zoom in
-  // MOMENTO-FIRMA: VUOTO TOTALE (min 42 — total emptiness)
-  { t: 2520, action: 'firma', effect: 'vuotoTotale', active: true  },
-  { t: 2550, action: 'firma', effect: 'vuotoTotale', active: false },
-  // DERIVA ritorna come eco spettrale — bookend con Atto I
-  { t: 2580, action: 'layer',     engine: 'deriva',    target: 0.3, duration: 60  },
-  { t: 2820, action: 'fade_to',   engine: 'deriva',    target: 0.0, duration: 120 },
+  // ── ATTO V — RITORNO (42:00–50:00) ──
+  { t: 2520, action: 'camera',    framing: 'MEDIUM' },
+  { t: 2520, action: 'firma',     effect: 'vuotoTotale', active: true  },
+  { t: 2550, action: 'firma',     effect: 'vuotoTotale', active: false },
+  { t: 2550, action: 'layer',     engine: 'cristallo', target: 0.5, duration: 60  },
+  { t: 2640, action: 'fade_to',   engine: 'cristallo', target: 0.0, duration: 120 },
+  { t: 2640, action: 'layer',     engine: 'deriva',    target: 0.5, duration: 60  },
+  { t: 2760, action: 'fade_to',   engine: 'deriva',    target: 0.3, duration: 60  },
+  { t: 2880, action: 'fade_to',   engine: 'deriva',    target: 0.0, duration: 120 },
   { t: 3000, action: 'end' },
 ];
 

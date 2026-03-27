@@ -31,7 +31,7 @@ function addMidiNote(ch, x, intensity) {
 // ═══════════════════════════════════════════════════════════
 
 const MODES6 = {
-  Bb_phrygian: [46,47,49,51,53,54,56, 58,59,61,63,65,66,68, 70,71,73,75,77,78,80],
+  A_phrygian: [45,46,48,50,52,53,55, 57,58,60,62,64,65,67, 69,70,72,74,76,77,79],
   Gb_locrian:  [54,55,57,59,60,62,64, 66,67,69,71,72,74,76, 78,79,81,83,84,86,88],
 };
 
@@ -44,14 +44,14 @@ const MODES6 = {
 // ═══════════════════════════════════════════════════════════
 
 const CHORD_PROGS6 = {
-  germoglio:    [[58,61,65]],                              // Bbm open
-  pulsazione:   [[58,61,65],[59,63,66],[58,61,65],[58,61,65]],  // Bbm→Cb→Bbm→Bbm — 4×8=32
-  densita:      [[58,61,65],[59,63,66],[63,66,70],[58,63,65]], // Bbm→Cb→Ebm→Bbsus
+  germoglio:    [[57,60,64]],                              // Am open
+  pulsazione:   [[57,60,64],[58,62,65],[57,60,64],[57,60,64]],  // Am→Bb→Am→Am — 4×8=32
+  densita:      [[57,60,64],[58,62,65],[62,65,69],[57,62,64]], // Am→Bb→Dm→Asus
   rottura:      null,
-  dissoluzione: [[58,61,65],[59,63,66],[58,61,65],[58,61,65]],  // Bbm→Cb→Bbm→Bbm — 4×8=32
+  dissoluzione: [[57,60,64],[58,62,65],[57,60,64],[57,60,64]],  // Am→Bb→Am→Am — 4×8=32
 };
 let chordProgIdx6 = 0;
-let lastChord6 = [58, 61, 65];
+let lastChord6 = [57, 60, 64];
 
 // ═══════════════════════════════════════════════════════════
 //  BASS SEQUENCES — Bb Phrygian rituali
@@ -112,8 +112,8 @@ let arcProgress = 0;
 let clock = 0;
 let lastStep = -1;
 
-let currentMode = 'Bb_phrygian';
-let currentDrone = 46;
+let currentMode = 'A_phrygian';
+let currentDrone = 45;
 
 let ruptureStage = 'idle';
 let lastRuptureStage = 'idle';
@@ -135,8 +135,8 @@ export function initComposer6() {
   ruptureStage = 'idle'; lastRuptureStage = 'idle';
   setEnginePhase('abisso', CFG.COMPOSER6.phaseOrder[0]);
   presence.fill(0);
-  currentMode = 'Bb_phrygian'; currentDrone = 46;
-  chordProgIdx6 = 0; lastChord6 = [58, 61, 65];
+  currentMode = 'A_phrygian'; currentDrone = 45;
+  chordProgIdx6 = 0; lastChord6 = [57, 60, 64];
   bassSeq6 = BASS_SEQS6[0]; bassNoteIdx6 = 0; lastBassVarBar6 = -1;
   lastChordBar6 = -2; lastDroneStep6 = -999; chordsRevealBar = 0;
 }
@@ -147,7 +147,7 @@ export function toggleComposer6() {
   if (composer6Active) {
     initComposer6();
     setEngine('abisso');
-    console.log('[COMPOSER6] ON — Bb Phrygian ABISSO 76bpm');
+    console.log('[COMPOSER6] ON — A Phrygian ABISSO 76bpm');
   } else {
     sendMIDIAllNotesOff();
     setComposerClimax(false);
@@ -271,7 +271,7 @@ function onStep(step) {
     const offsets = [0, 1, 5, 7, 10, 12];
     const off     = bassSeq6.n[bassNoteIdx6 % bassSeq6.n.length];
     bassNoteIdx6++;
-    const bassNote = 34 + offsets[Math.min(off, offsets.length - 1)] + octShift;
+    const bassNote = 33 + offsets[Math.min(off, offsets.length - 1)] + octShift;
     const isDown   = s16 === 0;
     const vel = isDown
       ? Math.floor(82 + presence[0] * 28)
@@ -333,7 +333,7 @@ function onStep(step) {
   // ─────────────────────────────────────────────────────────
   if (presence[3] > 0.1) {
     const scale = MODES6[currentMode];
-    const lo   = scale.filter(n => n >= 46 && n <= 62);
+    const lo   = scale.filter(n => n >= 45 && n <= 61);
     const pool = lo.length > 0 ? lo : scale;
     // Beat 3 (step 8): impulso primario — gutturale
     if (s16 === 8 && Math.random() < Math.max(0.35, presence[3] * 0.55)) {
@@ -358,7 +358,7 @@ function onStep(step) {
   if (presence[2] > 0.2 && s16 === 4 && getPresenceMultiplier('abisso') > 0.5) { // beat 2
     if (bar % 8 === 0 && Math.random() < presence[2] * 0.72) {
       const scale = MODES6[currentMode];
-      const hi   = scale.filter(n => n >= 63 && n <= 80);
+      const hi   = scale.filter(n => n >= 62 && n <= 79);
       const pool = hi.length > 0 ? hi : scale;
       const note = Math.min(84, pool[Math.floor(Math.random() * pool.length)] + octShift);
       let vel  = Math.floor(28 + presence[2] * 25);

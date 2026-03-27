@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════
 //  MACH:INE II — Composer 2 (MECCANICA)
-//  C# Dorian · 98 BPM · poliritmia jazz · layer system
+//  A Dorian · 92 BPM · poliritmia jazz · layer system
 //  v3 — step clock per kick/bass, voicings jazz, shell chords
 // ═══════════════════════════════════════════════════════════
 
@@ -30,14 +30,14 @@ function addMidiNote(ch, x, intensity) {
 // ═══════════════════════════════════════════════════════════
 
 const MODES2 = {
-  Cs_dorian:  [37,49,51,52,54,56,58,59,61,63,64,66,68,70,71,73,75,76,78,80],
+  A_dorian:   [33,45,47,48,50,52,54,55,57,59,60,62,64,66,67,69,71,72,74,76],
   Cs_lydian:  [37,49,51,53,54,56,58,60,61,63,65,66,68,70,72,73,75,77],
   Fs_phrygian:[42,54,55,57,59,61,62,64,66,67,69,71,73,74,76,78],
   Bb_locrian: [46,47,49,51,52,54,56,58,59,61,63,64,66,68,70,71,73,75,76,78,80],
 };
 
-// C# Dorian pivot pitch classes: C#=1, E=4, G#=8
-const PIVOT_CLASSES2 = new Set([1, 4, 8]);
+// A Dorian pivot pitch classes: A=9, C=0, E=4
+const PIVOT_CLASSES2 = new Set([9, 0, 4]);
 
 // ═══════════════════════════════════════════════════════════
 //  CHORD VOICINGS — C# Dorian jazz shell voicings
@@ -53,15 +53,15 @@ const PIVOT_CLASSES2 = new Set([1, 4, 8]);
 // B7:    B, D#, F#, A# — [47+12=59, 63, 66, 70]  ← Dorian VII chord
 
 const CHORD_PROGS2 = {
-  germoglio:    [[61,64,68]],                                      // C#m (open triad)
-  pulsazione:   [[61,64,68],[66,70,73],[64,68,71],[61,66,68]],     // C#m→F#m→Em→C#sus
-  densita:      [[61,64,68,71],[66,70,73,76],[64,68,71,75],[68,73,76,80],  // C#m7→F#m7→Em7→Amaj7
-                 [66,70,73,76],[64,68,71,75],[61,68,71,76],[61,64,68,71]], // F#m7→Em7→C#m9→C#m7 — 8×4=32
+  germoglio:    [[57,60,64]],                                      // Am (open triad)
+  pulsazione:   [[57,60,64],[62,66,69],[60,64,67],[57,62,64]],     // Am→Dm→Cm→Asus
+  densita:      [[57,60,64,67],[62,66,69,72],[60,64,67,71],[64,69,72,76],  // Am7→D7→Cm7→Emaj7
+                 [62,66,69,72],[60,64,67,71],[57,64,67,72],[57,60,64,67]], // D7→Cm7→Am9→Am7 — 8×4=32
   rottura:      null,
-  dissoluzione: [[61,64,68,71],[66,70,73,76],[61,64,68]],
+  dissoluzione: [[57,60,64,67],[62,66,69,72],[57,60,64]],
 };
 let chordProgIdx2 = 0;
-let lastChord = [61, 64, 68];
+let lastChord = [57, 60, 64];
 
 // ═══════════════════════════════════════════════════════════
 //  KICK PATTERNS — E(5,16) variants per 98 BPM
@@ -105,8 +105,8 @@ const BASS_SEQS2 = [
 const BASS_FOR_PHASE2 = {
   germoglio:    [0, 0],
   pulsazione:   [1, 2],
-  densita:      [3, 4, 3],
-  rottura:      [4, 2],
+  densita:      [3, 3, 2],
+  rottura:      [2, 2],
   dissoluzione: [1, 0],
 };
 
@@ -151,9 +151,9 @@ let lastStep2 = -1;
 const layers = {};
 const presence = [0,0,0,0]; // [harmonic, rhythmic, textural, melodic]
 
-let currentMode = 'Cs_dorian';
-let currentDrone = 61;        // C#3
-let currentDroneNote = 61;    // follows chord root for harmonic pad effect (per PARTITURA)
+let currentMode = 'A_dorian';
+let currentDrone = 57;        // A3
+let currentDroneNote = 57;    // follows chord root for harmonic pad effect (per PARTITURA)
 let texturalBarCount = 0;     // bar counter for sinusoidal TEXTURAL presence oscillation
 
 let ruptureStage = 'idle';
@@ -178,8 +178,8 @@ export function initComposer2() {
   _lastTensionActive = _lastVoidActive = _lastDensityPeak = false;
   presence.fill(0);
   setEnginePhase('meccanica', currentPhaseName());
-  chordProgIdx2 = 0; lastChord = [61, 64, 68];
-  currentDroneNote = 61; texturalBarCount = 0;
+  chordProgIdx2 = 0; lastChord = [57, 60, 64];
+  currentDroneNote = 57; texturalBarCount = 0;
   kickPat2 = KICK_PATS2[0]; lastKickPatBar = -1;
   bassSeq2 = BASS_SEQS2[0]; bassNoteIdx2 = 0; lastBassSeqBar = -1;
 
@@ -196,7 +196,7 @@ export function toggleComposer2() {
   if (composer2Active) {
     initComposer2();
     setEngine('meccanica');
-    console.log('[COMPOSER2] ON — C# Dorian MECCANICA 98bpm');
+    console.log('[COMPOSER2] ON — A Dorian MECCANICA 92bpm');
   } else {
     sendMIDIAllNotesOff();
     setComposerClimax(false);
@@ -241,7 +241,7 @@ function updatePresence(dt) {
   const phaseName = currentPhaseName();
   const target = {
     germoglio:    [0.3, 0.0, 0.0, 0.0],
-    pulsazione:   [0.5, 0.7, 0.0, 0.3],
+    pulsazione:   [0.5, 0.7, 0.0, 0.0],
     densita:      [0.8, 0.9, 0.6, 0.7],
     rottura:      [0.2, 0.9, 0.8, 0.0],
     dissoluzione: [0.4, 0.1, 0.0, 0.2],
@@ -290,7 +290,7 @@ function updateRupture() {
 // ═══════════════════════════════════════════════════════════
 
 function buildChord(mode) {
-  const scale = MODES2[mode] || MODES2.Cs_dorian;
+  const scale = MODES2[mode] || MODES2.A_dorian;
   const maxLeap = (CFG.COMPOSER2.voiceLeadingMax || 3) * 2;
   const newChord = lastChord.map(note => {
     const candidates = scale.filter(n => Math.abs(n - note) <= maxLeap);
@@ -323,7 +323,7 @@ function getChordFromProg(phaseName) {
 // ═══════════════════════════════════════════════════════════
 
 function pickMelodicNote(mode) {
-  const scale = MODES2[mode] || MODES2.Cs_dorian;
+  const scale = MODES2[mode] || MODES2.A_dorian;
   // Prefer mid-high register (C#4=61 to C#5=73), bias toward chord tones + pivot
   const pool = [];
   for (const n of scale) {
@@ -503,7 +503,7 @@ function checkLayerCrossings() {
   if (presence[2] * texturalPm > 0.25 && rc < 0.5) {
     for (const th of [0.2, 0.4, 0.6, 0.8]) {
       if (layers.textural.crossed(th)) {
-        const scale = MODES2[currentMode] || MODES2.Cs_dorian;
+        const scale = MODES2[currentMode] || MODES2.A_dorian;
         // Solo note nel registro brillante (F#4=66 → C#5=73)
         const hi   = scale.filter(n => n >= 66 && n <= 78);
         const pool = hi.length > 0 ? hi : scale;

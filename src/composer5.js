@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════
 //  MACH:INE II — Composer 5 (CRISTALLO)
-//  E Lydian · 54 BPM · ambient cristallino · shimmer arpeggios
+//  D Lydian · 54 BPM · ambient cristallino · shimmer arpeggios
 // ═══════════════════════════════════════════════════════════
 
 import { CFG } from './config.js';
@@ -26,12 +26,12 @@ function addMidiNote(ch, x, intensity) {
 
 // ── Scale modes E (nota MIDI: E3 = 52) ──
 const MODES5 = {
-  E_lydian:  [52,54,56,58,59,61,63, 64,66,68,70,71,73,75, 76,78,80,82,83,85,87],
+  D_lydian:  [50,52,54,56,57,59,61, 62,64,66,68,69,71,73, 74,76,78,80,81,83,85],
   F_locrian: [53,54,56,58,59,61,63, 65,66,68,70,71,73,75, 77,78,80,82,83,85,87],
 };
 
-// Pivot pitch classes: E=4, G#=8, B=11
-const PIVOT_CLASSES5 = new Set([4, 8, 11]);
+// Pivot pitch classes: D=2, F#=6, A=9
+const PIVOT_CLASSES5 = new Set([2, 6, 9]);
 
 // Presenza target [chords, voice, grain, pulse] per fase
 const PHASE_PRESENCE5 = {
@@ -52,14 +52,14 @@ let arcProgress = 0;
 let clock = 0;
 let lastBeat = -1;
 
-let currentMode = 'E_lydian';
-let currentDrone = 52;
+let currentMode = 'D_lydian';
+let currentDrone = 50;
 
 let ruptureStage = 'idle';
 let lastRuptureStage = 'idle';
 
 const presence = [0, 0, 0, 0];
-let lastChord = [64, 68, 71]; // E G# B initial
+let lastChord = [62, 66, 69]; // D F# A initial
 let shimmerTimer = 0;
 let chordBarCount = 0;
 let debugTimer = 0;
@@ -75,9 +75,9 @@ export function initComposer5() {
   lastRuptureStage = 'idle';
   presence.fill(0);
   setEnginePhase('cristallo', CFG.COMPOSER5.phaseOrder[0]);
-  currentMode = 'E_lydian';
-  currentDrone = 52;
-  lastChord = [64, 68, 71];
+  currentMode = 'D_lydian';
+  currentDrone = 50;
+  lastChord = [62, 66, 69];
   shimmerTimer = 0;
   chordBarCount = 0;
 }
@@ -88,7 +88,7 @@ export function toggleComposer5() {
   if (composer5Active) {
     initComposer5();
     setEngine('cristallo');
-    console.log('[COMPOSER5] ON — E Lydian CRISTALLO 54bpm');
+    console.log('[COMPOSER5] ON — D Lydian CRISTALLO 54bpm');
   } else {
     sendMIDIAllNotesOff();
     setComposerClimax(false);
