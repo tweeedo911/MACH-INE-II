@@ -7,6 +7,7 @@
 import { executeMutation, requestFraming, requestCameraShake } from './director.js';
 import { startInvertDissolve, setConcertTime } from './colors.js';
 import { setPresenceMultiplier, getPresenceMultiplier, resetAllMultipliers } from './presence-multiplier.js';
+import { sendMIDIAllNotesOff } from './midi.js';
 
 // ── Momenti-firma state (read by generations.js, render.js) ──
 export const firma = {
@@ -346,6 +347,7 @@ function updateTransitions() {
 function processCue(cue) {
   switch (cue.action) {
     case 'silence':
+      sendMIDIAllNotesOff(); // flush all scheduled notes before deactivating engines
       if (_deactivateAll) _deactivateAll();
       resetAllMultipliers();
       transitions = [];
@@ -390,6 +392,7 @@ function processCue(cue) {
       break;
 
     case 'end':
+      sendMIDIAllNotesOff(); // flush all scheduled notes before stopping
       if (_deactivateAll) _deactivateAll();
       resetAllMultipliers();
       stopSequencer();
