@@ -496,4 +496,123 @@ export const CFG = {
       ],
     },
   },
+
+  // ── RhythmLayer v3 ──────────────────────────────────────────────────────────
+  RHYTHM: {
+    // ── Parametri base ──
+    bpmSource: 'macro',       // 'macro' = usa CFG.MACRO.bpmReference, 'config' = usa bpm sotto
+    bpm: 88,                  // fallback BPM se bpmSource !== 'macro'
+
+    // ── Fase arc — threshold su rhythmicDensity (D-01, D-03, RITM-02) ──
+    // Ogni fase si attiva quando macroState.rhythmicDensity supera la threshold
+    phaseThresholds: {
+      arhythmic:    0.0,    // 0-10min: nessun kick, hi-hat rarefatto
+      emerging:     0.15,   // 10-20min: kick sporadico, broken feel
+      groove:       0.40,   // 20-30min: groove che si consolida
+      climax:       0.70,   // 30-40min: 4/4 pieno, poliritmia
+      dissolving:   0.85,   // >0.85 poi ridiscende: dissoluzione (mirror arhythmic)
+    },
+
+    // ── CH0 PULSE — Kick (D-02, D-03, RITM-02) ──
+    kick: {
+      note: 36,              // C2 — kick fisso
+      velDownbeat: 105,       // velocity base downbeat (MIDI-01)
+      velOffbeat: 85,         // velocity base offbeat
+      humanizeRange: 8,       // ±random velocity variation
+      // Probabilita gate per fase — esponenziale nella fase emerging (D-03)
+      gateProbability: {
+        arhythmic:  0.0,      // assente
+        emerging:   0.12,     // ~1 kick ogni 8 step — sporadico, frammentato
+        groove:     0.55,     // groove emergente ma non ancora 4/4
+        climax:     1.0,      // ogni step del pattern suona
+        dissolving: 0.20,     // si rarefà
+      },
+      // Pattern 16-step per il climax (D-02: 4-on-the-floor solo al climax)
+      patterns: {
+        fourOnFloor: [1,0,0,0, 1,0,0,0, 1,0,0,0, 1,0,0,0],
+        broken1:     [1,0,0,0, 0,0,0,0, 1,0,0,0, 0,0,0,0],   // halftime
+        broken2:     [1,0,0,0, 0,0,0,1, 0,0,0,0, 1,0,0,0],   // syncopated
+        broken3:     [1,0,0,0, 0,0,1,0, 0,0,0,0, 0,0,1,0],   // displaced
+      },
+      durMs: 55,              // nota breve — kick acustico
+    },
+
+    // ── CH1 GRAIN — Hi-hat continuo (D-04, D-05, D-06, RITM-01) ──
+    hat: {
+      // Pitch cluster — 4 note ruotate per hit (D-04: variazione per hit, C2-C4)
+      pitchCluster: [36, 38, 40, 42],   // C2, D2, E2, F#2 — cluster stretto modulare
+      velFloor: 15,           // velocity minima assoluta — il hi-hat non si azzera mai (D-06, RITM-01)
+      velTarget: {
+        arhythmic:  25,       // appena percettibile ma presente
+        emerging:   45,
+        groove:     70,
+        climax:     95,
+        dissolving: 35,
+      },
+      velScatter: 12,         // ±deviazione gaussiana (D-05)
+      // Step per i due sub-pattern phasing Reich (D-11, RITM-04)
+      phasingStepsA: 8,       // pattern A — 8 step
+      phasingStepsB: 9,       // pattern B — 9 step (convergenza ogni 72 step)
+      phasingActivePhases: ['emerging', 'groove', 'climax'],  // D-12: phasing attivo 10-40min
+      durMs: 25,              // hi-hat breve — percussivo e secco
+      // Intervallo step base — il hat suona ogni N 16th-note nel tick (non ogni tick)
+      stepDivisor: 2,         // default: ogni 8th note (step % 2 === 0)
+    },
+
+    // ── CH7 Percussion — Glass additive entry (D-07, D-08, D-09, D-10, RITM-03) ──
+    perc: {
+      // Mappatura note (D-08)
+      notes: {
+        rimshot:    36,       // C2
+        snare:      38,       // D2
+        congaHi:    45,       // A2
+        congaLo:    48,       // C3
+        impact:     60,       // C4 — evento speciale 1
+        sweep:      62,       // D4 — evento speciale 2
+      },
+      // Ordine di ingresso additivo Glass (D-10, RITM-03)
+      // Ogni elemento entra quando rhythmicDensity supera la threshold
+      additiveEntry: [
+        { note: 48, name: 'congaLo',  threshold: 0.20 },  // primo a entrare
+        { note: 45, name: 'congaHi',  threshold: 0.35 },  // secondo
+        { note: 36, name: 'rimshot',  threshold: 0.50 },  // terzo
+        { note: 38, name: 'snare',    threshold: 0.65 },  // ultimo
+      ],
+      // Note speciali — solo da MacroComposer cue (D-09)
+      specialNotes: [60, 62],   // impact e sweep — non nei pattern normali
+      specialVel: 110,          // velocity alta per eventi speciali
+      specialDurMs: 400,        // nota lunga per impatto
+      // Pattern step (lunghezze prime per poliritmia)
+      patternLengths: [5, 7, 11, 13],   // pool lunghezze prime per pattern percussivi
+      velBase: 65,
+      humanizeRange: 10,
+      durMs: 80,
+    },
+
+    // ── MIDI Output Optimizations (MIDI-01 through MIDI-04) ──
+    midi: {
+      // MIDI-01: downbeat emphasis
+      downbeatBoost: 0.08,    // +8% velocity sui downbeat (step 0, 4, 8, 12)
+      offbeatReduce: 0.05,    // -5% velocity sugli offbeat
+
+      // MIDI-02: pitch range enforcement
+      pitchRange: {
+        ch0: { min: 36, max: 36 },   // kick fisso C2
+        ch1: { min: 36, max: 60 },   // C2-C4 modulare (D-04)
+        ch7: { min: 36, max: 62 },   // C2-D4 (include speciali)
+      },
+
+      // MIDI-03: phrase shaping — offset note per evitare attacchi simultanei
+      noteOffsetMs: { min: 5, max: 30 },    // range random di sfasamento
+      // legato/staccato ratio per canale (1.0 = full legato, 0.0 = staccatissimo)
+      legatoRatio: {
+        ch0: 0.3,   // kick secco
+        ch1: 0.2,   // hat staccato
+        ch7: 0.5,   // perc media
+      },
+
+      // MIDI-04: channel assignment
+      channels: { kick: 0, hat: 1, perc: 7 },
+    },
+  },
 };
