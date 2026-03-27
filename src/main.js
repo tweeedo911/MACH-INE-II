@@ -197,6 +197,8 @@ document.addEventListener('keydown', (e) => {
 const midiWorker = new Worker('./src/midi-clock.worker.js');
 
 let lastClockBpm = 120;
+let _targetClockBpm = 120;  // BPM target (updated instantly on engine switch)
+let _currentClockBpm = 120; // BPM actual (lerped toward _targetClockBpm each tick)
 let wasAnyComposerActive = false;
 
 function getActiveBpm() {
@@ -215,6 +217,7 @@ function getActiveBpm() {
     if (e.active && e.bpm && e.pm > bestPm) {
       bestPm = e.pm;
       lastClockBpm = e.bpm;
+      _targetClockBpm = e.bpm; // set lerp target (guard: e.bpm is never null here)
     }
   }
   return lastClockBpm;
@@ -242,7 +245,14 @@ midiWorker.onmessage = ({ data: { dt } }) => {
     if (composer7Active) updateComposer7(dt);
 
     // Send MIDI Clock ticks at 24 ppqn
-    if (anyActive) updateMIDIClock(getActiveBpm());
+    if (anyActive) {
+      getActiveBpm(); // updates _targetClockBpm
+      // Lerp _currentClockBpm toward _targetClockBpm over CFG.bpmLerpBeats beats
+      const beatsPerTick = (dt / 1000) * (_currentClockBpm / 60);
+      const lerpRate = beatsPerTick / CFG.bpmLerpBeats;
+      _currentClockBpm += (_targetClockBpm - _currentClockBpm) * Math.min(lerpRate, 1);
+      updateMIDIClock(_currentClockBpm);
+    }
   } catch (e) {
     // Log error but keep the clock alive — an uncaught exception here
     // would silently kill the handler and stop all MIDI output
