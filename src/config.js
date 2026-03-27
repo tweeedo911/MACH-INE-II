@@ -422,8 +422,8 @@ export const CFG = {
       { pct: 0.758, rD: 0.0, hC: 0.5, mA: 0.3, tD: 0.4, mode: 'D_dorian' },              // FALSE RESOLUTION hold — 8 bar a 88BPM (~21.8s = 0.008 pct)
       { pct: 0.80, rD: 0.9, hC: 0.6, mA: 0.7, tD: 0.7, mode: 'C#_dorian' },      // rebound above previous
       { pct: 0.84, rD: 1.0, hC: 0.6, mA: 0.8, tD: 0.7, mode: 'C#_dorian' },      // rhythmicDensity PEAK ~min38
-      { pct: 0.89, rD: 0.5, hC: 0.4, mA: 0.5, tD: 0.5, mode: 'E_phrygian' },
-      { pct: 0.95, rD: 0.2, hC: 0.2, mA: 0.1, tD: 0.2, mode: 'A_lydian' },       // dissoluzione
+      { pct: 0.89, rD: 0.3, hC: 0.3, mA: 0.65, tD: 0.65, mode: 'E_phrygian' }, // melody leads dissoluzione — texture/melodia emergono mentre ritmo/armonia cedono
+      { pct: 0.95, rD: 0.1, hC: 0.1, mA: 0.2,  tD: 0.2,  mode: 'A_lydian' },  // dissoluzione finale — melody ancora dominante prima del silenzio
       { pct: 1.00, rD: 0.0, hC: 0.0, mA: 0.0, tD: 0.0, mode: 'A_lydian' },       // fine
     ],
 
