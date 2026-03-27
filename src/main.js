@@ -150,11 +150,20 @@ startScreen.addEventListener('click', async () => {
     initMelodyTextureLayer();
     sendMIDIStart(); // avvia MIDI clock per v3 (i composer v2 non lo farebbero)
     console.log('[V3] MacroComposer + HarmonyLayer + RhythmLayer + MelodyTextureLayer initialized');
-    // Debug helper per checkpoint MARC-04 (D-10) — override arcPercent da console
-    // Uso: window._m.arcPercent = 0.5 (con sequencer fermo: Shift+0)
     if (CFG.debug) {
       window._m = macroState;
-      console.log('[V3] Debug: window._m disponibile — usa window._m.arcPercent = N per test');
+      // arc(0.5)  → forza arcPercent a 50% e blocca il clock
+      // arc()     → rilascia il freeze, torna al clock normale
+      window.arc = (v) => {
+        if (v === undefined) {
+          macroState._debugArc = undefined;
+          console.log('[V3] arc: rilasciato — clock normale');
+        } else {
+          macroState._debugArc = Math.max(0, Math.min(1, v));
+          console.log('[V3] arc:', macroState._debugArc, '— aspetta 10s per il lerp');
+        }
+      };
+      console.log('[V3] Debug pronto — usa: arc(0.5) | arc(0.25) | arc(0.75) | arc(0.9) | arc()');
     }
   }
 
