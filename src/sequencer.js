@@ -403,6 +403,15 @@ function processCue(cue) {
 
 // ── Main update ──
 
+// Salta globalTime a sec — usato da jumpArc per tenere sequencer e arco in sync
+export function setGlobalTime(sec) {
+  globalTime = Math.max(0, sec);
+  // Avanza cueIndex oltre le cue già trascorse (non rifirle)
+  cueIndex = 0;
+  while (cueIndex < CUES.length && CUES[cueIndex].t < globalTime) cueIndex++;
+  setConcertTime(globalTime);
+}
+
 export function updateSequencer(dt) {
   if (!active) return;
   if (paused) return;
