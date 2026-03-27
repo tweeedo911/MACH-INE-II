@@ -183,6 +183,117 @@ let _v3LerpState     = {       // stato lerp corrente per engineRender
   onsetWaveSpeed: 400, flickerSpeed: 1.0, midiDensityMul: 0.3, feedbackDecay: 0.97,
 };
 
+/**
+ * Determina quale atto narrativo corrisponde a arcPercent (D-06).
+ * Ritorna la chiave dell'atto ('I', 'II', ..., 'V').
+ */
+function _getV3Act(arcPct) {
+  const acts = CFG.VISUAL.acts;
+  if (arcPct < acts.II.min)  return 'I';
+  if (arcPct < acts.III.min) return 'II';
+  if (arcPct < acts.IV.min)  return 'III';
+  if (arcPct < acts.V.min)   return 'IV';
+  return 'V';
+}
+
+/**
+ * Determina il layer dominante con isteresi (D-01, D-03).
+ * Ritorna 'harmony' | 'rhythm' | 'melody' | null (master).
+ */
+function _getDominantLayer() {
+  const m = macroState;
+  const vals = {
+    rhythm:  m.rhythmicDensity,
+    harmony: m.harmonicColor,
+    melody:  Math.max(m.melodicActivity, m.textureDepth),
+  };
+
+  const threshold = CFG.VISUAL.dominanceThreshold;
+  const hysteresis = CFG.VISUAL.dominanceHysteresis;
+
+  let best = null, bestVal = threshold;
+  for (const [k, v] of Object.entries(vals)) {
+    if (v > bestVal) { best = k; bestVal = v; }
+  }
+
+  // Isteresi: il corrente rimane dominante finche un altro lo supera di hysteresis
+  if (_v3DominantLayer && best !== _v3DominantLayer) {
+    const currentVal = vals[_v3DominantLayer] || 0;
+    if (bestVal - currentVal < hysteresis) {
+      return _v3DominantLayer;  // corrente tiene
+    }
+  }
+
+  return best;
+}
+
+/**
+ * Core V3 director update — chiamato in V3_MODE al posto di ENGINE_PREFS block.
+ * Applica: layer dominance, LAYER_PREFS lerp su engineRender, 5-act scene/palette/camera.
+ */
+function _updateDirectorV3(dt) {
+  const vis = CFG.VISUAL;
+  const arcPct = macroState.arcPercent;
+
+  // ── 1. Layer dominante (D-01, D-03) ──
+  const dominant = _getDominantLayer();
+  _v3DominantLayer = dominant;
+  const layerKey = dominant || 'master';
+  const prefs = vis.layers[layerKey];
+
+  // ── 2. Lerp engineRender verso LAYER_PREFS del dominante (D-09) ──
+  const lr = vis.lerpSpeed;
+  const ls = _v3LerpState;
+
+  ls.dotSize        += (prefs.dotSize        - ls.dotSize)        * lr;
+  ls.densityMul     += (prefs.densityMul     - ls.densityMul)     * lr;
+  ls.midiScale      += (prefs.midiScale      - ls.midiScale)      * lr;
+  ls.shapeScale     += (prefs.shapeScale     - ls.shapeScale)     * lr;
+  ls.trailMax       += (prefs.trailMax       - ls.trailMax)       * lr;
+  ls.densityGravity += (prefs.densityGravity - ls.densityGravity) * lr;
+  ls.onsetWaveSpeed += (prefs.onsetWaveSpeed - ls.onsetWaveSpeed) * lr;
+  ls.flickerSpeed   += (prefs.flickerSpeed   - ls.flickerSpeed)   * lr;
+  ls.midiDensityMul += (prefs.midiDensityMul - ls.midiDensityMul) * lr;
+  ls.feedbackDecay  += (prefs.feedbackDecay  - ls.feedbackDecay)  * lr;
+
+  // Scrive su engineRender (letto da field.js e render.js)
+  engineRender.active         = true;
+  engineRender._engine        = 'v3_' + layerKey;
+  engineRender.dotSize        = ls.dotSize;
+  engineRender.densityMul     = ls.densityMul;
+  engineRender.midiScale      = ls.midiScale;
+  engineRender.forceInvert    = null;
+  engineRender.shapeScale     = ls.shapeScale;
+  engineRender.trailMax       = Math.round(ls.trailMax);
+  engineRender.densityGravity = ls.densityGravity;
+  engineRender.onsetWaveSpeed = Math.round(ls.onsetWaveSpeed);
+  engineRender.flickerSpeed   = ls.flickerSpeed;
+  engineRender.midiDensityMul = ls.midiDensityMul;
+  engineRender.feedbackDecay  = ls.feedbackDecay;
+
+  // ── 3. Arco visivo 5 atti (D-04, D-06) ──
+  const act = _getV3Act(arcPct);
+  const actCfg = vis.acts[act];
+
+  // Cambio atto → transizione scena + palette + camera
+  if (act !== _v3LastAct) {
+    _v3LastAct = act;
+    // Trova scena target per nome
+    const targetScene = SCENES.find(s => s.name === actCfg.scene);
+    if (targetScene) transitionToScene(targetScene, false);
+    // Palette: usa la palette del layer dominante (ha precedenza sull'atto)
+    setPalette(prefs.palette);
+    // Camera: richiedi framing atto
+    if (actCfg.camera) requestFraming(actCfg.camera);
+  }
+
+  // Palette continua: se il layer dominante cambia, aggiorna palette
+  if (engineRender._lastMusicalPhase !== layerKey) {
+    engineRender._lastMusicalPhase = layerKey;
+    setPalette(prefs.palette);
+  }
+}
+
 // ═══════════════════════════════════════════════════════════
 //  PHASE-DRIVEN VISUAL PARAMETERS (6B)
 //  Each engine × phase → visual target. Lerped in updateDirector.
@@ -818,6 +929,10 @@ function pickAutoShot(state, W, H) {
 export function updateDirector(dt, state, globalTime, W, H) {
   _W = W; _H = H; _state = state;
 
+  // ── V3_MODE gate (Phase 4) ──
+  if (CFG.V3_MODE) {
+    _updateDirectorV3(dt);
+  } else {
   // Update engine render overrides + detect engine change
   const curEngine = getEngine();
   const curPrefs = curEngine ? ENGINE_PREFS[curEngine] : null;
@@ -929,6 +1044,7 @@ export function updateDirector(dt, state, globalTime, W, H) {
     engineRender.midiDensityMul = 0.4;
     engineRender.feedbackDecay = null;
   }
+  } // end else V3_MODE
 
   director.sceneTime += dt;
   if (state.trajectory === 0) director.plateauTime += dt; else director.plateauTime = 0;
@@ -973,8 +1089,15 @@ export function updateDirector(dt, state, globalTime, W, H) {
     }
   }
 
-  // Arc-driven density clamping
   const arcParams = ARC_PARAMS[arc.phase] || ARC_PARAMS.ACTIVE;
+
+  // V3_MODE: density clamping guidato da arcPercent, non da arc state machine (D-05)
+  if (CFG.V3_MODE) {
+    const v3Act = _getV3Act(macroState.arcPercent);
+    const v3Cap = CFG.VISUAL.acts[v3Act].densityCap;
+    scene.densityMul = Math.min(scene.densityMul, v3Cap);
+  } else {
+  // Arc-driven density clamping
   if (arc.phase === 'SILENCE') {
     scene.densityMul = Math.min(scene.densityMul, 0.04 + arc.phaseTime * 0.008);
   } else if (arc.phase === 'BUILDING') {
@@ -982,6 +1105,7 @@ export function updateDirector(dt, state, globalTime, W, H) {
   } else {
     scene.densityMul = Math.min(scene.densityMul, arcParams.densityCap);
   }
+  } // fine else V3_MODE density clamping
 
   const bpm = audio.bpm;
   const hasRhythm = bpm > 0 && state.rhythmicity > 0.3;
