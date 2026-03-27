@@ -23,6 +23,10 @@ import { initSequencer, toggleSequencer, skipToNext, skipToPrev, skipToAct, togg
 import { setPresenceMultiplier, getPresenceMultiplier } from './presence-multiplier.js';
 import { WakeLockManager } from '../.claude/skills/runtime-expert/scripts/perf-utils.js';
 
+// ── v3 layer system (Phase 1) ──
+import { initMacroComposer, updateMacroComposer } from './macro-composer.js';
+import { initHarmonyLayer, updateHarmonyLayer } from './harmony-layer.js';
+
 // ── DOM refs ──
 const canvas = document.getElementById('c');
 const startScreen = document.getElementById('start');
@@ -134,6 +138,16 @@ startScreen.addEventListener('click', async () => {
   initSequencer(activateSingle, allOff);
   initDirectorEvents();
 
+  // ── v3 init (Phase 1) ──
+  // NOTA: se V3_MODE viene switchato mid-performance, chiamare sendMIDIAllNotesOff() prima
+  // per evitare note in-flight dai composer v2 (Pitfall 6 — RESEARCH.md)
+  if (CFG.V3_MODE) {
+    initMacroComposer();
+    initHarmonyLayer();
+    sendMIDIStart(); // avvia MIDI clock per v3 (i composer v2 non lo farebbero)
+    console.log('[V3] MacroComposer + HarmonyLayer initialized');
+  }
+
   if (canRecover()) hudMinimal.textContent = 'PRESS Shift+R TO RECOVER';
 
   startScreen.style.display = 'none';
@@ -228,30 +242,45 @@ midiWorker.onmessage = ({ data: { dt } }) => {
     if (!running) return;
     resetArcPriority();
 
-    const anyActive = composerActive || composer2Active || composer3Active ||
-                      composer4Active || composer5Active || composer6Active || composer7Active;
+    if (CFG.V3_MODE) {
+      // ── v3 layer system: MacroComposer + HarmonyLayer ──
+      // I composer v2 non vengono chiamati (D-08: rimangono intatti come reference/fallback)
+      updateMacroComposer(dt);
+      updateHarmonyLayer(dt);
 
-    // Auto MIDI Start/Stop on engine activation
-    if (anyActive && !wasAnyComposerActive) sendMIDIStart();
-    if (!anyActive && wasAnyComposerActive) sendMIDIStop();
-    wasAnyComposerActive = anyActive;
-
-    if (composerActive)  updateComposer(dt);
-    if (composer2Active) updateComposer2(dt);
-    if (composer3Active) updateComposer3(dt);
-    if (composer4Active) updateComposer4(dt);
-    if (composer5Active) updateComposer5(dt);
-    if (composer6Active) updateComposer6(dt);
-    if (composer7Active) updateComposer7(dt);
-
-    // Send MIDI Clock ticks at 24 ppqn
-    if (anyActive) {
-      getActiveBpm(); // updates _targetClockBpm
-      // Lerp _currentClockBpm toward _targetClockBpm over CFG.bpmLerpBeats beats
-      const beatsPerTick = (dt / 1000) * (_currentClockBpm / 60);
+      // MIDI clock: usa bpmReference dal MacroComposer config
+      const bpm = CFG.MACRO.bpmReference;
+      const beatsPerTick = (dt / 1000) * (bpm / 60);
       const lerpRate = beatsPerTick / CFG.bpmLerpBeats;
-      _currentClockBpm += (_targetClockBpm - _currentClockBpm) * Math.min(lerpRate, 1);
+      _currentClockBpm += (bpm - _currentClockBpm) * Math.min(lerpRate, 1);
       updateMIDIClock(_currentClockBpm);
+    } else {
+      // ── v2 legacy system: 7 engine compositori ──
+      const anyActive = composerActive || composer2Active || composer3Active ||
+                        composer4Active || composer5Active || composer6Active || composer7Active;
+
+      // Auto MIDI Start/Stop on engine activation
+      if (anyActive && !wasAnyComposerActive) sendMIDIStart();
+      if (!anyActive && wasAnyComposerActive) sendMIDIStop();
+      wasAnyComposerActive = anyActive;
+
+      if (composerActive)  updateComposer(dt);
+      if (composer2Active) updateComposer2(dt);
+      if (composer3Active) updateComposer3(dt);
+      if (composer4Active) updateComposer4(dt);
+      if (composer5Active) updateComposer5(dt);
+      if (composer6Active) updateComposer6(dt);
+      if (composer7Active) updateComposer7(dt);
+
+      // Send MIDI Clock ticks at 24 ppqn
+      if (anyActive) {
+        getActiveBpm(); // updates _targetClockBpm
+        // Lerp _currentClockBpm toward _targetClockBpm over CFG.bpmLerpBeats beats
+        const beatsPerTick = (dt / 1000) * (_currentClockBpm / 60);
+        const lerpRate = beatsPerTick / CFG.bpmLerpBeats;
+        _currentClockBpm += (_targetClockBpm - _currentClockBpm) * Math.min(lerpRate, 1);
+        updateMIDIClock(_currentClockBpm);
+      }
     }
   } catch (e) {
     // Log error but keep the clock alive — an uncaught exception here
