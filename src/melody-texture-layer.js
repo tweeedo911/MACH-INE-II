@@ -41,6 +41,11 @@ let _seedReturned = false;       // true dopo il ritorno unico a arcPercent > se
 let _ch5PhraseNoteCount = 0;     // contatore note prima frase CH5 per cattura seed
 let _seedReturnQueue = [];       // micro-sequencer: { note, vel, dur, targetBar }
 
+// ── Phrase buffer CH5 (ripetizione motivica — Reich/Nyman) ──
+let _ch5Phrase    = [];          // frase corrente (array di note MIDI)
+let _ch5PhrasePos = 0;           // posizione nella frase
+let _ch5PhraseRepeats = 0;       // ripetizioni completate
+
 // ── Arpeggi incrociati (D-05) ──
 let _arpMode = false;            // true quando siamo nella finestra cross-arpeggio
 let _arpLastCH5Note = null;      // ultima nota CH5 per costruire risposta CH6
@@ -185,46 +190,67 @@ function _onCH3Step(stepInLoop) {
   sendNote(3, note, vel, dur);
 }
 
+// Genera nuova frase per CH5 via Markov — aggiorna _histCH5 con la fine della frase
+function _generateCH5Phrase() {
+  const len = CFG.MELODY.phrase.ch5Length;
+  const tmpHist = [_histCH5[0], _histCH5[1]];
+  const notes = [];
+  for (let i = 0; i < len; i++) {
+    notes.push(_nextVoiceNote(5, tmpHist, _seedMotif || []));
+  }
+  // Aggiorna history con la fine della frase (continuità inter-frase)
+  if (notes.length >= 2) {
+    _histCH5[0] = notes[notes.length - 2];
+    _histCH5[1] = notes[notes.length - 1];
+  } else if (notes.length === 1) {
+    _histCH5[1] = notes[0];
+  }
+  return notes;
+}
+
 // CH5 VOICE — melodia rarefatta con seed (D-02, D-07)
 function _onCH5Step(stepInLoop) {
-  const mA = macroState.melodicActivity;
+  const mA  = macroState.melodicActivity;
   const arc = macroState.arcPercent;
 
   // Gating — con eccezione per cattura seed in apertura (finestra seed)
-  const baseProb = CFG.MELODY.emitProbability.ch5Base;
+  const baseProb  = CFG.MELODY.emitProbability.ch5Base;
   const seedWindow = !_seedCaptured && arc < CFG.MELODY.seedWindowEnd;
   if (seedWindow) {
-    // Gating piu morbido per permettere cattura seed anche con mA bassa
     if (mA < CFG.MELODY.seedCaptureGateMin) return;
     if (Math.random() >= baseProb * Math.max(mA, 0.1)) return;
   } else {
     if (Math.random() >= baseProb * mA) return;
   }
 
-  const phase = mA < 0.3 ? 'sparse' : mA < 0.65 ? 'medium' : 'dense';
-  const note = _nextVoiceNote(5, _histCH5, _seedMotif || []);
-  const vel  = CFG.MELODY.velTarget[phase].ch5 + _gaussianRand() * CFG.MELODY.velHumanize;
-  const dur  = CFG.MELODY.noteDur.ch5[phase === 'dense' ? 'dense' : 'sparse'];
-  sendNote(5, note, vel, dur);
-
-  // D-05: registra nota CH5 per risposta CH6 in modalita arpeggio
-  if (_arpMode) _arpLastCH5Note = note;
-
-  // ── Seed capture (MELO-01, D-07) ──
-  _ch5PhraseNoteCount++;
-  if (_ch5PhraseNoteCount >= 2 && _histCH5[0] !== null) {
-    const interval = _histCH5[1] - _histCH5[0];
-    _intervCH5.push(interval);
-
-    // Cattura seed: dopo seedLength intervalli entro la finestra seedWindowEnd
-    if (_intervCH5.length >= CFG.MELODY.seedLength &&
-        !_seedCaptured &&
-        arc < CFG.MELODY.seedWindowEnd) {
-      _seedMotif = _intervCH5.slice(0, CFG.MELODY.seedLength);
-      _seedCaptured = true;
-      console.log('[MELODY] seed captured:', _seedMotif);
+  // Phrase buffer: genera nuova frase se esaurita o vuota
+  const repeatCount = CFG.MELODY.phrase.ch5RepeatCount;
+  if (_ch5Phrase.length === 0 || _ch5PhraseRepeats >= repeatCount) {
+    _ch5Phrase    = _generateCH5Phrase();
+    _ch5PhrasePos = 0;
+    _ch5PhraseRepeats = 0;
+    // Seed capture dalla prima frase generata nella finestra seed
+    if (!_seedCaptured && arc < CFG.MELODY.seedWindowEnd && _ch5Phrase.length >= 2) {
+      const intervals = [];
+      for (let i = 1; i < _ch5Phrase.length; i++) intervals.push(_ch5Phrase[i] - _ch5Phrase[i - 1]);
+      if (intervals.length >= CFG.MELODY.seedLength - 1) {
+        _seedMotif    = intervals.slice(0, CFG.MELODY.seedLength);
+        _seedCaptured = true;
+        console.log('[MELODY] seed captured from phrase:', _seedMotif);
+      }
     }
   }
+
+  const note = _ch5Phrase[_ch5PhrasePos % _ch5Phrase.length];
+  _ch5PhrasePos++;
+  if (_ch5PhrasePos >= _ch5Phrase.length) { _ch5PhrasePos = 0; _ch5PhraseRepeats++; }
+
+  const phase = mA < 0.3 ? 'sparse' : mA < 0.65 ? 'medium' : 'dense';
+  const vel   = CFG.MELODY.velTarget[phase].ch5 + _gaussianRand() * CFG.MELODY.velHumanize;
+  const dur   = CFG.MELODY.noteDur.ch5[phase === 'dense' ? 'dense' : 'sparse'];
+  sendNote(5, note, vel, dur);
+
+  if (_arpMode) _arpLastCH5Note = note;
 }
 
 // CH6 LEAD — voce indipendente angolosa 13-step (D-03)
@@ -339,6 +365,11 @@ export function initMelodyTextureLayer() {
   _ch5PhraseNoteCount = 0;
   _seedReturnQueue    = [];
 
+  // Reset phrase buffer
+  _ch5Phrase        = [];
+  _ch5PhrasePos     = 0;
+  _ch5PhraseRepeats = 0;
+
   // Reset arpeggio state
   _arpMode        = false;
   _arpLastCH5Note = null;
@@ -361,16 +392,7 @@ export function updateMelodyTextureLayer(dt) {
   // Aggiorna arpeggio mode ogni tick
   _arpMode = _isArpWindow();
 
-  // ── CH3 clock — loop 7 step ──
-  _clockCH3 += dt * stepsPerSec;
-  const sCH3 = Math.floor(_clockCH3);
-  if (sCH3 > _lastStepCH3) {
-    for (let s = _lastStepCH3 + 1; s <= sCH3; s++) {
-      _currentStep16 = s % 16;
-      _onCH3Step(s % CFG.MELODY.loopLenCH3);
-    }
-    _lastStepCH3 = sCH3;
-  }
+  // CH3 ceduto a HarmonyLayer (bass armonico strutturale ogni 2 bar)
 
   // ── CH5 clock — loop 11 step ──
   _clockCH5 += dt * stepsPerSec;
