@@ -690,4 +690,57 @@ export const CFG = {
       noteOffsetMs:   { min: 3, max: 18 },   // sfasamento anti-meccanico (MIDI-03)
     },
   },
+
+  // ── Visual System v3 (Phase 4) ─────────────────────────────────────────────
+  VISUAL: {
+    // ── Dominance logic (D-01, D-03) ──
+    dominanceThreshold: 0.05,   // valore minimo per dichiarare un layer dominante
+    dominanceHysteresis: 0.10,  // margine che il nuovo layer deve superare per detronizzare il corrente
+    lerpSpeed: 0.02,            // lerp rate per parametri render tra layer (per frame a 60fps)
+    paletteLerpSpeed: 0.015,    // lerp rate cambio palette (piu lento per evitare tremolio)
+
+    // ── 5 atti narrativi visivi (D-06) ──
+    // Ogni atto: range arcPercent, scena target, palette base, densityCap, camera
+    acts: {
+      I:   { min: 0.00, max: 0.15, scene: 'SPARSE',         palette: 'cold',    densityCap: 0.15, camera: 'WIDE'   },
+      II:  { min: 0.15, max: 0.35, scene: 'BAYER_CLASSIC',  palette: 'default', densityCap: 0.45, camera: 'DRIFT'  },
+      III: { min: 0.35, max: 0.60, scene: 'COLORED_GROUND', palette: 'warm',    densityCap: 1.00, camera: 'MEDIUM' },
+      IV:  { min: 0.60, max: 0.80, scene: 'DENSE',          palette: 'warm',    densityCap: 0.90, camera: 'MEDIUM' },
+      V:   { min: 0.80, max: 1.00, scene: 'SPARSE',         palette: 'cold',    densityCap: 0.12, camera: 'WIDE'   },
+    },
+
+    // ── Layer preferences — firma visiva per layer (D-07, D-08, D-09) ──
+    // Analogo a ENGINE_PREFS v2 ma per i 3 layer v3 + master
+    layers: {
+      harmony: {
+        palette: 'cold',
+        dotSize: 10,  densityMul: 0.6,  midiScale: 2.0,
+        trailMax: 48, flickerSpeed: 0.5,
+        shapeScale: 0.4, densityGravity: -0.2,
+        onsetWaveSpeed: 300, midiDensityMul: 0.5, feedbackDecay: 0.96,
+      },
+      rhythm: {
+        palette: 'amber',
+        dotSize: 4,   densityMul: 1.4,  midiScale: 1.0,
+        trailMax: 32, flickerSpeed: 5.0,
+        shapeScale: 1.2, densityGravity: 0.15,
+        onsetWaveSpeed: 1000, midiDensityMul: 0.4, feedbackDecay: 0.93,
+      },
+      melody: {
+        palette: 'magenta',
+        dotSize: 7,   densityMul: 0.9,  midiScale: 1.5,
+        trailMax: 40, flickerSpeed: 2.0,
+        shapeScale: 1.0, densityGravity: 0,
+        onsetWaveSpeed: 600, midiDensityMul: 0.6, feedbackDecay: 0.95,
+      },
+      // Master — quando nessun layer domina (macroState tutto basso)
+      master: {
+        palette: 'bw',
+        dotSize: 6,   densityMul: 0.3,  midiScale: 1.0,
+        trailMax: 64, flickerSpeed: 1.0,
+        shapeScale: 1.0, densityGravity: 0,
+        onsetWaveSpeed: 400, midiDensityMul: 0.3, feedbackDecay: 0.97,
+      },
+    },
+  },
 };
