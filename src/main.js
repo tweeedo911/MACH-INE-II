@@ -303,6 +303,8 @@ midiWorker.onmessage = ({ data: { dt } }) => {
         updateMIDIClock(_currentClockBpm);
       }
     }
+    // Sequencer runs here (not in rAF loop) so it keeps advancing when window loses focus
+    updateSequencer(dt);
   } catch (e) {
     // Log error but keep the clock alive — an uncaught exception here
     // would silently kill the handler and stop all MIDI output
@@ -325,6 +327,5 @@ function loop(now) {
   updateAudio();
   updateMIDI();
   updateState();
-  updateSequencer(dt);
   renderFrame(now, dt);
 }
