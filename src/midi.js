@@ -41,7 +41,7 @@ let midiOut = null;
 let midiClockRunning = false;
 let clockBpm = 120;
 let nextTickTime = 0;       // performance.now() of next scheduled tick
-const CLOCK_LOOKAHEAD = 50; // schedule ticks up to 50ms ahead
+const CLOCK_LOOKAHEAD = 100; // schedule ticks up to 100ms ahead — 2× margin against V8 major GC pauses (~50ms max)
 
 // Keep canvas width in sync
 export function setCanvasWidth(width) {
