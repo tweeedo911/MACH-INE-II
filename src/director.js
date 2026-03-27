@@ -11,6 +11,7 @@ import { startInvertDissolve, setChromaticShift, setPalette, setComposerClimax }
 import { on as onDirectorEvent } from './director-events.js';
 import { checkPatternChange, getEngine } from './midi-patterns.js';
 import { getEnginePhase } from './presence-multiplier.js';
+import { macroState } from './macro-composer.js';
 
 // ═══════════════════════════════════════════════════════════
 //  SCENES — Coherent aesthetic states
@@ -168,6 +169,18 @@ const ENGINE_PREFS = {
     shapeScale: 1.0, trailMax: 56, densityGravity: 0.1,
     onsetWaveSpeed: 1000, flickerSpeed: 4.0, midiDensityMul: 0.5,
   },
+};
+
+// ═══════════════════════════════════════════════════════════
+//  V3 VISUAL SYSTEM — layer dominance + arc visivo (Phase 4)
+// ═══════════════════════════════════════════════════════════
+
+let _v3DominantLayer = null;   // 'harmony' | 'rhythm' | 'melody' | null (= master)
+let _v3LastAct       = null;   // 'I' | 'II' | ... | 'V' — per guard transitionToScene
+let _v3LerpState     = {       // stato lerp corrente per engineRender
+  dotSize: 6, densityMul: 0.3, midiScale: 1.0,
+  shapeScale: 1.0, trailMax: 64, densityGravity: 0,
+  onsetWaveSpeed: 400, flickerSpeed: 1.0, midiDensityMul: 0.3, feedbackDecay: 0.97,
 };
 
 // ═══════════════════════════════════════════════════════════
