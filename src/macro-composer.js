@@ -156,5 +156,14 @@ export function updateMacroComposer(dt) {
   }
 }
 
+// ── Arc jump — controllo live (tasti numerici) ───────────────────────────────
+// Salta l'arco a pct e riprende il clock da lì (no freeze)
+export function jumpArc(pct) {
+  pct = Math.max(0, Math.min(1, pct));
+  _internalClock       = pct * CFG.MACRO.concertDurationSec;
+  macroState._debugArc = undefined;  // rilascia eventuale freeze debug
+  console.log('[MACRO] arc jump to:', pct.toFixed(2));
+}
+
 // ── Convenience getter ────────────────────────────────────────────────────────
 export function getMacroState() { return macroState; }
