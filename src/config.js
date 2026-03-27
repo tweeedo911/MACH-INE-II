@@ -4,7 +4,7 @@
 // ═══════════════════════════════════════════════════════════
 
 export const CFG = {
-  V3_MODE: false,       // false = v2 behavior (7 motori); true = v3 layer system (Phase 1+)
+  V3_MODE: true,        // false = v2 behavior (7 motori); true = v3 layer system (Phase 1+)
   bpmLerpBeats: 2,      // BPM transition lerp duration in beats (tempo-relative smoothing)
   debug: false,         // set true to enable periodic composer debug logs
   // ── Audio analyser ──
@@ -613,6 +613,81 @@ export const CFG = {
 
       // MIDI-04: channel assignment
       channels: { kick: 0, hat: 1, perc: 7 },
+    },
+  },
+
+  // ── MelodyTextureLayer v3 — CH3 bass melodico, CH5 voce con memoria, CH6 voce indipendente ──
+  MELODY: {
+    // ── Loop lengths — numeri primi (MELO-02, D-10) ──
+    // LCM(7,11,13) = 1001 step — poliritmo perpetuo, nessun ciclo identico
+    loopLenCH3: 7,      // CH3 BASS — 7 step
+    loopLenCH5: 11,     // CH5 VOICE — 11 step
+    loopLenCH6: 13,     // CH6 LEAD — 13 step
+
+    // ── Gating su melodicActivity ──
+    activityGateFloor: 0.04,    // sotto questa soglia tutti i canali tacciono
+    seedCaptureGateMin: 0.02,   // soglia piu bassa per permettere cattura seed in apertura
+
+    // ── Pitch range per canale (MIDI-02) ──
+    pitchRange: {
+      3: { min: 24, max: 48 },   // CH3 BASS: C1=24 — C3=48
+      5: { min: 36, max: 84 },   // CH5 VOICE: C2=36 — C6=84
+      6: { min: 48, max: 84 },   // CH6 LEAD: C3=48 — C6=84 (ottava sopra CH5 base)
+    },
+
+    // ── Velocity target per fase melodica ──
+    velTarget: {
+      sparse:  { ch3: 55, ch5: 45, ch6: 35 },   // apertura / dissoluzione
+      medium:  { ch3: 70, ch5: 60, ch6: 50 },   // sezione intermedia
+      dense:   { ch3: 85, ch5: 75, ch6: 65 },   // climax
+    },
+    velHumanize: 8,   // deviazione gaussiana velocity (identico a RHYTHM)
+
+    // ── Seed motivico (MELO-01, D-07, D-08, D-09) ──
+    seedLength:    4,       // numero di note nel motivo seed
+    seedWindowEnd: 0.15,    // arcPercent massimo per cattura (~6.75min su 45min)
+    seedReturnAt:  0.75,    // arcPercent trigger ritorno (~min33.75 su 45min)
+    seedReturnVel: 65,      // velocity del ritorno motivico su CH5
+    seedReturnNoteSpacingBars: 0.5,  // spacing tra note seed return in bar
+
+    // ── Probabilita emissione per step (D-06: default meno note, non piu) ──
+    // Scalata automaticamente da melodicActivity
+    emitProbability: {
+      ch3Base: 0.45,   // basso suona piu spesso (struttura armonica)
+      ch5Base: 0.25,   // voce melodica rarefatta
+      ch6Base: 0.20,   // lead ancora piu rado
+    },
+
+    // ── Durata note per canale (ms) — dipende dalla fase ──
+    noteDur: {
+      ch3: { sparse: 1800, dense: 900 },   // basso lungo in apertura, staccato al climax
+      ch5: { sparse: 1200, dense: 600 },
+      ch6: { sparse: 800,  dense: 400 },
+    },
+
+    // ── Markov voice weights (pattern da composer.js nextVoiceNote) ──
+    markov: {
+      stepBonus:   2.5,    // bonus movimento per grado (intervallo <= 3 semitoni)
+      jumpPenalty: 0.15,   // penalty salto grande (intervallo > 7 semitoni)
+      seedAffinity:     1.8,    // bonus se intervallo corrisponde al seed
+      seedNearAffinity: 1.3,    // bonus se intervallo vicino al seed (diff 1)
+      ch6JumpPreference: 1.6,   // CH6 preferisce salti — carattere angoloso (D-03)
+      ch6StepReduction:  0.7,   // CH6 riduce bonus step per differenziarsi da CH5
+    },
+
+    // ── Arpeggi incrociati (D-05) ──
+    arpeggio: {
+      activeRange: { min: 0.35, max: 0.70 },  // arcPercent range per arpeggi (~min15-31)
+      noteSpacingMs: 350,    // spacing tra note arpeggio
+      threshold:    0.5,     // melodicActivity minima per attivare cross-arpeggio
+      delayStp:     2,       // steps CH6 arpeggiation delay rispetto a CH5
+    },
+
+    // ── MIDI optimization (pattern da RHYTHM) ──
+    midi: {
+      downbeatBoost:  0.06,    // +6% velocity su downbeat (MIDI-01, piu delicato della ritmica)
+      offbeatReduce:  0.04,    // -4% velocity su offbeat
+      noteOffsetMs:   { min: 3, max: 18 },   // sfasamento anti-meccanico (MIDI-03)
     },
   },
 };
