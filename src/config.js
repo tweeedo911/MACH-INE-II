@@ -833,10 +833,10 @@ export const CFG = {
       },
       melody: {
         palette: 'magenta',
-        dotSize: 7,   densityMul: 0.9,  midiScale: 1.5,
-        trailMax: 40, flickerSpeed: 2.0,
+        dotSize: 7,   densityMul: 0.9,  midiScale: 2.2,   // was 1.5 — shape più grandi
+        trailMax: 64, flickerSpeed: 2.0,                   // was 40 — più note attive = disegno più ricco
         shapeScale: 1.0, densityGravity: 0,
-        onsetWaveSpeed: 600, midiDensityMul: 0.6, feedbackDecay: 0.95,
+        onsetWaveSpeed: 600, midiDensityMul: 1.0, feedbackDecay: 0.95, // was 0.6
       },
       // Master — quando nessun layer domina (macroState tutto basso)
       master: {
@@ -856,6 +856,37 @@ export const CFG = {
       'D_dorian':    'MONDRIAN_B', // blocchi asimmetrici — groove organico
       'C#_dorian':   'MONDRIAN_A', // grid bilanciato — geometria techno
       'E_phrygian':  'ISLANDS',    // isole sparse nel vuoto — dissoluzione
+    },
+
+    // ── Parametri visivi per modo modale (V3) ──
+    // Blendati con layer prefs (60% modo / 40% layer) — definiscono l'atmosfera di ogni sezione.
+    // Solo i parametri elencati vengono blendati; gli altri usano il layer pref puro.
+    modeParams: {
+      'A_lydian': {
+        // Emersione luminosa — pochi elementi, grandi, ogni nota melodica disegna
+        dotSize: 14,  densityMul: 0.45,  midiDensityMul: 1.5,
+        flickerSpeed: 0.2,  trailMax: 80,  midiScale: 3.2,
+      },
+      'Bb_phrygian': {
+        // Tensione rituale — campo denso e pesante, melodia compressa
+        dotSize: 4,   densityMul: 1.7,   midiDensityMul: 0.7,
+        flickerSpeed: 1.8,  trailMax: 28,  midiScale: 1.1,
+      },
+      'D_dorian': {
+        // Groove organico — caldo, bilanciato, melodia presente e ritmo solido
+        dotSize: 6,   densityMul: 1.1,   midiDensityMul: 1.1,
+        flickerSpeed: 3.5,  trailMax: 52,  midiScale: 2.0,
+      },
+      'C#_dorian': {
+        // Climax techno — geometrico, preciso, alta densità, ritmo domina
+        dotSize: 3,   densityMul: 2.0,   midiDensityMul: 0.9,
+        flickerSpeed: 7.0,  trailMax: 28,  midiScale: 1.4,
+      },
+      'E_phrygian': {
+        // Dissoluzione cristallina — rarefatto, trails lunghissimi, ogni nota è preziosa
+        dotSize: 11,  densityMul: 0.38,  midiDensityMul: 1.8,
+        flickerSpeed: 0.4,  trailMax: 96,  midiScale: 3.8,
+      },
     },
   },
 };

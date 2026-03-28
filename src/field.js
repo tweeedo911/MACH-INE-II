@@ -261,8 +261,8 @@ function computeDensity(nx, ny, px, py, state, globalTime, W, H) {
     }
   }
 
-  // MIDI trail — take strongest note only (max, not sum) for cleaner landmarks
-  let maxMidiD = 0;
+  // MIDI trail — percussion: max (clean landmarks); trail/melodic: accumulate (disegnano lo spazio)
+  let maxMidiD = 0, trailAccum = 0;
   for (const n of midiTrail) {
     if (n.alpha < 0.02) continue;
     const dx = nx - n.x, dy = ny - n.y;
@@ -307,16 +307,22 @@ function computeDensity(nx, ny, px, py, state, globalTime, W, H) {
         midiD = n.vel * n.alpha * 0.5;
       }
     } else {
-      // trail — rettangolo verticale
-      const hw = n.radius * 0.4, hh = n.radius * 0.8;
-      if (Math.abs(dx) < hw && Math.abs(dy) < hh) {
-        midiD = (1 - Math.abs(dy) / hh) * n.vel * n.alpha * 0.8;
+      // trail — striscia verticale ampia mappata al pitch: disegna lo spazio melodico
+      const hw = n.radius * 1.5, hh = n.radius * 1.2;
+      const adx = Math.abs(dx), ady = Math.abs(dy);
+      if (adx < hw && ady < hh) {
+        midiD = (1 - ady / hh) * (1 - adx / hw * 0.4) * n.vel * n.alpha;
       }
     }
 
-    if (midiD > maxMidiD) maxMidiD = midiD;
+    // Trail melodici si accumulano — più note = spazio più denso
+    if (n.shape === 'trail') {
+      trailAccum += midiD;
+    } else if (midiD > maxMidiD) {
+      maxMidiD = midiD;
+    }
   }
-  d += maxMidiD * engineRender.midiDensityMul;
+  d += (maxMidiD + Math.min(0.9, trailAccum * 0.65)) * engineRender.midiDensityMul;
 
   // Melodic contour: lines between consecutive TRAIL notes of same channel
   if (midiTrail.length >= 2) {
@@ -331,9 +337,9 @@ function computeDensity(nx, ny, px, py, state, globalTime, W, H) {
       const t = Math.max(0, Math.min(1, ((nx - a.x) * abx + (ny - a.y) * aby) / abLen2));
       const px2 = a.x + t * abx, py2 = a.y + t * aby;
       const lineDist = Math.sqrt((nx - px2) * (nx - px2) + (ny - py2) * (ny - py2));
-      const lineWidth = 0.02;
+      const lineWidth = 0.045;  // was 0.02 — contorno melodico visibile
       if (lineDist < lineWidth) {
-        d += Math.min(a.alpha, b.alpha) * (1 - lineDist / lineWidth) * 0.3;
+        d += Math.min(a.alpha, b.alpha) * (1 - lineDist / lineWidth) * 0.5;  // was 0.3
       }
     }
   }
