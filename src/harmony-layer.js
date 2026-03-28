@@ -23,6 +23,7 @@ let _currentVoicing  = null; // array note MIDI ultimo voicing CH4 (per voice le
 let _lastMode        = 'A_lydian'; // ultimo modo processato (per detect mode change)
 let _anchorIdx       = 0;    // indice anchor corrente nel modo
 let _chordCycleIdx   = 0;    // posizione nella sequenza progressionCycle
+let _prevBreakActive = false; // stato break precedente (per detect re-entry — RITM-05)
 
 // Ritmo armonico
 const _droneUpdateEvery = 2; // drone refresh ogni 2 bar (nota lunga 7.5 bar)
@@ -81,11 +82,15 @@ function applyVoiceLeading(prevChord, candidateNotes, maxLeap) {
 }
 
 // ── Update — chiamato ogni ~2ms dal Worker ────────────────────────────────────
-export function updateHarmonyLayer(dt) {
+export function updateHarmonyLayer(_dt) {
   // Step A — Bar clock e durata bar
   const currentBar = Math.floor(macroState.barClock);
   const bpm        = CFG.MACRO.bpmReference;
   const barMs      = (60 / bpm) * 4 * 1000; // durata 1 bar in ms (4/4)
+
+  // RITM-05: rileva re-entry dopo break (per punch bass)
+  const breakJustEnded = _prevBreakActive && !macroState.breakActive;
+  _prevBreakActive     = macroState.breakActive;
 
   // Step B — Detect mode change e reset ancora
   if (macroState.currentMode !== _lastMode) {
@@ -107,13 +112,19 @@ export function updateHarmonyLayer(dt) {
     // Durante pivot, il drone usa la nota pivot (D-11 — convergenza cromatica)
     const noteToSend = macroState.pivotActive ? macroState.pivotNote : droneNote;
 
-    // Velocity tappeto (50-70): udibile in performance, non in primo piano
-    const vel = 50 + Math.round(macroState.harmonicColor * 20);
-
-    // Drone root su CH2 — nota molto lunga, rinnovata ogni 2 bar per continuita'
-    _rawSend(2, noteToSend,      Math.max(1, vel),                      barMs * 7.5);
-    // Seconda nota drone un'ottava sopra — spessore armonico (upper structure)
-    _rawSend(2, noteToSend + 12, Math.max(1, Math.round(vel * 0.7)),    barMs * 7.5);
+    // HARM-06: drone breathing — skip con probabilita' inversamente proporzionale a harmonicColor
+    // A harmonicColor basso: skip prob ~25%; a harmonicColor 1.0: skip prob ~5%
+    const skipProb = CFG.MACRO.droneSkipProb * (1 - macroState.harmonicColor * 0.8);
+    if (Math.random() >= skipProb) {
+      // Velocity tappeto (40-65): piu' morbido del precedente 50-70
+      const vel = 40 + Math.round(macroState.harmonicColor * 25);
+      // Drone root su CH2 — nota molto lunga, rinnovata ogni 2 bar per continuita'
+      _rawSend(2, noteToSend, Math.max(1, vel), barMs * 7.5);
+      // Seconda voce (ottava alta) — probabilistica (HARM-06: 60% delle volte)
+      if (Math.random() < CFG.MACRO.droneOctaveProb) {
+        _rawSend(2, noteToSend + 12, Math.max(1, Math.round(vel * 0.7)), barMs * 7.5);
+      }
+    }
   }
 
   // Step D — Accordi su CH4 e bass su CH3 (HARM-03, HARM-04, HARM-05)
@@ -173,8 +184,12 @@ export function updateHarmonyLayer(dt) {
     _currentVoicing = chordNotes;
 
     // Bass root/quinta su CH3 (HARM-03: separa struttura bassa da upper structure CH2)
-    const bassNote = anchor.bass;
-    sendNote(3, bassNote, 50 + Math.round(macroState.harmonicColor * 40),
-             barMs * _chordUpdateEvery);
+    // RITM-05: basso silenzioso durante break, punch velocity al re-entry
+    if (!macroState.breakActive) {
+      const bassNote  = anchor.bass;
+      const bassBoost = breakJustEnded ? CFG.RHYTHM.break.punchVelBoost : 0;
+      const bassVel   = Math.min(127, 50 + Math.round(macroState.harmonicColor * 40) + bassBoost);
+      sendNote(3, bassNote, bassVel, barMs * _chordUpdateEvery);
+    }
   }
 }

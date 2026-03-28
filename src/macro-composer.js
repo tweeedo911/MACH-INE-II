@@ -19,6 +19,7 @@ export const macroState = {
   pivotNote:       57,   // MIDI note della pivot condivisa
   arcPercent:      0,    // 0.0-1.0 del concerto
   barClock:        0,    // bar count accumulato (per HarmonyLayer)
+  breakActive:     false, // RITM-05: break ciclico kick+basso attivo (scritto da RhythmLayer)
 };
 
 // ── Internal state (non-exported) ────────────────────────────────────────────
@@ -41,6 +42,7 @@ export function initMacroComposer() {
   macroState.pivotNote       = 57;
   macroState.arcPercent      = 0;
   macroState.barClock        = 0;
+  macroState.breakActive     = false;
 
   _internalClock      = 0;
   _driftPhase         = 0;

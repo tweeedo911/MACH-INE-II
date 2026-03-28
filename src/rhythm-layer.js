@@ -110,6 +110,13 @@ let _percLastSteps   = {};          // ultimo step processato per ogni nota
 // Eventi speciali gated (D-09) — trigger da arcPercent, non dai pattern normali
 let _specialFired = { falseRes: false, climax: false, dissolve: false };
 
+// Break ciclici kick+basso (RITM-05)
+let _breakActive    = false;  // break corrente attivo
+let _breakBarStart  = -1;     // bar di inizio break corrente
+let _breakDurBars   = 0;      // durata break corrente in bar
+let _nextBreakBar   = 12;     // bar a cui il prossimo break può iniziare
+let _punchNextKick  = false;  // flag: prossimo kick esce con boost velocity
+
 // ═══════════════════════════════════════════════════════════
 //  PHASE DETECTION — arco 5 fasi (RITM-02)
 // ═══════════════════════════════════════════════════════════
@@ -228,6 +235,42 @@ function _onKickStep(step) {
   _bar        = Math.floor(step / 16);
   _currentStep16 = s16;
 
+  // ── Break ciclici (RITM-05) — gestione a inizio bar ──────────────────────
+  if (s16 === 0) {
+    const arc = macroState.arcPercent;
+    const br  = CFG.RHYTHM.break;
+
+    if (_breakActive) {
+      // Controlla se il break è finito
+      if (_bar - _breakBarStart >= _breakDurBars) {
+        _breakActive           = false;
+        macroState.breakActive = false;
+        _punchNextKick         = true;
+        // Schedula il prossimo break
+        const cooldown = br.minCooldownBars +
+          Math.floor(Math.random() * (br.maxCooldownBars - br.minCooldownBars + 1));
+        _nextBreakBar = _bar + cooldown;
+        console.log('[RHYTHM] break end — punch re-entry @bar', _bar, '| next in', cooldown, 'bars');
+      }
+    } else if (_bar >= _nextBreakBar && arc >= br.minArc && arc <= br.maxArc) {
+      // Inizia nuovo break con probabilita'
+      if (Math.random() < br.probability) {
+        _breakDurBars          = br.minDurationBars +
+          Math.floor(Math.random() * (br.maxDurationBars - br.minDurationBars + 1));
+        _breakBarStart         = _bar;
+        _breakActive           = true;
+        macroState.breakActive = true;
+        console.log('[RHYTHM] break start @bar', _bar, '| dur:', _breakDurBars, 'bars');
+      } else {
+        // Riprova al prossimo slot
+        _nextBreakBar = _bar + br.minCooldownBars;
+      }
+    }
+  }
+
+  // Kick silenzioso durante il break
+  if (_breakActive) return;
+
   const phase   = _currentPhase;
   const pats    = CFG.RHYTHM.kick.patterns;
   const gateP   = CFG.RHYTHM.kick.gateProbability;
@@ -265,7 +308,12 @@ function _onKickStep(step) {
 
   if (!pattern || !pattern[s16]) return;
 
-  const baseVel = isDown ? CFG.RHYTHM.kick.velDownbeat : CFG.RHYTHM.kick.velOffbeat;
+  // Punch velocity boost al re-entry dopo un break (RITM-05)
+  let baseVel = isDown ? CFG.RHYTHM.kick.velDownbeat : CFG.RHYTHM.kick.velOffbeat;
+  if (_punchNextKick) {
+    baseVel = Math.min(127, baseVel + CFG.RHYTHM.break.punchVelBoost);
+    _punchNextKick = false;
+  }
   sendNote(CFG.RHYTHM.midi.channels.kick, CFG.RHYTHM.kick.note, baseVel, CFG.RHYTHM.kick.durMs);
 }
 
@@ -408,6 +456,12 @@ export function initRhythmLayer() {
   _percLastSteps      = {};
 
   _specialFired       = { falseRes: false, climax: false, dissolve: false };
+
+  _breakActive        = false;
+  _breakBarStart      = -1;
+  _breakDurBars       = 0;
+  _nextBreakBar       = 12;
+  _punchNextKick      = false;
 
   sendMIDIAllNotesOff();
   console.log('[RHYTHM] init');

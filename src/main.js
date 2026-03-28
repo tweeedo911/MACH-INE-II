@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════
 //  MACH:INE II — Boot & Module Wiring
-//  v2.8.0: 5-act concert + multi-engine overlap + channel priority
+//  v2.9.0: V3 layer system + break cycles + arc jump + compositional quality
 // ═══════════════════════════════════════════════════════════
 
 import { CFG } from './config.js';
