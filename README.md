@@ -31,35 +31,47 @@ Poi apri `http://localhost:8282` nel browser.
 
 ---
 
-## 7 Motori Compositivi
+## Sistema Compositivo V3
 
-Ogni motore e un organismo musicale autonomo con 5 fasi narrative:
+`CFG.V3_MODE = true` attiva il sistema generativo di nuova generazione: un MacroComposer coordina 4 layer indipendenti per un concerto continuo di 45 minuti con arco narrativo precomposto.
+
+### Arco narrativo — 5 modi musicali in sequenza
+
+| Arco | Modo | Carattere |
+|------|------|-----------|
+| 0–20% | A Lydian | Emersione luminosa |
+| 20–40% | Bb Phrygian | Tensione frigia |
+| 40–60% | D Dorian | Groove organico |
+| 60–80% | C# Dorian | Densita industriale |
+| 80–100% | E Phrygian | Dissoluzione |
+
+### 4 Layer V3
+
+| Layer | Canali | Funzione |
+|-------|--------|----------|
+| MacroComposer | — | Stato 4D (density/color/activity/texture), nessun MIDI |
+| HarmonyLayer | CH2 drone, CH3 basso, CH4 accordi | Armonia modale con voice leading |
+| RhythmLayer | CH0 kick, CH1 hi-hat, CH7 perc | Ritmo 5 fasi + phasing Reich + Glass additive |
+| MelodyTextureLayer | CH5 voice, CH6 lead | Melodia Markov + phrase repetition + cross-arpeggio |
+
+Break ciclici automatici ogni 10-20 bar: kick e basso escono per 2-4 bar, poi rientrano con punch. Hat, drone, accordi e melodia continuano.
+
+---
+
+## 7 Motori Compositivi (V2 legacy)
+
+Disponibili in `V3_MODE = false`. Ogni motore e un organismo musicale autonomo con 5 fasi narrative:
 GERMOGLIO → PULSAZIONE → DENSITA → ROTTURA → DISSOLUZIONE
 
 | Tasto | Motore | Tonalita | BPM | Carattere |
 |-------|--------|----------|-----|-----------|
-| 1 | DERIVA | A Lydian | — | Ambient beatless, brightness-driven |
-| 2 | CRISTALLO | Eb Lydian | 54 | Shimmer arpeggios, pad glaciali |
-| 3 | ABISSO | Bb Phrygian | 76 | Drone rituale, risalita in rottura |
-| 4 | TERRENO | D Dorian | 72 | Dub lento, groove organico |
-| 5 | MECCANICA | C# Dorian | 98 | Layer poliritmici, techno strutturato |
-| 6 | VORTICE | F Phrygian | 138 | Step sequencer tribale, micro-loop |
-| 7 | SOLCO | G Dorian | 128 | Berlin techno, kick-first, groove industriale |
-
-### Concerto Autonomo (Sequencer v3)
-
-Premi `0` per avviare una performance autonoma di 40 minuti strutturata in 5 atti drammaturgici:
-
-| Atto | Tempo | Motori | Carattere |
-|------|-------|--------|-----------|
-| I EMERGENZA | 0:00–8:00 | DERIVA → CRISTALLO | Emersione dal silenzio |
-| II DISCESA | 8:00–18:00 | CRISTALLO → ABISSO → TERRENO | Discesa nelle profondita |
-| III MACCHINA | 18:00–28:00 | TERRENO → MECCANICA + SOLCO (da min 22) | Meccanismo industriale |
-| IV VORTICE | 28:00–36:00 | MECCANICA → VORTICE + climax globale | Vortice e convergenza |
-| V RITORNO | 36:00–40:00 | Dissoluzione | Ritorno al silenzio |
-
-Momenti-firma: SOLCO sotto (min 22), GELO (min 24), CONVERGENZA (min 33), INVERSIONE (min 34), VUOTO TOTALE (min 36).
-Sovrapposizione multi-motore con crossfade a presenza variabile. `→` salta alla cue successiva.
+| Q | TERRENO | D Dorian | 72 | Dub lento, groove organico |
+| W | MECCANICA | C# Dorian | 98 | Layer poliritmici, techno strutturato |
+| E | DERIVA | A Lydian | — | Ambient beatless, brightness-driven |
+| A | VORTICE | F Phrygian | 138 | Step sequencer tribale, micro-loop |
+| S | CRISTALLO | Eb Lydian | 54 | Shimmer arpeggios, pad glaciali |
+| D | ABISSO | Bb Phrygian | 76 | Drone rituale, risalita in rottura |
+| F | SOLCO | G Dorian | 128 | Berlin techno, kick-first, groove industriale |
 
 ---
 
@@ -67,15 +79,21 @@ Sovrapposizione multi-motore con crossfade a presenza variabile. `→` salta all
 
 | Tasto | Azione |
 |-------|--------|
-| 1–7 | Attiva motore (mutua esclusione) |
+| 1–5 | Arc jump V3: 0% / 22% / 50% / 75% / 90% |
 | 0 | Sequencer autopilot on/off |
-| → | Skip al prossimo motore (in sequencer) |
+| Shift+0 | Stop sequencer con reset |
+| → | Skip alla cue successiva |
+| ← | Cue precedente |
+| Shift+→ | Salta al prossimo atto |
+| Space | Pausa / riprendi |
+| L | Toggle loop |
+| Shift+R | Recupera stato da sessione precedente |
+| P | Apri finestra proiettore |
 | H | Toggle HUD minimal |
 | D | Toggle HUD debug |
 | F | Fullscreen |
 | R | Rigenera DNA (nuovo mondo visivo) |
-| N | Forza mutazione manuale |
-| e | Gain audio input - |
+| è | Gain audio input - |
 | + | Gain audio input + |
 
 ---
@@ -142,6 +160,10 @@ MACH:INE II/
 │   ├── render.js            orchestratore render + HUD
 │   ├── presence-multiplier.js  sistema presenza multi-motore (0→1 per engine)
 │   ├── sequencer.js         concerto 5 atti, momenti-firma, crossfade
+│   ├── macro-composer.js    V3: stato 4D, arco narrativo, modi musicali
+│   ├── harmony-layer.js     V3: drone CH2, basso CH3, accordi CH4
+│   ├── rhythm-layer.js      V3: kick CH0, hi-hat CH1, perc CH7, break ciclici
+│   ├── melody-texture-layer.js  V3: melodia CH5 + lead CH6
 │   ├── composer.js          TERRENO (D Dorian 72bpm)
 │   ├── composer2.js         MECCANICA (C# Dorian 98bpm)
 │   ├── composer3.js         DERIVA (A Lydian, beatless)
@@ -181,7 +203,7 @@ MACH:INE II/
 
 ## Versione corrente
 
-`v2.8.0` — vedi [CHANGELOG.md](CHANGELOG.md) per i dettagli.
+`v2.9.0` — vedi [CHANGELOG.md](CHANGELOG.md) per i dettagli.
 
 ---
 

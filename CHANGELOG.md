@@ -5,6 +5,37 @@ Formato: `[versione] – data – descrizione`
 
 ---
 
+## [v2.9.0] – 2026-03-28
+
+**Sistema V3 — MacroComposer + layer armonico/ritmico/melodico completo. Qualità compositiva e controllo live.**
+
+### Aggiunto
+- **MacroComposer v3** (`macro-composer.js`): stato 4D (`rhythmicDensity`, `harmonicColor`, `melodicActivity`, `textureDepth`) interpolato su curva hermite precomposta per l'intera durata del concerto (45 min). 5 modi musicali con pivot di un bar alle transizioni.
+- **HarmonyLayer v3** (`harmony-layer.js`): drone CH2 (root + ottava, 7.5 bar), basso CH3 con voice leading tra anchor, accordi CH4 con `progressionCycle` 8-step per modo + voice leading + cromatismi Four Tet (12%).
+- **RhythmLayer v3** (`rhythm-layer.js`): kick 5 fasi (arhythmic→emerging→groove→climax→dissolving) guidate da `rhythmicDensity`. Hi-hat phasing Reich 8/9 step. Percussioni CH7 additive Glass (lunghezze prime 5/7/11/13).
+- **MelodyTextureLayer v3** (`melody-texture-layer.js`): melodia Markov CH5 con phrase buffer Reich/Nyman (frase 4 note, ripetuta 4×), seed motif catturato al primo ciclo. Arpeggio CH6 in dialogo cross-layer.
+- **Arc jump live** (`main.js`, `macro-composer.js`, `sequencer.js`): in V3_MODE i tasti 1-5 saltano l'arco narrativo (0%/22%/50%/75%/90%) sincronizzando sequencer e clock interno.
+- **Break ciclici kick+basso** (`rhythm-layer.js`, `harmony-layer.js`, `macro-composer.js`): ogni 10-20 bar kick e basso escono per 2-4 bar, hat/drone/accordi/melodia continuano. Re-entry con +28 velocity punch. Attivo tra arco 15-88%.
+- **`breakActive`** in `macroState`: flag condiviso tra RhythmLayer e HarmonyLayer per coordinare il break senza coupling diretto.
+
+### Modificato
+- **Chord progression cycle** (`config.js`, `harmony-layer.js`): `progressionCycle` per ogni modo — sequenza 8-step predeterminata di anchor voicing invece di selezione casuale. Narrativa armonica riconoscibile.
+- **Harmonic rhythm** (`harmony-layer.js`): accordi ogni 4 bar → ogni 2 bar. Progressione più viva.
+- **Bass voice leading** (`config.js`): note di basso distinte per ogni anchor voicing — il basso si muove tra gli accordi.
+- **Drone breathing** (`config.js`, `harmony-layer.js`): skip probability 25% (inversamente proporzionale a `harmonicColor`), ottava alta probabilistica (60%), velocity abbassata 50-70 → 40-65.
+- **Markov rebalancing** (`config.js`): `stepBonus` 2.5→1.5, `jumpPenalty` 0.15→0.35 — melodia meno mononota.
+- **Phrase repetition CH5** (`melody-texture-layer.js`, `config.js`): frase 4 note ripetuta 4× prima di rigenerare — memoria melodica riconoscibile.
+- **Sequencer in Worker** (`main.js`): `updateSequencer()` spostato dal loop rAF (throttolato in background) al Worker MIDI (unthrottled).
+- **Percussion timing** (`config.js`): offset microtemporale 5-30ms → 2-12ms.
+
+### Corretto
+- **dt unit bug** (`macro-composer.js`): il clock interno girava 1000× più lento — il Worker invia già `dt` in secondi, non in ms.
+- **Drone block return** (`harmony-layer.js`): `return` prematuro nel drone skip causava blocco di accordi e basso; ristrutturato come `if (Math.random() >= skipProb) { ... }`.
+- **CH3 dual-write** (`melody-texture-layer.js`): MelodyTextureLayer e HarmonyLayer scrivevano entrambi su CH3; MelodyTextureLayer cede CH3 a HarmonyLayer.
+- **Dissoluzione melody** (`config.js`): `melodicActivity` finale era sotto-bilanciata; checkpoint corretti.
+
+---
+
 ## [v2.8.0] – 2026-03-26
 
 **Profondità compositiva — kick suppression, ride progressivo, arpeggi intrecciati, anticipo SOLCO.**

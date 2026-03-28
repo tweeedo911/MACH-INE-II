@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════
 //  MACH:INE II — Centralized Configuration
-//  v2.8.0: presence-multiplier arc competition + dissoluzione bass-kick rebuild
+//  v2.9.0: V3 layer system complete — MacroComposer + HarmonyLayer + RhythmLayer + MelodyTextureLayer
 // ═══════════════════════════════════════════════════════════
 
 export const CFG = {
@@ -457,6 +457,10 @@ export const CFG = {
       'E_phrygian':  57, // A3 — E Phrygian su radice A con colore frigio
     },
 
+    // Drone breathing — skip/octave probabilities (HARM-06)
+    droneSkipProb:   0.25, // probabilita' base di saltare un rinnovo (piu' bassa a harmonicColor alto)
+    droneOctaveProb: 0.60, // probabilita' che la seconda voce (ottava alta) venga inviata
+
     // Pivot notes per transizioni modali (D-11)
     pivotNotes: {
       'A_lydian->Bb_phrygian':  57, // A3
@@ -623,6 +627,20 @@ export const CFG = {
 
       // MIDI-04: channel assignment
       channels: { kick: 0, hat: 1, perc: 7 },
+    },
+
+    // ── Break ciclici kick+basso (RITM-05) ──
+    // Vuoti locali periodici indipendenti dall'arco macro — kick e basso escono,
+    // hat/drone/accordi/melodia continuano. Re-entry con punch velocity.
+    break: {
+      probability:     0.65,  // probabilita' break quando cooldown scaduto
+      minCooldownBars: 10,    // barre minime tra un break e il successivo
+      maxCooldownBars: 20,    // barre massime tra un break e il successivo
+      minDurationBars:  2,    // durata minima break (bar)
+      maxDurationBars:  4,    // durata massima break (bar)
+      punchVelBoost:   28,    // boost velocity kick e basso al re-entry
+      minArc:          0.15,  // non parte prima del 15% arco (musica deve stabilirsi)
+      maxArc:          0.88,  // non parte dopo 88% (lascia respirare il finale)
     },
   },
 
