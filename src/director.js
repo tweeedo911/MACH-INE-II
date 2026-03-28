@@ -275,22 +275,19 @@ function _updateDirectorV3(dt) {
   const act = _getV3Act(arcPct);
   const actCfg = vis.acts[act];
 
-  // Cambio atto → transizione scena + palette + camera
+  // Cambio atto → transizione scena + camera (palette gestita da setPaletteForMode in V3)
   if (act !== _v3LastAct) {
     _v3LastAct = act;
     // Trova scena target per nome
     const targetScene = SCENES.find(s => s.name === actCfg.scene);
     if (targetScene) transitionToScene(targetScene, false);
-    // Palette: usa la palette del layer dominante (ha precedenza sull'atto)
-    setPalette(prefs.palette);
     // Camera: richiedi framing atto
     if (actCfg.camera) requestFraming(actCfg.camera);
   }
 
-  // Palette continua: se il layer dominante cambia, aggiorna palette
+  // Track layer change per parametri render (senza sovrascrivere palette modale)
   if (engineRender._lastMusicalPhase !== layerKey) {
     engineRender._lastMusicalPhase = layerKey;
-    setPalette(prefs.palette);
   }
 }
 
@@ -627,6 +624,8 @@ export const scene = {
   _regionsTarget: [],
   _blendBuffer: [],    // pre-allocated: same-length blend interpolation
   _dynBuffer: [],      // pre-allocated: dynamic arc modifications
+  _compBlend: 1.0,     // blend separato per composition-only transition (mode change)
+  _compBlendSpeed: 0.07, // ~14s per transizione — evita flash bruscop tra sezioni
 };
 
 // ── Engine render overrides (read by field.js) ──
@@ -659,16 +658,19 @@ function transitionToScene(newScene, instant) {
     scene.blendSpeed = blendMul / (CFG.sceneTransitionBars * 2);
   }
 
-  // Apply palette — engine preference overrides scene default
-  const engine = getEngine();
-  const prefs = engine ? ENGINE_PREFS[engine] : null;
-  let palName = newScene.palette;
-  if (prefs) {
-    palName = prefs.palette;
-  } else if (newScene.name === 'COLORED_GROUND') {
-    palName = COLORED_PALETTES[Math.floor(Math.random() * COLORED_PALETTES.length)];
+  // Apply palette — in V3 mode la palette è gestita da setPaletteForMode (macro-composer)
+  // In v2 mode applica la preferenza engine o la default della scena
+  if (!CFG.V3_MODE) {
+    const engine = getEngine();
+    const prefs = engine ? ENGINE_PREFS[engine] : null;
+    let palName = newScene.palette;
+    if (prefs) {
+      palName = prefs.palette;
+    } else if (newScene.name === 'COLORED_GROUND') {
+      palName = COLORED_PALETTES[Math.floor(Math.random() * COLORED_PALETTES.length)];
+    }
+    setPalette(palName);
   }
-  setPalette(palName);
 
   // Apply invert
   if (newScene.invertBase !== scene.current.invertBase) {
@@ -700,9 +702,13 @@ function updateSceneBlend(dt) {
   // Snap booleans at 0.5
   scene.invertBase = t > 0.5 ? to.invertBase : from.invertBase;
 
-  // Lerp composition regions — cross-fade instead of snap
-  if (t >= 1) {
-    scene.current = scene.target;
+  // Lerp composition regions — usa _compBlend separato per mode-change transitions
+  if (scene._compBlend < 1) {
+    scene._compBlend = Math.min(1, scene._compBlend + scene._compBlendSpeed * dt);
+  }
+  const ct = scene._compBlend;
+
+  if (ct >= 1) {
     scene.regions = scene._regionsTarget;
   } else if (scene._regionsCurrent && scene._regionsCurrent.length === scene._regionsTarget.length) {
     // Same length: interpolate into pre-allocated _blendBuffer
@@ -711,20 +717,23 @@ function updateSceneBlend(dt) {
     scene._blendBuffer.length = len;
     for (let i = 0; i < len; i++) {
       const r = scene._regionsCurrent[i], rt = scene._regionsTarget[i], b = scene._blendBuffer[i];
-      b.x = r.x + (rt.x - r.x) * t;
-      b.y = r.y + (rt.y - r.y) * t;
-      b.w = r.w + (rt.w - r.w) * t;
-      b.h = r.h + (rt.h - r.h) * t;
-      b.mul = r.mul + (rt.mul - r.mul) * t;
+      b.x = r.x + (rt.x - r.x) * ct;
+      b.y = r.y + (rt.y - r.y) * ct;
+      b.w = r.w + (rt.w - r.w) * ct;
+      b.h = r.h + (rt.h - r.h) * ct;
+      b.mul = r.mul + (rt.mul - r.mul) * ct;
       if (r.fillColor !== undefined) b.fillColor = r.fillColor;
     }
     scene.regions = scene._blendBuffer;
   } else {
     // Different lengths: cross-fade old (decreasing) + new (increasing)
-    const oldRegs = (scene._regionsCurrent || []).map(r => ({ ...r, mul: r.mul * (1 - t) }));
-    const newRegs = scene._regionsTarget.map(r => ({ ...r, mul: r.mul * t }));
+    const oldRegs = (scene._regionsCurrent || []).map(r => ({ ...r, mul: r.mul * (1 - ct) }));
+    const newRegs = scene._regionsTarget.map(r => ({ ...r, mul: r.mul * ct }));
     scene.regions = [...oldRegs, ...newRegs];
   }
+
+  // scene.current snap at scene.blend=1 (parametri non-regioni)
+  if (t >= 1) scene.current = scene.target;
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -1229,6 +1238,16 @@ export function releaseArcHold() {
   arc._stateHold = 0;
 }
 
+// ── Modal composition — chiamato da macro-composer su mode change (V3) ────────
+// Cambia solo le regioni di layout, senza toccare palette/dotSize/scena.
+export function setCompositionForMode(mode) {
+  const name = CFG.VISUAL.modeComposition?.[mode];
+  if (!name || !COMPOSITIONS[name]) return;
+  scene._regionsCurrent = scene.regions.length ? scene.regions.map(r => ({ ...r })) : [];
+  scene._regionsTarget  = COMPOSITIONS[name];
+  scene._compBlend      = 0; // avvia cross-fade
+}
+
 // ── Dimensioni canvas (aggiornate ogni frame da updateDirector) ──
 let _W = 800, _H = 600, _state = {};
 
@@ -1253,6 +1272,7 @@ export function initDirectorEvents() {
   });
 
   onDirectorEvent('chord_change', ({ mode }) => {
+    if (CFG.V3_MODE) return; // palette gestita da setPaletteForMode in V3
     const map = {
       Cs_dorian: 'default', Cs_phrygian: 'default',
       Gs_lydian: 'cyan',    D_locrian: 'cold',

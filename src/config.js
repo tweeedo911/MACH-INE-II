@@ -413,10 +413,10 @@ export const CFG = {
     // Checkpoint array — arco 4D precomposto su 45 minuti
     // rD=rhythmicDensity, hC=harmonicColor, mA=melodicActivity, tD=textureDepth
     checkpoints: [
-      { pct: 0.00, rD: 0.0, hC: 0.1, mA: 0.0, tD: 0.1, mode: 'A_lydian' },
-      { pct: 0.22, rD: 0.1, hC: 0.3, mA: 0.1, tD: 0.2, mode: 'A_lydian' },
-      { pct: 0.44, rD: 0.3, hC: 0.7, mA: 0.4, tD: 0.4, mode: 'Bb_phrygian' },
-      { pct: 0.62, rD: 0.5, hC: 1.0, mA: 0.5, tD: 0.5, mode: 'Bb_phrygian' },   // harmonicColor PEAK ~min28
+      { pct: 0.00, rD: 0.0, hC: 0.0, mA: 0.0, tD: 0.1, mode: 'A_lydian' },
+      { pct: 0.22, rD: 0.1, hC: 0.3, mA: 0.20, tD: 0.2, mode: 'A_lydian' },   // mA alzato: melodia udibile da ~10min
+      { pct: 0.44, rD: 0.3, hC: 0.7, mA: 0.50, tD: 0.4, mode: 'Bb_phrygian' }, // mA alzato: voce presente nella sezione frigia
+      { pct: 0.62, rD: 0.5, hC: 1.0, mA: 0.60, tD: 0.5, mode: 'Bb_phrygian' }, // mA alzato: melodia forte al picco armonico ~min28
       { pct: 0.73, rD: 0.7, hC: 0.7, mA: 0.6, tD: 0.6, mode: 'D_dorian' },       // density building
       { pct: 0.75,  rD: 0.0, hC: 0.5, mA: 0.3, tD: 0.4, mode: 'D_dorian', instant: true }, // FALSE RESOLUTION start
       { pct: 0.758, rD: 0.0, hC: 0.5, mA: 0.3, tD: 0.4, mode: 'D_dorian' },              // FALSE RESOLUTION hold — 8 bar a 88BPM (~21.8s = 0.008 pct)
@@ -470,44 +470,74 @@ export const CFG = {
       'E_phrygian->A_lydian':   57, // A3
     },
 
-    // Anchor voicings per modo (D-13) — 3 voicings: apertura, pivot, picco
-    // Formato: { ch2: [note, note], ch4: [note, note, note], bass: note }
+    // Anchor voicings per modo (D-13, H2) — 5 voicings: apertura, pivot, picco, colore, tensione
+    // Formato: { bass, bassAlt, ch2: [lo, hi], ch4: [n, n, n] }
+    // bassAlt — nota basso alternata per bass melodico (H3); ch2 — drone tracking armonico (H3)
     anchors: {
       'A_lydian': [
-        { bass: 45, ch2: [57, 69], ch4: [64, 66, 69] },      // apertura: A2 bass, A3+A4 drone, E4+F#4+A4
-        { bass: 40, ch2: [57, 68], ch4: [61, 64, 68] },      // pivot: E2 (quinta), A3+Ab4, C#4+E4+Ab4
-        { bass: 42, ch2: [57, 69], ch4: [66, 69, 73] },      // picco: F#2 (sesta lidia), A3+A4, F#4+A4+C#5
+        { bass: 45, bassAlt: 52, ch2: [57, 69], ch4: [64, 66, 69] },  // apertura: A2→E3, A3+A4, E4+F#4+A4
+        { bass: 40, bassAlt: 45, ch2: [57, 68], ch4: [61, 64, 68] },  // pivot: E2→A2, A3+G#4, C#4+E4+G#4
+        { bass: 42, bassAlt: 49, ch2: [57, 69], ch4: [66, 69, 73] },  // picco: F#2→C#3, A3+A4, F#4+A4+C#5
+        { bass: 47, bassAlt: 42, ch2: [59, 71], ch4: [59, 64, 66] },  // colore: B2→F#2, B3+B4, B3+E4+F#4
+        { bass: 44, bassAlt: 47, ch2: [61, 73], ch4: [61, 66, 69] },  // tensione: G#2→B2, C#4+C#5, C#4+F#4+A4
       ],
       'Bb_phrygian': [
-        { bass: 46, ch2: [57, 70], ch4: [63, 65, 70] },      // apertura: Bb2, A3+Bb4, Eb4+F4+Bb4
-        { bass: 39, ch2: [57, 70], ch4: [65, 68, 70] },      // pivot: Eb2 (quarta), A3+Bb4, F4+Ab4+Bb4
-        { bass: 41, ch2: [57, 70], ch4: [63, 66, 70] },      // picco: F2 (quinta), A3+Bb4, Eb4+F#4+Bb4
+        { bass: 46, bassAlt: 53, ch2: [57, 70], ch4: [63, 65, 70] },  // apertura: Bb2→F3, A3+Bb4, Eb4+F4+Bb4
+        { bass: 39, bassAlt: 46, ch2: [57, 70], ch4: [65, 68, 70] },  // pivot: Eb2→Bb2, A3+Bb4, F4+Ab4+Bb4
+        { bass: 41, bassAlt: 46, ch2: [57, 70], ch4: [63, 66, 70] },  // picco: F2→Bb2, A3+Bb4, Eb4+Gb4+Bb4
+        { bass: 44, bassAlt: 39, ch2: [56, 68], ch4: [60, 63, 68] },  // abisso: Ab2→Eb2, Ab3+Ab4, C4+Eb4+Ab4
+        { bass: 39, bassAlt: 41, ch2: [58, 70], ch4: [58, 63, 65] },  // tensione: Eb2→F2, Bb3+Bb4, Bb3+Eb4+F4
       ],
       'D_dorian': [
-        { bass: 38, ch2: [50, 62], ch4: [57, 60, 62] },      // apertura: D2, D3+D4, A3+C4+D4
-        { bass: 45, ch2: [50, 62], ch4: [59, 62, 65] },      // pivot: A2 (quinta), D3+D4, B3+D4+F4
-        { bass: 43, ch2: [50, 62], ch4: [57, 60, 64] },      // picco: G2 (quarta), D3+D4, A3+C4+E4
+        { bass: 38, bassAlt: 45, ch2: [50, 62], ch4: [57, 60, 62] },  // apertura: D2→A2, D3+D4, A3+C4+D4
+        { bass: 45, bassAlt: 38, ch2: [50, 62], ch4: [59, 62, 65] },  // pivot: A2→D2, D3+D4, B3+D4+F4
+        { bass: 43, bassAlt: 50, ch2: [50, 62], ch4: [57, 60, 64] },  // picco: G2→D3, D3+D4, A3+C4+E4
+        { bass: 43, bassAlt: 38, ch2: [55, 67], ch4: [55, 59, 62] },  // IV dorico: G2→D2, G3+G4, G3+B3+D4
+        { bass: 36, bassAlt: 43, ch2: [48, 60], ch4: [48, 52, 57] },  // bVII dub: C2→G2, C3+C4, C3+E3+A3
       ],
       'C#_dorian': [
-        { bass: 37, ch2: [57, 61], ch4: [56, 58, 61] },      // apertura: C#2, A3+C#4, G#3+A#3+C#4
-        { bass: 44, ch2: [57, 61], ch4: [58, 61, 64] },      // pivot: G#2 (quinta), A3+C#4, A#3+C#4+E4
-        { bass: 42, ch2: [57, 61], ch4: [56, 59, 63] },      // picco: F#2 (quarta), A3+C#4, G#3+B3+Eb4
+        { bass: 37, bassAlt: 44, ch2: [57, 61], ch4: [58, 61, 68] },  // apertura: C#2→G#2, A3+C#4, A#3+C#4+G#4
+        { bass: 44, bassAlt: 37, ch2: [57, 61], ch4: [58, 61, 64] },  // pivot: G#2→C#2, A3+C#4, A#3+C#4+E4
+        { bass: 42, bassAlt: 49, ch2: [57, 61], ch4: [59, 63, 68] },  // picco: F#2→C#3, A3+C#4, B3+D#4+G#4
+        { bass: 35, bassAlt: 42, ch2: [54, 66], ch4: [54, 58, 61] },  // quarta: B1→F#2, F#3+F#4, F#3+A#3+C#4
+        { bass: 40, bassAlt: 44, ch2: [59, 71], ch4: [52, 59, 68] },  // b7 techno: E2→G#2, B3+B4, E3+B3+G#4
       ],
       'E_phrygian': [
-        { bass: 40, ch2: [57, 64], ch4: [59, 62, 64] },      // apertura: E2, A3+E4, B3+D4+E4
-        { bass: 45, ch2: [57, 64], ch4: [60, 64, 67] },      // pivot: A2 (quarta), A3+E4, C4+E4+G4
-        { bass: 47, ch2: [57, 64], ch4: [59, 62, 65] },      // picco: B2 (quinta), A3+E4, B3+D4+F4
+        { bass: 40, bassAlt: 47, ch2: [57, 64], ch4: [59, 62, 64] },  // apertura: E2→B2, A3+E4, B3+D4+E4
+        { bass: 45, bassAlt: 40, ch2: [57, 64], ch4: [60, 64, 67] },  // pivot: A2→E2, A3+E4, C4+E4+G4
+        { bass: 47, bassAlt: 40, ch2: [57, 64], ch4: [59, 62, 65] },  // picco: B2→E2, A3+E4, B3+D4+F4
+        { bass: 43, bassAlt: 40, ch2: [55, 67], ch4: [55, 59, 62] },  // bIII frigio: G2→E2, G3+G4, G3+B3+D4
+        { bass: 36, bassAlt: 43, ch2: [48, 60], ch4: [48, 52, 57] },  // bVI dissoluzione: C2→G2, C3+C4, C3+E3+A3
       ],
     },
 
-    // Cicli progressione per modo — sequenza indici anchor (0=apertura 1=pivot 2=picco)
-    // ogni step = _chordUpdateEvery bar (2 bar) → ciclo 8 step ≈ 43s a 88 BPM
+    // Cicli progressione per modo — 3 livelli keyed su harmonicColor (D-16)
+    // SLOW  (hC < 0.25): 4 step × 4 bar = 43s per ciclo — apertura rarefatta
+    // NORMAL (hC 0.25-0.65): 16 step × 2 bar = 87s per ciclo — pieno
+    // FAST  (hC ≥ 0.65): 8 step × 1 bar = 22s per ciclo — pulsante techno
+
+    progressionSlow: {
+      'A_lydian':    [0, 0, 1, 0],           // root + breve colore, respira
+      'Bb_phrygian': [0, 0, 1, 0],           // fallback (Bb parte gia' a hC alto)
+      'D_dorian':    [0, 1, 0, 0],           // fallback
+      'C#_dorian':   [1, 0, 1, 2],           // fallback
+      'E_phrygian':  [0, 0, 3, 0],           // tonica + bIII, chiusura lenta
+    },
+
     progressionCycle: {
-      'A_lydian':    [0, 0, 0, 1, 0, 0, 2, 1],  // lidia: dwell tonica, occasionale sesta
-      'Bb_phrygian': [0, 1, 0, 0, 2, 0, 1, 2],  // frigia: tonica e quarta, sale
-      'D_dorian':    [0, 0, 1, 0, 2, 1, 0, 0],  // dorica: sale e torna alla radice
-      'C#_dorian':   [1, 2, 1, 2, 0, 1, 2, 1],  // climax: quinta e picco dominanti
-      'E_phrygian':  [0, 0, 1, 0, 0, 0, 1, 0],  // dissoluzione: ritorno alla tonica
+      'A_lydian':    [0, 0, 0, 1, 0, 3, 0, 0, 2, 1, 0, 4, 0, 3, 2, 0],  // apre, esplora colori, picco, torna
+      'Bb_phrygian': [0, 1, 0, 0, 2, 0, 3, 0, 0, 1, 4, 0, 2, 3, 0, 1],  // rituale: tensione e ritorno
+      'D_dorian':    [0, 0, 1, 2, 3, 0, 1, 3, 0, 4, 0, 1, 2, 3, 0, 0],  // groove: IV e bVII prominenti
+      'C#_dorian':   [1, 2, 3, 1, 4, 2, 1, 3, 2, 4, 1, 0, 3, 2, 4, 1],  // climax: evita tonica, tensione alta
+      'E_phrygian':  [0, 0, 1, 0, 3, 0, 0, 4, 0, 0, 1, 0, 3, 4, 0, 0],  // dissoluzione: tonica dominante
+    },
+
+    progressionFast: {
+      'A_lydian':    [0, 4, 3, 0, 4, 0, 3, 4],  // root↔tensione con colore — pump lydian
+      'Bb_phrygian': [0, 3, 1, 4, 0, 1, 3, 0],  // abisso e rituale alternati — darkest
+      'D_dorian':    [3, 4, 3, 0, 4, 3, 4, 0],  // IV↔bVII dominanti — dub groove
+      'C#_dorian':   [1, 3, 4, 2, 4, 1, 3, 4],  // tensione massima, nessuna tonica
+      'E_phrygian':  [0, 3, 4, 0, 3, 0, 0, 4],  // tonica + bIII + bVI dissoluzione
     },
   },
 
@@ -533,20 +563,37 @@ export const CFG = {
       velDownbeat: 105,       // velocity base downbeat (MIDI-01)
       velOffbeat: 85,         // velocity base offbeat
       humanizeRange: 8,       // ±random velocity variation
-      // Probabilita gate per fase — esponenziale nella fase emerging (D-03)
+      // Probabilita gate per fase (D-03)
+      // groove = gate a livello di BAR (non step) — vedere rhythm-layer.js
       gateProbability: {
-        arhythmic:  0.0,      // assente
-        emerging:   0.12,     // ~1 kick ogni 8 step — sporadico, frammentato
-        groove:     0.55,     // groove emergente ma non ancora 4/4
-        climax:     1.0,      // ogni step del pattern suona
-        dissolving: 0.20,     // si rarefà
+        arhythmic:  0.0,   // assente
+        emerging:   0.25,  // 1 bar su 4 ha il kick — sporadico ma udibile
+        groove:     0.80,  // 4 bar su 5 hanno kick — groove solido con respiro
+        climax:     1.0,   // ogni step del pattern suona
+        dissolving: 0.30,  // si rarefà progressivamente
       },
-      // Pattern 16-step per il climax (D-02: 4-on-the-floor solo al climax)
+      // Pattern 16-step (D-02: 4-on-the-floor solo al climax)
       patterns: {
         fourOnFloor: [1,0,0,0, 1,0,0,0, 1,0,0,0, 1,0,0,0],
         broken1:     [1,0,0,0, 0,0,0,0, 1,0,0,0, 0,0,0,0],   // halftime
         broken2:     [1,0,0,0, 0,0,0,1, 0,0,0,0, 1,0,0,0],   // syncopated
         broken3:     [1,0,0,0, 0,0,1,0, 0,0,0,0, 0,0,1,0],   // displaced
+        broken4:     [1,0,0,0, 0,0,0,0, 1,0,0,0, 0,0,1,0],   // anticipazione (kick + pre-beat)
+      },
+      fillProb: 0.30,         // probabilita' fill (colpo step 15) ogni 4 bar
+      // Phrase-gate lengths (R1 — deterministic phrasing, no per-bar random gate)
+      phraseLen: {
+        emerging: 4,   // 4-bar phrase: kick active only on bar 0 of each phrase
+        groove:   8,   // 8-bar phrase: bars 0-6 always active, bar 7 = optional breath
+      },
+      breathProb: 0.25,  // probability the breath bar (bar 7 of groove phrase) still has a kick
+      // Preferred kick pattern per modal section (R2 — KICK_FOR_MODE)
+      modePatterns: {
+        'A_lydian':    'broken1',     // sparse, contemplativo — apertura e chiusura
+        'Bb_phrygian': 'broken3',     // sincopato, tensivo — tensione frigia
+        'D_dorian':    'broken2',     // groove classico — sezione centrale
+        'C#_dorian':   'fourOnFloor', // 4/4 pieno — identita' del climax
+        'E_phrygian':  'broken1',     // sparse — dissoluzione speculare all'apertura
       },
       durMs: 55,              // nota breve — kick acustico
     },
@@ -569,8 +616,15 @@ export const CFG = {
       phasingStepsB: 9,       // pattern B — 9 step (convergenza ogni 72 step)
       phasingActivePhases: ['emerging', 'groove', 'climax'],  // D-12: phasing attivo 10-40min
       durMs: 25,              // hi-hat breve — percussivo e secco
-      // Intervallo step base — il hat suona ogni N 16th-note nel tick (non ogni tick)
-      stepDivisor: 2,         // default: ogni 8th note (step % 2 === 0)
+      // Densita' hat per fase — stepDivisor dinamico (ogni N 16th-note)
+      // Piu' basso = piu' denso. 1 = ogni 16th, 2 = ogni 8th, 4 = ogni quarter
+      stepDivisorByPhase: {
+        arhythmic:  4,   // quarter note — rarefatto, pulsazione lenta
+        emerging:   2,   // 8th note — on-grid, establishes grid before groove kicks in
+        groove:     2,   // 8th note — hat costante (precedente default)
+        climax:     1,   // 16th note — piena densita'
+        dissolving: 2,   // torna a 8th nella dissoluzione
+      },
     },
 
     // ── CH7 Percussion — Glass additive entry (D-07, D-08, D-09, D-10, RITM-03) ──
@@ -587,17 +641,17 @@ export const CFG = {
       // Ordine di ingresso additivo Glass (D-10, RITM-03)
       // Ogni elemento entra quando rhythmicDensity supera la threshold
       additiveEntry: [
-        { note: 48, name: 'congaLo',  threshold: 0.20 },  // primo a entrare
-        { note: 45, name: 'congaHi',  threshold: 0.35 },  // secondo
-        { note: 36, name: 'rimshot',  threshold: 0.50 },  // terzo
-        { note: 38, name: 'snare',    threshold: 0.65 },  // ultimo
+        { note: 48, name: 'congaLo',  threshold: 0.08 },  // primo a entrare (~16% arc)
+        { note: 45, name: 'congaHi',  threshold: 0.15 },  // secondo (~25% arc)
+        { note: 36, name: 'rimshot',  threshold: 0.25 },  // terzo (~35% arc)
+        { note: 38, name: 'snare',    threshold: 0.40 },  // ultimo (~55% arc)
       ],
       // Note speciali — solo da MacroComposer cue (D-09)
       specialNotes: [60, 62],   // impact e sweep — non nei pattern normali
       specialVel: 110,          // velocity alta per eventi speciali
       specialDurMs: 400,        // nota lunga per impatto
-      // Pattern step (lunghezze prime per poliritmia)
-      patternLengths: [5, 7, 11, 13],   // pool lunghezze prime per pattern percussivi
+      // Pattern step (lunghezze grid-aligned — tutti multipli di 4, griglia 4/4)
+      patternLengths: [8, 16, 8, 16],   // half-bar / full-bar — quantizzati alla griglia
       velBase: 65,
       humanizeRange: 10,
       durMs: 80,
@@ -638,9 +692,11 @@ export const CFG = {
       maxCooldownBars: 20,    // barre massime tra un break e il successivo
       minDurationBars:  2,    // durata minima break (bar)
       maxDurationBars:  4,    // durata massima break (bar)
-      punchVelBoost:   28,    // boost velocity kick e basso al re-entry
-      minArc:          0.15,  // non parte prima del 15% arco (musica deve stabilirsi)
-      maxArc:          0.88,  // non parte dopo 88% (lascia respirare il finale)
+      punchVelBoost:      28, // boost velocity kick e basso al re-entry
+      minArc:           0.15, // non parte prima del 15% arco (musica deve stabilirsi)
+      maxArc:           0.88, // non parte dopo 88% (lascia respirare il finale)
+      preBreakBuildBars:  4,  // H4: finestra accumulo pre-break (bar) — hat+hat densificano
+      preBreakVelBoost:   8,  // H4: boost velocity hat durante accumulo
     },
   },
 
@@ -707,7 +763,7 @@ export const CFG = {
     arpeggio: {
       activeRange: { min: 0.35, max: 0.70 },  // arcPercent range per arpeggi (~min15-31)
       noteSpacingMs: 350,    // spacing tra note arpeggio
-      threshold:    0.5,     // melodicActivity minima per attivare cross-arpeggio
+      threshold:    0.20,    // melodicActivity minima per attivare cross-arpeggio (allineato alla window 0.35)
       delayStp:     2,       // steps CH6 arpeggiation delay rispetto a CH5
     },
 
@@ -715,6 +771,21 @@ export const CFG = {
     phrase: {
       ch5Length:      4,   // note per frase (cellula melodica)
       ch5RepeatCount: 4,   // ripetizioni prima di generare nuova frase
+    },
+
+    // ── Mix melodico per modo (M1) — probabilita' e velocita' per sezione modale ──
+    modeMix: {
+      'A_lydian':    { ch5ProbMul: 0.70, ch6ProbMul: 0.40, ch5VelMul: 0.90, ch6VelMul: 0.80 }, // apertura: rado
+      'Bb_phrygian': { ch5ProbMul: 0.50, ch6ProbMul: 0.25, ch5VelMul: 0.80, ch6VelMul: 0.70 }, // rituale: quasi silenzio melodico
+      'D_dorian':    { ch5ProbMul: 1.00, ch6ProbMul: 0.80, ch5VelMul: 1.00, ch6VelMul: 1.00 }, // groove: pieno
+      'C#_dorian':   { ch5ProbMul: 1.20, ch6ProbMul: 1.30, ch5VelMul: 1.10, ch6VelMul: 1.20 }, // climax: denso
+      'E_phrygian':  { ch5ProbMul: 0.50, ch6ProbMul: 0.20, ch5VelMul: 0.80, ch6VelMul: 0.70 }, // dissoluzione: si ritira
+    },
+
+    // ── Velocity sweep sinusoidale CH6 in C#_dorian (M2) ──
+    sweep: {
+      periodBars: 16,   // periodo onda in bar — ciclo ~43s a 88 BPM
+      amplitude:  0.35, // ampiezza [0-1] → range vel [0.65, 1.0]
     },
 
     // ── MIDI optimization (pattern da RHYTHM) ──
@@ -775,6 +846,16 @@ export const CFG = {
         shapeScale: 1.0, densityGravity: 0,
         onsetWaveSpeed: 400, midiDensityMul: 0.3, feedbackDecay: 0.97,
       },
+    },
+
+    // ── Layout geometrico per modo modale (V3) ──
+    // Ogni sezione ha una composizione spaziale diversa — cross-fade automatico.
+    modeComposition: {
+      'A_lydian':    'HORIZON',    // banda orizzontale centrale — respiro aperto
+      'Bb_phrygian': 'COLUMNS',    // colonne verticali pesanti — pressione rituale
+      'D_dorian':    'MONDRIAN_B', // blocchi asimmetrici — groove organico
+      'C#_dorian':   'MONDRIAN_A', // grid bilanciato — geometria techno
+      'E_phrygian':  'ISLANDS',    // isole sparse nel vuoto — dissoluzione
     },
   },
 };

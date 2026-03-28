@@ -6,7 +6,7 @@
 // ═══════════════════════════════════════════════════════════
 
 import { CFG } from './config.js';
-import { macroState } from './macro-composer.js';
+import { macroState, isPerformanceStarted } from './macro-composer.js';
 import { sendMIDINote as _rawSend, sendMIDIAllNotesOff } from './midi.js';
 
 // ── Stato step corrente — usato da sendNote per downbeat boost ────────────────
@@ -46,10 +46,8 @@ function sendNote(ch, note, vel, dur) {
   vel += _gaussianRand() * (CFG.RHYTHM.kick.humanizeRange / 2);
   vel = Math.max(1, Math.min(127, Math.round(vel)));
 
-  // MIDI-03: phrase offset — sfasamento microtemporale per evitare attacchi meccanici
-  const offsetRange = CFG.RHYTHM.midi.noteOffsetMs;
-  const offset = Math.random() * (offsetRange.max - offsetRange.min) + offsetRange.min;
-  setTimeout(() => _rawSend(ch, note, vel, dur), offset);
+  // Direct send — no setTimeout (background tab throttles setTimeout to 1000ms, breaking timing)
+  _rawSend(ch, note, vel, dur);
 }
 
 // Wrapper dedicato hi-hat — bypassa gating rhythmicDensity (RITM-01, D-06)
@@ -71,10 +69,8 @@ function sendHatNote(note, vel, dur) {
   vel = Math.max(CFG.RHYTHM.hat.velFloor, vel);
   vel = Math.max(1, Math.min(127, Math.round(vel)));
 
-  // MIDI-03: sfasamento micro per naturalezza
-  const offsetRange = CFG.RHYTHM.midi.noteOffsetMs;
-  const offset = Math.random() * (offsetRange.max - offsetRange.min) + offsetRange.min;
-  setTimeout(() => _rawSend(CFG.RHYTHM.midi.channels.hat, note, vel, dur), offset);
+  // Direct send — no setTimeout (background tab throttles setTimeout to 1000ms, breaking timing)
+  _rawSend(CFG.RHYTHM.midi.channels.hat, note, vel, dur);
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -90,8 +86,11 @@ let _bar        = 0;       // bar corrente (step / 16)
 let _currentPhase       = 'arhythmic';
 let _prevRhythmicDensity = 0;
 
-// CH0 kick — selezione pattern
-let _kickPatIdx = 0;       // indice alternanza pattern nella fase groove
+// CH0 kick — gate e selezione pattern per bar
+let _kickPatIdx    = 0;    // indice rotazione pattern (non usato direttamente, riservato)
+let _kickBarActive  = true; // gate a livello di bar: il kick suona in questa bar?
+let _kickPhraseBar  = 0;   // bar position within current phrase (0-3 emerging, 0-7 groove)
+let _kickPhraseIdx  = 0;   // phrase count — increments per completed phrase, drives pattern rotation
 
 // CH1 hi-hat — due sub-clock indipendenti per phasing Reich (D-11, RITM-04)
 // Convergenza ogni 8*9=72 step (≈8-10 sec a 88 BPM) — tensione latente, non effetto esplicito
@@ -185,8 +184,10 @@ function _updatePercAdditive() {
       // Hits proporzionali alla lunghezza — 2-3 colpi per ciclo
       const hits    = idx === 0 ? 2 : 3;
       _percPatterns[note]   = _genPercPattern(patLen, hits);
-      _percClocks[note]     = 0;
-      _percLastSteps[note]  = -1;
+      // Sync al main clock: inizia alla fase corrente del bar, non da 0
+      // Evita che il pattern parta sfasato rispetto alla griglia 4/4
+      _percClocks[note]     = _clock % patLen;
+      _percLastSteps[note]  = Math.floor(_percClocks[note]) - 1;
       console.log('[RHYTHM] +perc:', entry.name, 'density:', density.toFixed(2));
     }
 
@@ -237,6 +238,12 @@ function _onKickStep(step) {
 
   // ── Break ciclici (RITM-05) — gestione a inizio bar ──────────────────────
   if (s16 === 0) {
+    // H4: aggiorna finestra pre-break — letto da HarmonyLayer per hold armonico
+    // e da _updateHatPhasing per accumulo densita'
+    const barsToNext = _nextBreakBar - _bar;
+    macroState.preBreakBars = (!_breakActive && barsToNext > 0 && barsToNext <= CFG.RHYTHM.break.preBreakBuildBars)
+      ? barsToNext : 0;
+
     const arc = macroState.arcPercent;
     const br  = CFG.RHYTHM.break;
 
@@ -246,6 +253,7 @@ function _onKickStep(step) {
         _breakActive           = false;
         macroState.breakActive = false;
         _punchNextKick         = true;
+        _kickBarActive         = true; // garantisce che il punch suoni immediatamente al re-entry
         // Schedula il prossimo break
         const cooldown = br.minCooldownBars +
           Math.floor(Math.random() * (br.maxCooldownBars - br.minCooldownBars + 1));
@@ -282,28 +290,47 @@ function _onKickStep(step) {
   let pattern = null;
 
   if (phase === 'emerging') {
-    // Broken/frammentato — Autechre, Four Tet (D-02)
-    // Probability gate esponenziale: molto raro ma non casuale
-    if (Math.random() > gateP.emerging) return;
-    // Selezione random tra broken1/2/3 per varietà frammentata
-    const brokenPats = [pats.broken1, pats.broken2, pats.broken3];
-    pattern = brokenPats[Math.floor(Math.random() * brokenPats.length)];
+    // Deterministic 4-bar phrase: kick active only on bar 0 of each phrase (R1)
+    if (s16 === 0) {
+      _kickPhraseBar = _bar % CFG.RHYTHM.kick.phraseLen.emerging;
+      if (_kickPhraseBar === 0) _kickPhraseIdx++;
+      _kickBarActive = (_kickPhraseBar === 0);
+    }
+    if (!_kickBarActive) return;
+    pattern = pats.broken1;
 
   } else if (phase === 'groove') {
-    // Groove che si consolida ma non ancora 4/4 (D-02)
-    if (Math.random() > gateP.groove) return;
-    // Alternanza broken2/broken3 ogni 8 bar
-    pattern = (_bar % 16 < 8) ? pats.broken2 : pats.broken3;
+    // Deterministic 8-bar phrase: bars 0-6 always active, bar 7 = optional breath (R1)
+    if (s16 === 0) {
+      _kickPhraseBar = _bar % CFG.RHYTHM.kick.phraseLen.groove;
+      if (_kickPhraseBar === 0) _kickPhraseIdx++;
+      // Bar 7 of phrase = breath — only random element in groove gate
+      _kickBarActive = (_kickPhraseBar < 7) || (Math.random() < CFG.RHYTHM.kick.breathProb);
+    }
+    if (!_kickBarActive) return;
+    // Pattern: mode-specific base, with phrase variation on top (R2)
+    const modeBasePat = CFG.RHYTHM.kick.modePatterns[macroState.currentMode] || 'broken2';
+    if (modeBasePat === 'fourOnFloor') {
+      pattern = pats.fourOnFloor;
+    } else {
+      const groovePats = [pats[modeBasePat], pats.broken3, pats[modeBasePat], pats.broken4];
+      pattern = groovePats[_kickPhraseIdx % groovePats.length];
+    }
 
   } else if (phase === 'climax') {
     // 4-on-the-floor — Floating Points, poliritmia piena (D-02: solo qui)
     pattern = pats.fourOnFloor;
-    // Gate probability 1.0 — ogni step del pattern suona
 
   } else if (phase === 'dissolving') {
-    // Mirror di emerging — il groove si frammenta (D-01)
-    if (Math.random() > gateP.dissolving) return;
+    if (s16 === 0) _kickBarActive = Math.random() < gateP.dissolving;
+    if (!_kickBarActive) return;
     pattern = pats.broken1;
+  }
+
+  // Fill: colpo anacrusico al beat 15 ogni 4 bar (frase chiara) (D-03)
+  if (s16 === 15 && (_bar % 4 === 3) && Math.random() < CFG.RHYTHM.kick.fillProb) {
+    const fillVel = Math.round(CFG.RHYTHM.kick.velOffbeat * 0.85);
+    sendNote(CFG.RHYTHM.midi.channels.kick, CFG.RHYTHM.kick.note, fillVel, CFG.RHYTHM.kick.durMs);
   }
 
   if (!pattern || !pattern[s16]) return;
@@ -330,7 +357,9 @@ function _onHatHit(stepInCycle) {
 
   // Velocity scatter gaussiano intorno al target di fase (D-05)
   const velTarget = CFG.RHYTHM.hat.velTarget[_currentPhase] || CFG.RHYTHM.hat.velTarget.arhythmic;
-  let vel = velTarget + _gaussianRand() * CFG.RHYTHM.hat.velScatter;
+  // H4: lieve boost velocità hat durante accumulo pre-break
+  const preBreakBoost = macroState.preBreakBars > 0 ? CFG.RHYTHM.break.preBreakVelBoost : 0;
+  let vel = velTarget + preBreakBoost + _gaussianRand() * CFG.RHYTHM.hat.velScatter;
 
   // Legato ratio CH1 — durata staccato (MIDI-03)
   const durMs = CFG.RHYTHM.hat.durMs;
@@ -341,7 +370,11 @@ function _onHatHit(stepInCycle) {
 function _updateHatPhasing(dt, bpm) {
   const stepsPerSec = bpm * 4 / 60;
   const phasingActive = CFG.RHYTHM.hat.phasingActivePhases.includes(_currentPhase);
-  const stepDivisor   = CFG.RHYTHM.hat.stepDivisor;  // default 2 = ogni 8th note
+  // Densita' hat per fase — climax ogni 16th, groove ogni 8th, early ogni quarter
+  // H4: pre-break buildup — densifica hat nell'ultima finestra prima del break
+  const baseDiv = CFG.RHYTHM.hat.stepDivisorByPhase[_currentPhase] ?? 2;
+  const stepDivisor = (macroState.preBreakBars > 0 && _currentPhase === 'groove')
+    ? Math.max(1, baseDiv - 1) : baseDiv;
 
   // Clock A — 8 step (sempre attivo in tutte le fasi, D-12)
   _hatClockA += dt * stepsPerSec;
@@ -443,6 +476,9 @@ export function initRhythmLayer() {
   _currentPhase       = 'arhythmic';
   _prevRhythmicDensity = 0;
   _kickPatIdx         = 0;
+  _kickBarActive      = true;
+  _kickPhraseBar      = 0;
+  _kickPhraseIdx      = 0;
 
   _hatClockA          = 0;
   _hatLastStepA       = -1;
@@ -468,6 +504,8 @@ export function initRhythmLayer() {
 }
 
 export function updateRhythmLayer(dt) {
+  if (!isPerformanceStarted()) return; // silenzio pre-performance
+
   // Step 1 — Aggiorna fase ritmica e additive entry Glass
   _updatePhase();
   _updatePercAdditive();

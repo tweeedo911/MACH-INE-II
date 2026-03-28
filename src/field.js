@@ -4,12 +4,13 @@
 
 import { CFG } from './config.js';
 import { audio } from './audio.js';
+import { macroState } from './macro-composer.js';
 import { getNotePosition } from './midi-patterns.js';
 import { dna, getZone, primitiveDensity, isInVuoto } from './dna.js';
 import { entityDensityAt, entityColorAt } from './generations.js';
 import {
   inverted, invertDissolving, invertDissolveProgress, invertTarget,
-  climaxProgress, inClimax, getCellColor, getMidiColor, palette,
+  climaxProgress, inClimax, getCellColor, getMidiColor,
 } from './colors.js';
 import { scene, engineRender } from './director.js';
 import { firma } from './sequencer.js';
@@ -409,6 +410,17 @@ function renderFillRect(ctx, dotSize, state, globalTime, W, H) {
 // ── Render: buffer path (small dots) ──
 let bufferCanvas = null, bufferCtx = null;
 
+// ── Sedimentazione (V3) — persistenza visiva frame precedenti per-modo ──
+// DERIVA e CRISTALLO: trail lunghi. TERRENO e ABISSO: rendering asciutto.
+const _SEDIMENT_BY_MODE = {
+  'A_lydian':    0.88,  // deriva — scatter rarefatto con trails sottili
+  'Bb_phrygian': 0,     // abisso — colonne stark, nessun residuo
+  'D_dorian':    0,     // terreno — groove asciutto, no sediment
+  'C#_dorian':   0.82,  // solco — trails techno, depth nel bianco/acciaio
+  'E_phrygian':  0.92,  // cristallo — sparkle lunghi, massima persistenza
+};
+let _sedCanvas = null, _sedCtx = null, _lastSedMode = null;
+
 function renderBuffer(ctx, dotSize, state, globalTime, W, H) {
   const bw = Math.ceil(W / dotSize), bh = Math.ceil(H / dotSize);
 
@@ -509,22 +521,55 @@ function drawMatrice(ctx, state, globalTime, W, H) {
 
 // ── Public render entry point ──
 export function renderField(ctx, W, H, state, globalTime) {
-  // Update smoothed intensity for low-reactivity zones
   smoothedIntensity += (state.intensity - smoothedIntensity) * 0.0008;
 
-  // Dot size from scene, engine override takes priority
   let dotSize = Math.max(CFG.dotSizeMin, (engineRender.active && engineRender.dotSize != null) ? engineRender.dotSize : scene.dotSize);
-
   if (climaxProgress > 0.1) {
     const compress = 1 - (1 - CFG.climaxDotCompress) * climaxProgress;
     dotSize = Math.max(CFG.dotSizeMin, Math.round(dotSize * compress));
   }
 
-  if (dotSize >= CFG.dotSizeBufferThreshold) {
-    renderFillRect(ctx, dotSize, state, globalTime, W, H);
-  } else {
-    renderBuffer(ctx, dotSize, state, globalTime, W, H);
-  }
+  const sedDecay = _SEDIMENT_BY_MODE[macroState.currentMode] ?? 0;
 
-  drawMatrice(ctx, state, globalTime, W, H);
+  if (sedDecay > 0) {
+    // Crea o resetta sediment canvas su cambio dimensione o cambio modo
+    const curMode = macroState.currentMode;
+    if (!_sedCanvas || _sedCanvas.width !== W || _sedCanvas.height !== H || curMode !== _lastSedMode) {
+      if (!_sedCanvas || _sedCanvas.width !== W || _sedCanvas.height !== H) {
+        _sedCanvas = document.createElement('canvas');
+        _sedCanvas.width = W; _sedCanvas.height = H;
+        _sedCtx = _sedCanvas.getContext('2d');
+      }
+      // Reset trasparente — render.js gestisce il bg, sediment accumula solo i dot
+      _sedCtx.clearRect(0, 0, W, H);
+      _lastSedMode = curMode;
+    }
+
+    // Fade dei frame precedenti — riduce alpha dei dot (non del bg)
+    _sedCtx.globalCompositeOperation = 'destination-out';
+    _sedCtx.globalAlpha = 1 - sedDecay;
+    _sedCtx.fillStyle = 'black';
+    _sedCtx.fillRect(0, 0, W, H);
+    _sedCtx.globalAlpha = 1.0;
+    _sedCtx.globalCompositeOperation = 'source-over';
+
+    // Render frame corrente nel sediment canvas
+    if (dotSize >= CFG.dotSizeBufferThreshold) {
+      renderFillRect(_sedCtx, dotSize, state, globalTime, W, H);
+    } else {
+      renderBuffer(_sedCtx, dotSize, state, globalTime, W, H);
+    }
+    drawMatrice(_sedCtx, state, globalTime, W, H);
+
+    // Copia sediment canvas su output
+    ctx.drawImage(_sedCanvas, 0, 0);
+  } else {
+    // Comportamento diretto — nessuna sedimentazione
+    if (dotSize >= CFG.dotSizeBufferThreshold) {
+      renderFillRect(ctx, dotSize, state, globalTime, W, H);
+    } else {
+      renderBuffer(ctx, dotSize, state, globalTime, W, H);
+    }
+    drawMatrice(ctx, state, globalTime, W, H);
+  }
 }
