@@ -241,20 +241,25 @@ function _updateDirectorV3(dt) {
   const layerKey = dominant || 'master';
   const prefs = vis.layers[layerKey];
 
-  // ── 2. Lerp engineRender verso LAYER_PREFS del dominante (D-09) ──
+  // ── 2. Lerp engineRender verso LAYER_PREFS blendati con MODE_PARAMS (D-09) ──
+  // Ogni modo modale porta la propria atmosfera visiva (60% modo / 40% layer).
   const lr = vis.lerpSpeed;
   const ls = _v3LerpState;
+  const modePrm = vis.modeParams?.[macroState.currentMode];
+  // Blend helper: se il modo ha il parametro, mischia (60% modo, 40% layer); altrimenti usa layer puro
+  const mblend = (layerVal, key) =>
+    modePrm?.[key] !== undefined ? layerVal * 0.4 + modePrm[key] * 0.6 : layerVal;
 
-  ls.dotSize        += (prefs.dotSize        - ls.dotSize)        * lr;
-  ls.densityMul     += (prefs.densityMul     - ls.densityMul)     * lr;
-  ls.midiScale      += (prefs.midiScale      - ls.midiScale)      * lr;
-  ls.shapeScale     += (prefs.shapeScale     - ls.shapeScale)     * lr;
-  ls.trailMax       += (prefs.trailMax       - ls.trailMax)       * lr;
-  ls.densityGravity += (prefs.densityGravity - ls.densityGravity) * lr;
-  ls.onsetWaveSpeed += (prefs.onsetWaveSpeed - ls.onsetWaveSpeed) * lr;
-  ls.flickerSpeed   += (prefs.flickerSpeed   - ls.flickerSpeed)   * lr;
-  ls.midiDensityMul += (prefs.midiDensityMul - ls.midiDensityMul) * lr;
-  ls.feedbackDecay  += (prefs.feedbackDecay  - ls.feedbackDecay)  * lr;
+  ls.dotSize        += (mblend(prefs.dotSize,        'dotSize')        - ls.dotSize)        * lr;
+  ls.densityMul     += (mblend(prefs.densityMul,     'densityMul')     - ls.densityMul)     * lr;
+  ls.midiScale      += (mblend(prefs.midiScale,      'midiScale')      - ls.midiScale)      * lr;
+  ls.shapeScale     += (prefs.shapeScale                               - ls.shapeScale)     * lr;
+  ls.trailMax       += (mblend(prefs.trailMax,        'trailMax')       - ls.trailMax)       * lr;
+  ls.densityGravity += (prefs.densityGravity                           - ls.densityGravity) * lr;
+  ls.onsetWaveSpeed += (prefs.onsetWaveSpeed                           - ls.onsetWaveSpeed) * lr;
+  ls.flickerSpeed   += (mblend(prefs.flickerSpeed,   'flickerSpeed')   - ls.flickerSpeed)   * lr;
+  ls.midiDensityMul += (mblend(prefs.midiDensityMul, 'midiDensityMul') - ls.midiDensityMul) * lr;
+  ls.feedbackDecay  += (prefs.feedbackDecay                            - ls.feedbackDecay)  * lr;
 
   // Scrive su engineRender (letto da field.js e render.js)
   engineRender.active         = true;
