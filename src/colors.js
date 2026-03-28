@@ -98,6 +98,18 @@ export const palette = {
   _lerpSpeed: 0.02, // per frame
 };
 
+// V3 modal palette — called on mode change from macro-composer.js
+export function setPaletteForMode(mode) {
+  const modalPalettes = {
+    'A_lydian':    'default',  // apertura: nero puro, DERIVA soft scatter su buio
+    'Bb_phrygian': 'abyssal',  // rituale: quasi-nero con profondi blu, ABISSO
+    'D_dorian':    'warm',     // groove: brunocalda, TERRENO dub
+    'C#_dorian':   'bw',       // climax techno: nero/bianco puro, SOLCO
+    'E_phrygian':  'cyan',     // dissoluzione: teal scuro con cristallino, CRISTALLO
+  };
+  setPalette(modalPalettes[mode] || 'default');
+}
+
 export function setPalette(name) {
   const p = PALETTES[name] || PALETTES.default;
   palette._targetBg = [...p.bg];

@@ -6,7 +6,7 @@
 // ═══════════════════════════════════════════════════════════
 
 import { CFG } from './config.js';
-import { macroState } from './macro-composer.js';
+import { macroState, isPerformanceStarted } from './macro-composer.js';
 import { sendMIDINote as _rawSend, sendMIDIAllNotesOff } from './midi.js';
 
 // ══════════════════════════════════════════════════════════
@@ -22,23 +22,18 @@ function _gaussianRand() {
 //  STATO INTERNO
 // ══════════════════════════════════════════════════════════
 
-// ── Step clocks per i tre loop a lunghezze prime ──
-let _clockCH3 = 0, _lastStepCH3 = -1;   // CH3 BASS — 7 step
+// ── Step clocks per i due loop a lunghezze prime ──
 let _clockCH5 = 0, _lastStepCH5 = -1;   // CH5 VOICE — 11 step
 let _clockCH6 = 0, _lastStepCH6 = -1;   // CH6 LEAD — 13 step
 
-// ── Markov voice state per CH3, CH5 e CH6 ──
-let _histCH3 = [null, null];   // ultime 2 note CH3 (per Markov)
+// ── Markov voice state per CH5 e CH6 ──
 let _histCH5 = [null, null];   // ultime 2 note CH5 (per Markov)
 let _histCH6 = [null, null];   // ultime 2 note CH6
-let _intervCH5 = [];           // ultimi seedLength intervalli CH5 (per affinita seed)
-let _intervCH6 = [];           // ultimi intervalli CH6
 
 // ── Seed motivico (MELO-01, D-07/D-08/D-09) ──
 let _seedMotif = null;           // array di intervalli (es. [2, -1, 3, 5])
 let _seedCaptured = false;       // true dopo cattura nella finestra 0-seedWindowEnd
 let _seedReturned = false;       // true dopo il ritorno unico a arcPercent > seedReturnAt
-let _ch5PhraseNoteCount = 0;     // contatore note prima frase CH5 per cattura seed
 let _seedReturnQueue = [];       // micro-sequencer: { note, vel, dur, targetBar }
 
 // ── Phrase buffer CH5 (ripetizione motivica — Reich/Nyman) ──
@@ -52,6 +47,9 @@ let _arpLastCH5Note = null;      // ultima nota CH5 per costruire risposta CH6
 
 // ── Step corrente per downbeat detection ──
 let _currentStep16 = 0;
+
+// ── M2: sweep sinusoidale CH6 in C#_dorian ──
+let _sweepPhase = 0;
 
 // ══════════════════════════════════════════════════════════
 //  GATING E MIDI WRAPPER
@@ -170,26 +168,6 @@ function _nextVoiceNote(ch, history, seedIntervals) {
 //  STEP HANDLERS — CH3, CH5, CH6
 // ══════════════════════════════════════════════════════════
 
-// CH3 BASS — bassline melodica 7-step (D-04)
-function _onCH3Step(stepInLoop) {
-  const mA = macroState.melodicActivity;
-
-  // Fase melodica da melodicActivity
-  const phase = mA < 0.3 ? 'sparse' : mA < 0.65 ? 'medium' : 'dense';
-
-  // Probabilistic gating — fase sparse usa soglia ridotta
-  const baseProb = CFG.MELODY.emitProbability.ch3Base;
-  const prob = phase === 'sparse'
-    ? baseProb * 0.5 * mA
-    : baseProb * mA;
-  if (Math.random() >= prob) return;
-
-  const note = _nextVoiceNote(3, _histCH3, _seedMotif || []);
-  const vel  = CFG.MELODY.velTarget[phase].ch3 + _gaussianRand() * CFG.MELODY.velHumanize;
-  const dur  = CFG.MELODY.noteDur.ch3[phase === 'dense' ? 'dense' : 'sparse'];
-  sendNote(3, note, vel, dur);
-}
-
 // Genera nuova frase per CH5 via Markov — aggiorna _histCH5 con la fine della frase
 function _generateCH5Phrase() {
   const len = CFG.MELODY.phrase.ch5Length;
@@ -209,12 +187,15 @@ function _generateCH5Phrase() {
 }
 
 // CH5 VOICE — melodia rarefatta con seed (D-02, D-07)
-function _onCH5Step(stepInLoop) {
+function _onCH5Step() {
   const mA  = macroState.melodicActivity;
   const arc = macroState.arcPercent;
 
+  // M1: mix melodico per modo — probabilita' e velocity scalate per sezione modale
+  const mix = CFG.MELODY.modeMix[macroState.currentMode] ?? { ch5ProbMul: 1, ch5VelMul: 1 };
+
   // Gating — con eccezione per cattura seed in apertura (finestra seed)
-  const baseProb  = CFG.MELODY.emitProbability.ch5Base;
+  const baseProb   = CFG.MELODY.emitProbability.ch5Base * mix.ch5ProbMul;
   const seedWindow = !_seedCaptured && arc < CFG.MELODY.seedWindowEnd;
   if (seedWindow) {
     if (mA < CFG.MELODY.seedCaptureGateMin) return;
@@ -246,8 +227,9 @@ function _onCH5Step(stepInLoop) {
   if (_ch5PhrasePos >= _ch5Phrase.length) { _ch5PhrasePos = 0; _ch5PhraseRepeats++; }
 
   const phase = mA < 0.3 ? 'sparse' : mA < 0.65 ? 'medium' : 'dense';
-  const vel   = CFG.MELODY.velTarget[phase].ch5 + _gaussianRand() * CFG.MELODY.velHumanize;
-  const dur   = CFG.MELODY.noteDur.ch5[phase === 'dense' ? 'dense' : 'sparse'];
+  const vel   = CFG.MELODY.velTarget[phase].ch5 * mix.ch5VelMul + _gaussianRand() * CFG.MELODY.velHumanize;
+  const tD  = macroState.textureDepth;
+  const dur = Math.round(CFG.MELODY.noteDur.ch5.dense + (CFG.MELODY.noteDur.ch5.sparse - CFG.MELODY.noteDur.ch5.dense) * (1 - tD));
   sendNote(5, note, vel, dur);
 
   if (_arpMode) _arpLastCH5Note = note;
@@ -256,7 +238,10 @@ function _onCH5Step(stepInLoop) {
 // CH6 LEAD — voce indipendente angolosa 13-step (D-03)
 function _onCH6Step(stepInLoop) {
   const mA = macroState.melodicActivity;
-  const baseProb = CFG.MELODY.emitProbability.ch6Base;
+
+  // M1: mix melodico per modo
+  const mix = CFG.MELODY.modeMix[macroState.currentMode] ?? { ch6ProbMul: 1, ch6VelMul: 1 };
+  const baseProb = CFG.MELODY.emitProbability.ch6Base * mix.ch6ProbMul;
   if (Math.random() >= baseProb * mA) return;
 
   const phase = mA < 0.3 ? 'sparse' : mA < 0.65 ? 'medium' : 'dense';
@@ -275,8 +260,13 @@ function _onCH6Step(stepInLoop) {
     note = _nextVoiceNote(6, _histCH6, _seedMotif || []);
   }
 
-  const vel = CFG.MELODY.velTarget[phase].ch6 + _gaussianRand() * CFG.MELODY.velHumanize;
-  const dur = CFG.MELODY.noteDur.ch6[phase === 'dense' ? 'dense' : 'sparse'];
+  // M2: velocity sweep sinusoidale in C#_dorian — lead "respira" su ciclo 16 bar
+  const sweepMul = macroState.currentMode === 'C#_dorian'
+    ? (1 - CFG.MELODY.sweep.amplitude) + CFG.MELODY.sweep.amplitude * (Math.sin(_sweepPhase) * 0.5 + 0.5)
+    : 1.0;
+  const vel = CFG.MELODY.velTarget[phase].ch6 * mix.ch6VelMul * sweepMul + _gaussianRand() * CFG.MELODY.velHumanize;
+  const tD  = macroState.textureDepth;
+  const dur = Math.round(CFG.MELODY.noteDur.ch6.dense + (CFG.MELODY.noteDur.ch6.sparse - CFG.MELODY.noteDur.ch6.dense) * (1 - tD));
   sendNote(6, note, vel, dur);
 }
 
@@ -347,23 +337,18 @@ function _isArpWindow() {
 
 export function initMelodyTextureLayer() {
   // Reset step clocks
-  _clockCH3 = 0; _lastStepCH3 = -1;
   _clockCH5 = 0; _lastStepCH5 = -1;
   _clockCH6 = 0; _lastStepCH6 = -1;
 
   // Reset Markov history
-  _histCH3 = [null, null];
   _histCH5 = [null, null];
   _histCH6 = [null, null];
-  _intervCH5 = [];
-  _intervCH6 = [];
 
   // Reset seed state
-  _seedMotif          = null;
-  _seedCaptured       = false;
-  _seedReturned       = false;
-  _ch5PhraseNoteCount = 0;
-  _seedReturnQueue    = [];
+  _seedMotif       = null;
+  _seedCaptured    = false;
+  _seedReturned    = false;
+  _seedReturnQueue = [];
 
   // Reset phrase buffer
   _ch5Phrase        = [];
@@ -377,13 +362,21 @@ export function initMelodyTextureLayer() {
   // Reset step counter
   _currentStep16 = 0;
 
+  // Reset sweep
+  _sweepPhase = 0;
+
   sendMIDIAllNotesOff();
   console.log('[MELODY] init');
 }
 
 export function updateMelodyTextureLayer(dt) {
+  if (!isPerformanceStarted()) return; // silenzio pre-performance
+
   const bpm         = CFG.MACRO.bpmReference;
   const stepsPerSec = bpm * 4 / 60;  // 16th-note step rate
+
+  // M2: avanza sweep phase (continuo, usato solo in C#_dorian da _onCH6Step)
+  _sweepPhase += dt * (bpm / 60 / 4) / CFG.MELODY.sweep.periodBars * Math.PI * 2;
 
   // Seed return ha priorita — flush prima del resto
   _flushSeedQueue();

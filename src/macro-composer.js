@@ -5,6 +5,9 @@
 
 import { CFG } from './config.js';
 import { getSequencerStatus } from './sequencer.js';
+import { setEngine } from './midi-patterns.js';
+import { setPaletteForMode } from './colors.js';
+import { setCompositionForMode } from './director.js';
 
 // ── Exported mutable state — consumato dai layer downstream ──────────────────
 export const macroState = {
@@ -20,6 +23,7 @@ export const macroState = {
   arcPercent:      0,    // 0.0-1.0 del concerto
   barClock:        0,    // bar count accumulato (per HarmonyLayer)
   breakActive:     false, // RITM-05: break ciclico kick+basso attivo (scritto da RhythmLayer)
+  preBreakBars:    0,    // H4: bar rimanenti alla prossima finestra break (0 = fuori finestra)
 };
 
 // ── Internal state (non-exported) ────────────────────────────────────────────
@@ -28,6 +32,7 @@ let _driftPhase     = 0;  // fase dell'oscillazione micro-drift
 let _prevCheckpointIdx = 0; // cache indice ultimo checkpoint trovato
 let _pivotBarStart  = 0;  // barClock al momento dell'attivazione pivot
 let _lastLogPct     = -1; // ultimo pct loggato (evita duplicati)
+let _sequencerEverStarted = false; // freeze arco a 0 finché il sequencer non viene avviato (performance)
 
 // ── Init ─────────────────────────────────────────────────────────────────────
 export function initMacroComposer() {
@@ -43,15 +48,31 @@ export function initMacroComposer() {
   macroState.arcPercent      = 0;
   macroState.barClock        = 0;
   macroState.breakActive     = false;
+  macroState.preBreakBars    = 0;
 
-  _internalClock      = 0;
-  _driftPhase         = 0;
-  _prevCheckpointIdx  = 0;
-  _pivotBarStart      = 0;
-  _lastLogPct         = -1;
+  _internalClock           = 0;
+  _driftPhase              = 0;
+  _prevCheckpointIdx       = 0;
+  _pivotBarStart           = 0;
+  _lastLogPct              = -1;
+  _sequencerEverStarted    = false;
+
+  // Applica identità visiva del modo iniziale (non avviene via mode-change al primo tick)
+  setEngine(MODE_TO_ENGINE[macroState.currentMode] || null);
+  setPaletteForMode(macroState.currentMode);
+  setCompositionForMode(macroState.currentMode);
 
   console.log('[MACRO] init — concertDuration:', CFG.MACRO.concertDurationSec, 's');
 }
+
+// V3 visual identity mapping — each modal section gets its engine's visual character
+const MODE_TO_ENGINE = {
+  'A_lydian':    'deriva',     // opening/closing — soft scatter, almost-white
+  'Bb_phrygian': 'abisso',     // ritual tension — deep columns, heavy bass
+  'D_dorian':    'terreno',    // central groove — dub columns, warm orange
+  'C#_dorian':   'solco',      // climax — 4/4 bands, white/steel techno
+  'E_phrygian':  'cristallo',  // dissolution — sparkle trails, crystalline
+};
 
 // ── Update — chiamato ogni ~2ms dal Worker ────────────────────────────────────
 export function updateMacroComposer(dt) {
@@ -61,13 +82,17 @@ export function updateMacroComposer(dt) {
     macroState.arcPercent = macroState._debugArc;
   } else {
     // Usa sequencer se attivo, altrimenti fallback clock interno (Pitfall 1)
+    // Freeze a pct=0 finché il sequencer non viene avviato almeno una volta (performance)
     const status = getSequencerStatus();
     if (status.active) {
+      _sequencerEverStarted = true;
+      _internalClock = status.progress * CFG.MACRO.concertDurationSec; // sync per dopo lo stop
       macroState.arcPercent = status.progress;
-    } else {
+    } else if (_sequencerEverStarted) {
       _internalClock += dt;
       macroState.arcPercent = Math.min(1, _internalClock / CFG.MACRO.concertDurationSec);
     }
+    // else: sequencer mai avviato → arcPercent rimane 0 (silenzio pre-performance)
   }
   const pct = macroState.arcPercent;
 
@@ -126,6 +151,10 @@ export function updateMacroComposer(dt) {
     const transitionKey = macroState.prevMode + '->' + targetMode;
     macroState.pivotNote = CFG.MACRO.pivotNotes[transitionKey] || 57;
     console.log('[MACRO] mode transition:', macroState.prevMode, '->', targetMode, 'pivot:', macroState.pivotNote);
+    // V3 visual identity: activate engine character + palette + layout per nuovo modo
+    setEngine(MODE_TO_ENGINE[targetMode] || null);
+    setPaletteForMode(targetMode);
+    setCompositionForMode(targetMode);
   }
 
   // Step H — modeProgress: posizione 0.0-1.0 all'interno del segmento modale corrente
@@ -167,5 +196,9 @@ export function jumpArc(pct) {
   console.log('[MACRO] arc jump to:', pct.toFixed(2));
 }
 
-// ── Convenience getter ────────────────────────────────────────────────────────
+// ── Convenience getters ───────────────────────────────────────────────────────
 export function getMacroState() { return macroState; }
+
+// Restituisce true dopo che il sequencer è stato avviato almeno una volta.
+// Usato dai layer per bloccare l'output MIDI prima dell'inizio della performance.
+export function isPerformanceStarted() { return _sequencerEverStarted; }
