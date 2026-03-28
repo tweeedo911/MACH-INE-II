@@ -78,7 +78,7 @@ Pinterest board: https://it.pinterest.com/tweeedo/machne/
 Immagini di riferimento in `docs/refs/`.
 
 L'estetica si colloca all'incrocio tra:
-- Ryoji Ikeda → precisione, densita' di dato, alto contrasto
+- Arte generativa ad alta precisione → densita' di dato, alto contrasto, struttura matematica
 - Grafica halftone/risograph → il punto come unita' fondamentale
 - Diagrammi tecnici → composizione strutturata, pannelli, layout
 - Stampa brutalista → grana grossa, pixel grandi, peso grafico

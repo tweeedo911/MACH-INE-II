@@ -18,8 +18,7 @@ Le aree da rafforzare sono tre:
 ## Il disco
 
 Tre movimenti dello stesso artista. Non si alternano — coesistono con pesi diversi.
-Il modello è quello di un album come *Promises* (Floating Points) o *Swim* (Caribou):
-un universo sonoro coerente, tre animi distinguibili.
+Un universo sonoro coerente con tre animi distinguibili: fondazione, ritmo, dissoluzione.
 
 ```
 MOVIMENTO I — TERRENO     lento, caldo, fondazione
@@ -33,7 +32,6 @@ MOVIMENTO III — DERIVA    libero, spettrale, melodico
 
 ### Carattere musicale
 Dub profondo, drone armonico, basso sostenuto. Tempo geologico.
-Referenza: l'apertura di *Odessa* (Caribou), *Epoch* (Floating Points).
 Non risponde ai momenti — risponde alle ere.
 
 ### Identità tonale
@@ -74,7 +72,6 @@ Visual di sintesi: masse orizzontali e colonne verticali lente. Campo dominato d
 
 ### Carattere musicale
 Poliritmia jazz, groove preciso ma organico. Non meccanico — respira.
-Referenza: *LesAlpx* (Floating Points), *Two Thousand and Seventeen* (Four Tet).
 Ogni layer è indipendente, si incrociano per fasi.
 
 ### Identità tonale
@@ -122,7 +119,6 @@ Quando rhythmicity > 0.6: le entità PULSE si dispongono su griglia regolare inv
 ### Carattere musicale
 Melodia che si dissolve, texture spettrale, memoria armonica.
 Nessun beat fisso — le note emergono da soglie di brightness e centroide.
-Referenza: *Silhouettes* (Floating Points), layer melodici di *Rounds* (Four Tet).
 
 ### Identità tonale — MODIFICA NECESSARIA
 **Problema attuale**: Composer3 usa D Dorian, identico a Composer1 → tonal clash.

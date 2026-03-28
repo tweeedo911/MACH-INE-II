@@ -672,8 +672,9 @@ function transitionToScene(newScene, instant) {
     setPalette(palName);
   }
 
-  // Apply invert
-  if (newScene.invertBase !== scene.current.invertBase) {
+  // Apply invert — in V3_MODE l'inversione è riservata a momenti espliciti (non alle scene transition)
+  // Evita sfondo bianco nelle prime sezioni prima che ci siano elementi sufficienti
+  if (!CFG.V3_MODE && newScene.invertBase !== scene.current.invertBase) {
     startInvertDissolve();
   }
 

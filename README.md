@@ -203,7 +203,7 @@ MACH:INE II/
 
 ## Versione corrente
 
-`v2.9.0` — vedi [CHANGELOG.md](CHANGELOG.md) per i dettagli.
+`v2.9.1` — vedi [CHANGELOG.md](CHANGELOG.md) per i dettagli.
 
 ---
 
