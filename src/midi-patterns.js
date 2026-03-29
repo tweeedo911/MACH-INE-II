@@ -210,8 +210,8 @@ const PHASE_BEHAVIORS = {
     2: { zone: [0.28, 0.72], xMode: 'center', shape: 'band',    size: 0.018, decay: 0.9999, color: null }, // ORIZZONTE: linea sottile centrale
     3: { zone: [0.78, 1.00], xMode: 'pitch',  shape: 'band',    size: 0.018, decay: 0.9985, color: null }, // FONDAMENTA: barra bassa, quasi niente
     4: { zone: [0.22, 0.62], xMode: 'pitch',  shape: 'band',    size: 0.040, decay: 0.9925, color: 2   }, // ORIZZONTE ARMONICO: banda colorata
-    5: { zone: [0.00, 0.96], xMode: 'pitch',  shape: 'rect',    size: 0.048, decay: 0.9920, color: 3   }, // PRIMO PERSONAGGIO: quadrato che emerge, tutto il canvas
-    6: { zone: [0.00, 0.96], xMode: 'pitch',  shape: 'rect',    size: 0.038, decay: 0.9890, color: 2   }, // ECO: intrecciato con voce, tutto il canvas
+    5: { zone: [0.00, 0.96], xMode: 'random', shape: 'rect',    size: 0.048, decay: 0.9920, color: 3   }, // PRIMO PERSONAGGIO: libero sul canvas come CH1
+    6: { zone: [0.00, 0.96], xMode: 'random', shape: 'rect',    size: 0.038, decay: 0.9890, color: 2   }, // ECO: libero sul canvas come CH1
     7: { zone: [0.10, 0.90], xMode: 'random', shape: 'rupture', size: 0.045, decay: 0.920,  color: 'C' }, // SCINTILLA: frammento raro
   },
 
@@ -222,8 +222,8 @@ const PHASE_BEHAVIORS = {
     2: { zone: [0.45, 1.00], xMode: 'center', shape: 'band',    size: 0.070, decay: 0.9999, color: null }, // PESO: banda bassa e larga
     3: { zone: [0.68, 1.00], xMode: 'pitch',  shape: 'band',    size: 0.055, decay: 0.9975, color: 1   }, // STRATO PESANTE: barra abissale
     4: { zone: [0.30, 0.76], xMode: 'center', shape: 'band',    size: 0.100, decay: 0.9978, color: 2   }, // PRESSIONE: massa oppressiva
-    5: { zone: [0.00, 0.96], xMode: 'pitch',  shape: 'rect',    size: 0.022, decay: 0.9905, color: 3   }, // SEGNALE PERSO: piccolo, tutto il canvas
-    6: { zone: [0.00, 0.96], xMode: 'pitch',  shape: 'rect',    size: 0.018, decay: 0.9875, color: 2   }, // SUSSURRO: eco morente, tutto il canvas
+    5: { zone: [0.00, 0.96], xMode: 'random', shape: 'rect',    size: 0.022, decay: 0.9905, color: 3   }, // SEGNALE PERSO: piccolo, libero
+    6: { zone: [0.00, 0.96], xMode: 'random', shape: 'rect',    size: 0.018, decay: 0.9875, color: 2   }, // SUSSURRO: libero, scompare lento
     7: { zone: [0.15, 0.85], xMode: 'spread', shape: 'rupture', size: 0.200, decay: 0.840,  color: 'C' }, // CREPE: fratture
   },
 
@@ -234,8 +234,8 @@ const PHASE_BEHAVIORS = {
     2: { zone: [0.20, 0.80], xMode: 'center', shape: 'band',    size: 0.050, decay: 0.9999, color: null }, // FULCRO: banda centrale equilibrio
     3: { zone: [0.58, 0.98], xMode: 'pitch',  shape: 'band',    size: 0.040, decay: 0.9935, color: 1   }, // LOCOMOTIVA: barra in movimento
     4: { zone: [0.12, 0.66], xMode: 'stereo', shape: 'band',    size: 0.060, decay: 0.9780, color: 2   }, // FESTA: bande stereo
-    5: { zone: [0.00, 0.96], xMode: 'pitch',  shape: 'rect',    size: 0.085, decay: 0.9850, color: 3   }, // IL CANTANTE: grande e presente, tutto il canvas
-    6: { zone: [0.00, 0.96], xMode: 'pitch',  shape: 'rect',    size: 0.068, decay: 0.9740, color: 2   }, // RISPOSTA: intrecciato, tutto il canvas
+    5: { zone: [0.00, 0.96], xMode: 'random', shape: 'rect',    size: 0.085, decay: 0.9850, color: 3   }, // IL CANTANTE: libero, grande
+    6: { zone: [0.00, 0.96], xMode: 'random', shape: 'rect',    size: 0.068, decay: 0.9740, color: 2   }, // RISPOSTA: libera, intrecciata
     7: { zone: [0.18, 0.82], xMode: 'random', shape: 'rupture', size: 0.160, decay: 0.860,  color: 'C' }, // CAOS FESTIVO
   },
 
@@ -246,8 +246,8 @@ const PHASE_BEHAVIORS = {
     2: { zone: [0.16, 0.84], xMode: 'center', shape: 'band',    size: 0.025, decay: 0.9999, color: null }, // GRIGLIA: linea latente
     3: { zone: [0.64, 1.00], xMode: 'center', shape: 'column',  size: 0.040, decay: 0.9910, color: 1   }, // ACCIAIO: colonna sottile
     4: { zone: [0.18, 0.64], xMode: 'stereo', shape: 'band',    size: 0.055, decay: 0.9660, color: 2   }, // TAGLIO: stab geometrico
-    5: { zone: [0.00, 0.96], xMode: 'pitch',  shape: 'rect',    size: 0.062, decay: 0.9760, color: 3   }, // LINEA: ogni nota è una scelta, tutto il canvas
-    6: { zone: [0.00, 0.96], xMode: 'pitch',  shape: 'rect',    size: 0.058, decay: 0.9460, color: 2   }, // ACCENTO MECCANICO: rapido, tutto il canvas
+    5: { zone: [0.00, 0.96], xMode: 'random', shape: 'rect',    size: 0.062, decay: 0.9760, color: 3   }, // LINEA: libera, ogni nota è una scelta
+    6: { zone: [0.00, 0.96], xMode: 'random', shape: 'rect',    size: 0.058, decay: 0.9460, color: 2   }, // ACCENTO MECCANICO: libero, rapido
     7: { zone: [0.00, 1.00], xMode: 'spread', shape: 'rupture', size: 0.220, decay: 0.780,  color: 'C' }, // GLITCH sistematico
   },
 
@@ -258,8 +258,8 @@ const PHASE_BEHAVIORS = {
     2: { zone: [0.04, 0.96], xMode: 'center', shape: 'band',    size: 0.075, decay: 0.9999, color: null }, // SPAZIO: banda larga e vuota
     3: { zone: [0.78, 1.00], xMode: 'center', shape: 'band',    size: 0.020, decay: 0.9992, color: null }, // ECO BASSO: linea quasi invisibile
     4: { zone: [0.10, 0.74], xMode: 'pitch',  shape: 'band',    size: 0.065, decay: 0.9958, color: 2   }, // SHIMMER: banda quasi ferma
-    5: { zone: [0.00, 0.96], xMode: 'pitch',  shape: 'trail',   size: 0.040, decay: 0.9970, color: 3   }, // EVAPORAZIONE: trail, la voce si dissolve, tutto il canvas
-    6: { zone: [0.00, 0.96], xMode: 'pitch',  shape: 'rect',    size: 0.035, decay: 0.9958, color: 2   }, // ULTIMA TRACCIA: impronta, tutto il canvas
+    5: { zone: [0.00, 0.96], xMode: 'random', shape: 'trail',   size: 0.040, decay: 0.9970, color: 3   }, // EVAPORAZIONE: trail libero, si dissolve ovunque
+    6: { zone: [0.00, 0.96], xMode: 'random', shape: 'rect',    size: 0.035, decay: 0.9958, color: 2   }, // ULTIMA TRACCIA: impronta libera
     7: { zone: [0.08, 0.92], xMode: 'random', shape: 'rupture', size: 0.080, decay: 0.9550, color: 'C' }, // SPETTRO
   },
 };
