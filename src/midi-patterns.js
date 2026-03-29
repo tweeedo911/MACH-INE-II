@@ -192,74 +192,75 @@ const ENGINE_BEHAVIORS = {
 // Priorità in V3_MODE: PHASE_BEHAVIORS > ENGINE_BEHAVIORS > pool.
 //
 // Arco di ogni canale attraverso le 5 sezioni:
-//   CH0 PULSE   battito:   nascita → rituale → danza → macchina → memoria
-//   CH1 GRAIN   atmosfera: polvere → sedimento → polline → dati → cristalli
-//   CH2 DRONE   palco:     spazio vuoto → peso → fulcro → griglia → universo
-//   CH3 BASS    fondamenta:muto → pilastri → locomotiva → acciaio → eco
-//   CH4 CHORDS  colori:    orizzonte → pressione → festa → taglio → shimmer
-//   CH5 VOICE   protagonista: primo filo → segnale perso → canto → linea → evaporazione
-//   CH6 LEAD    risposta:  eco → sussurro → controcanto → accento → traccia
-//   CH7 RUPTURE trickster: scintilla → crepa → caos → glitch → spettro
+//   CH0 PULSE   battito:   pixel → pilastro → danza → macchina → memoria
+//   CH1 GRAIN   atmosfera: micro-rect → sedimento → polline → scan-lines → cristalli
+//   CH2 DRONE   palco:     linea orizzonte → peso → fulcro → griglia → spazio
+//   CH3 BASS    fondamenta:barra → strato → locomotiva → acciaio → eco
+//   CH4 CHORDS  colori:    banda → pressione → festa → taglio → shimmer
+//   CH5 VOICE   protagonista: emergenza → segnale perso → canto → linea → evaporazione (trail)
+//   CH6 LEAD    risposta:  eco → sussurro → risposta → accento → ultima traccia
+//   CH7 RUPTURE trickster: scintilla → crepe → caos → glitch → spettro
+// Nessun shape scatter (gradienti circolari) — solo geometria dura per Bayer 8x8.
 const PHASE_BEHAVIORS = {
 
-  // ── A_lydian — Apertura: il palcoscenico è vuoto, gli attori emergono ──────
+  // ── A_lydian — Apertura: palcoscenico vuoto, geometrie emergono ──────────
   'A_lydian': {
-    0: { zone: [0.42, 0.72], xMode: 'center', shape: 'scatter', size: 0.038, decay: 0.880,  color: null }, // BATTITO nascente — micro-flash, quasi niente
-    1: { zone: [0.00, 1.00], xMode: 'random', shape: 'scatter', size: 0.007, decay: 0.974,  color: null }, // ATMOSFERA: punti micro, polvere cosmica
-    2: { zone: [0.10, 0.90], xMode: 'center', shape: 'scatter', size: 0.07,  decay: 0.9999, color: null }, // PALCO: campo etereo, non invasivo
-    3: { zone: [0.70, 1.00], xMode: 'pitch',  shape: 'column',  size: 0.08,  decay: 0.9985, color: null }, // FONDAMENTA: radice silenziosa
-    4: { zone: [0.22, 0.62], xMode: 'pitch',  shape: 'band',    size: 0.08,  decay: 0.9925, color: 2   }, // ORIZZONTE ARMONICO: banda sottile
-    5: { zone: [0.04, 0.52], xMode: 'pitch',  shape: 'rect',    size: 0.060, decay: 0.9920, color: 3   }, // PRIMO PERSONAGGIO: quadrato luminoso che emerge
-    6: { zone: [0.00, 0.48], xMode: 'pitch',  shape: 'rect',    size: 0.048, decay: 0.9890, color: 2   }, // ECO: quadrato intrecciato, zona sovrapposta
-    7: { zone: [0.10, 0.90], xMode: 'random', shape: 'scatter', size: 0.055, decay: 0.930,  color: 'C' }, // SCINTILLA: rara
+    0: { zone: [0.42, 0.72], xMode: 'spread', shape: 'rect',    size: 0.018, decay: 0.870,  color: null }, // BATTITO: pixel staccato
+    1: { zone: [0.00, 1.00], xMode: 'random', shape: 'rect',    size: 0.006, decay: 0.972,  color: null }, // TEXTURE: micro-rect, polvere dura
+    2: { zone: [0.28, 0.72], xMode: 'center', shape: 'band',    size: 0.018, decay: 0.9999, color: null }, // ORIZZONTE: linea sottile centrale
+    3: { zone: [0.78, 1.00], xMode: 'pitch',  shape: 'band',    size: 0.018, decay: 0.9985, color: null }, // FONDAMENTA: barra bassa, quasi niente
+    4: { zone: [0.22, 0.62], xMode: 'pitch',  shape: 'band',    size: 0.040, decay: 0.9925, color: 2   }, // ORIZZONTE ARMONICO: banda colorata
+    5: { zone: [0.04, 0.52], xMode: 'pitch',  shape: 'rect',    size: 0.048, decay: 0.9920, color: 3   }, // PRIMO PERSONAGGIO: quadrato che emerge
+    6: { zone: [0.00, 0.48], xMode: 'pitch',  shape: 'rect',    size: 0.038, decay: 0.9890, color: 2   }, // ECO: intrecciato con voce
+    7: { zone: [0.10, 0.90], xMode: 'random', shape: 'rupture', size: 0.045, decay: 0.920,  color: 'C' }, // SCINTILLA: frammento raro
   },
 
-  // ── Bb_phrygian — Discesa: la gravità diventa protagonista ────────────────
+  // ── Bb_phrygian — Discesa: la gravità geometrica ──────────────────────────
   'Bb_phrygian': {
-    0: { zone: [0.72, 0.98], xMode: 'center', shape: 'column',  size: 0.28,  decay: 0.820,  color: 0   }, // RITUALE: colonna-pilastro pesante al fondo
-    1: { zone: [0.50, 1.00], xMode: 'random', shape: 'scatter', size: 0.012, decay: 0.950,  color: null }, // SEDIMENTO: punti micro che precipitano
-    2: { zone: [0.35, 1.00], xMode: 'center', shape: 'scatter', size: 0.09,  decay: 0.9999, color: null }, // PESO: campo basso
-    3: { zone: [0.66, 1.00], xMode: 'center', shape: 'column',  size: 0.18,  decay: 0.9975, color: 1   }, // PILASTRI: colonne abissali
-    4: { zone: [0.30, 0.76], xMode: 'center', shape: 'band',    size: 0.14,  decay: 0.9978, color: 2   }, // PRESSIONE: masse oppressive
-    5: { zone: [0.00, 0.20], xMode: 'pitch',  shape: 'rect',    size: 0.028, decay: 0.9905, color: 3   }, // SEGNALE PERSO: piccolo quadrato in cima
-    6: { zone: [0.00, 0.16], xMode: 'pitch',  shape: 'rect',    size: 0.022, decay: 0.9875, color: 2   }, // SUSSURRO: eco morente
-    7: { zone: [0.15, 0.85], xMode: 'spread', shape: 'rupture', size: 0.20,  decay: 0.840,  color: 'C' }, // CREPE: fratture improvvise
+    0: { zone: [0.28, 0.98], xMode: 'spread', shape: 'column',  size: 0.055, decay: 0.820,  color: 0   }, // PILASTRO: colonna sottile, rituale
+    1: { zone: [0.50, 1.00], xMode: 'random', shape: 'rect',    size: 0.010, decay: 0.950,  color: null }, // SEDIMENTO: micro-rect che precipita
+    2: { zone: [0.45, 1.00], xMode: 'center', shape: 'band',    size: 0.070, decay: 0.9999, color: null }, // PESO: banda bassa e larga
+    3: { zone: [0.68, 1.00], xMode: 'pitch',  shape: 'band',    size: 0.055, decay: 0.9975, color: 1   }, // STRATO PESANTE: barra abissale
+    4: { zone: [0.30, 0.76], xMode: 'center', shape: 'band',    size: 0.100, decay: 0.9978, color: 2   }, // PRESSIONE: massa oppressiva
+    5: { zone: [0.00, 0.20], xMode: 'pitch',  shape: 'rect',    size: 0.022, decay: 0.9905, color: 3   }, // SEGNALE PERSO: quadratino in cima
+    6: { zone: [0.00, 0.16], xMode: 'pitch',  shape: 'rect',    size: 0.018, decay: 0.9875, color: 2   }, // SUSSURRO: eco morente
+    7: { zone: [0.15, 0.85], xMode: 'spread', shape: 'rupture', size: 0.200, decay: 0.840,  color: 'C' }, // CREPE: fratture
   },
 
-  // ── D_dorian — Groove: energia liberata, tutti in scena ──────────────────
+  // ── D_dorian — Groove: tutti in scena, geometria viva ────────────────────
   'D_dorian': {
-    0: { zone: [0.58, 0.96], xMode: 'spread', shape: 'scatter', size: 0.22,  decay: 0.730,  color: 0   }, // DANZA: esplosione spread — tre punti ritmici
-    1: { zone: [0.00, 1.00], xMode: 'pitch',  shape: 'scatter', size: 0.016, decay: 0.885,  color: 4   }, // POLLINE: punti caldi pitch-mapped
-    2: { zone: [0.18, 0.82], xMode: 'center', shape: 'scatter', size: 0.08,  decay: 0.9999, color: null }, // FULCRO: centro caldo
-    3: { zone: [0.54, 0.98], xMode: 'pitch',  shape: 'column',  size: 0.16,  decay: 0.9935, color: 1   }, // LOCOMOTIVA: colonne che camminano col ritmo
-    4: { zone: [0.12, 0.66], xMode: 'stereo', shape: 'band',    size: 0.14,  decay: 0.9780, color: 2   }, // FESTA: bande stereo calde
-    5: { zone: [0.04, 0.52], xMode: 'pitch',  shape: 'rect',    size: 0.085, decay: 0.9850, color: 3   }, // IL CANTANTE: quadrato grande e presente
-    6: { zone: [0.02, 0.46], xMode: 'pitch',  shape: 'rect',    size: 0.068, decay: 0.9740, color: 2   }, // RISPOSTA: si sovrappone e intreccia con la voce
-    7: { zone: [0.18, 0.82], xMode: 'random', shape: 'scatter', size: 0.16,  decay: 0.860,  color: 'C' }, // CAOS FESTIVO
+    0: { zone: [0.58, 0.96], xMode: 'spread', shape: 'rect',    size: 0.055, decay: 0.730,  color: 0   }, // DANZA: rect esplosivo
+    1: { zone: [0.00, 1.00], xMode: 'pitch',  shape: 'rect',    size: 0.010, decay: 0.885,  color: 4   }, // POLLINE: micro-rect pitch-mapped
+    2: { zone: [0.20, 0.80], xMode: 'center', shape: 'band',    size: 0.050, decay: 0.9999, color: null }, // FULCRO: banda centrale equilibrio
+    3: { zone: [0.58, 0.98], xMode: 'pitch',  shape: 'band',    size: 0.040, decay: 0.9935, color: 1   }, // LOCOMOTIVA: barra in movimento
+    4: { zone: [0.12, 0.66], xMode: 'stereo', shape: 'band',    size: 0.060, decay: 0.9780, color: 2   }, // FESTA: bande stereo
+    5: { zone: [0.04, 0.52], xMode: 'pitch',  shape: 'rect',    size: 0.085, decay: 0.9850, color: 3   }, // IL CANTANTE: grande e presente
+    6: { zone: [0.02, 0.46], xMode: 'pitch',  shape: 'rect',    size: 0.068, decay: 0.9740, color: 2   }, // RISPOSTA: intrecciato
+    7: { zone: [0.18, 0.82], xMode: 'random', shape: 'rupture', size: 0.160, decay: 0.860,  color: 'C' }, // CAOS FESTIVO
   },
 
-  // ── C#_dorian — Climax tecnico: geometria, macchina ──────────────────────
+  // ── C#_dorian — Climax: geometria meccanica pura ─────────────────────────
   'C#_dorian': {
-    0: { zone: [0.64, 0.97], xMode: 'spread', shape: 'column',  size: 0.20,  decay: 0.710,  color: 0   }, // MACCHINA: kick→colonna, pilastro non flash
-    1: { zone: [0.00, 1.00], xMode: 'pitch',  shape: 'band',    size: 0.008, decay: 0.830,  color: 4   }, // DATI: scanning lines ultra-sottili
-    2: { zone: [0.16, 0.84], xMode: 'center', shape: 'scatter', size: 0.07,  decay: 0.9999, color: null }, // GRIGLIA: fondamenta latente
-    3: { zone: [0.64, 1.00], xMode: 'center', shape: 'column',  size: 0.14,  decay: 0.9910, color: 1   }, // ACCIAIO: preciso, ripetitivo
-    4: { zone: [0.18, 0.64], xMode: 'stereo', shape: 'band',    size: 0.10,  decay: 0.9660, color: 2   }, // TAGLIO: stab geometrico
-    5: { zone: [0.06, 0.46], xMode: 'pitch',  shape: 'rect',    size: 0.062, decay: 0.9760, color: 3   }, // LINEA: quadrato preciso, ogni nota è una scelta
-    6: { zone: [0.04, 0.40], xMode: 'pitch',  shape: 'rect',    size: 0.058, decay: 0.9460, color: 2   }, // ACCENTO MECCANICO: appare e scompare rapido
-    7: { zone: [0.00, 1.00], xMode: 'spread', shape: 'rupture', size: 0.22,  decay: 0.780,  color: 'C' }, // GLITCH sistematico
+    0: { zone: [0.64, 0.97], xMode: 'spread', shape: 'column',  size: 0.060, decay: 0.710,  color: 0   }, // MACCHINA: colonna precisa
+    1: { zone: [0.00, 1.00], xMode: 'pitch',  shape: 'band',    size: 0.006, decay: 0.830,  color: 4   }, // DATI: scan-lines ultra-sottili
+    2: { zone: [0.16, 0.84], xMode: 'center', shape: 'band',    size: 0.025, decay: 0.9999, color: null }, // GRIGLIA: linea latente
+    3: { zone: [0.64, 1.00], xMode: 'center', shape: 'column',  size: 0.040, decay: 0.9910, color: 1   }, // ACCIAIO: colonna sottile
+    4: { zone: [0.18, 0.64], xMode: 'stereo', shape: 'band',    size: 0.055, decay: 0.9660, color: 2   }, // TAGLIO: stab geometrico
+    5: { zone: [0.06, 0.46], xMode: 'pitch',  shape: 'rect',    size: 0.062, decay: 0.9760, color: 3   }, // LINEA: ogni nota è una scelta
+    6: { zone: [0.04, 0.40], xMode: 'pitch',  shape: 'rect',    size: 0.058, decay: 0.9460, color: 2   }, // ACCENTO MECCANICO: rapido
+    7: { zone: [0.00, 1.00], xMode: 'spread', shape: 'rupture', size: 0.220, decay: 0.780,  color: 'C' }, // GLITCH sistematico
   },
 
   // ── E_phrygian — Dissoluzione: gli attori perdono la forma ───────────────
   'E_phrygian': {
-    0: { zone: [0.44, 0.70], xMode: 'center', shape: 'scatter', size: 0.030, decay: 0.974,  color: null }, // MEMORIA: micro-flash quasi invisibile
-    1: { zone: [0.00, 1.00], xMode: 'random', shape: 'scatter', size: 0.007, decay: 0.9945, color: null }, // CRISTALLI: punti micro lentissimi
-    2: { zone: [0.04, 0.96], xMode: 'center', shape: 'scatter', size: 0.08,  decay: 0.9999, color: null }, // UNIVERSO: spazio cristallino
-    3: { zone: [0.76, 1.00], xMode: 'center', shape: 'column',  size: 0.055, decay: 0.9992, color: null }, // ECO: sub-presenza
-    4: { zone: [0.10, 0.74], xMode: 'pitch',  shape: 'band',    size: 0.16,  decay: 0.9958, color: 2   }, // SHIMMER: banda quasi ferma
-    5: { zone: [0.02, 0.52], xMode: 'pitch',  shape: 'rect',    size: 0.055, decay: 0.9970, color: 3   }, // EVAPORAZIONE: quadrato che si dissolve lentamente
-    6: { zone: [0.00, 0.38], xMode: 'pitch',  shape: 'rect',    size: 0.042, decay: 0.9958, color: 2   }, // ULTIMA TRACCIA: impronta residua
-    7: { zone: [0.08, 0.92], xMode: 'random', shape: 'scatter', size: 0.080, decay: 0.9550, color: 'C' }, // SPETTRO: frammento magenta
+    0: { zone: [0.44, 0.70], xMode: 'center', shape: 'rect',    size: 0.022, decay: 0.974,  color: null }, // MEMORIA: pixel residuo
+    1: { zone: [0.00, 1.00], xMode: 'random', shape: 'rect',    size: 0.006, decay: 0.9945, color: null }, // CRISTALLI: micro-rect lentissimi
+    2: { zone: [0.04, 0.96], xMode: 'center', shape: 'band',    size: 0.075, decay: 0.9999, color: null }, // SPAZIO: banda larga e vuota
+    3: { zone: [0.78, 1.00], xMode: 'center', shape: 'band',    size: 0.020, decay: 0.9992, color: null }, // ECO BASSO: linea quasi invisibile
+    4: { zone: [0.10, 0.74], xMode: 'pitch',  shape: 'band',    size: 0.065, decay: 0.9958, color: 2   }, // SHIMMER: banda quasi ferma
+    5: { zone: [0.02, 0.52], xMode: 'pitch',  shape: 'trail',   size: 0.040, decay: 0.9970, color: 3   }, // EVAPORAZIONE: trail, la voce si dissolve
+    6: { zone: [0.00, 0.38], xMode: 'pitch',  shape: 'rect',    size: 0.035, decay: 0.9958, color: 2   }, // ULTIMA TRACCIA: impronta
+    7: { zone: [0.08, 0.92], xMode: 'random', shape: 'rupture', size: 0.080, decay: 0.9550, color: 'C' }, // SPETTRO
   },
 };
 
