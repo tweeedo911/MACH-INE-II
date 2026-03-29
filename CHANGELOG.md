@@ -5,6 +5,32 @@ Formato: `[versione] – data – descrizione`
 
 ---
 
+## [v2.9.1] – 2026-03-29
+
+**Sistema V3 visivo completo — theatrical actor behaviors, rect shape, guard bugfix.**
+
+### Aggiunto
+- **`rect` shape** (`field.js`, `midi-patterns.js`): nuovo shape halftone per CH5 VOICE e CH6 LEAD — quadrato pitch-mapped (sia x che y si spostano con l'intonazione), accumula come trail. Voice e lead si intrecciano fisicamente quando le linee melodiche convergono.
+- **PHASE_BEHAVIORS sistema teatrale** (`midi-patterns.js`): 8 canali MIDI × 5 sezioni modali, ogni canale è un attore con ruolo che evolve. CH5 VOICE (violet, protagonista), CH6 LEAD (cyan, eco/risposta), CH0 PULSE colonna/scatter per sezione, CH7 RUPTURE trickster.
+- **Per-channel trail eviction** (`field.js`): `CH_MAX = [4, 4, 3, 7, 9, 14, 10, 5]` — ogni canale ha il proprio limite di slot trail, evita che CH1 grain monopolizzi il buffer.
+
+### Modificato
+- **CH0 PULSE**: rimosso shape `pulse` da tutti i PHASE_BEHAVIORS — sostituito con `scatter` e `column` per sezione.
+- **CH2 DRONE**: dimensioni ridotte (0.28-0.32 → 0.07-0.09) per decongestione visiva.
+- **CH6 LEAD**: colore distinto da CH5 — `color: 2` (cyan) invece di `color: 3` (violet) su tutti i PHASE_BEHAVIORS e LEAD_BEHAVIORS.
+- **CH1 GRAIN**: dimensioni halved (0.014→0.007 in apertura) per ridurre ingombro hi-hat.
+- **Velocity floor** (`field.js`): esteso da ch<=4 a ch<=6 — garantisce visibilità rect CH5/CH6 in apertura quando `melodicActivity` è bassa.
+
+### Corretto
+- **White background a 3 minuti** (`sequencer.js`): guard `!CFG.V3_MODE` su `startInvertDissolve()` per i case `layer` e `fade_to`.
+- **PHASE_BEHAVIORS irraggiungibili in V3** (`midi-patterns.js`): `pickBehavior()` ora valuta PHASE prima di ENGINE in V3_MODE.
+- **Inversione ENGINE_INVERSIONS/VORTICE in V3** (`director.js`): guard `!CFG.V3_MODE` su entrambi i timer di inversione.
+- **Palette leak chord_change in V3** (`director.js`): guard `!CFG.V3_MODE`.
+- **manualToggle() in V3** (`main.js`): guard `CFG.V3_MODE` — impedisce attivazione manuale dei composer V2 durante la performance V3 (collisione canali MIDI).
+- **setPhaseMode() ripick parziale** (`midi-patterns.js`): ora repicka tutti gli 8 canali ad ogni transizione modale.
+
+---
+
 ## [v2.9.0] – 2026-03-28
 
 **Sistema V3 — MacroComposer + layer armonico/ritmico/melodico completo. Qualità compositiva e controllo live.**

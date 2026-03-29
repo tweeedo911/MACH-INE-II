@@ -409,6 +409,7 @@ export const CFG = {
     microDriftAmp:      0.07,      // ampiezza oscillazione ±7% attorno al target (D-02)
     microDriftFreqSec:  23,        // periodo oscillazione in secondi (numero primo per asimmetria)
     emaTau:             4.0,       // time constant EMA per smoothing valori 4D in secondi
+    breathInterval:     8,         // ogni N cambi accordo, forza anchor 0 (tonica) — respiro armonico
 
     // Checkpoint array — arco 4D precomposto su 45 minuti
     // rD=rhythmicDensity, hC=harmonicColor, mA=melodicActivity, tD=textureDepth
@@ -416,6 +417,8 @@ export const CFG = {
       { pct: 0.00, rD: 0.0, hC: 0.0, mA: 0.0, tD: 0.1, mode: 'A_lydian' },
       { pct: 0.22, rD: 0.1, hC: 0.3, mA: 0.20, tD: 0.2, mode: 'A_lydian' },   // mA alzato: melodia udibile da ~10min
       { pct: 0.44, rD: 0.3, hC: 0.7, mA: 0.50, tD: 0.4, mode: 'Bb_phrygian' }, // mA alzato: voce presente nella sezione frigia
+      { pct: 0.52, rD: 0.1, hC: 0.25, mA: 0.3, tD: 0.2, mode: 'Bb_phrygian' }, // respiro frigio ~min23: ritmo cede, armonia si apre
+      { pct: 0.57, rD: 0.4, hC: 0.85, mA: 0.55, tD: 0.42, mode: 'Bb_phrygian' }, // ripresa verso picco
       { pct: 0.62, rD: 0.5, hC: 1.0, mA: 0.60, tD: 0.5, mode: 'Bb_phrygian' }, // mA alzato: melodia forte al picco armonico ~min28
       { pct: 0.73, rD: 0.7, hC: 0.7, mA: 0.6, tD: 0.6, mode: 'D_dorian' },       // density building
       { pct: 0.75,  rD: 0.0, hC: 0.5, mA: 0.3, tD: 0.4, mode: 'D_dorian', instant: true }, // FALSE RESOLUTION start
@@ -490,7 +493,7 @@ export const CFG = {
       ],
       'D_dorian': [
         { bass: 38, bassAlt: 45, ch2: [50, 62], ch4: [57, 60, 62] },  // apertura: D2→A2, D3+D4, A3+C4+D4
-        { bass: 45, bassAlt: 38, ch2: [50, 62], ch4: [59, 62, 65] },  // pivot: A2→D2, D3+D4, B3+D4+F4
+        { bass: 45, bassAlt: 38, ch2: [50, 62], ch4: [57, 62, 65] },  // pivot: A2→D2, D3+D4, A3+D4+F4 (Dm open)
         { bass: 43, bassAlt: 50, ch2: [50, 62], ch4: [57, 60, 64] },  // picco: G2→D3, D3+D4, A3+C4+E4
         { bass: 43, bassAlt: 38, ch2: [55, 67], ch4: [55, 59, 62] },  // IV dorico: G2→D2, G3+G4, G3+B3+D4
         { bass: 36, bassAlt: 43, ch2: [48, 60], ch4: [48, 52, 57] },  // bVII dub: C2→G2, C3+C4, C3+E3+A3
@@ -807,7 +810,7 @@ export const CFG = {
     // ── 5 atti narrativi visivi (D-06) ──
     // Ogni atto: range arcPercent, scena target, palette base, densityCap, camera
     acts: {
-      I:   { min: 0.00, max: 0.15, scene: 'SPARSE',         palette: 'cold',    densityCap: 0.15, camera: 'WIDE'   },
+      I:   { min: 0.00, max: 0.15, scene: 'SPARSE',         palette: 'cold',    densityCap: 0.22, camera: 'WIDE'   },
       II:  { min: 0.15, max: 0.35, scene: 'BAYER_CLASSIC',  palette: 'default', densityCap: 0.45, camera: 'DRIFT'  },
       III: { min: 0.35, max: 0.60, scene: 'COLORED_GROUND', palette: 'warm',    densityCap: 1.00, camera: 'MEDIUM' },
       IV:  { min: 0.60, max: 0.80, scene: 'DENSE',          palette: 'warm',    densityCap: 0.90, camera: 'MEDIUM' },
@@ -864,7 +867,7 @@ export const CFG = {
     modeParams: {
       'A_lydian': {
         // Emersione luminosa — pochi elementi, grandi, ogni nota melodica disegna
-        dotSize: 14,  densityMul: 0.45,  midiDensityMul: 1.5,
+        dotSize: 14,  densityMul: 0.45,  midiDensityMul: 0.7,
         flickerSpeed: 0.2,  trailMax: 80,  midiScale: 3.2,
       },
       'Bb_phrygian': {

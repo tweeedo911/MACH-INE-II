@@ -79,6 +79,7 @@ function activateSingle(engineKey) {
 
 // Manual engine toggle — stops sequencer, resets multipliers
 function manualToggle(toggleFn) {
+  if (CFG.V3_MODE) return; // V3: engine attivi gestiti da macro-composer, non da toggle manuale
   if (isSequencerActive()) toggleSequencer();
   allOff();
   toggleFn();

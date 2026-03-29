@@ -27,6 +27,7 @@ let _chordCycleIdx   = 0;    // posizione nella sequenza progressionCycle
 let _prevBreakActive = false; // stato break precedente (per detect re-entry — RITM-05)
 let _prevDroneNoteLo = null;  // ultima nota bassa drone inviata (per note-off esplicito al cambio)
 let _prevDroneNoteHi = null;  // ultima nota alta drone inviata (per note-off esplicito al cambio)
+let _breathCounter   = 0;    // contatore respiri armonici — ogni breathInterval accordi ritorna alla tonica
 
 // Ritmo armonico
 const _droneUpdateEvery = 4; // drone refresh ogni 4 bar — invariante
@@ -43,6 +44,7 @@ export function initHarmonyLayer() {
   _prevBreakActive = false;  // reset esplicito — evita falso breakJustEnded al primo tick
   _prevDroneNoteLo = null;
   _prevDroneNoteHi = null;
+  _breathCounter   = 0;
 
   sendMIDIAllNotesOff(); // pulire note residue da sessioni precedenti
 
@@ -178,7 +180,16 @@ export function updateHarmonyLayer(_dt) {
     const anchors = CFG.MACRO.anchors[macroState.currentMode];
     if (!anchors || anchors.length === 0) return;
 
-    const anchorTarget = activeCycle[_chordCycleIdx % activeCycle.length];
+    // Respiro armonico: ogni breathInterval cambi accordo, ritorna alla tonica (anchor 0)
+    // Crea momenti di risoluzione periodica — narrazione tensione/respiro
+    _breathCounter++;
+    let anchorTarget;
+    if (CFG.MACRO.breathInterval > 0 && _breathCounter >= CFG.MACRO.breathInterval) {
+      _breathCounter = 0;
+      anchorTarget = 0;  // tonica — momento di risoluzione
+    } else {
+      anchorTarget = activeCycle[_chordCycleIdx % activeCycle.length];
+    }
     _chordCycleIdx++;
 
     const anchor = anchors[Math.min(anchorTarget, anchors.length - 1)];

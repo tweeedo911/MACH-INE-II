@@ -38,8 +38,16 @@ export function addOnsetWave(cx, cy, W, H) {
 const MAX_TRAIL = 64;
 export let midiTrail = [];
 
+// Per-channel max concurrent trail slots — prevents high-freq channels (CH1 grain)
+// from evicting low-freq channels (CH4 chords, CH5 voice, CH6 lead) via FIFO.
+// CH5 VOICE gets the most slots — it's the protagonist.
+const CH_MAX = [4, 4, 3, 7, 9, 14, 10, 5]; // CH0-CH7 — CH1 ridotto a 4 punti max
+
 export function addMidiNote(ch, noteNorm, velNorm) {
-  const pos = getNotePosition(ch, noteNorm, velNorm);
+  // CH2–CH6 (drone/bass/chords/voice/lead) arrivano con vel attenuata da macroState —
+  // floor visivo garantisce presenza minima anche quando harmonicColor/melodicActivity è basso
+  const visVel = (ch >= 2 && ch <= 6) ? Math.max(velNorm, 0.3) : velNorm;
+  const pos = getNotePosition(ch, noteNorm, visVel);
   if (!pos) return;
 
   // Scale radius by scene midiScale (engine override if active) + engine shapeScale
@@ -49,17 +57,31 @@ export function addMidiNote(ch, noteNorm, velNorm) {
   // Reinforce: if a similar note exists from same channel, boost it
   for (const n of midiTrail) {
     if (n.ch === ch && Math.abs(n.x - pos.x) < 0.04 && Math.abs(n.y - pos.y) < 0.04) {
-      n.alpha = Math.min(1, n.alpha + velNorm * 0.5);
-      n.vel = Math.max(n.vel, velNorm);
+      n.alpha = Math.min(1, n.alpha + visVel * 0.5);
+      n.vel = Math.max(n.vel, visVel);
       n.radius = scaledRadius;
       n.time = 0;
       return;
     }
   }
 
+  // Per-channel eviction: if this channel has too many entries, remove its oldest one.
+  // This ensures CH1 grain never pushes CH4/CH5/CH6 out of the trail.
+  const chMax = CH_MAX[ch] ?? 6;
+  let chCount = 0, oldestIdx = -1, oldestTime = -1;
+  for (let i = 0; i < midiTrail.length; i++) {
+    if (midiTrail[i].ch === ch) {
+      chCount++;
+      if (midiTrail[i].time > oldestTime) { oldestTime = midiTrail[i].time; oldestIdx = i; }
+    }
+  }
+  if (chCount >= chMax && oldestIdx >= 0) {
+    midiTrail.splice(oldestIdx, 1);
+  }
+
   midiTrail.push({
     x: pos.x, y: pos.y,
-    vel: velNorm, alpha: 1,
+    vel: visVel, alpha: 1,
     radius: scaledRadius,
     decay: pos.decay,
     shape: pos.shape,
@@ -69,7 +91,7 @@ export function addMidiNote(ch, noteNorm, velNorm) {
   });
 
   const maxTrail = engineRender.active ? engineRender.trailMax : MAX_TRAIL;
-  if (midiTrail.length > maxTrail) midiTrail.shift();
+  if (midiTrail.length > maxTrail) midiTrail.shift(); // global safety net
 }
 
 export function updateWaves(dt) {
@@ -103,17 +125,15 @@ function midiColorAt(nx, ny) {
 
     let influence = 0;
     if (n.shape === 'pulse') {
-      // Colore rettangolare istantaneo — niente espansione nel tempo
-      const expand = n.radius;
-      const hw = expand * 1.6, hh = expand * 0.9;
+      // Rettangolo pieno — colore istantaneo
+      const hw = n.radius * 1.6, hh = n.radius * 0.9;
       const adx = Math.abs(dx), ady = Math.abs(dy);
       if (adx < hw && ady < hh) {
         influence = (1 - adx / hw) * (1 - ady / hh) * n.alpha * n.vel;
       }
-    } else if (n.shape === 'blob') {
-      // Blocco colore rettangolare ampio
-      const breathe = 1 + Math.sin(n.time * 2.5) * 0.15;
-      const hw = n.radius * 2.5 * breathe, hh = n.radius * 1.8 * breathe;
+    } else if (n.shape === 'rect') {
+      // Quadrato pitch-posizionato — voice/lead che compaiono e si intrecciano
+      const hw = n.radius * 1.0, hh = n.radius * 1.0;
       const adx = Math.abs(dx), ady = Math.abs(dy);
       if (adx < hw && ady < hh) {
         influence = (1 - adx / hw) * (1 - ady / hh) * n.alpha * n.vel;
@@ -121,7 +141,8 @@ function midiColorAt(nx, ny) {
     } else if (n.shape === 'band') {
       const bandH = n.radius * 1.5;
       if (Math.abs(dy) < bandH) {
-        const xFade = 1 - Math.pow(Math.abs(nx - 0.5) * 2, 3);
+        // xFade centrato sulla x della nota (non sul canvas center)
+        const xFade = Math.max(0, 1 - Math.pow(Math.abs(nx - n.x) * 2, 3));
         influence = (1 - Math.abs(dy) / bandH) * xFade * n.alpha * n.vel;
       }
     } else if (n.shape === 'column') {
@@ -269,31 +290,26 @@ function computeDensity(nx, ny, px, py, state, globalTime, W, H) {
     let midiD = 0;
 
     if (n.shape === 'pulse') {
-      const expand = n.radius;
-      const hw = expand * 1.2, hh = expand * 0.6;
-      const edgeW = 0.03 + n.radius * 0.12;
-      const adx = Math.abs(dx), ady = Math.abs(dy);
-      if (adx < hw + edgeW && ady < hh + edgeW) {
-        const dEdge = Math.max(Math.max(0, adx - hw), Math.max(0, ady - hh));
-        const inEdge = Math.min(Math.abs(adx - hw), Math.abs(ady - hh));
-        if (dEdge < edgeW && inEdge < edgeW) {
-          midiD = (1 - dEdge / edgeW) * n.vel * n.alpha;
-        }
-      }
-    } else if (n.shape === 'blob') {
-      const breathe = 1 + Math.sin(n.time * 2.5) * 0.15;
-      const hw = n.radius * 1.8 * breathe;
-      const hh = n.radius * 1.2 * breathe;
+      // Rettangolo pieno — impatto nitido, nessuna geometria circolare
+      const hw = n.radius * 1.2, hh = n.radius * 0.6;
       const adx = Math.abs(dx), ady = Math.abs(dy);
       if (adx < hw && ady < hh) {
-        midiD = (1 - adx / hw) * (1 - ady / hh) * n.vel * n.alpha * 0.85;
+        midiD = (1 - adx / hw) * (1 - ady / hh) * n.vel * n.alpha;
+      }
+    } else if (n.shape === 'rect') {
+      // Quadrato pitch-posizionato — voice/lead che compaiono e si intrecciano
+      const hw = n.radius * 0.85, hh = n.radius * 0.85;
+      const adx = Math.abs(dx), ady = Math.abs(dy);
+      if (adx < hw && ady < hh) {
+        midiD = (1 - adx / hw) * (1 - ady / hh) * n.vel * n.alpha;
       }
     } else if (n.shape === 'band') {
       const bandH = n.radius * 0.8;
       const bandDist = Math.abs(dy);
       if (bandDist < bandH) {
         const falloff = 1 - bandDist / bandH;
-        const xFade = 1 - Math.pow(Math.abs(nx - 0.5) * 2, 3);
+        // xFade centrato sulla x della nota — banda segue il pitch
+        const xFade = Math.max(0, 1 - Math.pow(Math.abs(nx - n.x) * 2, 3));
         midiD = falloff * xFade * n.vel * n.alpha * 0.7;
       }
     } else if (n.shape === 'column') {
@@ -316,7 +332,7 @@ function computeDensity(nx, ny, px, py, state, globalTime, W, H) {
     }
 
     // Trail melodici si accumulano — più note = spazio più denso
-    if (n.shape === 'trail') {
+    if (n.shape === 'trail' || n.shape === 'rect') {
       trailAccum += midiD;
     } else if (midiD > maxMidiD) {
       maxMidiD = midiD;
@@ -565,7 +581,6 @@ export function renderField(ctx, W, H, state, globalTime) {
     } else {
       renderBuffer(_sedCtx, dotSize, state, globalTime, W, H);
     }
-    drawMatrice(_sedCtx, state, globalTime, W, H);
 
     // Copia sediment canvas su output
     ctx.drawImage(_sedCanvas, 0, 0);
@@ -576,6 +591,8 @@ export function renderField(ctx, W, H, state, globalTime) {
     } else {
       renderBuffer(ctx, dotSize, state, globalTime, W, H);
     }
-    drawMatrice(ctx, state, globalTime, W, H);
   }
+
+  // Matrice sempre su ctx diretto — non entra nel sediment, niente accumulo
+  drawMatrice(ctx, state, globalTime, W, H);
 }

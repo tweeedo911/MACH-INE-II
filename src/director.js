@@ -276,6 +276,19 @@ function _updateDirectorV3(dt) {
   engineRender.midiDensityMul = ls.midiDensityMul;
   engineRender.feedbackDecay  = ls.feedbackDecay;
 
+  // ── 2b. Reattività MIDI real-time (V3) ──
+  // Sovrascrive i valori lerped con boost istantanei — "a seconda del momento del live"
+  // noteDensity = note/sec finestra 2s — normalizzato 0→1 a ~10 note/sec
+  const _noteDens  = Math.min(1, midi.noteDensity / 10);
+  const _kickD     = Math.min(1, (midi.channels[0]?.density || 0) * 0.6);
+  const _chordsD   = Math.min(1, (midi.channels[4]?.density || 0) * 0.8);
+  // Attività globale → intensità visiva MIDI (meno note = più sparse e preziose)
+  engineRender.midiDensityMul = ls.midiDensityMul * (1 + _noteDens * 0.55);
+  // Kick → dotSize impulso (campo più pesante ad ogni colpo)
+  engineRender.dotSize        = ls.dotSize        * (1 + _kickD   * 0.45);
+  // Accordi attivi → midiScale apertura (bande si espandono al cambio progressione)
+  engineRender.midiScale      = ls.midiScale      * (1 + _chordsD * 0.3);
+
   // ── 3. Arco visivo 5 atti (D-04, D-06) ──
   const act = _getV3Act(arcPct);
   const actCfg = vis.acts[act];
@@ -984,9 +997,9 @@ export function updateDirector(dt, state, globalTime, W, H) {
         scene.blendSpeed = 0.3;
       }
 
-      // Narrative inversion (6D) — one per engine per activation
+      // Narrative inversion (6D) — one per engine per activation (V2 only)
       const invertPhase = ENGINE_INVERSIONS[curEngine];
-      if (invertPhase === musicalPhase && !_invertTriggered[curEngine]) {
+      if (!CFG.V3_MODE && invertPhase === musicalPhase && !_invertTriggered[curEngine]) {
         _invertTriggered[curEngine] = true;
         startInvertDissolve();
       }
@@ -1032,8 +1045,8 @@ export function updateDirector(dt, state, globalTime, W, H) {
       }
     }
 
-    // VORTICE rhythmic inversion — every 4 beats at 138 BPM (~1.739s)
-    if (curEngine === 'vortice') {
+    // VORTICE rhythmic inversion — every 4 beats at 138 BPM (~1.739s) — V2 only
+    if (!CFG.V3_MODE && curEngine === 'vortice') {
       _vorticeInvTimer += dt;
       if (_vorticeInvTimer >= _VORTICE_BEAT_4) {
         _vorticeInvTimer -= _VORTICE_BEAT_4;
@@ -1144,12 +1157,14 @@ export function updateDirector(dt, state, globalTime, W, H) {
         for (let ch = 0; ch < 5; ch++) checkPatternChange(barNum, ch);
 
         if (barNum >= nextMutationBar) {
-          const prob = (0.4 + state.intensity * 0.4 + dirRandomFactor * Math.random()) * arcParams.mutationRate;
-          if (prob > CFG.directorChangeThreshold) {
-            const camRoll = Math.random();
-            if (camRoll < 0.55) executeMutation(null, globalTime);
-            else if (camRoll < 0.80) { executeMutation(null, globalTime); if (autoCamera) pickAutoShot(state, W, H); }
-            else { if (autoCamera) pickAutoShot(state, W, H); logMut('CAMERA', framing.current, globalTime); }
+          if (!CFG.V3_MODE) {
+            const prob = (0.4 + state.intensity * 0.4 + dirRandomFactor * Math.random()) * arcParams.mutationRate;
+            if (prob > CFG.directorChangeThreshold) {
+              const camRoll = Math.random();
+              if (camRoll < 0.55) executeMutation(null, globalTime);
+              else if (camRoll < 0.80) { executeMutation(null, globalTime); if (autoCamera) pickAutoShot(state, W, H); }
+              else { if (autoCamera) pickAutoShot(state, W, H); logMut('CAMERA', framing.current, globalTime); }
+            }
           }
           nextMutationBar = barNum + Math.round(pickNextBarTarget() / Math.max(0.5, arcParams.mutationRate));
           if (state.intensity > 0.7) nextMutationBar = barNum + Math.max(2, pickNextBarTarget() / 2);
@@ -1159,15 +1174,17 @@ export function updateDirector(dt, state, globalTime, W, H) {
   } else {
     director.nextCheckIn -= dt;
     if (director.nextCheckIn <= 0) {
-      let prob = 0.5 * arcParams.mutationRate;
-      if (director.plateauTime > CFG.directorPlateauSec) prob += 0.3;
-      prob += dirRandomFactor * Math.random();
-      director.changeProb = Math.min(1, prob);
-      if (prob > CFG.directorChangeThreshold) {
-        const camRoll = Math.random();
-        if (camRoll < 0.55) executeMutation(null, globalTime);
-        else if (camRoll < 0.80) { executeMutation(null, globalTime); if (autoCamera) pickAutoShot(state, W, H); }
-        else { if (autoCamera) pickAutoShot(state, W, H); logMut('CAMERA', framing.current, globalTime); }
+      if (!CFG.V3_MODE) {
+        let prob = 0.5 * arcParams.mutationRate;
+        if (director.plateauTime > CFG.directorPlateauSec) prob += 0.3;
+        prob += dirRandomFactor * Math.random();
+        director.changeProb = Math.min(1, prob);
+        if (prob > CFG.directorChangeThreshold) {
+          const camRoll = Math.random();
+          if (camRoll < 0.55) executeMutation(null, globalTime);
+          else if (camRoll < 0.80) { executeMutation(null, globalTime); if (autoCamera) pickAutoShot(state, W, H); }
+          else { if (autoCamera) pickAutoShot(state, W, H); logMut('CAMERA', framing.current, globalTime); }
+        }
       }
       computeNextCheck(state);
     }
