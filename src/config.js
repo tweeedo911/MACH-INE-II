@@ -414,7 +414,7 @@ export const CFG = {
     // Checkpoint array — arco 4D precomposto su 45 minuti
     // rD=rhythmicDensity, hC=harmonicColor, mA=melodicActivity, tD=textureDepth
     checkpoints: [
-      { pct: 0.00, rD: 0.0, hC: 0.0, mA: 0.0, tD: 0.1, mode: 'A_lydian' },
+      { pct: 0.00, rD: 0.0, hC: 0.0, mA: 0.06, tD: 0.1, mode: 'A_lydian' },  // mA minimo: voice/lead emergono da subito, silenziosi
       { pct: 0.22, rD: 0.1, hC: 0.3, mA: 0.20, tD: 0.2, mode: 'A_lydian' },   // mA alzato: melodia udibile da ~10min
       { pct: 0.44, rD: 0.3, hC: 0.7, mA: 0.50, tD: 0.4, mode: 'Bb_phrygian' }, // mA alzato: voce presente nella sezione frigia
       { pct: 0.52, rD: 0.1, hC: 0.25, mA: 0.3, tD: 0.2, mode: 'Bb_phrygian' }, // respiro frigio ~min23: ritmo cede, armonia si apre

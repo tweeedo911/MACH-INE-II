@@ -8,6 +8,7 @@
 import { CFG } from './config.js';
 import { macroState, isPerformanceStarted } from './macro-composer.js';
 import { sendMIDINote as _rawSend, sendMIDIAllNotesOff } from './midi.js';
+import { addMidiNote as _addMidiVisual } from './field.js';
 
 // ══════════════════════════════════════════════════════════
 //  UTILITY
@@ -81,6 +82,9 @@ function sendNote(ch, note, vel, dur) {
   // Humanize: scatter gaussiano
   vel += _gaussianRand() * CFG.MELODY.velHumanize;
   vel = Math.max(1, Math.min(127, Math.round(vel)));
+
+  // Visual: aggiunge direttamente al midiTrail — non dipende dal loopback MIDI
+  _addMidiVisual(ch, note / 127, vel / 127);
 
   // MIDI-03: phrase offset — sfasamento microtemporale anti-meccanico
   const offsetRange = CFG.MELODY.midi.noteOffsetMs;
