@@ -46,7 +46,9 @@ const CH_MAX = [4, 2, 3, 7, 9, 14, 10, 5]; // CH0-CH7 — CH1 grain: 2 slot max 
 export function addMidiNote(ch, noteNorm, velNorm) {
   // CH2–CH6 (drone/bass/chords/voice/lead) arrivano con vel attenuata da macroState —
   // floor visivo garantisce presenza minima anche quando harmonicColor/melodicActivity è basso
-  const visVel = (ch >= 2 && ch <= 6) ? Math.max(velNorm, 0.3) : velNorm;
+  const visVel = (ch === 5 || ch === 6) ? Math.max(velNorm, 0.75)
+              : (ch >= 2 && ch <= 4)   ? Math.max(velNorm, 0.3)
+              : velNorm;
   const pos = getNotePosition(ch, noteNorm, visVel);
   if (!pos) return;
 
