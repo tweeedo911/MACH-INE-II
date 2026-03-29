@@ -342,16 +342,22 @@ export function getNotePosition(ch, noteNorm, velNorm) {
 
   const zoneH = role.zone[1] - role.zone[0];
 
+  // Pitch normalization: stretch practical MIDI range 24-96 to full canvas [0,1]
+  // Without this, melodic notes (36-84) cluster in x [0.33, 0.63] — the "campo" problem
+  const pitchN = (role.xMode === 'pitch')
+    ? Math.max(0, Math.min(1, (noteNorm * 127 - 24) / 72))
+    : noteNorm;
+
   let y;
   if (role.shape === 'pulse' || role.xMode === 'center') {
     y = role.zone[0] + zoneH * 0.5;
   } else {
-    y = role.zone[1] - noteNorm * zoneH;
+    y = role.zone[1] - pitchN * zoneH;
   }
 
   let x;
   if (role.xMode === 'pitch') {
-    x = 0.1 + noteNorm * 0.8;
+    x = 0.05 + pitchN * 0.90;
   } else if (role.xMode === 'center') {
     x = 0.5 + (Math.random() - 0.5) * 0.08;
   } else if (role.xMode === 'spread') {
@@ -373,7 +379,7 @@ export function getNotePosition(ch, noteNorm, velNorm) {
     // GRAIN: energia high/air modula la dimensione
     const airEnergy = (audio.bands.air.L + audio.bands.air.R +
                        audio.bands.high.L + audio.bands.high.R) * 0.25;
-    radius = role.size * (0.3 + airEnergy * 2.5 + velNorm * 0.3);
+    radius = role.size * (0.3 + airEnergy * 1.2 + velNorm * 0.3);
   } else if (ch === 2) {
     // DRONE: dimensione costante, modulata da sub
     const subEnergy = (audio.bands.sub.L + audio.bands.sub.R) * 0.5;
