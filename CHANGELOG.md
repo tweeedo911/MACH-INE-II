@@ -5,6 +5,24 @@ Formato: `[versione] – data – descrizione`
 
 ---
 
+## [v2.9.2] – 2026-03-29
+
+**PHASE_BEHAVIORS redesign — grammatica geometrica pura, zero scatter.**
+
+### Modificato
+- **PHASE_BEHAVIORS completo** (`midi-patterns.js`): eliminato ogni shape `scatter` (gradienti circolari) da tutte le 5 sezioni modali. Sostituito con geometria dura coerente col renderer Bayer 8x8:
+  - CH0 PULSE: `rect` piccolo (apertura/groove/dissoluzione), `column` sottile (discesa/climax)
+  - CH1 GRAIN: `rect` micro in tutte le sezioni (0.006–0.010) — polvere dura invece di nuvola morbida; C#_dorian usa `band` ultra-sottile come scan-line
+  - CH2 DRONE: `band` centrale in tutte le sezioni — linea orizzonte, non campo diffuso
+  - CH3 BASS: `band` pitchata (apertura/groove/discesa), `column` sottile (climax) — struttura orizzontale non verticale
+  - CH4 CHORDS: `band` in tutte le sezioni (dimensioni crescenti apertura→climax)
+  - CH5 VOICE: `rect` in A/Bb/D/C#, `trail` in E_phrygian (dissoluzione — unico trail nel sistema)
+  - CH6 LEAD: `rect` in tutte le sezioni
+  - CH7 RUPTURE: `rupture` in tutte le sezioni (dimensioni crescenti apertura→climax)
+- **Dimensioni calibrate per sezione**: A_lydian (apertura) molto piccole, crescendo verso D_dorian/C#_dorian, decrescendo in E_phrygian
+
+---
+
 ## [v2.9.1] – 2026-03-29
 
 **Sistema V3 visivo completo — theatrical actor behaviors, rect shape, guard bugfix.**
@@ -20,6 +38,12 @@ Formato: `[versione] – data – descrizione`
 - **CH6 LEAD**: colore distinto da CH5 — `color: 2` (cyan) invece di `color: 3` (violet) su tutti i PHASE_BEHAVIORS e LEAD_BEHAVIORS.
 - **CH1 GRAIN**: dimensioni halved (0.014→0.007 in apertura) per ridurre ingombro hi-hat.
 - **Velocity floor** (`field.js`): esteso da ch<=4 a ch<=6 — garantisce visibilità rect CH5/CH6 in apertura quando `melodicActivity` è bassa.
+
+### Modificato (armonico)
+- **Respiro armonico** (`harmony-layer.js`, `config.js`): ogni `breathInterval` (8) cambi accordo, il ciclo ritorna alla tonica — momento di risoluzione periodica che crea narrativa tensione/respiro.
+- **Checkpoints Bb_phrygian** (`config.js`): aggiunti due checkpoint intermedi (pct 0.52, 0.57) per dinamica di respiro/ripresa nella sezione frigia.
+- **D_dorian chord pivot** (`config.js`): secondo anchor D_dorian corretto (B3→A3 — Dm open voicing più stabile).
+- **Act I densityCap** (`config.js`): 0.15→0.22 — apertura meno spenta.
 
 ### Corretto
 - **White background a 3 minuti** (`sequencer.js`): guard `!CFG.V3_MODE` su `startInvertDissolve()` per i case `layer` e `fade_to`.
