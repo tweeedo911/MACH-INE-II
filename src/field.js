@@ -132,18 +132,17 @@ function midiColorAt(nx, ny) {
         influence = (1 - adx / hw) * (1 - ady / hh) * n.alpha * n.vel;
       }
     } else if (n.shape === 'rect') {
-      // Quadrato pitch-posizionato — voice/lead che compaiono e si intrecciano
+      // Quadrato pitch-posizionato — colore uniforme per bordi netti
       const hw = n.radius * 1.0, hh = n.radius * 1.0;
       const adx = Math.abs(dx), ady = Math.abs(dy);
       if (adx < hw && ady < hh) {
-        influence = (1 - adx / hw) * (1 - ady / hh) * n.alpha * n.vel;
+        influence = n.alpha * n.vel;
       }
     } else if (n.shape === 'band') {
+      // Banda orizzontale full-width — colore su tutta la larghezza del canvas
       const bandH = n.radius * 1.5;
       if (Math.abs(dy) < bandH) {
-        // xFade centrato sulla x della nota (non sul canvas center)
-        const xFade = Math.max(0, 1 - Math.pow(Math.abs(nx - n.x) * 2, 3));
-        influence = (1 - Math.abs(dy) / bandH) * xFade * n.alpha * n.vel;
+        influence = (1 - Math.abs(dy) / bandH) * n.alpha * n.vel;
       }
     } else if (n.shape === 'column') {
       // Colonna verticale — strip stretta in x, piena altezza
@@ -297,20 +296,18 @@ function computeDensity(nx, ny, px, py, state, globalTime, W, H) {
         midiD = (1 - adx / hw) * (1 - ady / hh) * n.vel * n.alpha;
       }
     } else if (n.shape === 'rect') {
-      // Quadrato pitch-posizionato — voice/lead che compaiono e si intrecciano
+      // Quadrato pitch-posizionato — densità costante per bordi netti nel Bayer
       const hw = n.radius * 0.85, hh = n.radius * 0.85;
       const adx = Math.abs(dx), ady = Math.abs(dy);
       if (adx < hw && ady < hh) {
-        midiD = (1 - adx / hw) * (1 - ady / hh) * n.vel * n.alpha;
+        midiD = n.vel * n.alpha;
       }
     } else if (n.shape === 'band') {
+      // Banda orizzontale full-width — copre tutto il canvas in larghezza
       const bandH = n.radius * 0.8;
       const bandDist = Math.abs(dy);
       if (bandDist < bandH) {
-        const falloff = 1 - bandDist / bandH;
-        // xFade centrato sulla x della nota — banda segue il pitch
-        const xFade = Math.max(0, 1 - Math.pow(Math.abs(nx - n.x) * 2, 3));
-        midiD = falloff * xFade * n.vel * n.alpha * 0.7;
+        midiD = (1 - bandDist / bandH) * n.vel * n.alpha * 0.7;
       }
     } else if (n.shape === 'column') {
       const hw = n.radius * 0.7;
