@@ -8,6 +8,7 @@ import { executeMutation, requestFraming, requestCameraShake } from './director.
 import { startInvertDissolve, setConcertTime } from './colors.js';
 import { setPresenceMultiplier, getPresenceMultiplier, resetAllMultipliers } from './presence-multiplier.js';
 import { sendMIDIAllNotesOff } from './midi.js';
+import { CFG } from './config.js';
 
 // ── Momenti-firma state (read by generations.js, render.js) ──
 export const firma = {
@@ -364,7 +365,7 @@ function processCue(cue) {
       setPresenceMultiplier(cue.engine, 0.0);
       if (_activateEngine) _activateEngine(cue.engine);
       addTransition(cue.engine, cue.target, cue.duration);
-      startInvertDissolve();
+      if (!CFG.V3_MODE) startInvertDissolve();
       console.log(`[SEQ] LAYER ${cue.engine.toUpperCase()} → pm ${cue.target} (${cue.duration}s)`);
       break;
     }
@@ -372,8 +373,8 @@ function processCue(cue) {
     case 'fade_to': {
       addTransition(cue.engine, cue.target, cue.duration);
       if (cue.visual) {
-        startInvertDissolve();
-        executeMutation(null, globalTime);
+        if (!CFG.V3_MODE) startInvertDissolve();
+        if (!CFG.V3_MODE) executeMutation(null, globalTime);
       }
       console.log(`[SEQ] FADE ${cue.engine.toUpperCase()} → pm ${cue.target} (${cue.duration}s)`);
       break;
@@ -387,7 +388,7 @@ function processCue(cue) {
 
     case 'firma':
       firma[cue.effect] = cue.active;
-      if (cue.active) startInvertDissolve();
+      if (cue.active && !CFG.V3_MODE) startInvertDissolve();
       console.log(`[SEQ] FIRMA ${cue.effect.toUpperCase()} ${cue.active ? 'ON' : 'OFF'}`);
       break;
 

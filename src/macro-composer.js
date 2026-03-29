@@ -5,7 +5,7 @@
 
 import { CFG } from './config.js';
 import { getSequencerStatus } from './sequencer.js';
-import { setEngine } from './midi-patterns.js';
+import { setEngine, setPhaseMode } from './midi-patterns.js';
 import { setPaletteForMode } from './colors.js';
 import { setCompositionForMode } from './director.js';
 
@@ -59,6 +59,7 @@ export function initMacroComposer() {
 
   // Applica identità visiva del modo iniziale (non avviene via mode-change al primo tick)
   setEngine(MODE_TO_ENGINE[macroState.currentMode] || null);
+  setPhaseMode(macroState.currentMode);  // reset esplicito — evita stale phase da sessione precedente
   setPaletteForMode(macroState.currentMode);
   setCompositionForMode(macroState.currentMode);
 
@@ -153,6 +154,7 @@ export function updateMacroComposer(dt) {
     console.log('[MACRO] mode transition:', macroState.prevMode, '->', targetMode, 'pivot:', macroState.pivotNote);
     // V3 visual identity: activate engine character + palette + layout per nuovo modo
     setEngine(MODE_TO_ENGINE[targetMode] || null);
+    setPhaseMode(targetMode);
     setPaletteForMode(targetMode);
     setCompositionForMode(targetMode);
   }
@@ -189,10 +191,46 @@ export function updateMacroComposer(dt) {
 
 // ── Arc jump — controllo live (tasti numerici) ───────────────────────────────
 // Salta l'arco a pct e riprende il clock da lì (no freeze)
+// Snap immediato della 4D state al target di arcPercent — bypassa EMA.
+// Usato da jumpArc per evitare il fade-in lento post-salto.
+function _snapTo(pct) {
+  const cps  = CFG.MACRO.checkpoints;
+  let lo = 0, hi = 1;
+  for (let i = 1; i < cps.length; i++) {
+    if (cps[i].pct >= pct) { hi = i; lo = i - 1; break; }
+  }
+  if (pct >= cps[cps.length - 1].pct) { lo = cps.length - 2; hi = cps.length - 1; }
+
+  const cpLo = cps[lo], cpHi = cps[hi];
+  const segLen = cpHi.pct - cpLo.pct;
+  const t     = segLen > 0 ? (pct - cpLo.pct) / segLen : 1;
+  const ease  = t * t * (3 - 2 * t);
+
+  macroState.rhythmicDensity = cpLo.rD + (cpHi.rD - cpLo.rD) * ease;
+  macroState.harmonicColor   = cpLo.hC + (cpHi.hC - cpLo.hC) * ease;
+  macroState.melodicActivity = cpLo.mA + (cpHi.mA - cpLo.mA) * ease;
+  macroState.textureDepth    = cpLo.tD + (cpHi.tD - cpLo.tD) * ease;
+
+  // Triggera cambio mode immediatamente se necessario (no attesa del prossimo tick)
+  const targetMode = cpHi.mode;
+  if (targetMode !== macroState.currentMode) {
+    macroState.prevMode    = macroState.currentMode;
+    macroState.currentMode = targetMode;
+    macroState.pivotActive = false;  // nessuna pivot su jump manuale
+    setEngine(MODE_TO_ENGINE[targetMode] || null);
+    setPhaseMode(targetMode);
+    setPaletteForMode(targetMode);
+    setCompositionForMode(targetMode);
+    console.log('[MACRO] snap mode:', macroState.prevMode, '->', targetMode);
+  }
+}
+
 export function jumpArc(pct) {
   pct = Math.max(0, Math.min(1, pct));
   _internalClock       = pct * CFG.MACRO.concertDurationSec;
-  macroState._debugArc = undefined;  // rilascia eventuale freeze debug
+  macroState.arcPercent = pct;
+  macroState._debugArc  = undefined;  // rilascia eventuale freeze debug
+  _snapTo(pct);  // snap 4D state istantaneo — no EMA lag post-jump
   console.log('[MACRO] arc jump to:', pct.toFixed(2));
 }
 
