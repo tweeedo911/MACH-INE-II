@@ -5,6 +5,21 @@ Formato: `[versione] – data – descrizione`
 
 ---
 
+## [v2.9.3] – 2026-03-29
+
+**CH5/CH6 visibilità su canvas nero, zones full canvas, xMode libero.**
+
+### Modificato
+- **CH5/CH6 vel floor** (`field.js`): alzato da 0.3 a 0.75 per voice e lead — visibili su canvas completamente nero dall'inizio, non solo quando c'è già densità accumulata.
+- **CH5/CH6 zones** (`midi-patterns.js`): tutte le zone espanse a `[0.00, 0.96]` su tutte e 5 le sezioni modali — copertura completa del canvas come CH1 GRAIN.
+- **CH5/CH6 xMode random** (`midi-patterns.js`): da `'pitch'` a `'random'` su tutte le sezioni — libertà totale di posizionamento orizzontale, indipendente come l'hi-hat.
+
+### Fixed
+- **Rect shape oval** (`field.js`): rimosso falloff bilineare `(1-adx/hw)*(1-ady/hh)` in `computeDensity` e `midiColorAt` — density costante `n.vel * n.alpha` → bordi netti.
+- **Band shape ellittico** (`field.js`): rimosso `xFade` da `computeDensity` e `midiColorAt` per band — ora copre tutta la larghezza del canvas.
+
+---
+
 ## [v2.9.2] – 2026-03-29
 
 **PHASE_BEHAVIORS redesign — grammatica geometrica pura, zero scatter.**
