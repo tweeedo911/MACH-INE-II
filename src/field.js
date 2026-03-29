@@ -41,7 +41,7 @@ export let midiTrail = [];
 // Per-channel max concurrent trail slots — prevents high-freq channels (CH1 grain)
 // from evicting low-freq channels (CH4 chords, CH5 voice, CH6 lead) via FIFO.
 // CH5 VOICE gets the most slots — it's the protagonist.
-const CH_MAX = [4, 4, 3, 7, 9, 14, 10, 5]; // CH0-CH7 — CH1 ridotto a 4 punti max
+const CH_MAX = [4, 2, 3, 7, 9, 14, 10, 5]; // CH0-CH7 — CH1 grain: 2 slot max (anti-dominanza)
 
 export function addMidiNote(ch, noteNorm, velNorm) {
   // CH2–CH6 (drone/bass/chords/voice/lead) arrivano con vel attenuata da macroState —
