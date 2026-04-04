@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════
 //  MACH:INE II — Centralized Configuration
-//  v4.0.0: 7 phases (43min), call-response, degradation, additive chords, visual feedback+distortion
+//  v2.9.0: V3 layer system complete — MacroComposer + HarmonyLayer + RhythmLayer + MelodyTextureLayer
 // ═══════════════════════════════════════════════════════════
 
 export const CFG = {
@@ -404,63 +404,31 @@ export const CFG = {
   // ── MacroComposer v3 — arco narrativo 4D ──────────────────────────────────
   MACRO: {
     // Parametri base
-    concertDurationSec: 2580,     // 43 minuti (v4 — 7 fasi)
+    concertDurationSec: 2700,     // 45 minuti (durata target v3)
     bpmReference:       88,        // BPM di riferimento per calcolo bar duration in HarmonyLayer
     microDriftAmp:      0.07,      // ampiezza oscillazione ±7% attorno al target (D-02)
     microDriftFreqSec:  23,        // periodo oscillazione in secondi (numero primo per asimmetria)
     emaTau:             4.0,       // time constant EMA per smoothing valori 4D in secondi
     breathInterval:     8,         // ogni N cambi accordo, forza anchor 0 (tonica) — respiro armonico
 
-    // ── Additive chord entry (v4 — Reich principle) ──
-    chordAdditiveEntry: {
-      enabled: true,
-      barsRootOnly: 2,     // bar con solo root dopo mode change
-      barsRootFifth: 2,    // bar con root+quinta prima di voicing pieno
-    },
-
-    // Checkpoint array — arco 4D v4 su 43 minuti (2580s), 7 fasi
+    // Checkpoint array — arco 4D precomposto su 45 minuti
     // rD=rhythmicDensity, hC=harmonicColor, mA=melodicActivity, tD=textureDepth
-    // pct = time / 2580
     checkpoints: [
-      // ── NEBBIA (0-3 min) — drone + voci tessono ──
-      { pct: 0.000, rD: 0.0,  hC: 0.08, mA: 0.0,  tD: 0.05, mode: 'A_lydian' },  // 0:00 solo drone
-      { pct: 0.023, rD: 0.0,  hC: 0.10, mA: 0.04, tD: 0.08, mode: 'A_lydian' },  // 1:00 prime voci emergono
-      { pct: 0.047, rD: 0.0,  hC: 0.13, mA: 0.08, tD: 0.12, mode: 'A_lydian' },  // 2:00 voci tessono, CH6 entra
-
-      // ── TESSUTO (3-8 min) — armonia cresce, primo polso ──
-      { pct: 0.070, rD: 0.0,  hC: 0.18, mA: 0.12, tD: 0.15, mode: 'A_lydian' },  // 3:00 texture densa
-      { pct: 0.116, rD: 0.15, hC: 0.28, mA: 0.18, tD: 0.22, mode: 'A_lydian' },  // 5:00 primo kick + hat griglia
-      { pct: 0.163, rD: 0.22, hC: 0.38, mA: 0.22, tD: 0.28, mode: 'Bb_phrygian' }, // 7:00 cambio modale — prima sorpresa
-
-      // ── SOLCO (8-16 min) — groove pieno, 1 break a ~12 min ──
-      { pct: 0.186, rD: 0.32, hC: 0.48, mA: 0.30, tD: 0.32, mode: 'Bb_phrygian' }, // 8:00 groove si stabilisce
-      { pct: 0.279, rD: 0.50, hC: 0.60, mA: 0.40, tD: 0.40, mode: 'Bb_phrygian' }, // 12:00 groove pieno, zona break
-      { pct: 0.349, rD: 0.60, hC: 0.72, mA: 0.48, tD: 0.45, mode: 'Bb_phrygian' }, // 15:00 pre-RESPIRO, picco onda 2
-
-      // ── RESPIRO (16-18 min) — drop totale + pivot tonale ──
-      { pct: 0.372, rD: 0.0,  hC: 0.18, mA: 0.08, tD: 0.12, mode: 'Bb_phrygian', instant: true }, // 16:00 DROP
-      { pct: 0.395, rD: 0.0,  hC: 0.15, mA: 0.06, tD: 0.10, mode: 'Bb_phrygian' }, // 17:00 silenzio tenuto
-
-      // ── MACCHINA (18-25 min) — groove D Dorian, call-response, swing ──
-      { pct: 0.419, rD: 0.35, hC: 0.50, mA: 0.30, tD: 0.35, mode: 'D_dorian' },  // 18:00 groove ritorna in D Dorian
-      { pct: 0.500, rD: 0.55, hC: 0.68, mA: 0.45, tD: 0.48, mode: 'D_dorian' },  // 21:30 groove intenso
-      { pct: 0.558, rD: 0.65, hC: 0.78, mA: 0.55, tD: 0.55, mode: 'D_dorian' },  // 24:00 pre-TEMPESTA
-
-      // ── TEMPESTA (25-35 min) — climax, false resolution, rimbalzo ──
-      { pct: 0.581, rD: 0.78, hC: 0.85, mA: 0.62, tD: 0.62, mode: 'C#_dorian' }, // 25:00 TEMPESTA inizia
-      { pct: 0.651, rD: 0.92, hC: 0.90, mA: 0.72, tD: 0.68, mode: 'C#_dorian' }, // 28:00 climax sostenuto
-      { pct: 0.698, rD: 0.0,  hC: 0.40, mA: 0.20, tD: 0.30, mode: 'C#_dorian', instant: true }, // 30:00 FALSE RESOLUTION
-      { pct: 0.710, rD: 0.0,  hC: 0.40, mA: 0.20, tD: 0.30, mode: 'C#_dorian' }, // 30:30 hold silenzio
-      { pct: 0.715, rD: 0.95, hC: 0.70, mA: 0.75, tD: 0.72, mode: 'C#_dorian' }, // 30:45 RIMBALZO
-      { pct: 0.756, rD: 1.00, hC: 0.65, mA: 0.82, tD: 0.72, mode: 'C#_dorian' }, // 32:30 PICCO ASSOLUTO
-      { pct: 0.791, rD: 0.70, hC: 0.50, mA: 0.60, tD: 0.58, mode: 'E_phrygian' }, // 34:00 inizia a calare
-
-      // ── RITORNO (35-43 min) — dissoluzione, seed, silenzio ──
-      { pct: 0.814, rD: 0.30, hC: 0.35, mA: 0.55, tD: 0.55, mode: 'E_phrygian' }, // 35:00 melodia guida
-      { pct: 0.872, rD: 0.10, hC: 0.15, mA: 0.35, tD: 0.35, mode: 'E_phrygian' }, // 37:30 sfuma
-      { pct: 0.930, rD: 0.0,  hC: 0.08, mA: 0.15, tD: 0.12, mode: 'A_lydian' },  // 40:00 ritorno A Lydian
-      { pct: 0.965, rD: 0.0,  hC: 0.05, mA: 0.06, tD: 0.05, mode: 'A_lydian' },  // 41:30 quasi silenzio
-      { pct: 1.000, rD: 0.0,  hC: 0.0,  mA: 0.0,  tD: 0.0,  mode: 'A_lydian' },  // 43:00 fine
+      { pct: 0.00, rD: 0.0, hC: 0.08, mA: 0.0, tD: 0.05, mode: 'A_lydian' },  // solo drone — visual minimale
+      { pct: 0.03, rD: 0.0, hC: 0.12, mA: 0.06, tD: 0.1, mode: 'A_lydian' },  // ~1.5min: prime voci emergono, pianissime
+      { pct: 0.22, rD: 0.1, hC: 0.3, mA: 0.20, tD: 0.2, mode: 'A_lydian' },   // ~10min: melodia udibile, complessità cresce
+      { pct: 0.44, rD: 0.3, hC: 0.7, mA: 0.50, tD: 0.4, mode: 'Bb_phrygian' }, // mA alzato: voce presente nella sezione frigia
+      { pct: 0.52, rD: 0.1, hC: 0.25, mA: 0.3, tD: 0.2, mode: 'Bb_phrygian' }, // respiro frigio ~min23: ritmo cede, armonia si apre
+      { pct: 0.57, rD: 0.4, hC: 0.85, mA: 0.55, tD: 0.42, mode: 'Bb_phrygian' }, // ripresa verso picco
+      { pct: 0.62, rD: 0.5, hC: 1.0, mA: 0.60, tD: 0.5, mode: 'Bb_phrygian' }, // mA alzato: melodia forte al picco armonico ~min28
+      { pct: 0.73, rD: 0.7, hC: 0.7, mA: 0.6, tD: 0.6, mode: 'D_dorian' },       // density building
+      { pct: 0.75,  rD: 0.0, hC: 0.5, mA: 0.3, tD: 0.4, mode: 'D_dorian', instant: true }, // FALSE RESOLUTION start
+      { pct: 0.758, rD: 0.0, hC: 0.5, mA: 0.3, tD: 0.4, mode: 'D_dorian' },              // FALSE RESOLUTION hold — 8 bar a 88BPM (~21.8s = 0.008 pct)
+      { pct: 0.80, rD: 0.9, hC: 0.6, mA: 0.7, tD: 0.7, mode: 'C#_dorian' },      // rebound above previous
+      { pct: 0.84, rD: 1.0, hC: 0.6, mA: 0.8, tD: 0.7, mode: 'C#_dorian' },      // rhythmicDensity PEAK ~min38
+      { pct: 0.89, rD: 0.3, hC: 0.3, mA: 0.65, tD: 0.65, mode: 'E_phrygian' }, // melody leads dissoluzione — texture/melodia emergono mentre ritmo/armonia cedono
+      { pct: 0.95, rD: 0.1, hC: 0.1, mA: 0.2,  tD: 0.2,  mode: 'A_lydian' },  // dissoluzione finale — melody ancora dominante prima del silenzio
+      { pct: 1.00, rD: 0.0, hC: 0.0, mA: 0.0, tD: 0.0, mode: 'A_lydian' },       // fine
     ],
 
     // Sequenza modale — percorso tonale del concerto (D-10)
@@ -766,7 +734,7 @@ export const CFG = {
     // ── Seed motivico (MELO-01, D-07, D-08, D-09) ──
     seedLength:    4,       // numero di note nel motivo seed
     seedWindowEnd: 0.15,    // arcPercent massimo per cattura (~6.75min su 45min)
-    seedReturnAt:  0.85,    // arcPercent trigger ritorno (~min36.5 su 43min v4)
+    seedReturnAt:  0.75,    // arcPercent trigger ritorno (~min33.75 su 45min)
     seedReturnVel: 65,      // velocity del ritorno motivico su CH5
     seedReturnNoteSpacingBars: 0.5,  // spacing tra note seed return in bar
 
@@ -797,7 +765,7 @@ export const CFG = {
 
     // ── Arpeggi incrociati (D-05) ──
     arpeggio: {
-      activeRange: { min: 0.35, max: 0.75 },  // arcPercent range per arpeggi (~min15-32 v4)
+      activeRange: { min: 0.35, max: 0.70 },  // arcPercent range per arpeggi (~min15-31)
       noteSpacingMs: 350,    // spacing tra note arpeggio
       threshold:    0.20,    // melodicActivity minima per attivare cross-arpeggio (allineato alla window 0.35)
       delayStp:     2,       // steps CH6 arpeggiation delay rispetto a CH5
@@ -830,25 +798,6 @@ export const CFG = {
       offbeatReduce:  0.04,    // -4% velocity su offbeat
       noteOffsetMs:   { min: 3, max: 18 },   // sfasamento anti-meccanico (MIDI-03)
     },
-
-    // ── Call-response CH5→CH6 (v4) ──
-    callResponse: {
-      enabled: true,
-      probability: 0.35,             // prob CH6 risponda a una nota CH5
-      delayMsMin: 200,               // ritardo minimo risposta
-      delayMsMax: 500,               // ritardo massimo risposta
-      intervalPrefer: [3, 4, 5, 7],  // intervalli in semitoni preferiti (3ª, 4ª, 5ª)
-      activeRange: { min: 0.35, max: 0.80 }, // arcPercent range (~min15-34)
-      minMelodicActivity: 0.25,      // mA minimo per attivare
-    },
-
-    // ── Degradation engine per RITORNO (v4) ──
-    degradation: {
-      arcThreshold: 0.85,            // pct sopra cui la degradazione inizia
-      maxTimingJitter: 60,           // jitter massimo timing in ms a degradazione piena
-      maxNoteDropProb: 0.45,         // prob massima di saltare una nota
-      jitterCurve: 2.0,              // curva esponenziale per aumento jitter
-    },
   },
 
   // ── Visual System v3 (Phase 4) ─────────────────────────────────────────────
@@ -862,13 +811,11 @@ export const CFG = {
     // ── 5 atti narrativi visivi (D-06) ──
     // Ogni atto: range arcPercent, scena target, palette base, densityCap, camera
     acts: {
-      I:    { min: 0.00,  max: 0.07,  scene: 'SPARSE',         palette: 'cold',    densityCap: 0.15, camera: 'WIDE'   },  // NEBBIA
-      II:   { min: 0.07,  max: 0.186, scene: 'BAYER_CLASSIC',  palette: 'default', densityCap: 0.35, camera: 'DRIFT'  },  // TESSUTO
-      III:  { min: 0.186, max: 0.372, scene: 'COLORED_GROUND', palette: 'warm',    densityCap: 0.80, camera: 'MEDIUM' },  // SOLCO
-      IV:   { min: 0.372, max: 0.419, scene: 'SPARSE',         palette: 'cold',    densityCap: 0.12, camera: 'WIDE'   },  // RESPIRO
-      V:    { min: 0.419, max: 0.581, scene: 'COLORED_GROUND', palette: 'amber',   densityCap: 1.00, camera: 'MEDIUM' },  // MACCHINA
-      VI:   { min: 0.581, max: 0.814, scene: 'DENSE',          palette: 'warm',    densityCap: 1.00, camera: 'MEDIUM' },  // TEMPESTA
-      VII:  { min: 0.814, max: 1.00,  scene: 'SPARSE',         palette: 'cold',    densityCap: 0.12, camera: 'WIDE'   },  // RITORNO
+      I:   { min: 0.00, max: 0.15, scene: 'SPARSE',         palette: 'cold',    densityCap: 0.22, camera: 'WIDE'   },
+      II:  { min: 0.15, max: 0.35, scene: 'BAYER_CLASSIC',  palette: 'default', densityCap: 0.45, camera: 'DRIFT'  },
+      III: { min: 0.35, max: 0.60, scene: 'COLORED_GROUND', palette: 'warm',    densityCap: 1.00, camera: 'MEDIUM' },
+      IV:  { min: 0.60, max: 0.80, scene: 'DENSE',          palette: 'warm',    densityCap: 0.90, camera: 'MEDIUM' },
+      V:   { min: 0.80, max: 1.00, scene: 'SPARSE',         palette: 'cold',    densityCap: 0.12, camera: 'WIDE'   },
     },
 
     // ── Layer preferences — firma visiva per layer (D-07, D-08, D-09) ──
@@ -880,9 +827,6 @@ export const CFG = {
         trailMax: 48, flickerSpeed: 0.5,
         shapeScale: 0.4, densityGravity: -0.2,
         onsetWaveSpeed: 300, midiDensityMul: 0.5, feedbackDecay: 0.96,
-        // v4: shimmer feedback, no transform, no grid distortion
-        feedbackZoom: 1.0, feedbackRotate: 0, feedbackDriftX: 0, feedbackDriftY: 0,
-        gridDistortAmp: 0,
       },
       rhythm: {
         palette: 'amber',
@@ -890,9 +834,6 @@ export const CFG = {
         trailMax: 32, flickerSpeed: 5.0,
         shapeScale: 1.2, densityGravity: 0.15,
         onsetWaveSpeed: 1000, midiDensityMul: 0.4, feedbackDecay: 0.93,
-        // v4: no feedback transform, moderate grid distortion from kick energy
-        feedbackZoom: 1.0, feedbackRotate: 0, feedbackDriftX: 0, feedbackDriftY: 0,
-        gridDistortAmp: 1.5,
       },
       melody: {
         palette: 'magenta',
@@ -900,9 +841,6 @@ export const CFG = {
         trailMax: 64, flickerSpeed: 2.0,                   // was 40 — più note attive = disegno più ricco
         shapeScale: 1.0, densityGravity: 0,
         onsetWaveSpeed: 600, midiDensityMul: 1.0, feedbackDecay: 0.95, // was 0.6
-        // v4: subtle lateral drift on feedback, gentle grid wave
-        feedbackZoom: 1.0, feedbackRotate: 0, feedbackDriftX: 0.05, feedbackDriftY: 0,
-        gridDistortAmp: 1.0,
       },
       // Master — quando nessun layer domina (macroState tutto basso)
       master: {
@@ -911,9 +849,6 @@ export const CFG = {
         trailMax: 64, flickerSpeed: 1.0,
         shapeScale: 1.0, densityGravity: 0,
         onsetWaveSpeed: 400, midiDensityMul: 0.3, feedbackDecay: 0.97,
-        // v4: no feedback transform, no grid distortion — clean default
-        feedbackZoom: 1.0, feedbackRotate: 0, feedbackDriftX: 0, feedbackDriftY: 0,
-        gridDistortAmp: 0,
       },
     },
 
@@ -935,36 +870,26 @@ export const CFG = {
         // Emersione luminosa — pochi elementi, grandi, ogni nota melodica disegna
         dotSize: 14,  densityMul: 0.45,  midiDensityMul: 0.7,
         flickerSpeed: 0.2,  trailMax: 80,  midiScale: 3.2,
-        // Feedback: slow lateral drift (dreamy); grid distortion: slow wave
-        feedbackDriftX: 0.1, gridDistortAmp: 2.5,
       },
       'Bb_phrygian': {
         // Tensione rituale — campo denso e pesante, melodia compressa
         dotSize: 4,   densityMul: 1.7,   midiDensityMul: 0.7,
         flickerSpeed: 1.8,  trailMax: 28,  midiScale: 1.1,
-        // Feedback: gravity sink; grid distortion: deep wave
-        feedbackDriftY: 0.3, gridDistortAmp: 1.5,
       },
       'D_dorian': {
         // Groove organico — caldo, bilanciato, melodia presente e ritmo solido
         dotSize: 6,   densityMul: 1.1,   midiDensityMul: 1.1,
         flickerSpeed: 3.5,  trailMax: 52,  midiScale: 2.0,
-        // Feedback: static dub echo; grid distortion: subtle geological
-        gridDistortAmp: 1.0,
       },
       'C#_dorian': {
         // Climax techno — geometrico, preciso, alta densità, ritmo domina
         dotSize: 3,   densityMul: 2.0,   midiDensityMul: 0.9,
         flickerSpeed: 7.0,  trailMax: 28,  midiScale: 1.4,
-        // Feedback: none; grid distortion: aggressive, tied to kick
-        gridDistortAmp: 3.0,
       },
       'E_phrygian': {
         // Dissoluzione cristallina — rarefatto, trails lunghissimi, ogni nota è preziosa
         dotSize: 11,  densityMul: 0.38,  midiDensityMul: 1.8,
         flickerSpeed: 0.4,  trailMax: 96,  midiScale: 3.8,
-        // Feedback: none; grid distortion: dissolving wave
-        gridDistortAmp: 1.5,
       },
     },
   },

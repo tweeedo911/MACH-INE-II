@@ -21,7 +21,6 @@ import { getComposer6Status } from './composer6.js';
 import { getComposer7Status } from './composer7.js';
 import { getEngine } from './midi-patterns.js';
 import { getSequencerStatus, firma } from './sequencer.js';
-import { macroState } from './macro-composer.js';
 import { renderField, updateWaves, addOnsetWave, addMidiNote } from './field.js';
 
 let canvas, ctx;
@@ -110,28 +109,7 @@ export function renderFrame(_now, dt) {
     const bgB = bgInv ? 255 - Math.round(bg[2]) : Math.round(bg[2]);
     const feedbackDecay = engineRender.feedbackDecay ?? 1.0;
     if (feedbackDecay < 1.0) {
-      // Feedback with geometric transform (v4) — zoom/rotate/drift on previous frame
-      const fbZoom   = engineRender.feedbackZoom   || 1.0;
-      const fbRotate = engineRender.feedbackRotate || 0;
-      const fbDriftX = engineRender.feedbackDriftX || 0;
-      const fbDriftY = engineRender.feedbackDriftY || 0;
-      const hasTransform = fbZoom !== 1.0 || fbRotate !== 0 || fbDriftX !== 0 || fbDriftY !== 0;
-      if (hasTransform) {
-        // Draw transformed feedback of current canvas content before clearing
-        ctx.save();
-        ctx.globalAlpha = feedbackDecay;
-        ctx.translate(W * 0.5, H * 0.5);
-        ctx.scale(fbZoom, fbZoom);
-        ctx.rotate(fbRotate);
-        ctx.translate(-W * 0.5 + fbDriftX, -H * 0.5 + fbDriftY);
-        ctx.drawImage(canvas, 0, 0);
-        ctx.restore();
-        // Semi-transparent bg clear on top — fades the feedback trail
-        ctx.fillStyle = `rgba(${bgR},${bgG},${bgB},${(1 - feedbackDecay).toFixed(3)})`;
-      } else {
-        // No transform — original alpha-fade behavior
-        ctx.fillStyle = `rgba(${bgR},${bgG},${bgB},${(1 - feedbackDecay).toFixed(3)})`;
-      }
+      ctx.fillStyle = `rgba(${bgR},${bgG},${bgB},${(1 - feedbackDecay).toFixed(3)})`;
     } else {
       ctx.fillStyle = `rgb(${bgR},${bgG},${bgB})`;
     }
@@ -274,45 +252,20 @@ function updateHUDDebug() {
     (firma.gelo ? '  GELO' : '') + (firma.convergenza ? '  CONV' : '') + (firma.vuotoTotale ? '  VUOTO' : '') + '\n' +
     `\n` +
     (() => {
-      if (CFG.V3_MODE) {
-        // V4: show MacroComposer state + 7 phases
-        const ms = macroState;
-        const pct = (ms.arcPercent * 100).toFixed(1);
-        const phases = ['NEBBIA','TESSUTO','SOLCO','RESPIRO','MACCHINA','TEMPESTA','RITORNO'];
-        const phasePcts = [0, 0.07, 0.186, 0.372, 0.419, 0.581, 0.814];
-        let currentPhase = phases[0];
-        for (let i = phasePcts.length - 1; i >= 0; i--) {
-          if (ms.arcPercent >= phasePcts[i]) { currentPhase = phases[i]; break; }
-        }
-        return (
-          `MODE ${ms.currentMode}  ARC ${pct}%\n` +
-          `rD:${ms.rhythmicDensity.toFixed(2)}  hC:${ms.harmonicColor.toFixed(2)}  mA:${ms.melodicActivity.toFixed(2)}  tD:${ms.textureDepth.toFixed(2)}\n` +
-          `PHASE  ${currentPhase}  bar:${ms.barClock.toFixed(0)}${ms.pivotActive ? '  PIVOT' : ''}${ms.breakActive ? '  BREAK' : ''}\n` +
-          `\n` +
-          `1 NEBBIA    ${ms.arcPercent >= 0.000 && ms.arcPercent < 0.07  ? '►' : ' '}\n` +
-          `2 TESSUTO   ${ms.arcPercent >= 0.07  && ms.arcPercent < 0.186 ? '►' : ' '}\n` +
-          `3 SOLCO     ${ms.arcPercent >= 0.186 && ms.arcPercent < 0.372 ? '►' : ' '}\n` +
-          `4 RESPIRO   ${ms.arcPercent >= 0.372 && ms.arcPercent < 0.419 ? '►' : ' '}\n` +
-          `5 MACCHINA  ${ms.arcPercent >= 0.419 && ms.arcPercent < 0.581 ? '►' : ' '}\n` +
-          `6 TEMPESTA  ${ms.arcPercent >= 0.581 && ms.arcPercent < 0.814 ? '►' : ' '}\n` +
-          `7 RITORNO   ${ms.arcPercent >= 0.814                          ? '►' : ' '}\n`
-        );
-      }
-      // V2: legacy engine display
       const pm = getAllMultipliers();
       const parts = [
         ['1:DER', pm.deriva], ['2:CRI', pm.cristallo], ['3:ABI', pm.abisso],
         ['4:TER', pm.terreno], ['5:MEC', pm.meccanica], ['6:VOR', pm.vortice], ['7:SOL', pm.solco],
       ].filter(([, v]) => v > 0).map(([k, v]) => `${k}:${v.toFixed(1)}`);
-      return (parts.length ? `PM  ${parts.join('  ')}\n` : '') +
-        (() => { const s = getComposer3Status(); return s.active ? `1 DERIVA    ${s.phase}  root:${s.chordRoot}  bar:${s.bar}  ${s.ruptureStage}` : '1 DERIVA    OFF'; })() + '\n' +
-        (() => { const s = getComposer5Status(); return s.active ? `2 CRISTALLO ${s.phase}  L:${s.activeCount}  ${s.ruptureStage}` : '2 CRISTALLO OFF'; })() + '\n' +
-        (() => { const s = getComposer6Status(); return s.active ? `3 ABISSO    ${s.phase}  L:${s.activeCount}  ${s.ruptureStage}` : '3 ABISSO    OFF'; })() + '\n' +
-        (() => { const s = getComposerStatus();  return s.active ? `4 TERRENO   ${s.phase}  ${s.ruptureStage}` : '4 TERRENO   OFF'; })() + '\n' +
-        (() => { const s = getComposer2Status(); return s.active ? `5 MECCANICA ${s.phase}  L:${s.activeCount}/4  ${s.ruptureStage}` : '5 MECCANICA OFF'; })() + '\n' +
-        (() => { const s = getComposer4Status(); return s.active ? `6 VORTICE   ${s.phase}  L:${s.activeCount}  ${s.ruptureStage}` : '6 VORTICE   OFF'; })() + '\n' +
-        (() => { const s = getComposer7Status(); return s.active ? `7 SOLCO     ${s.phase}  L:${s.activeCount}  ${s.ruptureStage}` : '7 SOLCO     OFF'; })() + '\n';
+      return parts.length ? `PM  ${parts.join('  ')}\n` : '';
     })() +
+    (() => { const s = getComposer3Status(); return s.active ? `1 DERIVA    ${s.phase}  root:${s.chordRoot}  bar:${s.bar}  ${s.ruptureStage}` : '1 DERIVA    OFF'; })() + '\n' +
+    (() => { const s = getComposer5Status(); return s.active ? `2 CRISTALLO ${s.phase}  L:${s.activeCount}  ${s.ruptureStage}` : '2 CRISTALLO OFF'; })() + '\n' +
+    (() => { const s = getComposer6Status(); return s.active ? `3 ABISSO    ${s.phase}  L:${s.activeCount}  ${s.ruptureStage}` : '3 ABISSO    OFF'; })() + '\n' +
+    (() => { const s = getComposerStatus();  return s.active ? `4 TERRENO   ${s.phase}  ${s.ruptureStage}` : '4 TERRENO   OFF'; })() + '\n' +
+    (() => { const s = getComposer2Status(); return s.active ? `5 MECCANICA ${s.phase}  L:${s.activeCount}/4  ${s.ruptureStage}` : '5 MECCANICA OFF'; })() + '\n' +
+    (() => { const s = getComposer4Status(); return s.active ? `6 VORTICE   ${s.phase}  L:${s.activeCount}  ${s.ruptureStage}` : '6 VORTICE   OFF'; })() + '\n' +
+    (() => { const s = getComposer7Status(); return s.active ? `7 SOLCO     ${s.phase}  L:${s.activeCount}  ${s.ruptureStage}` : '7 SOLCO     OFF'; })() + '\n' +
     `\n` +
     `H HUD  D DEBUG  F FULL  P PROJ\n` +
     `R REGEN  N MUTATE  è GAIN▼  + GAIN▲`;

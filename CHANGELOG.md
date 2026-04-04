@@ -5,6 +5,45 @@ Formato: `[versione] – data – descrizione`
 
 ---
 
+## [v4.0.0] – 2026-04-04
+
+**Ristrutturazione completa — 7 fasi, 43 minuti, nuovi sistemi compositivi e visual.**
+
+### Struttura
+- **7 fasi** (era 5 atti): NEBBIA → TESSUTO → SOLCO → RESPIRO → MACCHINA → TEMPESTA → RITORNO
+- **43 minuti** (era 45): durata ridotta per densità narrativa
+- **25 checkpoint** MacroComposer (era 15): arco 4D più dettagliato con transizioni più precise
+- **Meno interruzioni**: 2 break + 1 RESPIRO + 1 false resolution (era 3+ break + sovrapposizioni)
+- **Arc jump 1-7** (era 1-5): navigazione d'emergenza per tutte le 7 fasi
+
+### Composizione
+- **Call-response CH5↔CH6** (`melody-texture-layer.js`): quando Voice suona, Lead risponde (prob 0.35, delay 200-500ms, intervalli armonicamente correlati). Attivo tra arcPercent 0.35-0.80.
+- **Additive chord entry** (`harmony-layer.js`): dopo ogni cambio modale, gli accordi si costruiscono nota per nota — root sola (2 bar) → root+quinta (2 bar) → voicing pieno. Principio Reich.
+- **Degradation engine** (`melody-texture-layer.js`): nella dissoluzione (arcPercent > 0.85), timing jitter crescente e note-drop probabilistico. La musica si erode come in Hecker.
+- **Drone dal primo istante**: `harmonicColor` parte da 0.08 (era 0.0) — il drone è udibile e visibile da subito.
+- **Voci a ~1 minuto**: `melodicActivity` sale da 0 a 0.04 al minuto 1, crescendo graduale.
+- **seedReturnAt** spostato a 0.85 (era 0.75) — il seed motif ritorna nella dissoluzione.
+
+### Visual
+- **Enhanced feedback geometrico** (`render.js`): il frame precedente viene trasformato con zoom, rotazione e drift prima di essere ri-disegnato. Crea tunnel (SOLCO zoom 1.001), gravità (ABISSO drift Y 0.3), deriva laterale (DERIVA drift X 0.1).
+- **Grid distortion** (`field.js`): onda sinusoidale deforma la griglia Bayer in tempo reale. Ampiezza per motore: VORTICE 3.0 (aggressivo), DERIVA 2.5 (sognante), ABISSO 1.5 (profondo), TERRENO 1.0 (geologico), CRISTALLO/SOLCO 0 (griglia pulita).
+- **7 atti visivi** (era 5): ogni fase ha scena, palette, densityCap e camera dedicati.
+- **Per-mode visual params** estesi con feedbackDriftX/Y e gridDistortAmp per ogni sezione modale.
+
+### Sequencer
+- **CUES** completamente riscritto per timeline 43 min con 7 fasi
+- **densityCap closing** aggiornato (2490s, era 2910s)
+- **Momenti firma**: GELO a ~12' e ~22' (break), CONVERGENZA a ~28', VUOTO TOTALE a 30' (false resolution)
+
+### Fix
+- **MIDI visual path V3**: `harmony-layer.js` e `rhythm-layer.js` ora chiamano `addMidiNote` per alimentare il sistema visivo (era rotto — solo `melody-texture-layer` lo faceva)
+- **CFG.debug = false**: rimosso flag diagnostico temporaneo per performance live
+
+### Snapshot
+- v2.9.3 preservata in `versions/v2.9.3-*.js` (11 file)
+
+---
+
 ## [v2.9.3] – 2026-03-29
 
 **CH5/CH6 visibilità su canvas nero, zones full canvas, xMode libero.**
