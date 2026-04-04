@@ -108,10 +108,6 @@ const ENGINE_PREFS = {
     // visual identity
     shapeScale: 1.2, trailMax: 48, densityGravity: 0.15,
     onsetWaveSpeed: 800, flickerSpeed: 3.0, midiDensityMul: 0.4, feedbackDecay: 0.94,
-    // feedback transform — static dub echo
-    feedbackZoom: 1.0, feedbackRotate: 0, feedbackDriftX: 0, feedbackDriftY: 0,
-    // grid distortion — subtle geological
-    gridDistortAmp: 1.0,
   },
   meccanica: {
     sceneBoost: ['MONDRIAN', 'NEGATIVE', 'MONOCHROME'],
@@ -122,8 +118,6 @@ const ENGINE_PREFS = {
     dotSize: 4, densityMul: 1.3, midiScale: 1.0, forceInvert: null,
     shapeScale: 0.7, trailMax: 40, densityGravity: 0,
     onsetWaveSpeed: 1200, flickerSpeed: 6.0, midiDensityMul: 0.4,
-    // no feedback, no grid distortion — clean mechanical precision
-    gridDistortAmp: 0,
   },
   deriva: {
     sceneBoost: ['HORIZON', 'SPARSE', 'MONOCHROME'],
@@ -134,10 +128,6 @@ const ENGINE_PREFS = {
     dotSize: 5, densityMul: 0.5, midiScale: 1.8, forceInvert: null,
     shapeScale: 2.5, trailMax: 24, densityGravity: 0,
     onsetWaveSpeed: 400, flickerSpeed: 0.5, midiDensityMul: 0.7, feedbackDecay: 0.97,
-    // feedback transform — slow lateral drift (dreamy)
-    feedbackZoom: 1.0, feedbackRotate: 0, feedbackDriftX: 0.1, feedbackDriftY: 0,
-    // grid distortion — slow dreamy wave
-    gridDistortAmp: 2.5,
   },
   vortice: {
     sceneBoost: ['NEGATIVE', 'MONOCHROME', 'SPARSE'],
@@ -148,9 +138,6 @@ const ENGINE_PREFS = {
     dotSize: 3, densityMul: 1.4, midiScale: 1.5, forceInvert: true,
     shapeScale: 0.5, trailMax: 64, densityGravity: 0,
     onsetWaveSpeed: 1600, flickerSpeed: 8.0, midiDensityMul: 0.5,
-    // no feedback — vortice is raw energy
-    // grid distortion — aggressive, tied to energy
-    gridDistortAmp: 3.0,
   },
   cristallo: {
     sceneBoost: ['SPARSE', 'HORIZON', 'BAYER_CLASSIC'],
@@ -161,10 +148,6 @@ const ENGINE_PREFS = {
     dotSize: 10, densityMul: 0.4, midiScale: 2.0, forceInvert: null,
     shapeScale: 0.4, trailMax: 48, densityGravity: -0.3,
     onsetWaveSpeed: 200, flickerSpeed: 0.2, midiDensityMul: 0.5, feedbackDecay: 0.95,
-    // feedback transform — no transform, shimmer via decay only
-    feedbackZoom: 1.0, feedbackRotate: 0, feedbackDriftX: 0, feedbackDriftY: 0,
-    // clean grid — no distortion
-    gridDistortAmp: 0,
   },
   abisso: {
     sceneBoost: ['DENSE', 'MONOCHROME', 'COLORED_GROUND'],
@@ -175,10 +158,6 @@ const ENGINE_PREFS = {
     dotSize: 7, densityMul: 1.6, midiScale: 0.8, forceInvert: false,
     shapeScale: 1.8, trailMax: 32, densityGravity: 0.6,
     onsetWaveSpeed: 600, flickerSpeed: 1.0, midiDensityMul: 0.6,
-    // feedback transform — gravity: everything sinks down
-    feedbackZoom: 1.0, feedbackRotate: 0, feedbackDriftX: 0, feedbackDriftY: 0.3,
-    // grid distortion — deep wave
-    gridDistortAmp: 1.5,
   },
   solco: {
     sceneBoost: ['MONDRIAN', 'BAYER_CLASSIC', 'COLUMNS'],
@@ -189,10 +168,6 @@ const ENGINE_PREFS = {
     dotSize: 4, densityMul: 1.2, midiScale: 1.0, forceInvert: null,
     shapeScale: 1.0, trailMax: 56, densityGravity: 0.1,
     onsetWaveSpeed: 1000, flickerSpeed: 4.0, midiDensityMul: 0.5,
-    // feedback transform — very subtle tunnel zoom
-    feedbackZoom: 1.001, feedbackRotate: 0, feedbackDriftX: 0, feedbackDriftY: 0,
-    // clean grid — no distortion (hypnotic precision)
-    gridDistortAmp: 0,
   },
 };
 
@@ -206,10 +181,6 @@ let _v3LerpState     = {       // stato lerp corrente per engineRender
   dotSize: 6, densityMul: 0.3, midiScale: 1.0,
   shapeScale: 1.0, trailMax: 64, densityGravity: 0,
   onsetWaveSpeed: 400, flickerSpeed: 1.0, midiDensityMul: 0.3, feedbackDecay: 0.97,
-  // feedback transform (v4)
-  feedbackZoom: 1.0, feedbackRotate: 0, feedbackDriftX: 0, feedbackDriftY: 0,
-  // grid distortion (v4)
-  gridDistortAmp: 0,
 };
 
 /**
@@ -218,13 +189,11 @@ let _v3LerpState     = {       // stato lerp corrente per engineRender
  */
 function _getV3Act(arcPct) {
   const acts = CFG.VISUAL.acts;
-  if (arcPct < acts.II.min)   return 'I';
-  if (arcPct < acts.III.min)  return 'II';
-  if (arcPct < acts.IV.min)   return 'III';
-  if (arcPct < acts.V.min)    return 'IV';
-  if (arcPct < acts.VI.min)   return 'V';
-  if (arcPct < acts.VII.min)  return 'VI';
-  return 'VII';
+  if (arcPct < acts.II.min)  return 'I';
+  if (arcPct < acts.III.min) return 'II';
+  if (arcPct < acts.IV.min)  return 'III';
+  if (arcPct < acts.V.min)   return 'IV';
+  return 'V';
 }
 
 /**
@@ -291,13 +260,6 @@ function _updateDirectorV3(dt) {
   ls.flickerSpeed   += (mblend(prefs.flickerSpeed,   'flickerSpeed')   - ls.flickerSpeed)   * lr;
   ls.midiDensityMul += (mblend(prefs.midiDensityMul, 'midiDensityMul') - ls.midiDensityMul) * lr;
   ls.feedbackDecay  += (prefs.feedbackDecay                            - ls.feedbackDecay)  * lr;
-  // Feedback transform (v4) — layer prefs blended with mode params
-  ls.feedbackZoom   += (mblend(prefs.feedbackZoom   ?? 1.0, 'feedbackZoom')   - ls.feedbackZoom)   * lr;
-  ls.feedbackRotate += (mblend(prefs.feedbackRotate ?? 0,   'feedbackRotate') - ls.feedbackRotate) * lr;
-  ls.feedbackDriftX += (mblend(prefs.feedbackDriftX ?? 0,   'feedbackDriftX') - ls.feedbackDriftX) * lr;
-  ls.feedbackDriftY += (mblend(prefs.feedbackDriftY ?? 0,   'feedbackDriftY') - ls.feedbackDriftY) * lr;
-  // Grid distortion (v4)
-  ls.gridDistortAmp += (mblend(prefs.gridDistortAmp ?? 0,   'gridDistortAmp') - ls.gridDistortAmp) * lr;
 
   // Scrive su engineRender (letto da field.js e render.js)
   engineRender.active         = true;
@@ -313,12 +275,6 @@ function _updateDirectorV3(dt) {
   engineRender.flickerSpeed   = ls.flickerSpeed;
   engineRender.midiDensityMul = ls.midiDensityMul;
   engineRender.feedbackDecay  = ls.feedbackDecay;
-  // Feedback transform + grid distortion (v4)
-  engineRender.feedbackZoom   = ls.feedbackZoom;
-  engineRender.feedbackRotate = ls.feedbackRotate;
-  engineRender.feedbackDriftX = ls.feedbackDriftX;
-  engineRender.feedbackDriftY = ls.feedbackDriftY;
-  engineRender.gridDistortAmp = ls.gridDistortAmp;
 
   // ── 2b. Reattività MIDI real-time (V3) ──
   // Sovrascrive i valori lerped con boost istantanei — "a seconda del momento del live"
@@ -707,13 +663,6 @@ export const engineRender = {
   flickerSpeed: null,
   midiDensityMul: 0.4,
   feedbackDecay: null,
-  // feedback geometric transform (v4 — zoom/rotate/drift on feedback frame)
-  feedbackZoom: 1.0,
-  feedbackRotate: 0,
-  feedbackDriftX: 0,
-  feedbackDriftY: 0,
-  // grid distortion amplitude (v4 — sinusoidal wave on Bayer lookup)
-  gridDistortAmp: 0,
 };
 
 function transitionToScene(newScene, instant) {
@@ -1065,12 +1014,6 @@ export function updateDirector(dt, state, globalTime, W, H) {
     engineRender.densityGravity = curPrefs.densityGravity ?? 0;
     engineRender.onsetWaveSpeed = curPrefs.onsetWaveSpeed ?? null;
     engineRender.feedbackDecay = curPrefs.feedbackDecay ?? null;
-    // Feedback transform + grid distortion (v4)
-    engineRender.feedbackZoom   = curPrefs.feedbackZoom   ?? 1.0;
-    engineRender.feedbackRotate = curPrefs.feedbackRotate ?? 0;
-    engineRender.feedbackDriftX = curPrefs.feedbackDriftX ?? 0;
-    engineRender.feedbackDriftY = curPrefs.feedbackDriftY ?? 0;
-    engineRender.gridDistortAmp = curPrefs.gridDistortAmp ?? 0;
 
     // Phase-driven params: lerp toward phase target (smooth ~0.05/frame)
     if (phaseVisuals) {
@@ -1128,12 +1071,6 @@ export function updateDirector(dt, state, globalTime, W, H) {
     engineRender.flickerSpeed = null;
     engineRender.midiDensityMul = 0.4;
     engineRender.feedbackDecay = null;
-    // Reset feedback transform + grid distortion (v4)
-    engineRender.feedbackZoom = 1.0;
-    engineRender.feedbackRotate = 0;
-    engineRender.feedbackDriftX = 0;
-    engineRender.feedbackDriftY = 0;
-    engineRender.gridDistortAmp = 0;
   }
   } // end else V3_MODE
 

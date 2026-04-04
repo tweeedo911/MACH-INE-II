@@ -31,7 +31,6 @@ let _prevBreakActive = false; // stato break precedente (per detect re-entry —
 let _prevDroneNoteLo = null;  // ultima nota bassa drone inviata (per note-off esplicito al cambio)
 let _prevDroneNoteHi = null;  // ultima nota alta drone inviata (per note-off esplicito al cambio)
 let _breathCounter   = 0;    // contatore respiri armonici — ogni breathInterval accordi ritorna alla tonica
-let _modeChangeBar   = -999; // bar at which last mode change occurred (additive chord entry)
 
 // Ritmo armonico
 const _droneUpdateEvery = 4; // drone refresh ogni 4 bar — invariante
@@ -49,7 +48,6 @@ export function initHarmonyLayer() {
   _prevDroneNoteLo = null;
   _prevDroneNoteHi = null;
   _breathCounter   = 0;
-  _modeChangeBar   = -999;
 
   sendMIDIAllNotesOff(); // pulire note residue da sessioni precedenti
 
@@ -112,7 +110,6 @@ export function updateHarmonyLayer(_dt) {
     _lastMode       = macroState.currentMode;
     _anchorIdx      = 0;
     _chordCycleIdx  = 0;
-    _modeChangeBar  = currentBar; // additive chord entry — track mode change bar
     // NON resettare _currentVoicing — serve per voice leading nella transizione
     console.log('[HARMONY] mode change to:', _lastMode);
   }
@@ -205,18 +202,6 @@ export function updateHarmonyLayer(_dt) {
     let chordNotes = anchor.ch4.slice();
     if (_currentVoicing && _currentVoicing.length > 0) {
       chordNotes = applyVoiceLeading(_currentVoicing, chordNotes, 3);
-    }
-
-    // Additive chord entry — build voicing note by note after mode change (v4)
-    const _additive = CFG.MACRO.chordAdditiveEntry;
-    if (_additive && _additive.enabled) {
-      const barsSinceChange = currentBar - _modeChangeBar;
-      if (barsSinceChange < _additive.barsRootOnly) {
-        chordNotes = chordNotes.slice(0, 1); // root only
-      } else if (barsSinceChange < _additive.barsRootOnly + _additive.barsRootFifth) {
-        chordNotes = chordNotes.slice(0, Math.min(2, chordNotes.length)); // root + fifth
-      }
-      // else: full voicing (no filtering)
     }
 
     // Pentatonica + cromatismo Four Tet (HARM-05)

@@ -205,9 +205,6 @@ function midiColorAt(nx, ny) {
   return [bestCh, bestAlpha];
 }
 
-// ── Grid distortion time (v4) — slow sinusoidal wave on Bayer lookup ──
-let _distortTime = 0;
-
 // ── Smoothed intensity for low-reactivity zones ──
 let smoothedIntensity = 0;
 
@@ -380,34 +377,20 @@ function renderFillRect(ctx, dotSize, state, globalTime, W, H) {
   let lastFill = '';
   const baseInv = (engineRender.active && engineRender.forceInvert != null) ? engineRender.forceInvert : inverted;
 
-  // Grid distortion (v4) — precompute amplitude once per frame
-  const distAmp = engineRender.gridDistortAmp || 0;
-  const distT = _distortTime;
-
   for (let row = 0; row < rows; row++) {
     const py = row * dotSize, ny = py / H;
-    // Precompute row-dependent sine offset for grid distortion — hoisted from inner loop (v4)
-    const rowSinOffset = distAmp > 0 ? Math.sin(row * 0.08 + distT * 0.7) * distAmp : 0;
     for (let col = 0; col < cols; col++) {
       const px = col * dotSize, nx = px / W;
 
-      // Distorted Bayer coordinates (v4) — sinusoidal wave deforms halftone pattern
-      // dCol shifts by row-dependent sine; dRow shifts by col-dependent cosine
-      let bCol = col, bRow = row;
-      if (distAmp > 0) {
-        bCol = (col + rowSinOffset) | 0;
-        bRow = (row + Math.cos(col * 0.06 + distT * 0.5) * distAmp) | 0;
-      }
-
       let cellInv = baseInv;
       if (invertDissolving) {
-        const bayerVal = BAYER8[(bRow & 7) * 8 + (bCol & 7)];
+        const bayerVal = BAYER8[(row & 7) * 8 + (col & 7)];
         cellInv = invertDissolveProgress > bayerVal ? invertTarget : baseInv;
       }
 
       const zone = getZone(nx, ny);
       const thresholdShift = (1 - zone.dotSizeMul) * 0.3;
-      const threshold = Math.max(CFG.densityFloor, Math.min(1, BAYER8[(bRow & 7) * 8 + (bCol & 7)] + thresholdShift));
+      const threshold = Math.max(CFG.densityFloor, Math.min(1, BAYER8[(row & 7) * 8 + (col & 7)] + thresholdShift));
       const density = computeDensity(nx, ny, px, py, state, globalTime, W, H);
       if (density > threshold) {
         const zDot = Math.max(1, Math.round(dotSize * zone.dotSizeMul));
@@ -473,34 +456,20 @@ function renderBuffer(ctx, dotSize, state, globalTime, W, H) {
   const baseInv = (engineRender.active && engineRender.forceInvert != null) ? engineRender.forceInvert : inverted;
   const fgVal = baseInv ? 0 : 255;
 
-  // Grid distortion (v4) — precompute amplitude once per frame
-  const distAmp = engineRender.gridDistortAmp || 0;
-  const distT = _distortTime;
-
   for (let row = 0; row < bh; row++) {
     const ny = row / bh, py = row * dotSize;
-    // Precompute row-dependent sine offset for grid distortion — hoisted from inner loop (v4)
-    const rowSinOffset = distAmp > 0 ? Math.sin(row * 0.08 + distT * 0.7) * distAmp : 0;
     for (let col = 0; col < bw; col++) {
       const nx = col / bw, px = col * dotSize;
 
-      // Distorted Bayer coordinates (v4) — sinusoidal wave deforms halftone pattern
-      // dCol shifts by row-dependent sine; dRow shifts by col-dependent cosine
-      let bCol = col, bRow = row;
-      if (distAmp > 0) {
-        bCol = (col + rowSinOffset) | 0;
-        bRow = (row + Math.cos(col * 0.06 + distT * 0.5) * distAmp) | 0;
-      }
-
       let cellFg = fgVal;
       if (invertDissolving) {
-        const bayerVal = BAYER8[(bRow & 7) * 8 + (bCol & 7)];
+        const bayerVal = BAYER8[(row & 7) * 8 + (col & 7)];
         cellFg = invertDissolveProgress > bayerVal ? (invertTarget ? 0 : 255) : fgVal;
       }
 
       const zone = getZone(nx, ny);
       const thresholdShift = (1 - zone.dotSizeMul) * 0.3;
-      const threshold = Math.max(CFG.densityFloor, Math.min(1, BAYER8[(bRow & 7) * 8 + (bCol & 7)] + thresholdShift));
+      const threshold = Math.max(CFG.densityFloor, Math.min(1, BAYER8[(row & 7) * 8 + (col & 7)] + thresholdShift));
       const density = computeDensity(nx, ny, px, py, state, globalTime, W, H);
       const idx = (row * bw + col) * 4;
       if (density > threshold) {
@@ -573,9 +542,6 @@ function drawMatrice(ctx, state, globalTime, W, H) {
 
 // ── Public render entry point ──
 export function renderField(ctx, W, H, state, globalTime) {
-  // Advance grid distortion time (v4) — uses globalTime delta approximation
-  _distortTime = globalTime * 0.5;  // slow evolution, tied to global clock
-
   smoothedIntensity += (state.intensity - smoothedIntensity) * 0.0008;
 
   let dotSize = Math.max(CFG.dotSizeMin, (engineRender.active && engineRender.dotSize != null) ? engineRender.dotSize : scene.dotSize);

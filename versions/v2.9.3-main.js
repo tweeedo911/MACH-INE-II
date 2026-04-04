@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════
 //  MACH:INE II — Boot & Module Wiring
-//  v4.0.0: 7 phases, 43min, call-response, degradation, visual feedback+distortion
+//  v2.9.0: V3 layer system + break cycles + arc jump + compositional quality
 // ═══════════════════════════════════════════════════════════
 
 import { CFG } from './config.js';
@@ -207,8 +207,7 @@ document.addEventListener('keydown', (e) => {
   }
   // V3: tasti 1-5 saltano l'arco narrativo (intercettati prima dei toggle v2)
   if (CFG.V3_MODE) {
-    // v4 7-phase jump: NEBBIA, TESSUTO, SOLCO, RESPIRO, MACCHINA, TEMPESTA, RITORNO
-    const _arcMap = { Digit1: 0.00, Digit2: 0.07, Digit3: 0.186, Digit4: 0.372, Digit5: 0.419, Digit6: 0.581, Digit7: 0.814 };
+    const _arcMap = { Digit1: 0.00, Digit2: 0.22, Digit3: 0.50, Digit4: 0.75, Digit5: 0.90 };
     if (_arcMap[e.code] !== undefined) {
       const _pct = _arcMap[e.code];
       jumpArc(_pct);

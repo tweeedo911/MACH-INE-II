@@ -52,11 +52,6 @@ let _currentStep16 = 0;
 // ── M2: sweep sinusoidale CH6 in C#_dorian ──
 let _sweepPhase = 0;
 
-// ── Call-response CH5→CH6 (v4) ──
-let _crPending = false;
-let _crNote = 0;
-let _crBarTarget = 0;
-
 // ══════════════════════════════════════════════════════════
 //  GATING E MIDI WRAPPER
 //  Downbeat boost MIDI-01, pitch range MIDI-02, phrase offset MIDI-03
@@ -88,28 +83,13 @@ function sendNote(ch, note, vel, dur) {
   vel += _gaussianRand() * CFG.MELODY.velHumanize;
   vel = Math.max(1, Math.min(127, Math.round(vel)));
 
-  // Degradation engine — progressive entropy in RITORNO
-  const _deg = CFG.MELODY.degradation;
-  if (_deg && macroState.arcPercent > _deg.arcThreshold) {
-    const degradePct = (macroState.arcPercent - _deg.arcThreshold) / (1.0 - _deg.arcThreshold);
-    const curve = Math.pow(degradePct, _deg.jitterCurve);
-    if (Math.random() < curve * _deg.maxNoteDropProb) return; // note drop
-  }
-
   // Visual: aggiunge direttamente al midiTrail — non dipende dal loopback MIDI
   _addMidiVisual(ch, note / 127, vel / 127);
 
   // MIDI-03: phrase offset — sfasamento microtemporale anti-meccanico
   const offsetRange = CFG.MELODY.midi.noteOffsetMs;
-  let offset = Math.random() * (offsetRange.max - offsetRange.min) + offsetRange.min;
-
-  // Degradation: augment timing jitter
-  if (_deg && macroState.arcPercent > _deg.arcThreshold) {
-    const degradePct = (macroState.arcPercent - _deg.arcThreshold) / (1.0 - _deg.arcThreshold);
-    offset += (Math.random() - 0.5) * 2 * Math.pow(degradePct, _deg.jitterCurve) * _deg.maxTimingJitter;
-  }
-
-  setTimeout(() => _rawSend(ch, note, vel, dur), Math.max(0, offset));
+  const offset = Math.random() * (offsetRange.max - offsetRange.min) + offsetRange.min;
+  setTimeout(() => _rawSend(ch, note, vel, dur), offset);
 }
 
 // ══════════════════════════════════════════════════════════
@@ -256,20 +236,6 @@ function _onCH5Step() {
   const dur = Math.round(CFG.MELODY.noteDur.ch5.dense + (CFG.MELODY.noteDur.ch5.sparse - CFG.MELODY.noteDur.ch5.dense) * (1 - tD));
   sendNote(5, note, vel, dur);
 
-  // Call-response: queue CH6 reply to this CH5 note
-  const _cr = CFG.MELODY.callResponse;
-  if (_cr && _cr.enabled && !_crPending
-      && macroState.arcPercent >= _cr.activeRange.min
-      && macroState.arcPercent <= _cr.activeRange.max
-      && mA >= _cr.minMelodicActivity
-      && Math.random() < _cr.probability) {
-    _crPending = true;
-    _crNote = note;
-    const delayMs = _cr.delayMsMin + Math.random() * (_cr.delayMsMax - _cr.delayMsMin);
-    const bpmRef = CFG.MACRO.bpmReference;
-    _crBarTarget = macroState.barClock + delayMs * bpmRef / 240000;
-  }
-
   if (_arpMode) _arpLastCH5Note = note;
 }
 
@@ -403,11 +369,6 @@ export function initMelodyTextureLayer() {
   // Reset sweep
   _sweepPhase = 0;
 
-  // Reset call-response state
-  _crPending   = false;
-  _crNote      = 0;
-  _crBarTarget = 0;
-
   sendMIDIAllNotesOff();
   console.log('[MELODY] init');
 }
@@ -439,20 +400,6 @@ export function updateMelodyTextureLayer(dt) {
       _onCH5Step(s % CFG.MELODY.loopLenCH5);
     }
     _lastStepCH5 = sCH5;
-  }
-
-  // ── Call-response CH5→CH6: flush pending response when due ──
-  if (_crPending && macroState.barClock >= _crBarTarget) {
-    _crPending = false;
-    const crCfg = CFG.MELODY.callResponse;
-    const scale = CFG.MACRO.modes[macroState.currentMode] || [];
-    const intervals = crCfg.intervalPrefer;
-    const interval = intervals[Math.floor(Math.random() * intervals.length)];
-    const candidate = _crNote + interval;
-    const responseNote = scale.reduce((best, n) =>
-      Math.abs(n - candidate) < Math.abs(best - candidate) ? n : best, scale[0]);
-    const phase = macroState.melodicActivity < 0.3 ? 'sparse' : macroState.melodicActivity < 0.65 ? 'medium' : 'dense';
-    sendNote(6, responseNote, CFG.MELODY.velTarget[phase].ch6 * macroState.melodicActivity, CFG.MELODY.noteDur.ch6.dense);
   }
 
   // ── CH6 clock — loop 13 step ──
