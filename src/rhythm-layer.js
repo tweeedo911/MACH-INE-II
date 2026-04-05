@@ -50,6 +50,15 @@ function sendNote(ch, note, vel, dur) {
   // Visual: feed midiTrail for halftone rendering
   _addMidiVisual(ch, note / 127, vel / 127);
 
+  // Timing directionality (v4.1) — offbeats push/pull per phase
+  // Downbeats stay on-grid as rhythmic anchor; offbeats shift for feel
+  const pushMs = CFG.RHYTHM.timingPushMs?.[_currentPhase] || 0;
+  if (!isDownbeat && pushMs !== 0) {
+    const offset = pushMs + _gaussianRand() * 2; // ±2ms jitter on top
+    setTimeout(() => _rawSend(ch, note, vel, dur), Math.max(0, offset));
+    return;
+  }
+
   // Direct send — no setTimeout (background tab throttles setTimeout to 1000ms, breaking timing)
   _rawSend(ch, note, vel, dur);
 }

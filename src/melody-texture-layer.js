@@ -86,7 +86,39 @@ function sendNote(ch, note, vel, dur) {
 
   // Humanize: scatter gaussiano
   vel += _gaussianRand() * CFG.MELODY.velHumanize;
+
+  // Modal characteristic note boost (v4.1) — the note that defines the mode gets extra presence
+  const _charNotes = CFG.modalCharacteristicNotes;
+  const _modeToEngine = { 'A_lydian': 'deriva', 'Bb_phrygian': 'abisso', 'D_dorian': 'terreno', 'C#_dorian': 'solco', 'E_phrygian': 'cristallo' };
+  const _engineKey = _modeToEngine[macroState.currentMode];
+  if (_charNotes && _engineKey && _charNotes[_engineKey] !== undefined) {
+    const rootNote = CFG.MACRO.droneRoot[macroState.currentMode] || 57;
+    if ((note % 12) === ((rootNote + _charNotes[_engineKey]) % 12)) {
+      vel += CFG.characteristicVelBoost;
+    }
+  }
+
   vel = Math.max(1, Math.min(127, Math.round(vel)));
+
+  // Oblique strategy events (v4.1) — intentional "mistakes" for character
+  const _obl = CFG.oblique;
+  if (_obl && (ch === 5 || ch === 6)
+      && macroState.arcPercent >= _obl.activeArcMin
+      && macroState.arcPercent <= _obl.activeArcMax
+      && Math.random() < _obl.probability) {
+    const r = Math.random();
+    if (r < 0.5) {
+      // Pitch shift — ±1-2 semitones outside scale (chromatic color)
+      const shift = (Math.random() < 0.5 ? 1 : -1) * (1 + Math.floor(Math.random() * _obl.pitchShiftRange));
+      note = Math.max(36, Math.min(96, note + shift));
+    } else if (r < 0.8) {
+      // Velocity spike — accent that stands out
+      vel = Math.min(127, Math.round(vel * _obl.velSpikeMul));
+    } else {
+      // Velocity drop — ghost note
+      vel = Math.max(1, Math.round(vel * _obl.velDropMul));
+    }
+  }
 
   // Degradation engine — progressive entropy in RITORNO
   const _deg = CFG.MELODY.degradation;

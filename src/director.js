@@ -112,6 +112,10 @@ const ENGINE_PREFS = {
     feedbackZoom: 1.0, feedbackRotate: 0, feedbackDriftX: 0, feedbackDriftY: 0,
     // grid distortion — subtle geological
     gridDistortAmp: 1.0,
+    // moiré — geological strata (two Bayer grids at mismatched scales)
+    moireAmount: 0.5,
+    // film grain — organic earth texture
+    filmGrainAmount: 0.04,
   },
   meccanica: {
     sceneBoost: ['MONDRIAN', 'NEGATIVE', 'MONOCHROME'],
@@ -122,8 +126,8 @@ const ENGINE_PREFS = {
     dotSize: 4, densityMul: 1.3, midiScale: 1.0, forceInvert: null,
     shapeScale: 0.7, trailMax: 40, densityGravity: 0,
     onsetWaveSpeed: 1200, flickerSpeed: 6.0, midiDensityMul: 0.4,
-    // no feedback, no grid distortion — clean mechanical precision
-    gridDistortAmp: 0,
+    // no feedback, no grid distortion, no moiré — clean mechanical precision
+    gridDistortAmp: 0, moireAmount: 0, filmGrainAmount: 0,
   },
   deriva: {
     sceneBoost: ['HORIZON', 'SPARSE', 'MONOCHROME'],
@@ -138,6 +142,8 @@ const ENGINE_PREFS = {
     feedbackZoom: 1.0, feedbackRotate: 0, feedbackDriftX: 0.1, feedbackDriftY: 0,
     // grid distortion — slow dreamy wave
     gridDistortAmp: 2.5,
+    // film grain — atmospheric fog texture (no moiré — too structured for DERIVA)
+    moireAmount: 0, filmGrainAmount: 0.06,
   },
   vortice: {
     sceneBoost: ['NEGATIVE', 'MONOCHROME', 'SPARSE'],
@@ -151,6 +157,8 @@ const ENGINE_PREFS = {
     // no feedback — vortice is raw energy
     // grid distortion — aggressive, tied to energy
     gridDistortAmp: 3.0,
+    // no moiré, no grain — VORTICE is surgical precision
+    moireAmount: 0, filmGrainAmount: 0,
   },
   cristallo: {
     sceneBoost: ['SPARSE', 'HORIZON', 'BAYER_CLASSIC'],
@@ -163,8 +171,10 @@ const ENGINE_PREFS = {
     onsetWaveSpeed: 200, flickerSpeed: 0.2, midiDensityMul: 0.5, feedbackDecay: 0.95,
     // feedback transform — no transform, shimmer via decay only
     feedbackZoom: 1.0, feedbackRotate: 0, feedbackDriftX: 0, feedbackDriftY: 0,
-    // clean grid — no distortion
-    gridDistortAmp: 0,
+    // clean grid — no distortion, no moiré (pristine crystal lattice)
+    gridDistortAmp: 0, moireAmount: 0,
+    // film grain — subtle ice dust
+    filmGrainAmount: 0.03,
   },
   abisso: {
     sceneBoost: ['DENSE', 'MONOCHROME', 'COLORED_GROUND'],
@@ -179,6 +189,8 @@ const ENGINE_PREFS = {
     feedbackZoom: 1.0, feedbackRotate: 0, feedbackDriftX: 0, feedbackDriftY: 0.3,
     // grid distortion — deep wave
     gridDistortAmp: 1.5,
+    // film grain — deep sea noise
+    moireAmount: 0, filmGrainAmount: 0.05,
   },
   solco: {
     sceneBoost: ['MONDRIAN', 'BAYER_CLASSIC', 'COLUMNS'],
@@ -191,8 +203,10 @@ const ENGINE_PREFS = {
     onsetWaveSpeed: 1000, flickerSpeed: 4.0, midiDensityMul: 0.5,
     // feedback transform — very subtle tunnel zoom
     feedbackZoom: 1.001, feedbackRotate: 0, feedbackDriftX: 0, feedbackDriftY: 0,
-    // clean grid — no distortion (hypnotic precision)
-    gridDistortAmp: 0,
+    // moiré — hypnotic breathing interference (two Bayer scales)
+    gridDistortAmp: 0, moireAmount: 0.4,
+    // no grain — SOLCO is clean mechanical groove
+    filmGrainAmount: 0,
   },
 };
 
@@ -210,6 +224,8 @@ let _v3LerpState     = {       // stato lerp corrente per engineRender
   feedbackZoom: 1.0, feedbackRotate: 0, feedbackDriftX: 0, feedbackDriftY: 0,
   // grid distortion (v4)
   gridDistortAmp: 0,
+  // moiré + film grain (v4.1)
+  moireAmount: 0, filmGrainAmount: 0,
 };
 
 /**
@@ -298,6 +314,9 @@ function _updateDirectorV3(dt) {
   ls.feedbackDriftY += (mblend(prefs.feedbackDriftY ?? 0,   'feedbackDriftY') - ls.feedbackDriftY) * lr;
   // Grid distortion (v4)
   ls.gridDistortAmp += (mblend(prefs.gridDistortAmp ?? 0,   'gridDistortAmp') - ls.gridDistortAmp) * lr;
+  // Moiré + film grain (v4.1)
+  ls.moireAmount     += (mblend(prefs.moireAmount     ?? 0,  'moireAmount')     - ls.moireAmount)     * lr;
+  ls.filmGrainAmount += (mblend(prefs.filmGrainAmount ?? 0,  'filmGrainAmount') - ls.filmGrainAmount) * lr;
 
   // Scrive su engineRender (letto da field.js e render.js)
   engineRender.active         = true;
@@ -318,7 +337,9 @@ function _updateDirectorV3(dt) {
   engineRender.feedbackRotate = ls.feedbackRotate;
   engineRender.feedbackDriftX = ls.feedbackDriftX;
   engineRender.feedbackDriftY = ls.feedbackDriftY;
-  engineRender.gridDistortAmp = ls.gridDistortAmp;
+  engineRender.gridDistortAmp  = ls.gridDistortAmp;
+  engineRender.moireAmount     = ls.moireAmount;
+  engineRender.filmGrainAmount = ls.filmGrainAmount;
 
   // ── 2b. Reattività MIDI real-time (V3) ──
   // Sovrascrive i valori lerped con boost istantanei — "a seconda del momento del live"
@@ -714,6 +735,9 @@ export const engineRender = {
   feedbackDriftY: 0,
   // grid distortion amplitude (v4 — sinusoidal wave on Bayer lookup)
   gridDistortAmp: 0,
+  // moiré interference + film grain (v4.1)
+  moireAmount: 0,
+  filmGrainAmount: 0,
 };
 
 function transitionToScene(newScene, instant) {
@@ -1070,7 +1094,9 @@ export function updateDirector(dt, state, globalTime, W, H) {
     engineRender.feedbackRotate = curPrefs.feedbackRotate ?? 0;
     engineRender.feedbackDriftX = curPrefs.feedbackDriftX ?? 0;
     engineRender.feedbackDriftY = curPrefs.feedbackDriftY ?? 0;
-    engineRender.gridDistortAmp = curPrefs.gridDistortAmp ?? 0;
+    engineRender.gridDistortAmp  = curPrefs.gridDistortAmp  ?? 0;
+    engineRender.moireAmount     = curPrefs.moireAmount     ?? 0;
+    engineRender.filmGrainAmount = curPrefs.filmGrainAmount ?? 0;
 
     // Phase-driven params: lerp toward phase target (smooth ~0.05/frame)
     if (phaseVisuals) {
@@ -1134,6 +1160,8 @@ export function updateDirector(dt, state, globalTime, W, H) {
     engineRender.feedbackDriftX = 0;
     engineRender.feedbackDriftY = 0;
     engineRender.gridDistortAmp = 0;
+    engineRender.moireAmount = 0;
+    engineRender.filmGrainAmount = 0;
   }
   } // end else V3_MODE
 
