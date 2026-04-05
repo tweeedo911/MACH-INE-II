@@ -11,10 +11,23 @@ import { addMidiNote as _addMidiVisual } from './field.js';
 
 // ── Gating interno (D-09: non usa presence-multiplier.js) ───────────────────
 // Identico al pattern composer (pm < 0.05) ma basato su harmonicColor
+// Mode→engine mapping for characteristic note detection (v4.1)
+const _MODE_ENGINE = { 'A_lydian': 'deriva', 'Bb_phrygian': 'abisso', 'D_dorian': 'terreno', 'C#_dorian': 'solco', 'E_phrygian': 'cristallo' };
+
 function sendNote(ch, note, vel, dur) {
   const intensity = macroState.harmonicColor;
   if (intensity < 0.05) return;  // gating: silenzio armonico sotto la soglia
-  const scaledVel = Math.max(1, Math.round(vel * intensity));
+  let scaledVel = Math.round(vel * intensity);
+  // Modal characteristic note boost (v4.1) — chord notes on the characteristic pitch shine
+  const _charNotes = CFG.modalCharacteristicNotes;
+  const _ek = _MODE_ENGINE[macroState.currentMode];
+  if (_charNotes && _ek && _charNotes[_ek] !== undefined) {
+    const root = CFG.MACRO.droneRoot[macroState.currentMode] || 57;
+    if ((note % 12) === ((root + _charNotes[_ek]) % 12)) {
+      scaledVel += CFG.characteristicVelBoost;
+    }
+  }
+  scaledVel = Math.max(1, Math.min(127, scaledVel));
   _addMidiVisual(ch, note / 127, scaledVel / 127);
   _rawSend(ch, note, scaledVel, dur);
 }

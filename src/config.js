@@ -161,6 +161,18 @@ export const CFG = {
   },
   characteristicVelBoost: 15,  // velocity bonus when characteristic note plays
 
+  // ── Oblique strategy events (v4.1) — intentional "mistakes" for character ──
+  // Prob per note emission. When triggered: pitch shift ±1-2 semitones out of scale,
+  // or velocity spike/drop. Only on CH5/CH6 (melodic lines).
+  oblique: {
+    probability: 0.025,       // ~2.5% of CH5/CH6 notes — subtle but present
+    pitchShiftRange: 2,       // ±1-2 semitones outside the scale
+    velSpikeMul: 1.4,         // velocity multiplier for "accent" oblique
+    velDropMul: 0.3,          // velocity multiplier for "ghost" oblique
+    activeArcMin: 0.10,       // only active after 10% of performance
+    activeArcMax: 0.90,       // no oblique events in opening silence or final dissolve
+  },
+
   // ── Composer 1 (TERRENO — D Dorian, dub lento) ──
   composer1Key: 'Digit4',
   COMPOSER: {
@@ -717,6 +729,17 @@ export const CFG = {
 
       // MIDI-04: channel assignment
       channels: { kick: 0, hat: 1, perc: 7 },
+    },
+
+    // ── Timing directionality (v4.1) — push/pull offset in ms per phase ──
+    // Negative = laid-back (behind the beat), Positive = pushed (ahead of the beat)
+    // Applies to kick offbeats only (downbeats stay on-grid for anchor)
+    timingPushMs: {
+      arhythmic:   0,     // no rhythm = no push
+      emerging:   -6,     // lazy, behind the beat — dub feel
+      groove:     -3,     // slight laid-back — Four Tet groove
+      climax:      4,     // pushed ahead — driving urgency
+      dissolving: -8,     // maximum laid-back — time dissolves
     },
 
     // ── Break ciclici kick+basso (RITM-05) ──

@@ -5,6 +5,27 @@ Formato: `[versione] – data – descrizione`
 
 ---
 
+## [v4.1.0] – 2026-04-05
+
+**Visual Phase 1 completata + musical quick wins — 5 nuove feature.**
+
+### Visual
+- **Moiré interference** (`field.js`): seconda griglia Bayer a scala 9/8 crea frange di interferenza geologiche. Attivo su TERRENO (0.5) e SOLCO (0.4), off su motori "puliti" (MECCANICA, VORTICE, CRISTALLO).
+- **Film grain** (`field.js`): noise casuale sulla soglia Bayer. Texture organica differenziata per motore: DERIVA 0.06 (nebbia), ABISSO 0.05 (fondale), TERRENO 0.04 (terra), CRISTALLO 0.03 (polvere di ghiaccio). Off su MECCANICA/VORTICE/SOLCO.
+- Entrambe le tecniche hanno lerp smooth nel sistema V3 e supporto per-mode params.
+
+### Composizione
+- **Modal characteristic note boost** (`melody-texture-layer.js`, `harmony-layer.js`): la nota che definisce il modo (es. B naturale per TERRENO D Dorian, Eb per VORTICE D Phrygian) riceve +15 velocity. Ogni sezione modale ha la sua "firma" armonica più presente.
+- **Timing directionality** (`rhythm-layer.js`): offset microtemporale per fase sugli offbeat del kick. Emerging: -6ms (laid-back dub), Groove: -3ms (Four Tet feel), Climax: +4ms (driving urgency), Dissolving: -8ms (il tempo si dissolve).
+- **Oblique strategy events** (`melody-texture-layer.js`): errori intenzionali (prob 2.5%) su CH5/CH6: pitch shift cromatico, velocity spike o ghost note. Attivi solo tra 10%-90% dell'arco — dà carattere umano alla composizione AI.
+
+### Parametri
+- `CFG.oblique` — probabilità, range pitch shift, moltiplicatori velocity, finestra arco
+- `CFG.RHYTHM.timingPushMs` — offset ms per fase ritmica
+- `CFG.modalCharacteristicNotes` — intervalli caratteristici per motore (già presente in v4, ora collegato ai layer)
+
+---
+
 ## [v4.0.0] – 2026-04-04
 
 **Ristrutturazione completa — 7 fasi, 43 minuti, nuovi sistemi compositivi e visual.**

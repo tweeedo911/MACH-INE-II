@@ -27,6 +27,19 @@ const BAYER8 = new Float32Array([
   63/64, 31/64, 55/64, 23/64, 61/64, 29/64, 53/64, 21/64,
 ]);
 
+// ── Bayer 8x8 second grid for moiré interference (v4.1) ──
+// Same matrix sampled at 9/8 scale offset — two slightly mismatched grids
+// create geological strata and interference fringes
+const BAYER8_B = new Float32Array(64);
+for (let r = 0; r < 8; r++) {
+  for (let c = 0; c < 8; c++) {
+    // Shift by (3,2) and scale by 9/8 — irrational-ish offset avoids alignment
+    const sr = ((r * 9 + 2) >> 3) & 7;
+    const sc = ((c * 9 + 3) >> 3) & 7;
+    BAYER8_B[r * 8 + c] = BAYER8[sr * 8 + sc];
+  }
+}
+
 // ── Onset waves ──
 export let onsetWaves = [];
 
@@ -383,6 +396,10 @@ function renderFillRect(ctx, dotSize, state, globalTime, W, H) {
   // Grid distortion (v4) — precompute amplitude once per frame
   const distAmp = engineRender.gridDistortAmp || 0;
   const distT = _distortTime;
+  // Moiré interference (v4.1) — 0.0=off, 0.3-0.8=subtle geological strata
+  const moireAmt = engineRender.moireAmount || 0;
+  // Film grain (v4.1) — noise on Bayer threshold, 0.0=off, 0.02-0.08=subtle texture
+  const grainAmt = engineRender.filmGrainAmount || 0;
 
   for (let row = 0; row < rows; row++) {
     const py = row * dotSize, ny = py / H;
@@ -407,7 +424,15 @@ function renderFillRect(ctx, dotSize, state, globalTime, W, H) {
 
       const zone = getZone(nx, ny);
       const thresholdShift = (1 - zone.dotSizeMul) * 0.3;
-      const threshold = Math.max(CFG.densityFloor, Math.min(1, BAYER8[(bRow & 7) * 8 + (bCol & 7)] + thresholdShift));
+      let threshold = BAYER8[(bRow & 7) * 8 + (bCol & 7)] + thresholdShift;
+      // Moiré: blend second grid at slightly different scale — creates interference fringes
+      if (moireAmt > 0) {
+        const bVal2 = BAYER8_B[(bRow & 7) * 8 + (bCol & 7)];
+        threshold = threshold * (1 - moireAmt) + Math.max(threshold, bVal2) * moireAmt;
+      }
+      // Film grain: random noise on threshold — organic texture
+      if (grainAmt > 0) threshold += (Math.random() - 0.5) * grainAmt;
+      threshold = Math.max(CFG.densityFloor, Math.min(1, threshold));
       const density = computeDensity(nx, ny, px, py, state, globalTime, W, H);
       if (density > threshold) {
         const zDot = Math.max(1, Math.round(dotSize * zone.dotSizeMul));
@@ -476,6 +501,12 @@ function renderBuffer(ctx, dotSize, state, globalTime, W, H) {
   // Grid distortion (v4) — precompute amplitude once per frame
   const distAmp = engineRender.gridDistortAmp || 0;
   const distT = _distortTime;
+  // Moiré interference (v4.1)
+  const moireAmt = engineRender.moireAmount || 0;
+  // Film grain (v4.1)
+  const grainAmt = engineRender.filmGrainAmount || 0;
+  // Film grain LCG PRNG — fast, no GC, deterministic-enough per frame
+  let _grainSeed = (globalTime * 12345.6789) & 0x7FFFFFFF;
 
   for (let row = 0; row < bh; row++) {
     const ny = row / bh, py = row * dotSize;
@@ -500,7 +531,18 @@ function renderBuffer(ctx, dotSize, state, globalTime, W, H) {
 
       const zone = getZone(nx, ny);
       const thresholdShift = (1 - zone.dotSizeMul) * 0.3;
-      const threshold = Math.max(CFG.densityFloor, Math.min(1, BAYER8[(bRow & 7) * 8 + (bCol & 7)] + thresholdShift));
+      let threshold = BAYER8[(bRow & 7) * 8 + (bCol & 7)] + thresholdShift;
+      // Moiré: blend second grid at slightly different scale
+      if (moireAmt > 0) {
+        const bVal2 = BAYER8_B[(bRow & 7) * 8 + (bCol & 7)];
+        threshold = threshold * (1 - moireAmt) + Math.max(threshold, bVal2) * moireAmt;
+      }
+      // Film grain: LCG noise on threshold — avoids Math.random() GC pressure in buffer path
+      if (grainAmt > 0) {
+        _grainSeed = (_grainSeed * 1103515245 + 12345) & 0x7FFFFFFF;
+        threshold += ((_grainSeed / 0x7FFFFFFF) - 0.5) * grainAmt;
+      }
+      threshold = Math.max(CFG.densityFloor, Math.min(1, threshold));
       const density = computeDensity(nx, ny, px, py, state, globalTime, W, H);
       const idx = (row * bw + col) * 4;
       if (density > threshold) {
