@@ -24,8 +24,11 @@ import tempfile
 import uuid
 from pathlib import Path
 
+import base64
+
 from fastapi import FastAPI, File, HTTPException, Query, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
+from pydantic import BaseModel
 
 # Suppress TensorFlow noise at import time
 os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "3")
@@ -107,6 +110,64 @@ async def process(
     except Exception as exc:
         _cleanup(work_dir)()
         raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+# ---------------------------------------------------------------------------
+# /process-base64  — JSON + base64 endpoint (used by the JUCE plugin)
+# ---------------------------------------------------------------------------
+
+class Base64Payload(BaseModel):
+    audio: str          # base64-encoded audio file (WAV recommended)
+    filename: str = "recording.wav"
+    skip_demucs: bool = False
+
+
+@app.post("/process-base64")
+async def process_base64(payload: Base64Payload) -> Response:
+    """
+    Accept a base64-encoded audio file, run the same demucs + basic-pitch
+    pipeline, and return the raw MIDI bytes (audio/midi).
+
+    Body (JSON):
+        {
+            "audio":       "<base64-encoded WAV bytes>",
+            "filename":    "recording.wav",   // optional, used for naming
+            "skip_demucs": false              // optional
+        }
+    """
+    try:
+        audio_bytes = base64.b64decode(payload.audio)
+    except Exception:
+        raise HTTPException(status_code=422, detail="Invalid base64 in 'audio' field.")
+
+    suffix = Path(payload.filename).suffix.lower() or ".wav"
+    job_id = uuid.uuid4().hex[:8]
+    work_dir = Path(tempfile.mkdtemp(prefix=f"mach2_{job_id}_"))
+
+    try:
+        audio_path = work_dir / f"input{suffix}"
+        audio_path.write_bytes(audio_bytes)
+
+        midi_path = work_dir / "vocal_melody.mid"
+        run(audio_path, midi_path, skip_demucs=payload.skip_demucs)
+
+        if not midi_path.exists():
+            raise HTTPException(status_code=500, detail="Pipeline produced no MIDI output.")
+
+        midi_bytes = midi_path.read_bytes()
+        stem = Path(payload.filename).stem
+        return Response(
+            content=midi_bytes,
+            media_type="audio/midi",
+            headers={"Content-Disposition": f'attachment; filename="{stem}_vocal_melody.mid"'},
+        )
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    finally:
+        _cleanup(work_dir)()
 
 
 # ---------------------------------------------------------------------------
