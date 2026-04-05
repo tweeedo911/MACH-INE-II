@@ -20,3 +20,4 @@ test.html
 # Vecchi launcher
 start.sh
 launch.command
+__pycache__/
