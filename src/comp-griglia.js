@@ -2,27 +2,53 @@
 //  MACH:INE III — Composizione: GRIGLIA
 //  Data/Ikeda. Griglia rigorosa, colonne accese dal MIDI.
 //  MACCHINA: arp illumina colonne in sequenza.
-// ═════════════════════════════════════════════════════���═════
+//
+//  Enrichments:
+//  - Ghost grid: scheletro sempre visibile (density 0.02-0.05)
+//  - Audio flicker: celle spente flickerano su RMS
+//  - Sediment: afterglow con rate per fase
+//  - Camera pulse: zoom meccanico su kick (CH0)
+//  - BPM scroll: velocità agganciata al BPM
+//  - Cell animation: ramp-up veloce, decay esponenziale
+//  - Row scan: linea verticale top→bottom sincronizzata al bar
+// ═══════════════════════════════════════════════════════════
 
 import {
   bayerTest, fillBackground, rgbString, hexToRgb, lerpColor,
   lerp, clamp, mapRange,
+  audioFlicker, Sediment,
+  applyCameraTransform, restoreCameraTransform,
 } from './visual-toolkit.js';
 
+// ── Phase parameters ────────────────────────────────────────
 const PHASE_PARAMS = {
-  germoglio:    { cols: 8,  rows: 4,  cellActive: 0.05, scrollSpeed: 0, accentProb: 0 },
-  pulsazione:   { cols: 16, rows: 8,  cellActive: 0.15, scrollSpeed: 0.02, accentProb: 0.05 },
-  densita:      { cols: 24, rows: 12, cellActive: 0.40, scrollSpeed: 0.05, accentProb: 0.15 },
-  rottura:      { cols: 32, rows: 16, cellActive: 0.70, scrollSpeed: 0.12, accentProb: 0.30 },
-  dissoluzione: { cols: 16, rows: 8,  cellActive: 0.10, scrollSpeed: 0.01, accentProb: 0.02 },
+  germoglio:    { cols: 8,  rows: 4,  cellActive: 0.05, accentProb: 0,    sedimentRate: 0.95 },
+  pulsazione:   { cols: 16, rows: 8,  cellActive: 0.15, accentProb: 0.05, sedimentRate: 0.90 },
+  densita:      { cols: 24, rows: 12, cellActive: 0.40, accentProb: 0.15, sedimentRate: 0.82 },
+  rottura:      { cols: 32, rows: 16, cellActive: 0.70, accentProb: 0.30, sedimentRate: 0.75 },
+  dissoluzione: { cols: 16, rows: 8,  cellActive: 0.10, accentProb: 0.02, sedimentRate: 0.93 },
 };
 
-let _grid = [];
-let _time = 0;
-let _scrollOffset = 0;
-let _params = { ...PHASE_PARAMS.germoglio };
-let _cols = 8, _rows = 4;
+// Phases that activate the scan line
+const SCAN_PHASES = new Set(['densita', 'rottura']);
 
+// ── Module state ─────────────────────────────────────────────
+let _grid        = [];
+let _time        = 0;
+let _scrollOffset = 0;
+let _params      = { ...PHASE_PARAMS.germoglio };
+let _cols        = 8;
+let _rows        = 4;
+
+// Camera pulse state
+let _kickZoom    = 1.0;
+const KICK_ZOOM_TARGET = 1.02;
+const KICK_ZOOM_DECAY  = 0.85;  // per-frame decay multiplier
+
+// Sediment buffer
+const _sediment = new Sediment();
+
+// ── Grid init ────────────────────────────────────────────────
 function initGrid(cols, rows) {
   _cols = cols;
   _rows = rows;
@@ -30,63 +56,100 @@ function initGrid(cols, rows) {
   for (let r = 0; r < rows; r++) {
     _grid[r] = [];
     for (let c = 0; c < cols; c++) {
-      _grid[r][c] = { brightness: 0, accent: false, decay: 0.94 };
+      _grid[r][c] = {
+        brightness: 0,
+        // true = flash second time (accent double-flash)
+        flashCount: 0,
+        flashTimer: 0,
+        accent:     false,
+        decay:      0.94,
+      };
     }
   }
 }
 
+// ── Init ─────────────────────────────────────────────────────
 export function init(env) {
-  _time = 0;
+  _time        = 0;
   _scrollOffset = 0;
-  const phase = env.worldState.phase || 'germoglio';
-  const p = PHASE_PARAMS[phase] || PHASE_PARAMS.germoglio;
-  _params = { ...p };
+  _kickZoom    = 1.0;
+  const phase  = env.worldState.phase || 'germoglio';
+  const p      = PHASE_PARAMS[phase] || PHASE_PARAMS.germoglio;
+  _params      = { ...p };
   initGrid(p.cols, p.rows);
+  _sediment.clear(env.W || 1280, env.H || 720);
 }
 
+// ── Render ───────────────────────────────────────────────────
 export function render(ctx, W, H, env) {
-  const { worldState, midiTrail, midi, dt } = env;
+  const { worldState, midiTrail, midi, dt, audio, state } = env;
   _time += dt;
 
+  // ── Lerp params to target phase ──────────────────────────
   const target = PHASE_PARAMS[worldState.phase] || PHASE_PARAMS.germoglio;
-  _params.cellActive += (target.cellActive - _params.cellActive) * 0.02;
-  _params.scrollSpeed += (target.scrollSpeed - _params.scrollSpeed) * 0.02;
-  _params.accentProb += (target.accentProb - _params.accentProb) * 0.02;
+  _params.cellActive   += (target.cellActive   - _params.cellActive)   * 0.02;
+  _params.accentProb   += (target.accentProb   - _params.accentProb)   * 0.02;
+  _params.sedimentRate  = lerp(_params.sedimentRate || target.sedimentRate,
+                                target.sedimentRate, 0.02);
 
   if (target.cols !== _cols || target.rows !== _rows) {
     initGrid(target.cols, target.rows);
   }
 
-  const bgRgb = hexToRgb(worldState.palette.bg);
+  // ── Colors ───────────────────────────────────────────────
+  const bgRgb  = hexToRgb(worldState.palette.bg);
   const dotRgb = hexToRgb(worldState.palette.dot);
   const accRgb = worldState.palette.accent ? hexToRgb(worldState.palette.accent) : dotRgb;
 
-  fillBackground(ctx, W, H, rgbString(bgRgb[0], bgRgb[1], bgRgb[2]));
-
-  _scrollOffset += _params.scrollSpeed * dt;
+  // ── BPM-synced scroll ────────────────────────────────────
+  // Locked to groove — zero arbitrary motion
+  const bpmScrollSpeed = worldState.bpm ? (worldState.bpm / 600) : 0;
+  _scrollOffset += bpmScrollSpeed * dt;
   if (_scrollOffset > 1) _scrollOffset -= 1;
 
+  // ── Cell decay (exponential) ─────────────────────────────
   for (let r = 0; r < _rows; r++) {
     for (let c = 0; c < _cols; c++) {
-      _grid[r][c].brightness *= _grid[r][c].decay;
+      const cell = _grid[r][c];
+      // Exponential decay rather than linear multiply
+      cell.brightness *= Math.pow(cell.decay, dt * 60);
+      // Accent double-flash timer
+      if (cell.flashCount > 0) {
+        cell.flashTimer -= dt;
+        if (cell.flashTimer <= 0 && cell.flashCount > 0) {
+          cell.brightness = 1.0;
+          cell.flashCount -= 1;
+          cell.flashTimer  = 0.08; // second flash duration
+        }
+      }
     }
   }
 
+  // ── MIDI → grid ──────────────────────────────────────────
   for (const n of midiTrail) {
-    if (n.ch === 7 && n.time < dt * 2 && n.alpha > 0.3) {
+    if (n.time > dt * 2 || n.alpha < 0.2) continue;
+
+    // CH7 RUPTURE — full column
+    if (n.ch === 7 && n.alpha > 0.3) {
       const col = Math.floor(n.note * _cols) % _cols;
       for (let r = 0; r < _rows; r++) {
         _grid[r][col].brightness = clamp(_grid[r][col].brightness + n.vel * 0.8, 0, 1);
       }
     }
-    if (n.ch === 0 && n.time < dt * 2 && n.alpha > 0.3) {
+
+    // CH0 KICK — horizontal bar + camera pulse
+    if (n.ch === 0 && n.alpha > 0.3) {
       const row = Math.floor(_rows / 2);
       for (let c = 0; c < _cols; c++) {
         _grid[row][c].brightness = clamp(_grid[row][c].brightness + n.vel * 0.6, 0, 1);
       }
+      // Trigger zoom pulse — MACCHINA mechanical pump
+      _kickZoom = KICK_ZOOM_TARGET;
     }
-    if (n.ch === 3 && n.time < dt * 2 && n.alpha > 0.2) {
-      const col = Math.floor(n.note * _cols) % _cols;
+
+    // CH3 BASS — bottom-spread columns
+    if (n.ch === 3) {
+      const col    = Math.floor(n.note * _cols) % _cols;
       const spread = 2;
       for (let c = Math.max(0, col - spread); c <= Math.min(_cols - 1, col + spread); c++) {
         for (let r = Math.floor(_rows * 0.6); r < _rows; r++) {
@@ -94,25 +157,83 @@ export function render(ctx, W, H, env) {
         }
       }
     }
-    if ((n.ch === 5 || n.ch === 6) && n.time < dt * 2 && n.alpha > 0.3) {
+
+    // CH5/CH6 VOICE/LEAD — accent cells with double-flash
+    if (n.ch === 5 || n.ch === 6) {
       const col = Math.floor(n.note * _cols) % _cols;
       const row = Math.floor((1 - n.note) * _rows) % _rows;
       if (_grid[row] && _grid[row][col]) {
-        _grid[row][col].brightness = 1;
-        _grid[row][col].accent = true;
+        // Ramp up fast to 1.0
+        _grid[row][col].brightness = 1.0;
+        _grid[row][col].accent     = true;
+        // Schedule a second flash
+        _grid[row][col].flashCount = 1;
+        _grid[row][col].flashTimer = 0.06; // gap before second flash
       }
     }
   }
 
-  const cellW = W / _cols;
-  const cellH = H / _rows;
+  // ── Scan line (densita + rottura only) ───────────────────
+  // Moves top → bottom over barProgress (0→1)
+  const doScan = SCAN_PHASES.has(worldState.phase);
+  let scanRow = -1;
+  if (doScan && worldState.barProgress !== undefined) {
+    scanRow = Math.floor(worldState.barProgress * _rows) % _rows;
+    // Boost cells on current scan row
+    for (let c = 0; c < _cols; c++) {
+      _grid[scanRow][c].brightness = clamp(_grid[scanRow][c].brightness + 0.25, 0, 1);
+    }
+  }
+
+  // ── Camera pulse decay ───────────────────────────────────
+  // Smooth exponential return to 1.0 — no drift (MACCHINA is rigid)
+  _kickZoom = lerp(_kickZoom, 1.0, 1 - Math.pow(KICK_ZOOM_DECAY, dt * 60));
+
+  // ── Background ───────────────────────────────────────────
+  fillBackground(ctx, W, H, rgbString(bgRgb[0], bgRgb[1], bgRgb[2]));
+
+  // ── Sediment composite (behind new frame) ────────────────
+  const sedRate = _params.sedimentRate || 0.90;
+  _sediment.decay(W, H, sedRate);
+  _sediment.composite(ctx);
+
+  // ── Apply camera transform ───────────────────────────────
+  applyCameraTransform(ctx, W, H, { zoom: _kickZoom });
+
+  // ── Draw grid ────────────────────────────────────────────
+  const cellW   = W / _cols;
+  const cellH   = H / _rows;
   const dotSize = Math.max(2, Math.floor(Math.min(cellW, cellH) * 0.6));
   const padding = Math.floor(Math.min(cellW, cellH) * 0.15);
+
+  // Audio RMS for flicker intensity
+  const rms = (audio && audio.rms) ? audio.rms : 0;
 
   for (let r = 0; r < _rows; r++) {
     for (let c = 0; c < _cols; c++) {
       const cell = _grid[r][c];
-      if (cell.brightness < 0.03) continue;
+
+      // Normalised cell position (0→1) for spatial functions
+      const nx = c / _cols;
+      const ny = r / _rows;
+
+      // ── Effective brightness ─────────────────────────────
+      let effectiveBrightness = cell.brightness;
+
+      // Ghost grid: unlit cells have faint permanent skeleton
+      // Flicker is audio-reactive; ghost baseline is always present
+      const flickerMod = (state && state.rhythmicity !== undefined)
+        ? audioFlicker(state, _time, nx, ny) * rms
+        : 0;
+      const ghostBase = 0.02 + rms * 0.03; // 0.02–0.05 range
+      effectiveBrightness = Math.max(effectiveBrightness, ghostBase + flickerMod);
+
+      // Scan line brightness boost (additive on top of cell value)
+      if (doScan && r === scanRow) {
+        effectiveBrightness = Math.min(1.0, effectiveBrightness + 0.3);
+      }
+
+      if (effectiveBrightness < 0.01) continue;
 
       const scrollC = (c + Math.floor(_scrollOffset * _cols)) % _cols;
       const cx = scrollC * cellW + padding;
@@ -122,13 +243,36 @@ export function render(ctx, W, H, env) {
 
       const cols2 = Math.ceil(cw / dotSize);
       const rows2 = Math.ceil(ch / dotSize);
-      const cellRgb = cell.accent ? accRgb : dotRgb;
+
+      // Ghost cells use muted mid-tone between bg and dot
+      let cellRgb;
+      if (cell.brightness < 0.03) {
+        // Ghost / flicker-only: interpolate bg→dot at low alpha
+        const ghostT = mapRange(effectiveBrightness, 0, 0.08, 0, 1);
+        cellRgb = lerpColor(bgRgb, cell.accent ? accRgb : dotRgb, clamp(ghostT, 0, 1));
+      } else {
+        cellRgb = cell.accent ? accRgb : dotRgb;
+      }
+
       ctx.fillStyle = rgbString(cellRgb[0], cellRgb[1], cellRgb[2]);
 
       for (let dr = 0; dr < rows2; dr++) {
         for (let dc = 0; dc < cols2; dc++) {
-          if (bayerTest(dc + c * 3, dr + r * 3, cell.brightness)) {
+          if (bayerTest(dc + c * 3, dr + r * 3, effectiveBrightness)) {
             ctx.fillRect(cx + dc * dotSize, cy + dr * dotSize, dotSize, dotSize);
+          }
+        }
+      }
+
+      // ── Write bright lit cells into sediment buffer ──────
+      if (cell.brightness > 0.15) {
+        const sCtx = _sediment.getCtx();
+        sCtx.fillStyle = rgbString(cellRgb[0], cellRgb[1], cellRgb[2]);
+        for (let dr = 0; dr < rows2; dr++) {
+          for (let dc = 0; dc < cols2; dc++) {
+            if (bayerTest(dc + c * 3, dr + r * 3, cell.brightness * 0.6)) {
+              sCtx.fillRect(cx + dc * dotSize, cy + dr * dotSize, dotSize, dotSize);
+            }
           }
         }
       }
@@ -136,8 +280,12 @@ export function render(ctx, W, H, env) {
       cell.accent = false;
     }
   }
+
+  restoreCameraTransform(ctx);
 }
 
+// ── Destroy ───────────────────────────────────────────────────
 export function destroy() {
   _grid = [];
+  _sediment.clear(1, 1);
 }
