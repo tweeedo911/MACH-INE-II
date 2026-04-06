@@ -377,6 +377,11 @@ function computeDensity(nx, ny, px, py, state, globalTime, W, H) {
 
   if (inClimax) d += CFG.climaxDensityBoost * climaxProgress;
 
+  // v5: regime maxDensity cap — enforced from VISUAL.modeParams
+  if (engineRender.active && engineRender.maxDensity != null) {
+    d = Math.min(d, engineRender.maxDensity);
+  }
+
   // Concert opening/closing density cap
   if (firma.densityCap < 1) d *= firma.densityCap;
 
@@ -620,10 +625,13 @@ export function renderField(ctx, W, H, state, globalTime) {
 
   smoothedIntensity += (state.intensity - smoothedIntensity) * 0.0008;
 
-  let dotSize = Math.max(CFG.dotSizeMin, (engineRender.active && engineRender.dotSize != null) ? engineRender.dotSize : scene.dotSize);
+  // v5: regime minDotSize enforced — ogni modo ha il suo floor
+  const regimeMinDot = (engineRender.active && engineRender.minDotSize != null)
+    ? engineRender.minDotSize : CFG.dotSizeMin;
+  let dotSize = Math.max(regimeMinDot, (engineRender.active && engineRender.dotSize != null) ? engineRender.dotSize : scene.dotSize);
   if (climaxProgress > 0.1) {
     const compress = 1 - (1 - CFG.climaxDotCompress) * climaxProgress;
-    dotSize = Math.max(CFG.dotSizeMin, Math.round(dotSize * compress));
+    dotSize = Math.max(regimeMinDot, Math.round(dotSize * compress));
   }
 
   const sedDecay = _SEDIMENT_BY_MODE[macroState.currentMode] ?? 0;

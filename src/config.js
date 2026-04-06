@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════
 //  MACH:INE II — Centralized Configuration
-//  v4.0.0: 7 phases (43min), call-response, degradation, additive chords, visual feedback+distortion
+//  v5.0.0: gradiente continuo, bass protagonista, 7 palette colorate, silenzi strutturali, regimi visivi
 // ═══════════════════════════════════════════════════════════
 
 export const CFG = {
@@ -417,11 +417,19 @@ export const CFG = {
   MACRO: {
     // Parametri base
     concertDurationSec: 2580,     // 43 minuti (v4 — 7 fasi)
-    bpmReference:       88,        // BPM di riferimento per calcolo bar duration in HarmonyLayer
+    bpmReference:       88,        // BPM fallback — usato per bar clock e dove non serve per-mode
+    // BPM per modo — ogni fase ha il suo tempo, lerp smooth nelle transizioni
+    bpmForMode: {
+      'A_lydian':    78,   // NEBBIA/RITORNO — lento, galleggiante
+      'Bb_phrygian': 86,   // SOLCO — groove rituale, passo misurato
+      'D_dorian':    92,   // MACCHINA — groove meccanico, driving
+      'C#_dorian':   100,  // TEMPESTA — techno, urgente
+      'E_phrygian':  82,   // RITORNO — rallenta, si dissolve
+    },
     microDriftAmp:      0.07,      // ampiezza oscillazione ±7% attorno al target (D-02)
     microDriftFreqSec:  23,        // periodo oscillazione in secondi (numero primo per asimmetria)
     emaTau:             4.0,       // time constant EMA per smoothing valori 4D in secondi
-    breathInterval:     8,         // ogni N cambi accordo, forza anchor 0 (tonica) — respiro armonico
+    breathInterval:     12,        // ogni N cambi accordo, forza anchor 0 (tonica) — respiro armonico (era 8, allungato per più viaggio)
 
     // ── Additive chord entry (v4 — Reich principle) ──
     chordAdditiveEntry: {
@@ -497,12 +505,13 @@ export const CFG = {
     },
 
     // Drone root mapping — radice armonica per modo (HARM-01, D-15)
+    // Ogni modo ha la propria root — crea identita' timbrica distinta per fase
     droneRoot: {
-      'A_lydian':    57, // A3 — root
-      'Bb_phrygian': 57, // A3 — anchor condiviso (modal interchange sopra A)
-      'D_dorian':    50, // D3 — root
-      'C#_dorian':   57, // A3 — continuita' armonica tra D e E
-      'E_phrygian':  57, // A3 — E Phrygian su radice A con colore frigio
+      'A_lydian':    57, // A3 — luminoso, galleggiante
+      'Bb_phrygian': 58, // Bb3 — scuro, rituale, mezzo tono sopra A
+      'D_dorian':    50, // D3 — profondo, terragno
+      'C#_dorian':   49, // C#3 — metallico, tensione cromatica con D
+      'E_phrygian':  52, // E3 — frigio, dissolve verso A
     },
 
     // Drone breathing — skip/octave probabilities (HARM-06)
@@ -530,9 +539,9 @@ export const CFG = {
         { bass: 44, bassAlt: 47, ch2: [61, 73], ch4: [61, 66, 69] },  // tensione: G#2→B2, C#4+C#5, C#4+F#4+A4
       ],
       'Bb_phrygian': [
-        { bass: 46, bassAlt: 53, ch2: [57, 70], ch4: [63, 65, 70] },  // apertura: Bb2→F3, A3+Bb4, Eb4+F4+Bb4
-        { bass: 39, bassAlt: 46, ch2: [57, 70], ch4: [65, 68, 70] },  // pivot: Eb2→Bb2, A3+Bb4, F4+Ab4+Bb4
-        { bass: 41, bassAlt: 46, ch2: [57, 70], ch4: [63, 66, 70] },  // picco: F2→Bb2, A3+Bb4, Eb4+Gb4+Bb4
+        { bass: 46, bassAlt: 53, ch2: [58, 70], ch4: [63, 65, 70] },  // apertura: Bb2→F3, Bb3+Bb4, Eb4+F4+Bb4
+        { bass: 39, bassAlt: 46, ch2: [58, 70], ch4: [65, 68, 70] },  // pivot: Eb2→Bb2, Bb3+Bb4, F4+Ab4+Bb4
+        { bass: 41, bassAlt: 46, ch2: [58, 70], ch4: [63, 66, 70] },  // picco: F2→Bb2, Bb3+Bb4, Eb4+Gb4+Bb4
         { bass: 44, bassAlt: 39, ch2: [56, 68], ch4: [60, 63, 68] },  // abisso: Ab2→Eb2, Ab3+Ab4, C4+Eb4+Ab4
         { bass: 39, bassAlt: 41, ch2: [58, 70], ch4: [58, 63, 65] },  // tensione: Eb2→F2, Bb3+Bb4, Bb3+Eb4+F4
       ],
@@ -544,18 +553,18 @@ export const CFG = {
         { bass: 36, bassAlt: 43, ch2: [48, 60], ch4: [48, 52, 57] },  // bVII dub: C2→G2, C3+C4, C3+E3+A3
       ],
       'C#_dorian': [
-        { bass: 37, bassAlt: 44, ch2: [57, 61], ch4: [58, 61, 68] },  // apertura: C#2→G#2, A3+C#4, A#3+C#4+G#4
-        { bass: 44, bassAlt: 37, ch2: [57, 61], ch4: [58, 61, 64] },  // pivot: G#2→C#2, A3+C#4, A#3+C#4+E4
-        { bass: 42, bassAlt: 49, ch2: [57, 61], ch4: [59, 63, 68] },  // picco: F#2→C#3, A3+C#4, B3+D#4+G#4
+        { bass: 37, bassAlt: 44, ch2: [49, 61], ch4: [58, 61, 68] },  // apertura: C#2→G#2, C#3+C#4, A#3+C#4+G#4
+        { bass: 44, bassAlt: 37, ch2: [49, 61], ch4: [58, 61, 64] },  // pivot: G#2→C#2, C#3+C#4, A#3+C#4+E4
+        { bass: 42, bassAlt: 49, ch2: [49, 61], ch4: [59, 63, 68] },  // picco: F#2→C#3, C#3+C#4, B3+D#4+G#4
         { bass: 35, bassAlt: 42, ch2: [54, 66], ch4: [54, 58, 61] },  // quarta: B1→F#2, F#3+F#4, F#3+A#3+C#4
-        { bass: 40, bassAlt: 44, ch2: [59, 71], ch4: [52, 59, 68] },  // b7 techno: E2→G#2, B3+B4, E3+B3+G#4
+        { bass: 40, bassAlt: 44, ch2: [49, 61], ch4: [52, 59, 68] },  // b7 techno: E2→G#2, C#3+C#4, E3+B3+G#4
       ],
       'E_phrygian': [
-        { bass: 40, bassAlt: 47, ch2: [57, 64], ch4: [59, 62, 64] },  // apertura: E2→B2, A3+E4, B3+D4+E4
-        { bass: 45, bassAlt: 40, ch2: [57, 64], ch4: [60, 64, 67] },  // pivot: A2→E2, A3+E4, C4+E4+G4
-        { bass: 47, bassAlt: 40, ch2: [57, 64], ch4: [59, 62, 65] },  // picco: B2→E2, A3+E4, B3+D4+F4
+        { bass: 40, bassAlt: 47, ch2: [52, 64], ch4: [59, 62, 64] },  // apertura: E2→B2, E3+E4, B3+D4+E4
+        { bass: 45, bassAlt: 40, ch2: [52, 64], ch4: [60, 64, 67] },  // pivot: A2→E2, E3+E4, C4+E4+G4
+        { bass: 47, bassAlt: 40, ch2: [52, 64], ch4: [59, 62, 65] },  // picco: B2→E2, E3+E4, B3+D4+F4
         { bass: 43, bassAlt: 40, ch2: [55, 67], ch4: [55, 59, 62] },  // bIII frigio: G2→E2, G3+G4, G3+B3+D4
-        { bass: 36, bassAlt: 43, ch2: [48, 60], ch4: [48, 52, 57] },  // bVI dissoluzione: C2→G2, C3+C4, C3+E3+A3
+        { bass: 36, bassAlt: 43, ch2: [52, 64], ch4: [48, 52, 57] },  // bVI dissoluzione: C2→G2, E3+E4, C3+E3+A3
       ],
     },
 
@@ -574,17 +583,17 @@ export const CFG = {
 
     progressionCycle: {
       'A_lydian':    [0, 0, 0, 1, 0, 3, 0, 0, 2, 1, 0, 4, 0, 3, 2, 0],  // apre, esplora colori, picco, torna
-      'Bb_phrygian': [0, 1, 0, 0, 2, 0, 3, 0, 0, 1, 4, 0, 2, 3, 0, 1],  // rituale: tensione e ritorno
-      'D_dorian':    [0, 0, 1, 2, 3, 0, 1, 3, 0, 4, 0, 1, 2, 3, 0, 0],  // groove: IV e bVII prominenti
-      'C#_dorian':   [1, 2, 3, 1, 4, 2, 1, 3, 2, 4, 1, 0, 3, 2, 4, 1],  // climax: evita tonica, tensione alta
-      'E_phrygian':  [0, 0, 1, 0, 3, 0, 0, 4, 0, 0, 1, 0, 3, 4, 0, 0],  // dissoluzione: tonica dominante
+      'Bb_phrygian': [0, 1, 3, 0, 2, 4, 0, 3, 1, 0, 4, 2, 3, 0, 1, 4],  // rituale: viaggio oscuro, meno tonica
+      'D_dorian':    [0, 3, 1, 4, 3, 0, 4, 1, 3, 2, 4, 0, 3, 4, 1, 3],  // macchina: IV e bVII dominano, dub loop
+      'C#_dorian':   [1, 4, 2, 3, 4, 1, 3, 2, 4, 3, 1, 4, 2, 3, 4, 2],  // tempesta: zero tonica, tensione pura
+      'E_phrygian':  [0, 0, 3, 0, 1, 0, 4, 0, 0, 3, 0, 0, 1, 4, 0, 0],  // dissoluzione: tonica dominante, bIII color
     },
 
     progressionFast: {
       'A_lydian':    [0, 4, 3, 0, 4, 0, 3, 4],  // root↔tensione con colore — pump lydian
-      'Bb_phrygian': [0, 3, 1, 4, 0, 1, 3, 0],  // abisso e rituale alternati — darkest
-      'D_dorian':    [3, 4, 3, 0, 4, 3, 4, 0],  // IV↔bVII dominanti — dub groove
-      'C#_dorian':   [1, 3, 4, 2, 4, 1, 3, 4],  // tensione massima, nessuna tonica
+      'Bb_phrygian': [3, 4, 1, 3, 4, 1, 3, 4],  // martellante — oscuro, niente tonica
+      'D_dorian':    [3, 4, 3, 4, 3, 4, 0, 4],  // IV↔bVII puro — ostinato dub
+      'C#_dorian':   [4, 1, 3, 4, 2, 4, 3, 1],  // tempesta: tutti gli anchor tranne tonica
       'E_phrygian':  [0, 3, 4, 0, 3, 0, 0, 4],  // tonica + bIII + bVI dissoluzione
     },
   },
@@ -607,7 +616,15 @@ export const CFG = {
 
     // ── CH0 PULSE — Kick (D-02, D-03, RITM-02) ──
     kick: {
-      note: 36,              // C2 — kick fisso
+      note: 36,              // C2 — default fallback
+      // v5: kick pitch per modo — ogni sezione ha la sua identità ritmica
+      noteForMode: {
+        'A_lydian':    33,   // A1 — grave, galleggiante (apertura/chiusura)
+        'Bb_phrygian': 34,   // Bb1 — scuro, rituale, mezzo tono sopra
+        'D_dorian':    38,   // D2 — terragno, il groove centrale
+        'C#_dorian':   37,   // C#2 — metallico, tensione techno
+        'E_phrygian':  40,   // E2 — frigio, dissolve verso A
+      },
       velDownbeat: 105,       // velocity base downbeat (MIDI-01)
       velOffbeat: 85,         // velocity base offbeat
       humanizeRange: 8,       // ±random velocity variation
@@ -650,13 +667,13 @@ export const CFG = {
     hat: {
       // Pitch cluster — 4 note ruotate per hit (D-04: variazione per hit, C2-C4)
       pitchCluster: [36, 38, 40, 42],   // C2, D2, E2, F#2 — cluster stretto modulare
-      velFloor: 15,           // velocity minima assoluta — il hi-hat non si azzera mai (D-06, RITM-01)
+      velFloor: 25,           // v5: alzato da 15 — quando il hat passa il textureDepth gate, deve essere udibile
       velTarget: {
-        arhythmic:  25,       // appena percettibile ma presente
-        emerging:   45,
+        arhythmic:  35,       // v5: alzato da 25 — quando suona, deve essere chiaro
+        emerging:   55,       // v5: alzato da 45
         groove:     70,
         climax:     95,
-        dissolving: 35,
+        dissolving: 40,       // v5: alzato da 35
       },
       velScatter: 12,         // ±deviazione gaussiana (D-05)
       // Step per i due sub-pattern phasing Reich (D-11, RITM-04)
@@ -688,11 +705,13 @@ export const CFG = {
       },
       // Ordine di ingresso additivo Glass (D-10, RITM-03)
       // Ogni elemento entra quando rhythmicDensity supera la threshold
+      // v5: threshold alzati — CH7 entra tardi, è evento non texture
+      // Era: 0.08/0.15/0.25/0.40 → ora: 0.25/0.35/0.50/0.65
       additiveEntry: [
-        { note: 48, name: 'congaLo',  threshold: 0.08 },  // primo a entrare (~16% arc)
-        { note: 45, name: 'congaHi',  threshold: 0.15 },  // secondo (~25% arc)
-        { note: 36, name: 'rimshot',  threshold: 0.25 },  // terzo (~35% arc)
-        { note: 38, name: 'snare',    threshold: 0.40 },  // ultimo (~55% arc)
+        { note: 48, name: 'congaLo',  threshold: 0.25 },  // entra col groove (~35% arc)
+        { note: 45, name: 'congaHi',  threshold: 0.35 },  // seconda metà groove (~45% arc)
+        { note: 36, name: 'rimshot',  threshold: 0.50 },  // solo in densità alta (~60% arc)
+        { note: 38, name: 'snare',    threshold: 0.65 },  // solo al climax (~75% arc)
       ],
       // Note speciali — solo da MacroComposer cue (D-09)
       specialNotes: [60, 62],   // impact e sweep — non nei pattern normali
@@ -713,7 +732,7 @@ export const CFG = {
 
       // MIDI-02: pitch range enforcement
       pitchRange: {
-        ch0: { min: 36, max: 36 },   // kick fisso C2
+        ch0: { min: 33, max: 40 },   // v5: kick pitch per modo (A1=33 to E2=40)
         ch1: { min: 36, max: 60 },   // C2-C4 modulare (D-04)
         ch7: { min: 36, max: 62 },   // C2-D4 (include speciali)
       },
@@ -786,12 +805,20 @@ export const CFG = {
     },
     velHumanize: 8,   // deviazione gaussiana velocity (identico a RHYTHM)
 
-    // ── Seed motivico (MELO-01, D-07, D-08, D-09) ──
+    // ── Seed motivico (MELO-01, D-07, D-08, D-09, M3) ──
     seedLength:    4,       // numero di note nel motivo seed
     seedWindowEnd: 0.15,    // arcPercent massimo per cattura (~6.75min su 45min)
-    seedReturnAt:  0.85,    // arcPercent trigger ritorno (~min36.5 su 43min v4)
-    seedReturnVel: 65,      // velocity del ritorno motivico su CH5
-    seedReturnNoteSpacingBars: 0.5,  // spacing tra note seed return in bar
+    seedReturnNoteSpacingBars: 0.5,  // spacing tra note seed return in bar (base)
+
+    // M3: 5 ricorrenze con trasformazioni progressive
+    // transform: 'original' | 'transpose' | 'invert' | 'retrograde' | 'augment'
+    seedRecurrences: [
+      { arcAt: 0.12, ch: 5, vel: 55, transform: 'original',  spacingMul: 1.0 },  // TESSUTO — eco conferma
+      { arcAt: 0.30, ch: 6, vel: 60, transform: 'transpose',  transposeInterval: 5, spacingMul: 1.0 },  // SOLCO — lead prende il tema, quarta sopra
+      { arcAt: 0.50, ch: 5, vel: 65, transform: 'invert',    spacingMul: 1.0 },  // MACCHINA — specchio
+      { arcAt: 0.70, ch: 6, vel: 70, transform: 'retrograde', spacingMul: 0.75 }, // TEMPESTA — tensione, note più ravvicinate
+      { arcAt: 0.85, ch: 5, vel: 60, transform: 'augment',   spacingMul: 2.0 },  // RITORNO — rallenta e svanisce
+    ],
 
     // ── Probabilita emissione per step (D-06: default meno note, non piu) ──
     // Scalata automaticamente da melodicActivity
@@ -828,17 +855,36 @@ export const CFG = {
 
     // ── Phrase repetition CH5 — cellula melodica ripetuta prima di variare (Reich/Nyman) ──
     phrase: {
-      ch5Length:      4,   // note per frase (cellula melodica)
-      ch5RepeatCount: 4,   // ripetizioni prima di generare nuova frase
+      ch5Length:      4,   // note per frase (cellula melodica) — default, override per modo sotto
+      ch5RepeatCount: 4,   // ripetizioni prima di generare nuova frase — default
     },
 
-    // ── Mix melodico per modo (M1) — probabilita' e velocita' per sezione modale ──
+    // ── Mix melodico per modo (M1) — probabilita', velocity, frase, Markov, interlock ──
+    // phraseLen: lunghezza frase CH5 (override del default phrase.ch5Length)
+    // phraseRepeat: ripetizioni frase prima di rigenerare
+    // stepBonus: bonus Markov per moto per grado (alto = melodie legate, basso = salti)
+    // jumpPenalty: penalty Markov per salti grandi (basso = più salti melodici ammessi)
+    // interlock: prob 0-1 che CH6 replichi il pattern CH5 sfasato (arpeggiatore incrociato)
     modeMix: {
-      'A_lydian':    { ch5ProbMul: 0.70, ch6ProbMul: 0.40, ch5VelMul: 0.90, ch6VelMul: 0.80 }, // apertura: rado
-      'Bb_phrygian': { ch5ProbMul: 0.50, ch6ProbMul: 0.25, ch5VelMul: 0.80, ch6VelMul: 0.70 }, // rituale: quasi silenzio melodico
-      'D_dorian':    { ch5ProbMul: 1.00, ch6ProbMul: 0.80, ch5VelMul: 1.00, ch6VelMul: 1.00 }, // groove: pieno
-      'C#_dorian':   { ch5ProbMul: 1.20, ch6ProbMul: 1.30, ch5VelMul: 1.10, ch6VelMul: 1.20 }, // climax: denso
-      'E_phrygian':  { ch5ProbMul: 0.50, ch6ProbMul: 0.20, ch5VelMul: 0.80, ch6VelMul: 0.70 }, // dissoluzione: si ritira
+      'A_lydian':    { ch5ProbMul: 0.70, ch6ProbMul: 0.40, ch5VelMul: 0.90, ch6VelMul: 0.80,
+                       phraseLen: 3,  phraseRepeat: 6,  stepBonus: 2.0, jumpPenalty: 0.20, interlock: 0.0 },
+                       // apertura: frasi corte che si ripetono molto, movimento per grado, nessun interlock
+
+      'Bb_phrygian': { ch5ProbMul: 0.50, ch6ProbMul: 0.25, ch5VelMul: 0.80, ch6VelMul: 0.70,
+                       phraseLen: 5,  phraseRepeat: 3,  stepBonus: 1.2, jumpPenalty: 0.40, interlock: 0.15 },
+                       // rituale: frasi lunghe ipnotiche, qualche salto, interlock raro
+
+      'D_dorian':    { ch5ProbMul: 1.00, ch6ProbMul: 0.80, ch5VelMul: 1.00, ch6VelMul: 1.00,
+                       phraseLen: 4,  phraseRepeat: 5,  stepBonus: 1.5, jumpPenalty: 0.35, interlock: 0.40 },
+                       // macchina: frasi medie, ripetitive, interlock frequente — le voci si inseguono
+
+      'C#_dorian':   { ch5ProbMul: 1.20, ch6ProbMul: 1.30, ch5VelMul: 1.10, ch6VelMul: 1.20,
+                       phraseLen: 6,  phraseRepeat: 2,  stepBonus: 0.8, jumpPenalty: 0.50, interlock: 0.65 },
+                       // tempesta: frasi lunghe che cambiano spesso, salti frequenti, massimo interlock
+
+      'E_phrygian':  { ch5ProbMul: 0.50, ch6ProbMul: 0.20, ch5VelMul: 0.80, ch6VelMul: 0.70,
+                       phraseLen: 3,  phraseRepeat: 8,  stepBonus: 2.2, jumpPenalty: 0.15, interlock: 0.0 },
+                       // dissoluzione: frasi minime che si ripetono all'infinito, solo step, lento spegnersi
     },
 
     // ── Velocity sweep sinusoidale CH6 in C#_dorian (M2) ──
@@ -884,14 +930,15 @@ export const CFG = {
 
     // ── 5 atti narrativi visivi (D-06) ──
     // Ogni atto: range arcPercent, scena target, palette base, densityCap, camera
+    // v5: palette colorate per identità, non solo nero
     acts: {
-      I:    { min: 0.00,  max: 0.07,  scene: 'SPARSE',         palette: 'cold',    densityCap: 0.15, camera: 'WIDE'   },  // NEBBIA
-      II:   { min: 0.07,  max: 0.186, scene: 'BAYER_CLASSIC',  palette: 'default', densityCap: 0.35, camera: 'DRIFT'  },  // TESSUTO
-      III:  { min: 0.186, max: 0.372, scene: 'COLORED_GROUND', palette: 'warm',    densityCap: 0.80, camera: 'MEDIUM' },  // SOLCO
-      IV:   { min: 0.372, max: 0.419, scene: 'SPARSE',         palette: 'cold',    densityCap: 0.12, camera: 'WIDE'   },  // RESPIRO
-      V:    { min: 0.419, max: 0.581, scene: 'COLORED_GROUND', palette: 'amber',   densityCap: 1.00, camera: 'MEDIUM' },  // MACCHINA
-      VI:   { min: 0.581, max: 0.814, scene: 'DENSE',          palette: 'warm',    densityCap: 1.00, camera: 'MEDIUM' },  // TEMPESTA
-      VII:  { min: 0.814, max: 1.00,  scene: 'SPARSE',         palette: 'cold',    densityCap: 0.12, camera: 'WIDE'   },  // RITORNO
+      I:    { min: 0.00,  max: 0.07,  scene: 'SPARSE',         palette: 'nebbia',   densityCap: 0.15, camera: 'WIDE'   },  // cream/nero
+      II:   { min: 0.07,  max: 0.186, scene: 'BAYER_CLASSIC',  palette: 'tessuto',  densityCap: 0.35, camera: 'DRIFT'  },  // lime/licorice
+      III:  { min: 0.186, max: 0.372, scene: 'COLORED_GROUND', palette: 'solco',    densityCap: 0.80, camera: 'MEDIUM' },  // arancio/signal black
+      IV:   { min: 0.372, max: 0.419, scene: 'SPARSE',         palette: 'respiro',  densityCap: 0.12, camera: 'WIDE'   },  // scuro/sage — inversione
+      V:    { min: 0.419, max: 0.581, scene: 'COLORED_GROUND', palette: 'macchina', densityCap: 1.00, camera: 'MEDIUM' },  // giallo/navy
+      VI:   { min: 0.581, max: 0.814, scene: 'DENSE',          palette: 'tempesta', densityCap: 1.00, camera: 'MEDIUM' },  // bianco+rosso/nero
+      VII:  { min: 0.814, max: 1.00,  scene: 'SPARSE',         palette: 'ritorno',  densityCap: 0.12, camera: 'WIDE'   },  // lavanda/nero
     },
 
     // ── Layer preferences — firma visiva per layer (D-07, D-08, D-09) ──
@@ -954,40 +1001,47 @@ export const CFG = {
     // Blendati con layer prefs (60% modo / 40% layer) — definiscono l'atmosfera di ogni sezione.
     // Solo i parametri elencati vengono blendati; gli altri usano il layer pref puro.
     modeParams: {
+      // v5: Regimi visivi — vincoli, non preset. Ogni modo è un mondo con regole diverse.
+      // Ref: Bridget Riley (vincolo = identità), Henke CBM 8032 (il limite è il linguaggio)
       'A_lydian': {
-        // Emersione luminosa — pochi elementi, grandi, ogni nota melodica disegna
-        dotSize: 14,  densityMul: 0.45,  midiDensityMul: 0.7,
-        flickerSpeed: 0.2,  trailMax: 80,  midiScale: 3.2,
-        // Feedback: slow lateral drift (dreamy); grid distortion: slow wave
+        // NEBBIA/RITORNO — pochi dot grandi, quasi pittorici. Solo cream su quasi-nero.
+        dotSize: 14,  densityMul: 0.35,  midiDensityMul: 0.7,
+        flickerSpeed: 0.15,  trailMax: 96,  midiScale: 3.5,
         feedbackDriftX: 0.1, gridDistortAmp: 2.5,
+        // REGIME: max density 0.15, dot min 10px — mondo rarefatto
+        maxDensity: 0.15, minDotSize: 10,
       },
       'Bb_phrygian': {
-        // Tensione rituale — campo denso e pesante, melodia compressa
+        // SOLCO — denso e pesante, colonne verticali, arancio su nero.
         dotSize: 4,   densityMul: 1.7,   midiDensityMul: 0.7,
         flickerSpeed: 1.8,  trailMax: 28,  midiScale: 1.1,
-        // Feedback: gravity sink; grid distortion: deep wave
         feedbackDriftY: 0.3, gridDistortAmp: 1.5,
+        // REGIME: alta densità, dot piccoli — pressione rituale
+        maxDensity: 0.80, minDotSize: 3,
       },
       'D_dorian': {
-        // Groove organico — caldo, bilanciato, melodia presente e ritmo solido
+        // MACCHINA — blocchi asimmetrici, giallo su navy. Groove organico.
         dotSize: 6,   densityMul: 1.1,   midiDensityMul: 1.1,
         flickerSpeed: 3.5,  trailMax: 52,  midiScale: 2.0,
-        // Feedback: static dub echo; grid distortion: subtle geological
         gridDistortAmp: 1.0,
+        // REGIME: densità media, dot medi — bilanciato
+        maxDensity: 0.65, minDotSize: 4,
       },
       'C#_dorian': {
-        // Climax techno — geometrico, preciso, alta densità, ritmo domina
+        // TEMPESTA — geometrico, preciso, bianco+rosso su nero. Ikeda data.
         dotSize: 3,   densityMul: 2.0,   midiDensityMul: 0.9,
         flickerSpeed: 7.0,  trailMax: 28,  midiScale: 1.4,
-        // Feedback: none; grid distortion: aggressive, tied to kick
         gridDistortAmp: 3.0,
+        // REGIME: massima densità, dot microscopici — data pura
+        maxDensity: 1.00, minDotSize: 1,
       },
       'E_phrygian': {
-        // Dissoluzione cristallina — rarefatto, trails lunghissimi, ogni nota è preziosa
+        // RITORNO — rarefatto, trails lunghissimi, lavanda. Ogni nota è preziosa.
         dotSize: 11,  densityMul: 0.38,  midiDensityMul: 1.8,
         flickerSpeed: 0.4,  trailMax: 96,  midiScale: 3.8,
-        // Feedback: none; grid distortion: dissolving wave
         gridDistortAmp: 1.5,
+        // REGIME: rarefatto, dot grandi — il vuoto è il 70% del frame
+        maxDensity: 0.20, minDotSize: 8,
       },
     },
   },

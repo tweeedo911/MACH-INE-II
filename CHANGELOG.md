@@ -5,6 +5,36 @@ Formato: `[versione] – data – descrizione`
 
 ---
 
+## [v5.0.0] – 2026-04-05
+
+**"L'orchestra obbedisce" — riequilibrio totale mix + identità visiva per traccia.**
+
+Ref artistici: Ryoji Ikeda (riduzione), Floating Points (elemento fisso), Basic Channel (bass sub), 
+Bridget Riley (vincolo = identità), design svizzero 2025 (fondi colorati, griglia che si rompe).
+
+### Mix — Fix 8 leak MacroComposer→layer
+- **Gating gradiente continuo** su tutti e 3 i layer: la velocity scala con la dimensione 4D pertinente (rhythmicDensity, harmonicColor, melodicActivity, textureDepth) — non più binario on/off a soglia 0.05.
+- **Hat obbedisce al MacroComposer**: `sendHatNote` ora gated da textureDepth. Sotto 0.08 = silente. NEBBIA ha solo drone + gocce melodiche.
+- **Velocity floor melodie**: CH5 floor 40, CH6 floor 30, CH3 floor 35. Le melodie non scendono più sotto soglia udibile (`sqrt(mA)` invece di `vel × mA`).
+- **CH7 percussion budget**: threshold alzati da 0.08/0.15/0.25/0.40 → 0.25/0.35/0.50/0.65. Le percussioni entrano solo col groove pieno.
+
+### Composizione
+- **Kick pitch variabile per modo**: 5 note diverse (A1, Bb1, D2, C#2, E2) — ogni sezione ha la sua identità ritmica.
+- **Bass come protagonista** (CH3): da 1 nota ogni 2 bar a pattern ritmici specifici per modo. A_lydian = sub pulsante (Plastikman). Bb_phrygian = dub pattern con ghost (Basic Channel). D_dorian = walking 8th. C#_dorian = rolling pump con velocity sweep (vecchio SOLCO DNA). E_phrygian = sub drone.
+- **3 silenzi strutturali**: respiri di 5-8 secondi con MIDI all-notes-off + blackout visivo a min 11, 21 e 34:30. Il gesto più potente del concerto.
+
+### Visivo
+- **7 palette con fondi colorati**: NEBBIA (cream/nero), TESSUTO (lime/licorice), SOLCO (arancio+lime/signal black), RESPIRO (scuro/sage — inversione), MACCHINA (giallo+pink/navy), TEMPESTA (bianco+rosso/nero Ikeda), RITORNO (lavanda+cream/nero).
+- **Regimi visivi per fase**: vincoli dichiarativi per modo (maxDensity, minDotSize). NEBBIA: max density 0.15, dot ≥10px. TEMPESTA: nessun limite, dot 1px. Il vincolo crea identità.
+
+### Drammaturgia
+- **Pivot esteso a 4 bar**: transizioni modali con drone-ponte lungo — morphing DJ-set (ref: Burial, Gas).
+
+### File modificati
+`rhythm-layer.js`, `harmony-layer.js`, `melody-texture-layer.js`, `config.js`, `sequencer.js`, `colors.js`, `macro-composer.js`
+
+---
+
 ## [v4.1.0] – 2026-04-05
 
 **Visual Phase 1 completata + musical quick wins — 5 nuove feature.**

@@ -9,15 +9,8 @@ import { CFG } from './config.js';
 import { macroState, isPerformanceStarted } from './macro-composer.js';
 import { sendMIDINote as _rawSend, sendMIDIAllNotesOff } from './midi.js';
 import { addMidiNote as _addMidiVisual } from './field.js';
-
-// ══════════════════════════════════════════════════════════
-//  UTILITY
-// ══════════════════════════════════════════════════════════
-
-// Approssimazione gaussiana (media 0, sigma ~1) — identica a rhythm-layer.js
-function _gaussianRand() {
-  return (Math.random() + Math.random() + Math.random() - 1.5) * 2;
-}
+import { gaussianRand as _gaussianRand } from './utils.js';
+import { recordDecision } from './session-recorder.js';
 
 // ══════════════════════════════════════════════════════════
 //  STATO INTERNO
@@ -31,11 +24,11 @@ let _clockCH6 = 0, _lastStepCH6 = -1;   // CH6 LEAD — 13 step
 let _histCH5 = [null, null];   // ultime 2 note CH5 (per Markov)
 let _histCH6 = [null, null];   // ultime 2 note CH6
 
-// ── Seed motivico (MELO-01, D-07/D-08/D-09) ──
+// ── Seed motivico (MELO-01, D-07/D-08/D-09, M3) ──
 let _seedMotif = null;           // array di intervalli (es. [2, -1, 3, 5])
 let _seedCaptured = false;       // true dopo cattura nella finestra 0-seedWindowEnd
-let _seedReturned = false;       // true dopo il ritorno unico a arcPercent > seedReturnAt
-let _seedReturnQueue = [];       // micro-sequencer: { note, vel, dur, targetBar }
+let _seedNextRecurrence = 0;     // indice prossima ricorrenza in CFG.MELODY.seedRecurrences
+let _seedReturnQueue = [];       // micro-sequencer: { note, vel, dur, ch, targetBar }
 
 // ── Phrase buffer CH5 (ripetizione motivica — Reich/Nyman) ──
 let _ch5Phrase    = [];          // frase corrente (array di note MIDI)
@@ -45,6 +38,10 @@ let _ch5PhraseRepeats = 0;       // ripetizioni completate
 // ── Arpeggi incrociati (D-05) ──
 let _arpMode = false;            // true quando siamo nella finestra cross-arpeggio
 let _arpLastCH5Note = null;      // ultima nota CH5 per costruire risposta CH6
+
+// ── Interlock arpeggiatore (per modo) — CH6 replica frase CH5 sfasata ──
+let _interlockPhrase = null;  // copia della frase CH5 per il lead
+let _interlockPos = 0;        // posizione nel ciclo interlock
 
 // ── Step corrente per downbeat detection ──
 let _currentStep16 = 0;
@@ -73,8 +70,15 @@ function sendNote(ch, note, vel, dur) {
   const range = CFG.MELODY.pitchRange[ch];
   note = Math.max(range.min, Math.min(range.max, note));
 
-  // Velocity scalata per melodicActivity
-  vel = vel * mA;
+  // v5: velocity scaling migliorato — gradiente più dolce, floor per udibilità
+  // mA scaling con curva sqrt per evitare che valori bassi (0.08) uccidano la velocity
+  // mA=0.08 → sqrt(0.08)=0.28 → vel 45*0.28=12.8 (udibile, era 3.6)
+  // mA=0.50 → sqrt(0.50)=0.71 → vel ben presente
+  // mA=1.00 → sqrt(1.00)=1.00 → piena
+  vel = vel * Math.sqrt(mA);
+  // Velocity floor per canale — le melodie non scendono sotto questa soglia
+  const velFloor = (ch === 3) ? 35 : (ch === 5) ? 40 : 30;  // bass:35, voice:40, lead:30
+  vel = Math.max(velFloor, vel);
 
   // MIDI-01: downbeat boost / offbeat reduce
   const isDownbeat = (_currentStep16 % 4 === 0);
@@ -111,12 +115,15 @@ function sendNote(ch, note, vel, dur) {
       // Pitch shift — ±1-2 semitones outside scale (chromatic color)
       const shift = (Math.random() < 0.5 ? 1 : -1) * (1 + Math.floor(Math.random() * _obl.pitchShiftRange));
       note = Math.max(36, Math.min(96, note + shift));
+      recordDecision('oblique', `pitch_shift:${shift} ch:${ch}`);
     } else if (r < 0.8) {
       // Velocity spike — accent that stands out
       vel = Math.min(127, Math.round(vel * _obl.velSpikeMul));
+      recordDecision('oblique', `vel_spike ch:${ch}`);
     } else {
       // Velocity drop — ghost note
       vel = Math.max(1, Math.round(vel * _obl.velDropMul));
+      recordDecision('oblique', `ghost ch:${ch}`);
     }
   }
 
@@ -157,6 +164,11 @@ function _nextVoiceNote(ch, history, seedIntervals) {
   const range = CFG.MELODY.pitchRange[ch];
   const isCH6 = (ch === 6);
 
+  // Per-mode Markov weights (override dei default se presenti)
+  const mix = CFG.MELODY.modeMix[macroState.currentMode];
+  const mStepBonus   = (mix && mix.stepBonus)   ?? CFG.MELODY.markov.stepBonus;
+  const mJumpPenalty = (mix && mix.jumpPenalty) ?? CFG.MELODY.markov.jumpPenalty;
+
   // Filtra note nella scala nel pitch range del canale
   const pool = scale.filter(n => n >= range.min && n <= range.max);
   if (pool.length === 0) return range.min;
@@ -172,21 +184,18 @@ function _nextVoiceNote(ch, history, seedIntervals) {
       const diff = n - prev;
       const absDiff = Math.abs(diff);
 
-      // Bonus movimento per grado (piccolo intervallo)
+      // Bonus movimento per grado (piccolo intervallo) — per modo
       if (absDiff <= 3) {
-        // CH6 riduce il bonus per step — preferisce piu movimento (D-03)
         w *= isCH6
-          ? CFG.MELODY.markov.stepBonus * CFG.MELODY.markov.ch6StepReduction
-          : CFG.MELODY.markov.stepBonus;
+          ? mStepBonus * CFG.MELODY.markov.ch6StepReduction
+          : mStepBonus;
       }
 
-      // Penalty salto grande
+      // Penalty salto grande — per modo
       if (absDiff > 7) {
-        w *= CFG.MELODY.markov.jumpPenalty;
-        // CH6 aggiunge preferenza per salti — carattere angoloso (D-03)
+        w *= mJumpPenalty;
         if (isCH6) w *= CFG.MELODY.markov.ch6JumpPreference;
       } else if (absDiff > 3 && isCH6) {
-        // CH6 preferisce anche salti medi
         w *= CFG.MELODY.markov.ch6JumpPreference;
       }
 
@@ -224,9 +233,10 @@ function _nextVoiceNote(ch, history, seedIntervals) {
 //  STEP HANDLERS — CH3, CH5, CH6
 // ══════════════════════════════════════════════════════════
 
-// Genera nuova frase per CH5 via Markov — aggiorna _histCH5 con la fine della frase
+// Genera nuova frase per CH5 via Markov — lunghezza variabile per modo
 function _generateCH5Phrase() {
-  const len = CFG.MELODY.phrase.ch5Length;
+  const mix = CFG.MELODY.modeMix[macroState.currentMode];
+  const len = (mix && mix.phraseLen) || CFG.MELODY.phrase.ch5Length;
   const tmpHist = [_histCH5[0], _histCH5[1]];
   const notes = [];
   for (let i = 0; i < len; i++) {
@@ -260,12 +270,15 @@ function _onCH5Step() {
     if (Math.random() >= baseProb * mA) return;
   }
 
-  // Phrase buffer: genera nuova frase se esaurita o vuota
-  const repeatCount = CFG.MELODY.phrase.ch5RepeatCount;
+  // Phrase buffer: genera nuova frase se esaurita o vuota (repeat variabile per modo)
+  const repeatCount = (mix && mix.phraseRepeat) || CFG.MELODY.phrase.ch5RepeatCount;
   if (_ch5Phrase.length === 0 || _ch5PhraseRepeats >= repeatCount) {
     _ch5Phrase    = _generateCH5Phrase();
     _ch5PhrasePos = 0;
     _ch5PhraseRepeats = 0;
+    // Feed interlock: CH6 può replicare questa frase sfasata
+    _interlockPhrase = _ch5Phrase.slice();
+    _interlockPos = 0;
     // Seed capture dalla prima frase generata nella finestra seed
     if (!_seedCaptured && arc < CFG.MELODY.seedWindowEnd && _ch5Phrase.length >= 2) {
       const intervals = [];
@@ -274,6 +287,7 @@ function _onCH5Step() {
         _seedMotif    = intervals.slice(0, CFG.MELODY.seedLength);
         _seedCaptured = true;
         console.log('[MELODY] seed captured from phrase:', _seedMotif);
+        recordDecision('seed_capture', `intervals:[${_seedMotif}]`);
       }
     }
   }
@@ -298,14 +312,14 @@ function _onCH5Step() {
     _crPending = true;
     _crNote = note;
     const delayMs = _cr.delayMsMin + Math.random() * (_cr.delayMsMax - _cr.delayMsMin);
-    const bpmRef = CFG.MACRO.bpmReference;
+    const bpmRef = macroState.currentBpm;
     _crBarTarget = macroState.barClock + delayMs * bpmRef / 240000;
   }
 
   if (_arpMode) _arpLastCH5Note = note;
 }
 
-// CH6 LEAD — voce indipendente angolosa 13-step (D-03)
+// CH6 LEAD — voce che cambia ruolo per modo: indipendente, eco sfasata, o arpeggiatore incrociato
 function _onCH6Step(stepInLoop) {
   const mA = macroState.melodicActivity;
 
@@ -316,10 +330,22 @@ function _onCH6Step(stepInLoop) {
 
   const phase = mA < 0.3 ? 'sparse' : mA < 0.65 ? 'medium' : 'dense';
 
-  // D-05: risposta cross-arpeggio o selezione Markov normale
   let note;
-  if (_arpMode && _arpLastCH5Note !== null && (stepInLoop % CFG.MELODY.arpeggio.delayStp === 0)) {
-    // D-05: risposta CH6 — intervallo di terza (4 semitoni) o quinta (7) snap a scala
+
+  // Interlock mode: CH6 replica la frase di CH5 trasposta, sfasata — arpeggiatori incrociati
+  const interlockProb = (mix && mix.interlock) || 0;
+  if (interlockProb > 0 && _interlockPhrase && _interlockPhrase.length > 0 && Math.random() < interlockProb) {
+    const srcNote = _interlockPhrase[_interlockPos % _interlockPhrase.length];
+    _interlockPos++;
+    // Trasponi la frase: terza sopra (+3 o +4 semitoni) snap a scala
+    const scale = CFG.MACRO.modes[macroState.currentMode] || [];
+    const candidate = srcNote + (stepInLoop % 2 === 0 ? 4 : 3); // alterna terza maggiore/minore
+    note = scale.reduce((best, n) =>
+      Math.abs(n - candidate) < Math.abs(best - candidate) ? n : best, scale[0]);
+    // Clamp al range CH6
+    note = Math.max(CFG.MELODY.pitchRange[6].min, Math.min(CFG.MELODY.pitchRange[6].max, note));
+  } else if (_arpMode && _arpLastCH5Note !== null && (stepInLoop % CFG.MELODY.arpeggio.delayStp === 0)) {
+    // D-05: risposta cross-arpeggio classica
     const scale = CFG.MACRO.modes[macroState.currentMode] || [];
     const thirdUp = _arpLastCH5Note + 4;
     const inRange = thirdUp <= CFG.MELODY.pitchRange[6].max;
@@ -341,53 +367,71 @@ function _onCH6Step(stepInLoop) {
 }
 
 // ══════════════════════════════════════════════════════════
-//  SEED RETURN — micro-sequencer basato su barClock (D-08, D-09)
-//  NON usa setTimeout — il Worker non lo supporta in modo affidabile
+//  SEED RECURRENCES — M3: 5 trasformazioni progressive
+//  Ogni ricorrenza: trasforma il motivo → enqueue nel micro-sequencer
 // ══════════════════════════════════════════════════════════
 
-// Trigger ritorno seed motivico quando arcPercent supera seedReturnAt
-function _checkSeedReturn() {
-  // Guard: solo una volta, dopo la cattura, al momento giusto
-  if (_seedReturned || !_seedCaptured || macroState.arcPercent <= CFG.MELODY.seedReturnAt) return;
+// Trasforma gli intervalli del seed secondo il tipo richiesto
+function _transformSeed(intervals, transform, transposeInterval) {
+  switch (transform) {
+    case 'original':   return intervals.slice();
+    case 'transpose':  return intervals.map(i => i + (transposeInterval || 0));
+    case 'invert':     return intervals.map(i => -i);
+    case 'retrograde': return intervals.slice().reverse();
+    case 'augment':    return intervals.slice(); // stessi intervalli, spacing ×2 gestito dal caller
+    default:           return intervals.slice();
+  }
+}
 
-  _seedReturned = true;
-  console.log('[MELODY] seed returned at arcPercent:', macroState.arcPercent);
+// Controlla se la prossima ricorrenza seed è matura
+function _checkSeedRecurrences() {
+  if (!_seedCaptured || _seedReturnQueue.length > 0) return; // aspetta flush coda precedente
 
-  // Calcola root dal modo attivo
+  const recurrences = CFG.MELODY.seedRecurrences;
+  if (!recurrences || _seedNextRecurrence >= recurrences.length) return;
+
+  const rec = recurrences[_seedNextRecurrence];
+  if (macroState.arcPercent < rec.arcAt) return;
+
+  // Trigger questa ricorrenza
+  _seedNextRecurrence++;
+  console.log(`[MELODY] seed recurrence #${_seedNextRecurrence}/${recurrences.length} — ${rec.transform} on CH${rec.ch} at arc:${macroState.arcPercent.toFixed(2)}`);
+  recordDecision('seed_return', `#${_seedNextRecurrence} ${rec.transform} CH${rec.ch} arc:${macroState.arcPercent.toFixed(2)}`);
+
   const rootNote = CFG.MACRO.droneRoot[macroState.currentMode] || 57;
   const scale    = CFG.MACRO.modes[macroState.currentMode] || [];
+  const transformed = _transformSeed(_seedMotif, rec.transform, rec.transposeInterval);
+  const spacing  = CFG.MELODY.seedReturnNoteSpacingBars * (rec.spacingMul || 1.0);
+  const durBase  = rec.transform === 'augment' ? 1600 : 800; // augment = note più lunghe
 
-  // Enqueue le note del seed nel micro-sequencer (barClock-based)
   let note      = rootNote;
   let targetBar = macroState.barClock;
 
-  for (const interval of _seedMotif) {
-    _seedReturnQueue.push({
-      note,
-      vel:       CFG.MELODY.seedReturnVel,
-      dur:       800,
-      targetBar,
-    });
-    // Prossima nota: trasposta per l'intervallo, snap a scala modale
+  // Prima nota: root
+  _seedReturnQueue.push({ note, vel: rec.vel, dur: durBase, ch: rec.ch, targetBar });
+
+  // Note successive: intervalli trasformati, snap a scala
+  for (const interval of transformed) {
     const candidate = note + interval;
     note = scale.reduce(
       (best, n) => Math.abs(n - candidate) < Math.abs(best - candidate) ? n : best,
       scale[0],
     );
-    targetBar += CFG.MELODY.seedReturnNoteSpacingBars;
+    targetBar += spacing;
+    _seedReturnQueue.push({ note, vel: rec.vel, dur: durBase, ch: rec.ch, targetBar });
   }
 }
 
-// Flush micro-sequencer seed return — controlla ogni tick
+// Flush micro-sequencer — controlla ogni tick
 function _flushSeedQueue() {
   if (_seedReturnQueue.length === 0) return;
   _seedReturnQueue = _seedReturnQueue.filter(entry => {
     if (macroState.barClock >= entry.targetBar) {
-      // Usa _rawSend diretto — bypassa gating (il ritorno DEVE suonare)
-      _rawSend(5, entry.note, entry.vel, entry.dur);
-      return false; // rimuovi dalla coda
+      _addMidiVisual(entry.ch, entry.note / 127, entry.vel / 127);
+      _rawSend(entry.ch, entry.note, entry.vel, entry.dur);
+      return false;
     }
-    return true; // mantieni in coda
+    return true;
   });
 }
 
@@ -414,20 +458,22 @@ export function initMelodyTextureLayer() {
   _histCH5 = [null, null];
   _histCH6 = [null, null];
 
-  // Reset seed state
-  _seedMotif       = null;
-  _seedCaptured    = false;
-  _seedReturned    = false;
-  _seedReturnQueue = [];
+  // Reset seed state (M3: multi-recurrence)
+  _seedMotif          = null;
+  _seedCaptured       = false;
+  _seedNextRecurrence = 0;
+  _seedReturnQueue    = [];
 
   // Reset phrase buffer
   _ch5Phrase        = [];
   _ch5PhrasePos     = 0;
   _ch5PhraseRepeats = 0;
 
-  // Reset arpeggio state
-  _arpMode        = false;
-  _arpLastCH5Note = null;
+  // Reset arpeggio + interlock state
+  _arpMode         = false;
+  _arpLastCH5Note  = null;
+  _interlockPhrase = null;
+  _interlockPos    = 0;
 
   // Reset step counter
   _currentStep16 = 0;
@@ -447,15 +493,15 @@ export function initMelodyTextureLayer() {
 export function updateMelodyTextureLayer(dt) {
   if (!isPerformanceStarted()) return; // silenzio pre-performance
 
-  const bpm         = CFG.MACRO.bpmReference;
+  const bpm         = macroState.currentBpm;
   const stepsPerSec = bpm * 4 / 60;  // 16th-note step rate
 
   // M2: avanza sweep phase (continuo, usato solo in C#_dorian da _onCH6Step)
   _sweepPhase += dt * (bpm / 60 / 4) / CFG.MELODY.sweep.periodBars * Math.PI * 2;
 
-  // Seed return ha priorita — flush prima del resto
+  // Seed recurrences: flush coda + check prossima ricorrenza (M3)
   _flushSeedQueue();
-  _checkSeedReturn();
+  _checkSeedRecurrences();
 
   // Aggiorna arpeggio mode ogni tick
   _arpMode = _isArpWindow();

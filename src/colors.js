@@ -81,6 +81,15 @@ export const PALETTES = {
   abyssal:    { bg: [2,3,12],      fg: [45,55,90],    accent1: [25,35,120],   accent2: [15,45,100],   accent3: [80,30,110] },
   steel:      { bg: [5,5,8],       fg: [240,245,250], accent1: [200,30,30],   accent2: [160,20,20],   accent3: [240,50,50] },
   ikeda:      { bg: [0,0,0],       fg: [255,255,255], accent1: [210,0,0],     accent2: [255,255,255], accent3: [210,0,0] },
+  // ── v5: palette con fondi colorati — identità per traccia ──
+  // Ref: design contemporaneo 2025, Swiss revival, rapporto 60-30-10
+  nebbia:     { bg: [18,16,14],    fg: [239,230,222], accent1: [239,230,222], accent2: [180,170,155], accent3: [120,110,95]  },
+  tessuto:    { bg: [32,19,13],    fg: [205,215,29],  accent1: [186,222,79],  accent2: [205,215,29],  accent3: [239,230,222] },
+  solco:      { bg: [40,43,38],    fg: [254,107,13],  accent1: [254,107,13],  accent2: [205,215,29],  accent3: [239,230,222] },
+  respiro:    { bg: [123,186,145], fg: [25,22,18],    accent1: [32,19,13],    accent2: [50,45,38],    accent3: [18,16,14]    },
+  macchina:   { bg: [26,26,46],    fg: [248,237,0],   accent1: [248,237,0],   accent2: [221,58,68],   accent3: [254,107,13]  },
+  tempesta:   { bg: [0,0,0],       fg: [255,255,255], accent1: [255,255,255], accent2: [145,1,15],    accent3: [210,0,0]     },
+  ritorno:    { bg: [18,16,14],    fg: [155,143,206], accent1: [155,143,206], accent2: [239,230,222], accent3: [107,142,236] },
 };
 
 export const palette = {
@@ -100,14 +109,16 @@ export const palette = {
 
 // V3 modal palette — called on mode change from macro-composer.js
 export function setPaletteForMode(mode) {
+  // v5: palette con fondi colorati per identità traccia
+  // Ref: cream/sage/navy/lime/lavanda — design 2025, non solo nero
   const modalPalettes = {
-    'A_lydian':    'default',  // apertura: nero puro, DERIVA soft scatter su buio
-    'Bb_phrygian': 'abyssal',  // rituale: quasi-nero con profondi blu, ABISSO
-    'D_dorian':    'warm',     // groove: brunocalda, TERRENO dub
-    'C#_dorian':   'bw',       // climax techno: nero/bianco puro, SOLCO
-    'E_phrygian':  'cyan',     // dissoluzione: teal scuro con cristallino, CRISTALLO
+    'A_lydian':    'nebbia',    // cream su quasi-nero — galleggiante, silenzioso
+    'Bb_phrygian': 'solco',     // arancio+lime su signal black — groove rituale
+    'D_dorian':    'macchina',  // giallo+pink su navy profondo — energia meccanica
+    'C#_dorian':   'tempesta',  // bianco+rosso su nero — Ikeda, climax techno
+    'E_phrygian':  'ritorno',   // lavanda+cream su nero — dissoluzione
   };
-  setPalette(modalPalettes[mode] || 'default');
+  setPalette(modalPalettes[mode] || 'nebbia');
 }
 
 export function setPalette(name) {

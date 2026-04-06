@@ -22,6 +22,7 @@ export const macroState = {
   pivotNote:       57,   // MIDI note della pivot condivisa
   arcPercent:      0,    // 0.0-1.0 del concerto
   barClock:        0,    // bar count accumulato (per HarmonyLayer)
+  currentBpm:      78,   // BPM attuale (lerped tra bpmForMode values)
   breakActive:     false, // RITM-05: break ciclico kick+basso attivo (scritto da RhythmLayer)
   preBreakBars:    0,    // H4: bar rimanenti alla prossima finestra break (0 = fuori finestra)
 };
@@ -47,6 +48,7 @@ export function initMacroComposer() {
   macroState.pivotNote       = 57;
   macroState.arcPercent      = 0;
   macroState.barClock        = 0;
+  macroState.currentBpm      = (CFG.MACRO.bpmForMode && CFG.MACRO.bpmForMode['A_lydian']) || CFG.MACRO.bpmReference;
   macroState.breakActive     = false;
   macroState.preBreakBars    = 0;
 
@@ -162,12 +164,18 @@ export function updateMacroComposer(dt) {
   // Step H — modeProgress: posizione 0.0-1.0 all'interno del segmento modale corrente
   macroState.modeProgress = segProgress;
 
-  // Step I — Contatore bar (per HarmonyLayer — 4/4 a bpmReference)
-  const barsPerSec = CFG.MACRO.bpmReference / 60 / 4;
+  // Step I — BPM per modo (lerp smooth) + contatore bar
+  const targetBpm = (CFG.MACRO.bpmForMode && CFG.MACRO.bpmForMode[macroState.currentMode])
+    || CFG.MACRO.bpmReference;
+  // Lerp BPM: ~4 beat di transizione (stessa costante usata dal MIDI clock in main.js)
+  const bpmLerpRate = Math.min(1, dt * (macroState.currentBpm / 60) / (CFG.bpmLerpBeats || 2));
+  macroState.currentBpm += (targetBpm - macroState.currentBpm) * bpmLerpRate;
+  const barsPerSec = macroState.currentBpm / 60 / 4;
   macroState.barClock += dt * barsPerSec;
 
-  // Step J — Disattiva pivot dopo 1 bar
-  if (macroState.pivotActive && (macroState.barClock - _pivotBarStart) >= 1) {
+  // Step J — Disattiva pivot dopo 4 bar (v5: extended for DJ-set transition feel)
+  // Ref: Burial/Gas — drone come tessuto connettivo, cambio modale anticipato
+  if (macroState.pivotActive && (macroState.barClock - _pivotBarStart) >= 4) {
     macroState.pivotActive = false;
   }
 

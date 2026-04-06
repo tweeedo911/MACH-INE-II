@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MACH:INE II — Composition Designer</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      background: #000;
+      color: rgba(255, 255, 255, 0.85);
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      line-height: 1.6;
+    }
+
+    #container {
+      max-width: 700px;
+      margin: 0 auto;
+      padding: 40px;
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 48px;
+    }
+
+    .header h1 {
+      font-size: 14px;
+      letter-spacing: 0.3em;
+      text-transform: uppercase;
+      color: rgba(255, 255, 255, 0.9);
+      margin-bottom: 16px;
+    }
+
+    .header-controls {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      justify-content: center;
+      margin-bottom: 24px;
+    }
+
+    select, input[type="file"] {
+      background: #111;
+      color: rgba(255, 255, 255, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      padding: 8px 12px;
+      font-family: 'Courier New', monospace;
+      font-size: 11px;
+      cursor: pointer;
+    }
+
+    select:focus, input[type="file"]:focus {
+      outline: none;
+      border-color: #FF4400;
+    }
+
+    .btn-small {
+      background: transparent;
+      color: rgba(255, 255, 255, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      padding: 8px 16px;
+      font-family: 'Courier New', monospace;
+      font-size: 11px;
+      letter-spacing: 0.2em;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-transform: uppercase;
+    }
+
+    .btn-small:hover {
+      border-color: rgba(255, 255, 255, 0.6);
+      color: rgba(255, 255, 255, 1);
+    }
+
+    .section {
+      margin-bottom: 32px;
+    }
+
+    .section-header {
+      font-size: 10px;
+      letter-spacing: 0.3em;
+      text-transform: uppercase;
+      color: rgba(255, 255, 255, 0.4);
+      margin-bottom: 20px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    .form-label {
+      display: block;
+      font-size: 11px;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: rgba(255, 255, 255, 0.6);
+      margin-bottom: 8px;
+    }
+
+    input[type="text"], input[type="number"] {
+      width: 100%;
+      background: #111;
+      color: rgba(255, 255, 255, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      padding: 10px 12px;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      transition: border 0.2s;
+    }
+
+    input[type="text"]:focus, input[type="number"]:focus {
+      outline: none;
+      border-color: #FF4400;
+    }
+
+    .slider-container {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    input[type="range"] {
+      flex: 1;
+      height: 4px;
+      background: linear-gradient(to right, #FF4400, #00AACC);
+      border: none;
+      outline: none;
+      -webkit-appearance: none;
+      appearance: none;
+      border-radius: 2px;
+    }
+
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 12px;
+      height: 12px;
+      background: rgba(255, 255, 255, 0.9);
+      border-radius: 50%;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    input[type="range"]::-webkit-slider-thumb:hover {
+      background: #FF4400;
+      transform: scale(1.3);
+    }
+
+    input[type="range"]::-moz-range-thumb {
+      width: 12px;
+      height: 12px;
+      background: rgba(255, 255, 255, 0.9);
+      border: none;
+      border-radius: 50%;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    input[type="range"]::-moz-range-thumb:hover {
+      background: #FF4400;
+      transform: scale(1.3);
+    }
+
+    .slider-value {
+      min-width: 50px;
+      text-align: right;
+      color: #FF4400;
+      font-weight: bold;
+    }
+
+    .slider-labels {
+      display: flex;
+      justify-content: space-between;
+      font-size: 10px;
+      color: rgba(255, 255, 255, 0.4);
+      margin-top: 4px;
+    }
+
+    .chips {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .chip {
+      background: transparent;
+      color: rgba(255, 255, 255, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      padding: 6px 14px;
+      font-family: 'Courier New', monospace;
+      font-size: 11px;
+      cursor: pointer;
+      transition: all 0.2s;
+      border-radius: 2px;
+      text-transform: capitalize;
+    }
+
+    .chip:hover {
+      border-color: rgba(255, 255, 255, 0.3);
+      color: rgba(255, 255, 255, 0.85);
+    }
+
+    .chip.active {
+      border-color: #FF4400;
+      color: #FF4400;
+      background: rgba(255, 68, 0, 0.1);
+    }
+
+    .chip.active.cyan {
+      border-color: #00AACC;
+      color: #00AACC;
+      background: rgba(0, 170, 204, 0.1);
+    }
+
+    .chip.active.magenta {
+      border-color: #E6007E;
+      color: #E6007E;
+      background: rgba(230, 0, 126, 0.1);
+    }
+
+    #curve-canvas {
+      width: 100%;
+      height: 120px;
+      background: #111;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      display: block;
+      border-radius: 2px;
+      margin-bottom: 12px;
+    }
+
+    .preview-4d {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .preview-bar {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .preview-bar-label {
+      font-size: 9px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: rgba(255, 255, 255, 0.4);
+    }
+
+    .preview-bar-track {
+      height: 24px;
+      background: #111;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .preview-bar-fill {
+      height: 100%;
+      transition: width 0.15s;
+    }
+
+    .preview-bar-fill.rd {
+      background: #FF4400;
+    }
+
+    .preview-bar-fill.hc {
+      background: #00AACC;
+    }
+
+    .preview-bar-fill.ma {
+      background: #E6007E;
+    }
+
+    .preview-bar-fill.td {
+      background: rgba(255, 255, 255, 0.6);
+    }
+
+    .footer-buttons {
+      display: flex;
+      gap: 12px;
+      margin-top: 32px;
+      flex-wrap: wrap;
+    }
+
+    .btn-primary {
+      flex: 1;
+      background: transparent;
+      color: #FF4400;
+      border: 1px solid #FF4400;
+      padding: 14px 24px;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: all 0.3s;
+      min-width: 200px;
+    }
+
+    .btn-primary:hover {
+      background: rgba(255, 68, 0, 0.15);
+      color: #FF4400;
+    }
+
+    .btn-secondary {
+      flex: 1;
+      background: transparent;
+      color: rgba(255, 255, 255, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      padding: 10px 24px;
+      font-family: 'Courier New', monospace;
+      font-size: 11px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: all 0.2s;
+      min-width: 140px;
+    }
+
+    .btn-secondary:hover {
+      border-color: rgba(255, 255, 255, 0.6);
+      color: rgba(255, 255, 255, 1);
+    }
+
+    .notification {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: rgba(0, 170, 204, 0.9);
+      color: #000;
+      padding: 12px 24px;
+      border-radius: 2px;
+      font-size: 11px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      animation: slideIn 0.3s ease-out;
+      z-index: 1000;
+    }
+
+    @keyframes slideIn {
+      from {
+        transform: translateX(400px);
+        opacity: 0;
+      }
+      to {
+        transform: translateX(0);
+        opacity: 1;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="container">
+    <div class="header">
+      <h1>MACH:INE II — Composition Designer</h1>
+      <div class="header-controls">
+        <select id="preset-select">
+          <option value="">— Seleziona preset —</option>
+        </select>
+        <input type="file" id="load-json" accept=".json">
+        <button class="btn-small" id="btn-reset">Reset</button>
+      </div>
+    </div>
+
+    <!-- IDENTITÀ -->
+    <div class="section">
+      <div class="section-header">═══ Identità ═══</div>
+      <div class="form-group">
+        <label class="form-label">Nome sessione</label>
+        <input type="text" id="name" placeholder="es. Dark Ritual">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Durata (minuti)</label>
+        <div class="slider-container">
+          <input type="range" id="duration-min" min="20" max="90" value="45">
+          <div class="slider-value"><span id="duration-val">45</span> min</div>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">BPM base</label>
+        <div class="slider-container">
+          <input type="range" id="bpm" min="50" max="140" value="88">
+          <div class="slider-value"><span id="bpm-val">88</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CARATTERE MUSICALE -->
+    <div class="section">
+      <div class="section-header">═══ Carattere Musicale ═══</div>
+      <div class="form-group">
+        <label class="form-label">Umore</label>
+        <div class="chips">
+          <button class="chip" data-field="mood" data-value="cosmic">Cosmico</button>
+          <button class="chip" data-field="mood" data-value="dark">Oscuro</button>
+          <button class="chip" data-field="mood" data-value="organic">Organico</button>
+          <button class="chip" data-field="mood" data-value="industrial">Industriale</button>
+          <button class="chip" data-field="mood" data-value="luminous">Luminoso</button>
+          <button class="chip" data-field="mood" data-value="ritual">Rituale</button>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Genere</label>
+        <div class="chips">
+          <button class="chip" data-field="genre" data-value="experimental">Sperimentale</button>
+          <button class="chip" data-field="genre" data-value="ambient">Ambient</button>
+          <button class="chip" data-field="genre" data-value="techno">Techno</button>
+          <button class="chip" data-field="genre" data-value="dub">Dub</button>
+          <button class="chip" data-field="genre" data-value="drone">Drone</button>
+          <button class="chip" data-field="genre" data-value="minimal">Minimal</button>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Curva intensità</label>
+        <div class="chips">
+          <button class="chip" data-field="intensity-curve" data-value="gentle">Gentile</button>
+          <button class="chip" data-field="intensity-curve" data-value="building">Costruttivo</button>
+          <button class="chip" data-field="intensity-curve" data-value="explosive">Esplosivo</button>
+          <button class="chip" data-field="intensity-curve" data-value="plateau">Altipiano</button>
+          <button class="chip" data-field="intensity-curve" data-value="wave">Onda</button>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Posizione picco</label>
+        <div class="slider-container">
+          <input type="range" id="peak-position" min="0" max="100" value="84">
+          <div class="slider-value"><span id="peak-position-val">84</span>%</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ARMONIA -->
+    <div class="section">
+      <div class="section-header">═══ Armonia ═══</div>
+      <div class="form-group">
+        <label class="form-label">Nota fondamentale</label>
+        <div class="chips">
+          <button class="chip" data-field="root-note" data-value="C">C</button>
+          <button class="chip" data-field="root-note" data-value="C#">C#</button>
+          <button class="chip" data-field="root-note" data-value="D">D</button>
+          <button class="chip" data-field="root-note" data-value="D#">D#</button>
+          <button class="chip" data-field="root-note" data-value="E">E</button>
+          <button class="chip" data-field="root-note" data-value="F">F</button>
+          <button class="chip" data-field="root-note" data-value="F#">F#</button>
+          <button class="chip" data-field="root-note" data-value="G">G</button>
+          <button class="chip" data-field="root-note" data-value="G#">G#</button>
+          <button class="chip" data-field="root-note" data-value="A">A</button>
+          <button class="chip" data-field="root-note" data-value="A#">A#</button>
+          <button class="chip" data-field="root-note" data-value="B">B</button>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Sapore modale</label>
+        <div class="chips">
+          <button class="chip" data-field="modal-flavor" data-value="bright">Luminoso</button>
+          <button class="chip" data-field="modal-flavor" data-value="dark">Scuro</button>
+          <button class="chip" data-field="modal-flavor" data-value="mixed">Misto</button>
+          <button class="chip" data-field="modal-flavor" data-value="exotic">Esotico</button>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Densità armonica</label>
+        <div class="slider-container">
+          <input type="range" id="harmonic-density" min="0" max="100" value="60">
+          <div class="slider-value"><span id="harmonic-density-val">60</span>%</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RITMICA -->
+    <div class="section">
+      <div class="section-header">═══ Ritmica ═══</div>
+      <div class="form-group">
+        <label class="form-label">Complessità ritmica</label>
+        <div class="slider-container">
+          <input type="range" id="rhythmic-complexity" min="0" max="100" value="70">
+          <div class="slider-value"><span id="rhythmic-complexity-val">70</span>%</div>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Presenza kick</label>
+        <div class="slider-container">
+          <input type="range" id="kick-presence" min="0" max="100" value="50">
+          <div class="slider-value"><span id="kick-presence-val">50</span>%</div>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Carattere hi-hat</label>
+        <div class="chips">
+          <button class="chip" data-field="hat-character" data-value="minimal">Minimale</button>
+          <button class="chip" data-field="hat-character" data-value="dense">Denso</button>
+          <button class="chip" data-field="hat-character" data-value="organic">Organico</button>
+          <button class="chip" data-field="hat-character" data-value="phasing">Phasante</button>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Frequenza break</label>
+        <div class="slider-container">
+          <input type="range" id="break-frequency" min="0" max="100" value="30">
+          <div class="slider-value"><span id="break-frequency-val">30</span>%</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MELODIA -->
+    <div class="section">
+      <div class="section-header">═══ Melodia ═══</div>
+      <div class="form-group">
+        <label class="form-label">Attività melodica</label>
+        <div class="slider-container">
+          <input type="range" id="melodic-activity" min="0" max="100" value="50">
+          <div class="slider-value"><span id="melodic-activity-val">50</span>%</div>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Carattere melodico</label>
+        <div class="chips">
+          <button class="chip" data-field="melodic-character" data-value="angular">Angolare</button>
+          <button class="chip" data-field="melodic-character" data-value="lyrical">Lirico</button>
+          <button class="chip" data-field="melodic-character" data-value="repetitive">Ripetitivo</button>
+          <button class="chip" data-field="melodic-character" data-value="sparse">Sparso</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- VISUALE -->
+    <div class="section">
+      <div class="section-header">═══ Visuale ═══</div>
+      <div class="form-group">
+        <label class="form-label">Densità visiva</label>
+        <div class="slider-container">
+          <input type="range" id="visual-density" min="0" max="100" value="55">
+          <div class="slider-value"><span id="visual-density-val">55</span>%</div>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Famiglia palette</label>
+        <div class="chips">
+          <button class="chip" data-field="palette-family" data-value="cold">Fredda</button>
+          <button class="chip" data-field="palette-family" data-value="warm">Calda</button>
+          <button class="chip" data-field="palette-family" data-value="monochrome">Monocromatica</button>
+          <button class="chip" data-field="palette-family" data-value="muted">Attenuata</button>
+          <button class="chip" data-field="palette-family" data-value="vivid">Vivida</button>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Stile camera</label>
+        <div class="chips">
+          <button class="chip" data-field="camera-style" data-value="wide">Ampio</button>
+          <button class="chip" data-field="camera-style" data-value="mixed">Misto</button>
+          <button class="chip" data-field="camera-style" data-value="intimate">Intimo</button>
+          <button class="chip" data-field="camera-style" data-value="dynamic">Dinamico</button>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Scala punti</label>
+        <div class="slider-container">
+          <input type="range" id="dot-scale" min="0.5" max="2.0" step="0.1" value="1.0">
+          <div class="slider-value"><span id="dot-scale-val">1.0</span>x</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ARCO NARRATIVO -->
+    <div class="section">
+      <div class="section-header">═══ Arco Narrativo (preview) ═══</div>
+      <canvas id="curve-canvas"></canvas>
+      <div class="preview-4d">
+        <div class="preview-bar">
+          <div class="preview-bar-label">rD</div>
+          <div class="preview-bar-track">
+            <div class="preview-bar-fill rd" id="bar-rd"></div>
+          </div>
+        </div>
+        <div class="preview-bar">
+          <div class="preview-bar-label">hC</div>
+          <div class="preview-bar-track">
+            <div class="preview-bar-fill hc" id="bar-hc"></div>
+          </div>
+        </div>
+        <div class="preview-bar">
+          <div class="preview-bar-label">mA</div>
+          <div class="preview-bar-track">
+            <div class="preview-bar-fill ma" id="bar-ma"></div>
+          </div>
+        </div>
+        <div class="preview-bar">
+          <div class="preview-bar-label">tD</div>
+          <div class="preview-bar-track">
+            <div class="preview-bar-fill td" id="bar-td"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- FOOTER -->
+    <div class="footer-buttons">
+      <button class="btn-primary" id="btn-launch">▶ Launch MACH:INE II</button>
+      <button class="btn-secondary" id="btn-export">💾 Export JSON</button>
+      <button class="btn-secondary" id="btn-copy-url">📋 Copy URL</button>
+    </div>
+  </div>
+
+  <script type="module" src="./src/designer.js"></script>
+</body>
+</html>
