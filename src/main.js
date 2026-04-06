@@ -16,7 +16,7 @@ import { WakeLockManager } from '../.claude/skills/runtime-expert/scripts/perf-u
 
 // ── MACH:INE III modules ──
 import { worldState } from './world-state.js';
-import { initDirector3, updateDirector3, skipPhase, jumpToPhase, jumpToTrack, getDirector3Status } from './director3.js';
+import { initDirector3, updateDirector3, skipPhase, jumpToPhase, jumpToTrack, toggleDirector3, isDirector3Playing, getDirector3Status } from './director3.js';
 import { initRhythm, updateRhythm } from './rhythm.js';
 import { initHarmony, updateHarmony } from './harmony.js';
 import { initBass, updateBass } from './bass.js';
@@ -122,7 +122,7 @@ document.addEventListener('keydown', (e) => {
     jumpToPhase(_phaseMap[e.code]);
     return;
   }
-  if (e.code === 'Space') { e.preventDefault(); return; }
+  if (e.code === 'Space') { e.preventDefault(); toggleDirector3(); return; }
   if (e.code === 'ArrowRight') { skipPhase(+1); return; }
   if (e.code === 'ArrowLeft')  { skipPhase(-1); return; }
   // Session recorder: Shift+L = start/stop, Shift+D = download, Shift+K = screenshot
