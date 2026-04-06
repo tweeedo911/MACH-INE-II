@@ -16,9 +16,11 @@
 import {
   bayerTest, fillBackground, rgbString, hexToRgb, lerpColor,
   lerp, clamp, mapRange,
-  audioFlicker, Sediment,
+  audioFlicker, bayerGlitch, colorFlash, shouldGlitch,
+  Sediment,
   applyCameraTransform, restoreCameraTransform,
 } from './visual-toolkit.js';
+import { phaseState } from './world-state.js';
 
 // ── Phase parameters ────────────────────────────────────────
 const PHASE_PARAMS = {
@@ -137,14 +139,18 @@ export function render(ctx, W, H, env) {
       }
     }
 
-    // CH0 KICK — horizontal bar + camera pulse
+    // CH0 KICK — horizontal bar + camera pulse (double-row in rottura)
     if (n.ch === 0 && n.alpha > 0.3) {
       const row = Math.floor(_rows / 2);
-      for (let c = 0; c < _cols; c++) {
-        _grid[row][c].brightness = clamp(_grid[row][c].brightness + n.vel * 0.6, 0, 1);
+      const rowSpan = isRottura ? 2 : 1;
+      for (let ri = 0; ri < rowSpan; ri++) {
+        const tr = (row + ri) % _rows;
+        for (let c = 0; c < _cols; c++) {
+          _grid[tr][c].brightness = clamp(_grid[tr][c].brightness + n.vel * 0.6, 0, 1);
+        }
       }
-      // Trigger zoom pulse — MACCHINA mechanical pump
-      _kickZoom = KICK_ZOOM_TARGET;
+      // Trigger zoom pulse — MACCHINA mechanical pump (more aggressive in rottura)
+      _kickZoom = isRottura ? KICK_ZOOM_TARGET + 0.01 : KICK_ZOOM_TARGET;
     }
 
     // CH3 BASS — bottom-spread columns
@@ -174,14 +180,31 @@ export function render(ctx, W, H, env) {
   }
 
   // ── Scan line (densita + rottura only) ───────────────────
-  // Moves top → bottom over barProgress (0→1)
+  // Moves top → bottom over barProgress (0→1) — FIX: use worldState.barProgress (now defined)
   const doScan = SCAN_PHASES.has(worldState.phase);
+  const isRottura = worldState.phase === 'rottura';
   let scanRow = -1;
   if (doScan && worldState.barProgress !== undefined) {
     scanRow = Math.floor(worldState.barProgress * _rows) % _rows;
     // Boost cells on current scan row
     for (let c = 0; c < _cols; c++) {
       _grid[scanRow][c].brightness = clamp(_grid[scanRow][c].brightness + 0.25, 0, 1);
+    }
+  }
+
+  // ── Onset → full-row flash (random row) + grid jolt ──────
+  let _gridJolt = 0;
+  for (const w of (env.onsetWaves || [])) {
+    if (w.strength > 0.4) {
+      // Flash a random row on onset
+      const flashRow = Math.floor(w.cy / H * _rows) % _rows;
+      if (_grid[flashRow]) {
+        for (let c = 0; c < _cols; c++) {
+          _grid[flashRow][c].brightness = clamp(_grid[flashRow][c].brightness + w.strength * 0.7, 0, 1);
+        }
+      }
+      // In rottura: grid shifts by 1-2 cells
+      if (isRottura) _gridJolt = Math.max(_gridJolt, Math.ceil(w.strength * 2));
     }
   }
 
@@ -235,7 +258,7 @@ export function render(ctx, W, H, env) {
 
       if (effectiveBrightness < 0.01) continue;
 
-      const scrollC = (c + Math.floor(_scrollOffset * _cols)) % _cols;
+      const scrollC = (c + Math.floor(_scrollOffset * _cols) + _gridJolt) % _cols;
       const cx = scrollC * cellW + padding;
       const cy = r * cellH + padding;
       const cw = cellW - padding * 2;
@@ -256,9 +279,16 @@ export function render(ctx, W, H, env) {
 
       ctx.fillStyle = rgbString(cellRgb[0], cellRgb[1], cellRgb[2]);
 
+      // In rottura: use glitched Bayer for visual stutter
+      const glitchAmt = isRottura ? 0.4 + rms * 0.6 : 0;
       for (let dr = 0; dr < rows2; dr++) {
         for (let dc = 0; dc < cols2; dc++) {
-          if (bayerTest(dc + c * 3, dr + r * 3, effectiveBrightness)) {
+          const testCol = dc + c * 3;
+          const testRow = dr + r * 3;
+          const visible = glitchAmt > 0.01
+            ? bayerGlitch(testCol, testRow, effectiveBrightness, glitchAmt, _time)
+            : bayerTest(testCol, testRow, effectiveBrightness);
+          if (visible) {
             ctx.fillRect(cx + dc * dotSize, cy + dr * dotSize, dotSize, dotSize);
           }
         }

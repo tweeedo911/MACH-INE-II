@@ -9,7 +9,8 @@
 import {
   bayerTest, fillBackground, fillBayer, rgbString, hexToRgb, lerpColor,
   lerp, clamp, rng, seedRng, noiseAt,
-  renderBreathingField, Sediment, applyCameraTransform, restoreCameraTransform,
+  renderBreathingField, bayerGlitch, colorFlash, shouldGlitch,
+  Sediment, applyCameraTransform, restoreCameraTransform,
 } from './visual-toolkit.js';
 
 // ── Phase parameters ──
@@ -143,7 +144,8 @@ export function render(ctx, W, H, env) {
   // ── 1. Breathing halftone field (dietro ai blocchi) ──
   if (_params.breathAlpha > 0.01) {
     const dotColorStr = rgbString(dotRgb[0], dotRgb[1], dotRgb[2]);
-    renderBreathingField(ctx, W, H, audio, state, _time, 8, dotColorStr, _params.breathAlpha);
+    const jitter = isRottura ? 0.5 : 0.15;
+    renderBreathingField(ctx, W, H, audio, state, _time, 8, dotColorStr, _params.breathAlpha, jitter);
   }
 
   // ── Camera transform: zoom grounded (SOLCO è radicato), shake punta ──
@@ -178,13 +180,14 @@ export function render(ctx, W, H, env) {
     b.shakeX = Math.sin(_time * 47 + i * 1.7) * _onsetShake * 0.004;
     b.shakeY = Math.cos(_time * 53 + i * 2.3) * _onsetShake * 0.004;
 
-    // Kick jump: scatto brusco → ritorno esponenziale
+    // Kick jump: scatto brusco → ritorno esponenziale (5× stronger in rottura)
     if (kickHit) {
-      b.jumpX = (Math.random() - 0.5) * 0.015;
-      b.jumpY = (Math.random() - 0.5) * 0.015;
+      const jumpScale = isRottura ? 0.06 : 0.015;
+      b.jumpX = (Math.random() - 0.5) * jumpScale;
+      b.jumpY = (Math.random() - 0.5) * jumpScale;
     }
-    b.jumpX *= 0.85;
-    b.jumpY *= 0.85;
+    b.jumpX *= isRottura ? 0.75 : 0.85;
+    b.jumpY *= isRottura ? 0.75 : 0.85;
 
     // Drift costante con wrap morbido ai bordi
     b.x += b.vx * dt * 60;
@@ -197,9 +200,13 @@ export function render(ctx, W, H, env) {
     // Bass breathe: scala oscilla con offset di fase individuale
     const breathe = 1 + Math.sin(_time * 1.8 + b.breathPhase) * bassEnergy * 0.12;
 
-    // Rottura: i blocchi possono sovrapporsi e sanguinare (densità extra)
+    // Rottura: density flicker (random 0↔1), color flash, blocks bleed
     const densityBoost = isRottura ? rmsBoost + 0.08 : rmsBoost;
-    const density  = clamp(_params.fillDensity + b.flash * 0.4 + densityBoost, 0, 1);
+    let density  = clamp(_params.fillDensity + b.flash * 0.4 + densityBoost, 0, 1);
+    // Rottura density flicker: randomly snap to 0 or 1 for stutter effect
+    if (isRottura && shouldGlitch(1, true, _time + i * 0.7)) {
+      density = Math.random() > 0.5 ? 1.0 : 0.05;
+    }
     const dotSize  = Math.max(3, Math.round(lerp(8, 4, density)));
 
     const sizeMul = breathe + bassEnergy * 0.2;
@@ -209,10 +216,18 @@ export function render(ctx, W, H, env) {
     const bh = b.h * sizeMul * H;
 
     // Colore: accento chord se attivo, altrimenti dot palette
-    const blockRgb = b.accentFlash > 0.1
+    let blockRgb = b.accentFlash > 0.1
       ? lerpColor(dotRgb, accRgb, b.accentFlash)
       : dotRgb;
-    const colorStr = rgbString(blockRgb[0], blockRgb[1], blockRgb[2]);
+    // Rottura: brief color flash on individual blocks
+    if (isRottura && shouldGlitch(0.8, true, _time + i * 1.3)) {
+      blockRgb = colorFlash(blockRgb, 0.6, _time + i);
+    }
+    const colorStr = rgbString(
+      clamp(blockRgb[0], 0, 255),
+      clamp(blockRgb[1], 0, 255),
+      clamp(blockRgb[2], 0, 255)
+    );
 
     // Disegna sul canvas principale
     fillBayer(ctx, bx, by, bw, bh, density, dotSize, colorStr);

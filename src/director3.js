@@ -6,6 +6,8 @@
 
 import { worldState, phaseState } from './world-state.js';
 import { TRACKS, PHASE_DENSITY, PHASE_ENERGY, TRACK_ORDER } from './tracks.js';
+import { audio } from './audio.js';
+import { state } from './state.js';
 import { initRhythm } from './rhythm.js';
 import { initHarmony } from './harmony.js';
 import { initBass } from './bass.js';
@@ -120,6 +122,21 @@ export function updateDirector3(dt) {
   phaseState.elapsed = _phaseBars;
   phaseState.duration = phaseDurBars;
   phaseState.progress = phaseDurBars > 0 ? Math.min(1, _phaseBars / phaseDurBars) : 0;
+
+  // Bar progress: position within current bar (0→1) — for scan lines, visual sync
+  worldState.barProgress = barDuration > 0 ? Math.min(1, _barAcc / barDuration) : 0;
+
+  // Audio-reactive energy: real-time modulation on top of phase-based density
+  // Combines RMS, onset bursts, and narrative intensity
+  const rms = audio.rms || 0;
+  const intensity = state.intensity || 0;
+  const onsetBoost = audio.onset ? 0.15 : 0;
+  const rawEnergy = rms * 0.4 + intensity * 0.4 + onsetBoost + (audio.flux || 0) * 0.3;
+  // Smooth with EMA (fast attack, slow release)
+  const prev = worldState.audioEnergy || 0;
+  worldState.audioEnergy = rawEnergy > prev
+    ? prev + (rawEnergy - prev) * 0.3    // fast attack
+    : prev + (rawEnergy - prev) * 0.05;  // slow release
 }
 
 // ── Auto-advance to next track in album order ──

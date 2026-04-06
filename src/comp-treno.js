@@ -9,6 +9,7 @@ import {
   lerp, clamp, rng, seedRng,
   Sediment, applyCameraTransform, restoreCameraTransform,
   renderBreathingField, audioDensity,
+  bayerGlitch, colorFlash, shouldGlitch,
 } from './visual-toolkit.js';
 
 // ── Phase parameters ──
@@ -91,8 +92,13 @@ export function render(ctx, W, H, env) {
   _shakeAmt *= 0.85;  // slower decay than other compositions — TEMPESTA stays violent
 
   // ── Scroll advance ──
+  // Rottura: brief reverse direction on onset for parallax glitch
+  let scrollDir = 1;
+  if (isRottura && shouldGlitch(state ? state.intensity : 0.5, true, _time)) {
+    scrollDir = -1;  // objects move forward briefly — disorienting
+  }
   for (let p = 0; p < 3; p++) {
-    _scrollX[p] += _params.scrollSpeed * PLANE_SPEEDS[p] * dt;
+    _scrollX[p] += _params.scrollSpeed * PLANE_SPEEDS[p] * dt * scrollDir;
   }
 
   // ── Sediment: decay previous frame buffer ──
@@ -106,7 +112,8 @@ export function render(ctx, W, H, env) {
   if (audio && state) {
     const breathAlpha = clamp(0.05 + state.intensity * 0.07, 0.05, 0.12);
     const breathDotColor = rgbString(dotRgb[0], dotRgb[1], dotRgb[2], breathAlpha);
-    renderBreathingField(ctx, W, H, audio, state, _time, 4, breathDotColor, breathAlpha);
+    const jitter = isRottura ? 0.6 : 0.2;
+    renderBreathingField(ctx, W, H, audio, state, _time, 4, breathDotColor, breathAlpha, jitter);
   }
 
   // ── Camera transform (shake + rottura zoom) ──
@@ -190,8 +197,27 @@ export function render(ctx, W, H, env) {
     }
   }
 
+  // Onset sparkle explosion in rottura — burst of sparkles across all planes
+  if (isRottura) {
+    for (const w of (env.onsetWaves || [])) {
+      if (w.strength > 0.5) {
+        const burstCount = Math.floor(w.strength * 15);
+        for (let bi = 0; bi < burstCount; bi++) {
+          _sparkles.push({
+            x:     rng() * W,
+            y:     rng() * H,
+            alpha: w.strength * (0.5 + rng() * 0.5),
+            plane: Math.floor(rng() * 3),
+            size:  2 + Math.floor(rng() * 4),
+            trail: [],
+          });
+        }
+      }
+    }
+  }
+
   if (_objects.length > 400)  _objects.splice(0, _objects.length - 400);
-  if (_sparkles.length > 100) _sparkles.splice(0, _sparkles.length - 100);
+  if (_sparkles.length > 200) _sparkles.splice(0, _sparkles.length - 200);  // higher cap in rottura
   if (_ambient.length > 500)  _ambient.splice(0, _ambient.length - 500);
 
   // ── Draw objects per plane (back → front) ──
@@ -282,16 +308,26 @@ export function render(ctx, W, H, env) {
       ctx.fillRect(s.x, s.y, s.size, s.size);
     }
 
-    // In rottura: inject continuous hat shimmer across all planes
+    // In rottura: inject continuous hat shimmer + occasional color glitch
     if (isRottura) {
-      const shimmerCount = Math.floor(2 + rng() * 3);
-      const shimmerAlpha = 0.15 + rng() * 0.25;
-      const shRgb = lerpColor(bgRgb, dotRgb, saturation);
-      ctx.fillStyle = rgbString(shRgb[0], shRgb[1], shRgb[2], shimmerAlpha);
+      const shimmerCount = Math.floor(4 + rng() * 6);
+      const shimmerAlpha = 0.15 + rng() * 0.35;
+      let shRgb = lerpColor(bgRgb, dotRgb, saturation);
+      // Occasional shimmer color corruption
+      if (shouldGlitch(1, true, _time + p * 0.3)) {
+        shRgb = colorFlash(shRgb, 0.8, _time);
+      }
+      ctx.fillStyle = rgbString(
+        clamp(shRgb[0], 0, 255),
+        clamp(shRgb[1], 0, 255),
+        clamp(shRgb[2], 0, 255),
+        shimmerAlpha
+      );
       for (let si = 0; si < shimmerCount; si++) {
         const sx = rng() * W;
         const sy = rng() * H;
-        ctx.fillRect(sx, sy, 2, 2);
+        const ss = 1 + Math.floor(rng() * 4);  // variable size 1-4px
+        ctx.fillRect(sx, sy, ss, ss);
       }
     }
   }

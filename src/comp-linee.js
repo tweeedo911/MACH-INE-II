@@ -16,6 +16,7 @@ import {
   bayerTest, fillBackground, rgbString, hexToRgb, lerpColor,
   lerp, clamp, mapRange, noiseAt,
   audioDensity, audioFlicker,
+  bayerGlitch, colorFlash, shouldGlitch,
   Sediment,
   applyCameraTransform, restoreCameraTransform,
 } from './visual-toolkit.js';
@@ -45,6 +46,8 @@ let _params = { ...PHASE_PARAMS.germoglio };
 let _sediment = null;
 let _cameraY = 0;   // smooth target for vertical drift
 let _zoom = 1.0;    // smooth zoom
+let _onsetThick = 0;  // onset-triggered thickness spike
+let _onsetJitterX = 0;  // onset horizontal shift
 
 export function init(env) {
   _lines = [];
@@ -155,6 +158,17 @@ export function render(ctx, W, H, env) {
   }
   if (_densityWaves.length > 20) _densityWaves.length = 20;
 
+  // ── Onset reactions: thickness spike + horizontal jitter ──
+  const isRottura = (env.worldState.phase === 'rottura');
+  for (const w of (env.onsetWaves || [])) {
+    if (w.strength > 0.4) {
+      _onsetThick = Math.max(_onsetThick, w.strength * (isRottura ? 6 : 3));
+      _onsetJitterX = (Math.random() - 0.5) * w.strength * (isRottura ? 20 : 8);
+    }
+  }
+  _onsetThick *= 0.85;
+  _onsetJitterX *= 0.88;
+
   // ── Camera: vertical drift follows average chord Y ────
   let chordYSum = 0, chordYCount = 0;
   for (const line of _lines) {
@@ -171,12 +185,12 @@ export function render(ctx, W, H, env) {
   // ── Sediment: decay previous frame's ghost ────────────
   _sediment.decay(W, H, _params.sedimentRate);
 
-  // ── Apply camera transform ────────────────────────────
+  // ── Apply camera transform (onset shake in rottura) ──
   applyCameraTransform(ctx, W, H, {
     zoom:   _zoom,
-    driftX: 0,
+    driftX: _onsetJitterX,
     driftY: _cameraY,
-    shakeAmount: 0,
+    shakeAmount: isRottura ? _onsetThick * 0.5 : 0,
     time:   _time,
   });
 
@@ -195,9 +209,10 @@ export function render(ctx, W, H, env) {
 
     const py = line.currentY * H;
 
-    // Spessore: modulato da RMS + tipo linea
+    // Spessore: modulato da RMS + tipo linea + onset spike
     const baseThick = _params.thickness * (line.isDrone ? 0.5 : line.isLead ? 1.5 : 1);
-    const thickness = Math.max(1, Math.round(baseThick * rmsThickMul));
+    const onsetBoost = 1 + _onsetThick * (line.isLead ? 0.8 : 0.4);
+    const thickness = Math.max(1, Math.round(baseThick * rmsThickMul * onsetBoost));
     const dotSize   = Math.max(2, thickness * 2);
     const density   = clamp(line.brightness * _params.thickness * 0.15, 0.05, 0.85);
 
@@ -214,7 +229,11 @@ export function render(ctx, W, H, env) {
       const nx = c / cols;
 
       // Micro-oscillazione: spostamento verticale sinusoidale
-      const oscY = Math.sin(c * osc.freq + _time * 1.4) * osc.amp;
+      // Rottura: per-column Y jitter (lines tremble, not oscillate smoothly)
+      const rotturaJitter = isRottura
+        ? (noiseAt(c, li, _time * 8) - 0.5) * _onsetThick * 2.5
+        : 0;
+      const oscY = Math.sin(c * osc.freq + _time * 1.4) * osc.amp + rotturaJitter;
 
       // Density wave contribution + color shift
       let waveDensity = 0;
@@ -231,14 +250,27 @@ export function render(ctx, W, H, env) {
       const d = clamp(density + waveDensity + noiseAt(c, li, _time) * 0.05, 0, 1);
 
       // Color: blend toward accent when wave passes through
-      const lineRgb = lerpColor(baseLineRgb, accRgb, clamp(waveColorShift, 0, 0.7));
-      const colorStr = rgbString(lineRgb[0], lineRgb[1], lineRgb[2]);
+      let lineRgb = lerpColor(baseLineRgb, accRgb, clamp(waveColorShift, 0, 0.7));
+      // Rottura: brief color flash on random line segments
+      if (isRottura && shouldGlitch(0.6, true, _time + c * 0.1 + li * 3)) {
+        lineRgb = colorFlash(lineRgb, 0.7, _time + li);
+      }
+      const colorStr = rgbString(
+        clamp(lineRgb[0], 0, 255),
+        clamp(lineRgb[1], 0, 255),
+        clamp(lineRgb[2], 0, 255)
+      );
       ctx.fillStyle = colorStr;
 
       for (let t = 0; t < thickness; t++) {
         const baseRowY = py + oscY + t * dotSize - thickness * dotSize / 2;
         const row = Math.floor(baseRowY / dotSize);
-        if (bayerTest(c, row, d)) {
+        // Rottura: glitched Bayer
+        const glitchAmt = isRottura ? 0.3 + _onsetThick * 0.1 : 0;
+        const visible = glitchAmt > 0.01
+          ? bayerGlitch(c, row, d, glitchAmt, _time)
+          : bayerTest(c, row, d);
+        if (visible) {
           ctx.fillRect(c * dotSize, baseRowY, dotSize, dotSize);
         }
       }

@@ -11,16 +11,19 @@
 import {
   bayerAt, bayerTest, fillBackground, rgbString, hexToRgb, lerpColor,
   lerp, clamp,
-  audioDensity,
+  audioDensity, audioFlicker,
+  bayerGlitch, colorFlash, shouldGlitch,
   Sediment,
   applyCameraTransform, restoreCameraTransform,
 } from './visual-toolkit.js';
 
 // ── Phase parameters ──────────────────────────────────────
 const PHASE_PARAMS = {
-  germoglio:    { holeSize: 0.12, closeSpeed: 0.005, holeDepth: 0.4, sedimentRate: 0.96 },
-  pulsazione:   { holeSize: 0.08, closeSpeed: 0.010, holeDepth: 0.6, sedimentRate: 0.93 },
-  dissoluzione: { holeSize: 0.05, closeSpeed: 0.003, holeDepth: 0.3, sedimentRate: 0.97 },
+  germoglio:    { holeSize: 0.12, closeSpeed: 0.005, holeDepth: 0.4, sedimentRate: 0.96, glitch: 0 },
+  pulsazione:   { holeSize: 0.08, closeSpeed: 0.010, holeDepth: 0.6, sedimentRate: 0.93, glitch: 0 },
+  densita:      { holeSize: 0.06, closeSpeed: 0.015, holeDepth: 0.8, sedimentRate: 0.88, glitch: 0.1 },
+  rottura:      { holeSize: 0.15, closeSpeed: 0.002, holeDepth: 1.0, sedimentRate: 0.80, glitch: 0.6 },
+  dissoluzione: { holeSize: 0.05, closeSpeed: 0.003, holeDepth: 0.3, sedimentRate: 0.97, glitch: 0 },
 };
 
 // ── State ─────────────────────────────────────────────────
@@ -64,7 +67,11 @@ export function render(ctx, W, H, env) {
   _params.holeSize    += (target.holeSize    - _params.holeSize)    * 0.03;
   _params.closeSpeed  += (target.closeSpeed  - _params.closeSpeed)  * 0.03;
   _params.holeDepth   += (target.holeDepth   - _params.holeDepth)   * 0.03;
+  _params.glitch      += ((target.glitch || 0) - (_params.glitch || 0)) * 0.05;
   _params.sedimentRate = target.sedimentRate;          // snap — affects decay immediately
+
+  const isRottura = worldState.phase === 'rottura';
+  const glitchAmt = _params.glitch || 0;
 
   const bgRgb  = hexToRgb(worldState.palette.bg);
   const dotRgb = hexToRgb(worldState.palette.dot);
@@ -74,11 +81,16 @@ export function render(ctx, W, H, env) {
   const rms       = (audio && audio.rms  != null) ? audio.rms  : 0;
   const intensity = (state && state.intensity != null) ? state.intensity : 0;
   const rmsMod    = clamp(rms * 1.4, 0, 0.18);            // 0..0.18 brightening
-  const brightBg  = [
+  let brightBg  = [
     clamp(bgRgb[0] + rmsMod * 40, 0, 255),
     clamp(bgRgb[1] + rmsMod * 50, 0, 255),
     clamp(bgRgb[2] + rmsMod * 30, 0, 255),
   ];
+
+  // Glitch: brief bg color inversion on onset during rottura/densita
+  if (glitchAmt > 0.05 && shouldGlitch(intensity + 0.5, isRottura, _time)) {
+    brightBg = colorFlash(brightBg, glitchAmt, _time);
+  }
 
   // ── 2. Textured background — Bayer field at very high density ──
   // Density 0.90–0.98 so it reads as almost-solid but with grain
@@ -115,19 +127,25 @@ export function render(ctx, W, H, env) {
   }
 
   // ── 4. Spawn holes from voice (CH5) and lead echo (CH6) ──
+  // Rottura: also react to kick (CH0), bass (CH3) — everything carves holes
   for (const n of midiTrail) {
-    if ((n.ch === 5 || n.ch === 6) && n.time < dt * 2 && n.alpha > 0.4) {
+    const isVoiceLead = n.ch === 5 || n.ch === 6;
+    const isRotturaExtra = isRottura && (n.ch === 0 || n.ch === 3 || n.ch === 7);
+    if ((isVoiceLead || isRotturaExtra) && n.time < dt * 2 && n.alpha > 0.4) {
       const isEcho = n.ch === 6;
-      const hx = clamp(0.15 + n.note * 0.7, 0.05, 0.95);
+      const isKick = n.ch === 0;
+      const hx = clamp(0.15 + n.note * 0.7 + (isKick ? (Math.random() - 0.5) * 0.3 : 0), 0.05, 0.95);
       const hy = clamp(0.15 + (1 - n.note) * 0.7 + (isEcho ? 0.05 : 0), 0.05, 0.95);
+      // Rottura: holes open 5× faster, larger, more overlap
+      const rotturaBoost = isRottura ? 3.0 : 1.0;
       _holes.push({
         x: hx,
         y: hy,
-        radius: 0,
-        maxRadius: _params.holeSize * (isEcho ? 0.6 : 1) * n.vel,
+        radius: isRottura ? 0.02 : 0,  // rottura: instant opening
+        maxRadius: _params.holeSize * (isEcho ? 0.6 : 1) * n.vel * rotturaBoost,
         alpha: _params.holeDepth * (isEcho ? 0.5 : 1),
         closing: false,
-        growSpeed: isEcho ? 0.08 : 0.15,
+        growSpeed: (isEcho ? 0.08 : 0.15) * (isRottura ? 5 : 1),
       });
       // Camera drifts toward latest melody hole
       if (!isEcho) {
@@ -137,7 +155,8 @@ export function render(ctx, W, H, env) {
     }
   }
 
-  if (_holes.length > 30) _holes.splice(0, _holes.length - 30);
+  const holeCap = isRottura ? 60 : 30;
+  if (_holes.length > holeCap) _holes.splice(0, _holes.length - holeCap);
 
   // Inverted onset waves — brief dark flashes (small holes)
   for (const w of onsetWaves) {
@@ -204,7 +223,9 @@ export function render(ctx, W, H, env) {
         const holeDark  = h.alpha * edgeFade;
 
         // Bayer threshold modulated by distance for soft organic edge
-        const bayerVal  = bayerAt(gc, gr);
+        // In rottura: glitched Bayer lookup breaks the organic softness
+        const bayerVal  = bayerAt(gc + (glitchAmt > 0.3 ? Math.floor(Math.sin(_time * 47 + gc) * glitchAmt * 3) : 0),
+                                   gr + (glitchAmt > 0.3 ? Math.floor(Math.cos(_time * 53 + gr) * glitchAmt * 2) : 0));
         const threshold = clamp(holeDark - bayerVal * (1 - edgeFade) * 0.3, 0, 1);
 
         if (threshold > bayerVal) {

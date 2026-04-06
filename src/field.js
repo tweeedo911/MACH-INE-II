@@ -6,7 +6,7 @@
 
 import { worldState } from './world-state.js';
 import * as toolkit from './visual-toolkit.js';
-import { Sediment } from './visual-toolkit.js';
+import { Sediment, shouldGlitch, hexToRgb, rgbString, colorFlash, clamp } from './visual-toolkit.js';
 
 // ── Composition modules ──
 import * as compLiminale from './comp-liminale.js';
@@ -203,4 +203,54 @@ export function renderField(ctx, W, H, envData) {
   ctx.globalAlpha = 0.35;
   _sharedSediment.composite(ctx);
   ctx.globalAlpha = 1;
+
+  // ── Micro-glitch layer — rare global visual interruptions ──
+  // ~2% per frame in rottura, ~0.3% elsewhere
+  const audioEnergy = worldState.audioEnergy || 0;
+  const isRottura = worldState.phase === 'rottura';
+  const gt = envData.globalTime || 0;
+
+  if (shouldGlitch(audioEnergy + 0.3, isRottura, gt)) {
+    // Pick a random glitch type
+    const mode = Math.floor(gt * 17.3) % 5;
+    switch (mode) {
+      case 0: {
+        // Brief full-screen white/black flash (1 frame)
+        const flashAlpha = 0.15 + audioEnergy * 0.25;
+        ctx.globalAlpha = flashAlpha;
+        ctx.fillStyle = isRottura ? '#FFFFFF' : '#000000';
+        ctx.fillRect(0, 0, W, H);
+        ctx.globalAlpha = 1;
+        break;
+      }
+      case 1: {
+        // Horizontal scan line glitch — draw a few random horizontal bars
+        const barCount = 1 + Math.floor(audioEnergy * 4);
+        const bgRgb = hexToRgb(worldState.palette.bg);
+        const flashRgb = colorFlash(bgRgb, 0.8, gt);
+        ctx.fillStyle = rgbString(
+          clamp(flashRgb[0], 0, 255),
+          clamp(flashRgb[1], 0, 255),
+          clamp(flashRgb[2], 0, 255),
+          0.4
+        );
+        for (let i = 0; i < barCount; i++) {
+          const y = Math.random() * H;
+          const h = 1 + Math.random() * 4;
+          ctx.fillRect(0, y, W, h);
+        }
+        break;
+      }
+      case 2: {
+        // Canvas shift — brief horizontal displacement (2-8px)
+        const shift = Math.floor((Math.random() - 0.5) * 12);
+        if (shift !== 0) {
+          const imgData = ctx.getImageData(0, 0, W, H);
+          ctx.putImageData(imgData, shift, 0);
+        }
+        break;
+      }
+      // cases 3,4: no-op — gives glitch breathing room (not every trigger fires)
+    }
+  }
 }

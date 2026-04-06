@@ -116,6 +116,53 @@ export function rng() {
 }
 
 // ═══════════════════════════════════════════════════════════
+//  Glitch — controlled visual corruption
+// ═══════════════════════════════════════════════════════════
+
+// Offset Bayer grid lookup by random amount — creates visual "stutter"
+// glitchAmt 0 = no effect, 1 = full cell offset (1-4 cells)
+export function bayerGlitch(col, row, density, glitchAmt, time) {
+  if (glitchAmt < 0.01) return BAYER8[(row & 7) * 8 + (col & 7)] < density;
+  // Hash-based deterministic offset — changes with time but stable within frame
+  const hash = Math.sin(time * 13.7 + col * 0.31 + row * 0.57) * 43758.5453;
+  const offset = Math.floor((hash - Math.floor(hash)) * glitchAmt * 4);
+  const gc = (col + offset) & 7;
+  const gr = (row + (offset >> 1)) & 7;
+  return BAYER8[gr * 8 + gc] < density;
+}
+
+// Brief color snap — returns corrupted RGB (no lerp, instant)
+// flash: 0 = no effect, 1 = full corruption
+export function colorFlash(rgb, flash, time) {
+  if (flash < 0.01) return rgb;
+  // Cycle through corruption modes based on time
+  const mode = Math.floor(time * 7.3) % 4;
+  switch (mode) {
+    case 0: return [255 - rgb[0], 255 - rgb[1], 255 - rgb[2]];      // invert
+    case 1: return [rgb[0] + flash * 180, rgb[1], rgb[2]];           // red push
+    case 2: return [255 * flash, 255 * flash, 255 * flash];          // white flash
+    default: return [rgb[2], rgb[0], rgb[1]];                        // channel rotate
+  }
+}
+
+// Dot size jitter — returns modulated size (never below 1)
+// jitter: 0 = no effect, 1 = ±50% variation
+export function dotJitter(baseSize, jitter, col, row, time) {
+  if (jitter < 0.01) return baseSize;
+  const n = Math.sin(col * 127.1 + row * 311.7 + time * 37.3) * 43758.5453;
+  const mod = (n - Math.floor(n)) * 2 - 1;  // -1 to +1
+  return Math.max(1, Math.round(baseSize * (1 + mod * jitter * 0.5)));
+}
+
+// Random glitch probability — returns true with probability scaled by intensity
+// Use for rare events: ~2% in rottura, ~0.3% elsewhere
+export function shouldGlitch(intensity, isRottura, time) {
+  const baseProb = isRottura ? 0.02 : 0.003;
+  const n = Math.sin(time * 997.1) * 43758.5453;
+  return (n - Math.floor(n)) < baseProb * intensity;
+}
+
+// ═══════════════════════════════════════════════════════════
 //  Audio Reactivity — continuous visual response to sound
 // ═══════════════════════════════════════════════════════════
 
@@ -236,10 +283,12 @@ export function restoreCameraTransform(ctx) {
 
 // Render a full-canvas breathing halftone field
 // density modulated by audio at each position
-export function renderBreathingField(ctx, W, H, audio, state, globalTime, dotSize, dotColor, baseAlpha) {
+// jitter: 0-1, how much dot size varies (0=uniform, 0.3=slight, 0.7=wild)
+export function renderBreathingField(ctx, W, H, audio, state, globalTime, dotSize, dotColor, baseAlpha, jitter) {
   const cols = Math.ceil(W / dotSize);
   const rows = Math.ceil(H / dotSize);
   ctx.fillStyle = dotColor;
+  const jitterAmt = jitter || 0;
 
   for (let r = 0; r < rows; r++) {
     const ny = r / rows;
@@ -248,7 +297,10 @@ export function renderBreathingField(ctx, W, H, audio, state, globalTime, dotSiz
       let d = audioDensity(audio, state, nx, ny) * baseAlpha;
       d += audioFlicker(state, globalTime, nx, ny) * baseAlpha;
       if (d > 0.02 && bayerTest(c, r, clamp(d, 0, 1))) {
-        ctx.fillRect(c * dotSize, r * dotSize, dotSize, dotSize);
+        const ds = jitterAmt > 0.01
+          ? dotJitter(dotSize, jitterAmt, c, r, globalTime)
+          : dotSize;
+        ctx.fillRect(c * ds, r * ds, ds, ds);
       }
     }
   }
