@@ -114,3 +114,142 @@ export function rng() {
   _seed = (_seed * 1103515245 + 12345) & 0x7FFFFFFF;
   return _seed / 0x7FFFFFFF;
 }
+
+// ═══════════════════════════════════════════════════════════
+//  Audio Reactivity — continuous visual response to sound
+// ═══════════════════════════════════════════════════════════
+
+// Density at normalized position (nx, ny) driven by audio analysis
+// Returns 0-1 density influenced by frequency bands, intensity, stereo
+export function audioDensity(audio, state, nx, ny) {
+  const bandAvg = (band) => (band.L + band.R) * 0.5;
+  const sub = bandAvg(audio.bands.sub);
+  const low = bandAvg(audio.bands.low);
+  const mid = bandAvg(audio.bands.mid);
+  const high = bandAvg(audio.bands.high);
+  const air = bandAvg(audio.bands.air);
+
+  let d = state.intensity * 0.3;
+
+  // Frequency → spatial: bass at bottom, highs at top
+  if (ny > 0.6) d += (sub * 0.5 + low * 0.3) * (ny - 0.6) / 0.4;
+  else if (ny > 0.3) d += mid * 0.3 * (1 - Math.abs(ny - 0.45) / 0.2);
+  if (ny < 0.4) d += (high * 0.4 + air * 0.3) * (0.4 - ny) / 0.4;
+
+  // Stereo width → horizontal spread
+  if (state.stereoWidth < 0.8) {
+    const centerDist = Math.abs(nx - 0.5) * 2;
+    d *= 1 - centerDist * (1 - state.stereoWidth) * 0.5;
+  }
+
+  return Math.min(1, Math.max(0, d));
+}
+
+// Rhythmic flicker at position — returns 0-1 modulation
+export function audioFlicker(state, globalTime, nx, ny) {
+  if (state.rhythmicity < 0.05) return 0;
+  const phase = nx * 3.7 + ny * 2.3;  // spatial offset
+  const flick = Math.sin(globalTime * state.rhythmicity * 12 + phase * Math.PI * 2);
+  return flick * flick * state.rhythmicity * 0.3;
+}
+
+// ═══════════════════════════════════════════════════════════
+//  Sediment — frame persistence for visual memory
+// ═══════════════════════════════════════════════════════════
+
+export class Sediment {
+  constructor() {
+    this._canvas = null;
+    this._ctx = null;
+    this._w = 0;
+    this._h = 0;
+  }
+
+  // Ensure buffer matches size
+  _ensure(W, H) {
+    if (!this._canvas || this._w !== W || this._h !== H) {
+      this._canvas = document.createElement('canvas');
+      this._canvas.width = W;
+      this._canvas.height = H;
+      this._ctx = this._canvas.getContext('2d');
+      this._w = W;
+      this._h = H;
+    }
+  }
+
+  // Decay previous frame (rate: 0.0=instant clear, 0.95=long trails)
+  decay(W, H, rate) {
+    this._ensure(W, H);
+    this._ctx.globalCompositeOperation = 'destination-out';
+    this._ctx.globalAlpha = 1 - rate;
+    this._ctx.fillStyle = 'black';
+    this._ctx.fillRect(0, 0, W, H);
+    this._ctx.globalAlpha = 1;
+    this._ctx.globalCompositeOperation = 'source-over';
+  }
+
+  // Get context to draw into sediment buffer
+  getCtx() { return this._ctx; }
+
+  // Composite sediment onto main canvas
+  composite(ctx) {
+    if (this._canvas) ctx.drawImage(this._canvas, 0, 0);
+  }
+
+  clear(W, H) {
+    this._ensure(W, H);
+    this._ctx.clearRect(0, 0, W, H);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  Camera Transform — subtle movement per composition
+// ═══════════════════════════════════════════════════════════
+
+// Apply camera transform: zoom, drift, onset shake
+// Call before drawing, restore ctx after
+export function applyCameraTransform(ctx, W, H, opts) {
+  const {
+    zoom = 1,
+    driftX = 0,
+    driftY = 0,
+    shakeAmount = 0,
+    time = 0,
+  } = opts;
+
+  const sx = shakeAmount > 0 ? (Math.sin(time * 47) * shakeAmount) : 0;
+  const sy = shakeAmount > 0 ? (Math.cos(time * 53) * shakeAmount) : 0;
+
+  ctx.save();
+  ctx.translate(W * 0.5, H * 0.5);
+  ctx.scale(zoom, zoom);
+  ctx.translate(-W * 0.5 + driftX + sx, -H * 0.5 + driftY + sy);
+}
+
+export function restoreCameraTransform(ctx) {
+  ctx.restore();
+}
+
+// ═══════════════════════════════════════════════════════════
+//  Breathing Field — continuous Bayer field driven by audio
+// ═══════════════════════════════════════════════════════════
+
+// Render a full-canvas breathing halftone field
+// density modulated by audio at each position
+export function renderBreathingField(ctx, W, H, audio, state, globalTime, dotSize, dotColor, baseAlpha) {
+  const cols = Math.ceil(W / dotSize);
+  const rows = Math.ceil(H / dotSize);
+  ctx.fillStyle = dotColor;
+
+  for (let r = 0; r < rows; r++) {
+    const ny = r / rows;
+    for (let c = 0; c < cols; c++) {
+      const nx = c / cols;
+      let d = audioDensity(audio, state, nx, ny) * baseAlpha;
+      d += audioFlicker(state, globalTime, nx, ny) * baseAlpha;
+      if (d > 0.02 && bayerTest(c, r, clamp(d, 0, 1))) {
+        ctx.fillRect(c * dotSize, r * dotSize, dotSize, dotSize);
+      }
+    }
+  }
+}
