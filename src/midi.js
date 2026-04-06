@@ -8,7 +8,7 @@ import { recordMIDI } from './session-recorder.js';
 
 // ── MIDI role channels (0-indexed internally) ──
 // Ch 0=PULSE, Ch 1=GRAIN, Ch 2=DRONE, Ch 3=BASS, Ch 4=CHORDS, Ch 5=VOICE, Ch 6=LEAD, Ch 7=RUPTURE
-export const MIDI_ROLES = ['PULSE', 'GRAIN', 'DRONE', 'BASS', 'CHORDS', 'VOICE', 'LEAD', 'RUPTURE'];
+export const MIDI_ROLES = ['KICK', 'PERC', 'DRONE', 'BASS', 'CHORDS', 'VOICE', 'LEAD', 'ARP'];
 
 // ── Public state ──
 export const midi = {
@@ -153,6 +153,11 @@ export function sendMIDINote(ch, note, vel, durationMs = 200) {
 export function sendMIDIAllNotesOff() {
   if (!midiOut) return;
   for (let c = 0; c < 8; c++) midiOut.send([0xB0 | c, 123, 0]);
+}
+
+export function sendMIDICC(ch, cc, value) {
+  if (!midiOut) return;
+  midiOut.send([0xB0 | (ch & 0x0F), cc & 0x7F, value & 0x7F]);
 }
 
 // ── MIDI Clock Output (24 ppqn) ──
