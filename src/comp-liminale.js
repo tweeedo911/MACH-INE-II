@@ -12,11 +12,11 @@ import {
 } from './visual-toolkit.js';
 
 const PHASE_PARAMS = {
-  germoglio:    { depthRange: 0.2, dotMin: 8,  dotMax: 20, densityMax: 0.05, driftSpeed: 0.02, breathAlpha: 0.08, sedRate: 0.90, zoom: 1.01 },
-  pulsazione:   { depthRange: 0.5, dotMin: 6,  dotMax: 18, densityMax: 0.15, driftSpeed: 0.05, breathAlpha: 0.15, sedRate: 0.88, zoom: 1.02 },
-  densita:      { depthRange: 0.8, dotMin: 4,  dotMax: 16, densityMax: 0.40, driftSpeed: 0.10, breathAlpha: 0.25, sedRate: 0.85, zoom: 1.03 },
-  rottura:      { depthRange: 1.0, dotMin: 2,  dotMax: 24, densityMax: 0.70, driftSpeed: 0.20, breathAlpha: 0.40, sedRate: 0.80, zoom: 1.06 },
-  dissoluzione: { depthRange: 0.3, dotMin: 10, dotMax: 20, densityMax: 0.10, driftSpeed: 0.02, breathAlpha: 0.06, sedRate: 0.93, zoom: 1.00 },
+  germoglio:    { depthRange: 0.2, dotMin: 14, dotMax: 40, densityMax: 0.10, driftSpeed: 0.02, breathAlpha: 0.20, sedRate: 0.92, zoom: 1.01, midiSpread: 0.3 },
+  pulsazione:   { depthRange: 0.5, dotMin: 10, dotMax: 35, densityMax: 0.20, driftSpeed: 0.05, breathAlpha: 0.30, sedRate: 0.88, zoom: 1.02, midiSpread: 0.5 },
+  densita:      { depthRange: 0.8, dotMin: 6,  dotMax: 30, densityMax: 0.45, driftSpeed: 0.10, breathAlpha: 0.40, sedRate: 0.85, zoom: 1.03, midiSpread: 0.7 },
+  rottura:      { depthRange: 1.0, dotMin: 4,  dotMax: 36, densityMax: 0.70, driftSpeed: 0.20, breathAlpha: 0.55, sedRate: 0.80, zoom: 1.06, midiSpread: 0.9 },
+  dissoluzione: { depthRange: 0.3, dotMin: 12, dotMax: 35, densityMax: 0.12, driftSpeed: 0.02, breathAlpha: 0.15, sedRate: 0.93, zoom: 1.00, midiSpread: 0.3 },
 };
 
 let _dots = [];
@@ -81,28 +81,33 @@ export function render(ctx, W, H, env) {
     time: _time,
   });
 
-  // ── Layer 1: Breathing field — continuous audio-reactive halftone ──
-  const breathDotSize = Math.max(6, Math.round(lerp(14, 8, state.intensity)));
+  // ── Layer 1: Bayer matrix base — always present, the "tessuto" del canvas ──
+  // Full-screen halftone field: audio-reactive, perspective-weighted, always visible
+  const breathDotSize = Math.max(5, Math.round(lerp(12, 6, state.intensity)));
   const cols = Math.ceil(W / breathDotSize);
   const rows = Math.ceil(H / breathDotSize);
 
-  // Draw breathing field with perspective: denser near vanishing point
   for (let r = 0; r < rows; r++) {
     const ny = r / rows;
     for (let c = 0; c < cols; c++) {
       const nx = c / cols;
-      // Distance from vanishing point → density falloff
       const dx = nx - _vanishX;
       const dy = ny - _vanishY;
       const distFromVanish = Math.sqrt(dx * dx + dy * dy);
-      const perspDensity = Math.max(0, 1 - distFromVanish * 1.8);
+      // Perspective gradient: denser near vanishing point, fades outward
+      const perspDensity = Math.max(0, 1 - distFromVanish * 1.4);
 
-      let d = audioDensity(audio, state, nx, ny) * _params.breathAlpha;
-      d += perspDensity * state.intensity * _params.breathAlpha * 0.5;
-      d += audioFlicker(state, _time, nx, ny) * _params.breathAlpha;
+      // Base Bayer presence — always there, even in silence
+      let d = 0.03 + perspDensity * 0.06;
+      // Audio-reactive layer on top
+      d += audioDensity(audio, state, nx, ny) * _params.breathAlpha;
+      d += perspDensity * state.intensity * _params.breathAlpha * 0.8;
+      d += audioFlicker(state, _time, nx, ny) * _params.breathAlpha * 0.5;
+      // Noise variation to avoid uniformity
+      d += noiseAt(c * 0.5, r * 0.5, _time * 0.3) * 0.03;
 
-      if (d > 0.02 && bayerTest(c, r, clamp(d, 0, 1))) {
-        const fade = clamp(d * 2, 0.05, 0.5);
+      if (bayerTest(c, r, clamp(d, 0, 1))) {
+        const fade = clamp(d * 1.5, 0.04, 0.6);
         const rgb = lerpColor(bgRgb, dotRgb, fade);
         ctx.fillStyle = rgbString(rgb[0], rgb[1], rgb[2]);
         ctx.fillRect(c * breathDotSize, r * breathDotSize, breathDotSize, breathDotSize);
@@ -115,20 +120,53 @@ export function render(ctx, W, H, env) {
   const sedCtx = _sediment.getCtx();
 
   // ── Layer 3: Dots — MIDI-driven perspective particles ──
-  // Spawn from MIDI
+  // Voice (CH5) and Lead (CH6) get BIG prominent dots that spread across canvas
+  // Other channels get standard perspective dots near vanishing point
+  const spread = _params.midiSpread || 0.3;
   for (const n of midiTrail) {
-    if (n.time < dt * 2 && n.alpha > 0.4) {
-      const depth = _isRitorno ? (0.05 + Math.random() * 0.15) : (0.6 + Math.random() * 0.4) * _params.depthRange;
+    if (n.time < dt * 2 && n.alpha > 0.3) {
+      const isVoice = n.ch === 5 || n.ch === 6;
+      const isDrone = n.ch === 2;
+      const isChord = n.ch === 4;
+
+      // Voice/lead: spawn away from vanishing point, fill the canvas
+      const spawnX = isVoice
+        ? lerp(0.15, 0.85, n.note) + (Math.random() - 0.5) * spread * 0.3
+        : _vanishX + (Math.random() - 0.5) * spread * 0.5;
+      const spawnY = isVoice
+        ? lerp(0.15, 0.85, 1 - n.note) + (Math.random() - 0.5) * spread * 0.2
+        : _vanishY + (Math.random() - 0.5) * spread * 0.3;
+
+      // Voice/lead get 2x size, chords get 1.5x
+      const sizeMul = isVoice ? 2.0 : isChord ? 1.5 : isDrone ? 1.8 : 1.0;
+      const depth = _isRitorno
+        ? (isVoice ? 0.2 + Math.random() * 0.3 : 0.05 + Math.random() * 0.15)
+        : (0.4 + Math.random() * 0.6) * _params.depthRange;
+
       _dots.push({
-        x: _vanishX + (Math.random() - 0.5) * 0.12 * (1 + state.stereoWidth),
-        y: _vanishY + (Math.random() - 0.5) * 0.08,
+        x: spawnX,
+        y: spawnY,
         depth,
-        size: lerp(_params.dotMin, _params.dotMax, n.vel),
+        size: lerp(_params.dotMin, _params.dotMax, n.vel) * sizeMul,
         alpha: n.vel * 0.9 + 0.1,
         ch: n.ch,
-        vx: (Math.random() - 0.5) * 0.02,  // slight horizontal wander
-        vy: (Math.random() - 0.5) * 0.01,
+        vx: (Math.random() - 0.5) * (isVoice ? 0.03 : 0.015),
+        vy: (Math.random() - 0.5) * (isVoice ? 0.02 : 0.008),
       });
+
+      // Voice: spawn a secondary "echo" dot for more presence
+      if (isVoice && n.vel > 0.5) {
+        _dots.push({
+          x: spawnX + (Math.random() - 0.5) * 0.1,
+          y: spawnY + (Math.random() - 0.5) * 0.08,
+          depth: depth * 0.7,
+          size: lerp(_params.dotMin, _params.dotMax, n.vel) * 1.3,
+          alpha: n.vel * 0.5,
+          ch: n.ch,
+          vx: (Math.random() - 0.5) * 0.01,
+          vy: (Math.random() - 0.5) * 0.01,
+        });
+      }
     }
   }
 
