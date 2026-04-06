@@ -16,7 +16,7 @@ import { WakeLockManager } from '../.claude/skills/runtime-expert/scripts/perf-u
 
 // ── MACH:INE III modules ──
 import { worldState } from './world-state.js';
-import { initDirector3, updateDirector3, skipPhase, jumpToPhase, getDirector3Status } from './director3.js';
+import { initDirector3, updateDirector3, skipPhase, jumpToPhase, jumpToTrack, getDirector3Status } from './director3.js';
 import { initRhythm, updateRhythm } from './rhythm.js';
 import { initHarmony, updateHarmony } from './harmony.js';
 import { initBass, updateBass } from './bass.js';
@@ -110,8 +110,15 @@ document.addEventListener('keydown', (e) => {
   if (e.code === 'BracketRight') { e.preventDefault(); setAudioGain(getAudioGain() + CFG.audioInputGainStep); return; }
 
   // Tasti 1-5: jump tra le 5 fasi compositive
+  // Shift+1-7: jump to track (album order)
+  const _trackMap = { Digit1: 'NEBBIA', Digit2: 'TESSUTO', Digit3: 'SOLCO', Digit4: 'RESPIRO', Digit5: 'MACCHINA', Digit6: 'TEMPESTA', Digit7: 'RITORNO' };
+  if (_trackMap[e.code] && e.shiftKey) {
+    jumpToTrack(_trackMap[e.code]);
+    return;
+  }
+  // 1-5 without shift: jump to phase within current track
   const _phaseMap = { Digit1: 'germoglio', Digit2: 'pulsazione', Digit3: 'densita', Digit4: 'rottura', Digit5: 'dissoluzione' };
-  if (_phaseMap[e.code]) {
+  if (_phaseMap[e.code] && !e.shiftKey) {
     jumpToPhase(_phaseMap[e.code]);
     return;
   }
