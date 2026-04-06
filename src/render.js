@@ -216,6 +216,8 @@ function bar(val, len = 12) {
 function updateHUDDebug() {
   if (!hudDebug) return;
 
+  const d3 = getDirector3Status();
+  const ws = worldState;
   const trajArrow = audio.trajectory > 0 ? '\u2191' : audio.trajectory < 0 ? '\u2193' : '\u2192';
   const lastNote = midi.lastNote ? `${noteName(midi.lastNote.note)} V${midi.lastNote.vel}` : '——';
 
@@ -228,54 +230,48 @@ function updateHUDDebug() {
   }
   if (entities.length > 0) avgAge /= entities.length;
 
+  const elapsed = Math.floor(d3.totalTime);
+  const min = Math.floor(elapsed / 60);
+  const sec = elapsed % 60;
+  const playing = isDirector3Playing();
+
+  const tracks = ['NEBBIA','TESSUTO','SOLCO','RESPIRO','MACCHINA','TEMPESTA','RITORNO'];
+
   hudDebug.textContent =
+    `── AUDIO ──\n` +
     `RMS  ${bar(audio.rms)}  ${(audio.rms * 100).toFixed(0)}%\n` +
     `CENT ${bar(audio.centroid)}  FLUX ${bar(audio.flux * 5)}\n` +
     `BPM  ${audio.bpm || '——'}  TRAJ ${trajArrow}  STEREO ${bar(1 - audio.stereoCorrelation)}\n` +
-    `\n` +
     `INT  ${bar(state.intensity)}  RHYT ${bar(state.rhythmicity)}\n` +
     `BRIT ${bar(state.brightness)}  WIDE ${bar(state.stereoWidth)}\n` +
     `\n` +
+    `── DIRECTOR ──\n` +
+    `${playing ? '▶' : '⏸'}  ${d3.track}  ${d3.phase}  ${min}:${sec < 10 ? '0' : ''}${sec}\n` +
+    `ARC  ${bar(d3.arc)}  ${(d3.arc * 100).toFixed(1)}%\n` +
+    `PHASE ${bar(phaseState.progress)}  ${Math.floor(phaseState.elapsed)}/${Math.floor(phaseState.duration)}s\n` +
+    `ENERGY  ${ws.energy}\n` +
+    `\n` +
+    `── WORLD STATE ──\n` +
+    `SCALE  ${ws.scale.length} notes  ROOT ${ws.root}  BPM ${ws.bpm || '—'}\n` +
+    `DENSITY  r:${ws.density.rhythm.toFixed(2)}  h:${ws.density.harmony.toFixed(2)}  b:${ws.density.bass.toFixed(2)}  m:${ws.density.melody.toFixed(2)}  t:${ws.density.texture.toFixed(2)}\n` +
+    `VELCEIL  r:${ws.velocityCeiling.rhythm}  h:${ws.velocityCeiling.harmony}  b:${ws.velocityCeiling.bass}  m:${ws.velocityCeiling.melody}\n` +
+    `CHORD  [${ws.currentChord.join(',')}]\n` +
+    `\n` +
+    `── VISUAL ──\n` +
     `DNA     ${dna ? dna.primitives.join('+') : '——'}\n` +
-    `MAPPING ${dna ? dna.freqMapping : '——'}\n` +
     `ENT ${entities.length}  FOS ${fossils.length}  AGE ${avgAge.toFixed(2)}\n` +
     `A:${countA} B:${countB} C:${countC}  CHROM:${chromaticMode}${chromaticTimer > 0 ? ' ' + chromaticTimer.toFixed(0) + 's' : ''}\n` +
-    `\n` +
-    `CAM  ${framing.current} ×${framing.zoom.toFixed(1)}\n` +
+    `CAM  ${framing.current} x${framing.zoom.toFixed(1)}\n` +
     `DIR  ${director.lastChangeType}  ${director.sceneTime.toFixed(0)}s\n` +
-    `SCENE ${scene.target.name}  ${scene.target.composition}  blend:${scene.blend.toFixed(2)}\n` +
-    `ARC  ${arc.phase}  rms:${(arc._smoothRms||0).toFixed(2)}  T:${arc.tension.toFixed(2)}  ${Math.floor(arc.totalTime)}s\n` +
+    `SCENE ${scene.target.name}  blend:${scene.blend.toFixed(2)}\n` +
     `\n` +
-    `MIDI ${midi.connected ? 'OK ' + midi.inputCount : 'OFF'}  ${lastNote}  CH:${midi.lastNote ? midi.lastNote.ch : '-'}\n` +
+    `── MIDI ──\n` +
+    `${midi.connected ? 'OK ' + midi.inputCount : 'OFF'}  ${lastNote}  CH:${midi.lastNote ? midi.lastNote.ch : '-'}\n` +
     `CH  ${midi.channels.map((c, i) => c.density > 0 ? i + ':' + c.density.toFixed(1) : '').filter(Boolean).join('  ') || 'no activity'}\n` +
-    `CLIMAX ${climaxProgress > 0.1 ? (climaxProgress * 100).toFixed(0) + '%' : 'OFF'}` +
-    `  IMP ${state.impact.toFixed(2)}` +
-    (firma.gelo ? '  GELO' : '') + (firma.convergenza ? '  CONV' : '') + (firma.vuotoTotale ? '  VUOTO' : '') + '\n' +
     `\n` +
-    (() => {
-      const ms = macroState;
-      const pct = (ms.arcPercent * 100).toFixed(1);
-      const phases = ['NEBBIA','TESSUTO','SOLCO','RESPIRO','MACCHINA','TEMPESTA','RITORNO'];
-      const phasePcts = [0, 0.07, 0.186, 0.372, 0.419, 0.581, 0.814];
-      let currentPhase = phases[0];
-      for (let i = phasePcts.length - 1; i >= 0; i--) {
-        if (ms.arcPercent >= phasePcts[i]) { currentPhase = phases[i]; break; }
-      }
-      return (
-        `MODE ${ms.currentMode}  ARC ${pct}%\n` +
-        `rD:${ms.rhythmicDensity.toFixed(2)}  hC:${ms.harmonicColor.toFixed(2)}  mA:${ms.melodicActivity.toFixed(2)}  tD:${ms.textureDepth.toFixed(2)}\n` +
-        `PHASE  ${currentPhase}  bar:${ms.barClock.toFixed(0)}${ms.pivotActive ? '  PIVOT' : ''}${ms.breakActive ? '  BREAK' : ''}\n` +
-        `\n` +
-        `1 NEBBIA    ${ms.arcPercent >= 0.000 && ms.arcPercent < 0.07  ? '►' : ' '}\n` +
-        `2 TESSUTO   ${ms.arcPercent >= 0.07  && ms.arcPercent < 0.186 ? '►' : ' '}\n` +
-        `3 SOLCO     ${ms.arcPercent >= 0.186 && ms.arcPercent < 0.372 ? '►' : ' '}\n` +
-        `4 RESPIRO   ${ms.arcPercent >= 0.372 && ms.arcPercent < 0.419 ? '►' : ' '}\n` +
-        `5 MACCHINA  ${ms.arcPercent >= 0.419 && ms.arcPercent < 0.581 ? '►' : ' '}\n` +
-        `6 TEMPESTA  ${ms.arcPercent >= 0.581 && ms.arcPercent < 0.814 ? '►' : ' '}\n` +
-        `7 RITORNO   ${ms.arcPercent >= 0.814                          ? '►' : ' '}\n`
-      );
-    })() +
-    `\n` +
-    `H HUD  D DEBUG  F FULL  P PROJ\n` +
-    `R REGEN  N MUTATE  è GAIN▼  + GAIN▲`;
+    `── TRACCE ──\n` +
+    tracks.map((t, i) => `${i + 1} ${t.padEnd(10)} ${t === d3.track ? '►' : ' '}`).join('\n') +
+    `\n\n` +
+    `SPC PLAY  SHIFT+1-7 TRACCIA  1-5 FASE\n` +
+    `H HUD  D DEBUG  F FULL  P PROJ`;
 }
