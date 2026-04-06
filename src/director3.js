@@ -5,7 +5,7 @@
 // ═══════════════════════════════════════════════════════════
 
 import { worldState, phaseState } from './world-state.js';
-import { TRACKS, PHASE_DENSITY, PHASE_ENERGY } from './tracks.js';
+import { TRACKS, PHASE_DENSITY, PHASE_ENERGY, TRACK_ORDER } from './tracks.js';
 
 // ── Phase order ──
 const PHASE_ORDER = ['germoglio', 'pulsazione', 'densita', 'rottura', 'dissoluzione'];
@@ -72,17 +72,63 @@ export function updateDirector3(dt) {
   const phaseName = PHASE_ORDER[_phaseIdx];
   const phaseDur = _track.phases[phaseName] || 60;
 
-  if (_phaseTime >= phaseDur && _phaseIdx < PHASE_ORDER.length - 1) {
-    _phaseIdx++;
-    _phaseTime = 0;
-    _applyPhase();
-    console.log(`[DIR3] Phase: ${PHASE_ORDER[_phaseIdx]} (arc: ${worldState.arc.toFixed(2)})`);
+  if (_phaseTime >= phaseDur) {
+    if (_phaseIdx < PHASE_ORDER.length - 1) {
+      // Skip phases with duration 0
+      _phaseIdx++;
+      while (_phaseIdx < PHASE_ORDER.length - 1 && (_track.phases[PHASE_ORDER[_phaseIdx]] || 0) === 0) {
+        _phaseIdx++;
+      }
+      _phaseTime = 0;
+      _applyPhase();
+      console.log(`[DIR3] Phase: ${PHASE_ORDER[_phaseIdx]} (arc: ${worldState.arc.toFixed(2)})`);
+    } else {
+      // Dissoluzione finished — advance to next track
+      _advanceTrack();
+    }
   }
 
   // Update phase state (for HUD)
   phaseState.elapsed = _phaseTime;
   phaseState.duration = phaseDur;
   phaseState.progress = Math.min(1, _phaseTime / phaseDur);
+}
+
+// ── Auto-advance to next track in album order ──
+function _advanceTrack() {
+  const currentIdx = TRACK_ORDER.indexOf(worldState.track);
+  const nextIdx = currentIdx + 1;
+
+  if (nextIdx >= TRACK_ORDER.length) {
+    // Concert is over — pause
+    _paused = true;
+    for (const mod of ['rhythm', 'harmony', 'bass', 'melody', 'texture']) {
+      worldState.density[mod] = 0;
+    }
+    console.log('[DIR3] Concert finished.');
+    return;
+  }
+
+  const nextTrack = TRACK_ORDER[nextIdx];
+  if (!TRACKS[nextTrack]) {
+    // Track not yet defined — skip to next available
+    console.warn(`[DIR3] Track "${nextTrack}" not defined, skipping`);
+    // Try the one after
+    for (let i = nextIdx + 1; i < TRACK_ORDER.length; i++) {
+      if (TRACKS[TRACK_ORDER[i]]) {
+        initDirector3(TRACK_ORDER[i]);
+        _paused = false; // keep playing
+        return;
+      }
+    }
+    _paused = true;
+    console.log('[DIR3] No more defined tracks.');
+    return;
+  }
+
+  console.log(`[DIR3] → Next track: ${nextTrack}`);
+  initDirector3(nextTrack);
+  _paused = false; // keep playing — don't reset to paused
 }
 
 // ── Apply phase: update density, energy, registers, velocity ceilings ──
