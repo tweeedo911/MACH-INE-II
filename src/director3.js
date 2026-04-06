@@ -15,6 +15,7 @@ let _phaseIdx = 0;     // index into PHASE_ORDER
 let _phaseTime = 0;    // seconds elapsed in current phase
 let _totalTime = 0;    // total seconds since start
 let _totalDuration = 0; // sum of all phase durations
+let _paused = true;     // starts paused — performer presses Space to begin
 
 // ── Init: load a track into worldState ──
 export function initDirector3(trackName = 'SOLCO') {
@@ -40,8 +41,20 @@ export function initDirector3(trackName = 'SOLCO') {
   console.log(`[DIR3] Loaded track: ${trackName}, duration: ${_totalDuration}s`);
 }
 
+// ── Pause/play control ──
+export function toggleDirector3() {
+  _paused = !_paused;
+  console.log(`[DIR3] ${_paused ? 'PAUSED' : 'PLAYING'}`);
+  return !_paused;
+}
+
+export function isDirector3Playing() {
+  return !_paused;
+}
+
 // ── Update: called every MIDI clock tick (~2ms) ──
 export function updateDirector3(dt) {
+  if (_paused) return;
   _phaseTime += dt;
   _totalTime += dt;
 
