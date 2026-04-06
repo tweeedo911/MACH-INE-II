@@ -7,7 +7,8 @@
 import {
   bayerTest, fillBackground, rgbString, lerpColor, hexToRgb,
   lerp, clamp, noiseAt, perspectiveScale, rng, seedRng,
-  audioDensity, audioFlicker, Sediment,
+  audioDensity, audioFlicker, bayerGlitch, colorFlash, shouldGlitch,
+  Sediment,
   applyCameraTransform, restoreCameraTransform,
 } from './visual-toolkit.js';
 
@@ -63,15 +64,22 @@ export function render(ctx, W, H, env) {
   const bgStr = rgbString(bgRgb[0], bgRgb[1], bgRgb[2]);
   const dotStr = rgbString(dotRgb[0], dotRgb[1], dotRgb[2]);
 
-  // Onset shake — decays fast
-  for (const w of onsetWaves) {
-    if (w.strength > 0.5) _onsetShake = Math.max(_onsetShake, w.strength * 4);
-  }
-  _onsetShake *= 0.9;
+  const isRottura = worldState.phase === 'rottura';
 
-  // Vanishing point slow drift — follows audio centroid and stereo
-  _vanishDriftX += (((audio.bands.high.L - audio.bands.high.R) * 0.5) * 30 - _vanishDriftX) * 0.01;
-  _vanishDriftY += ((audio.centroid * 20 - 10) - _vanishDriftY) * 0.008;
+  // Onset shake — decays fast (more violent in rottura)
+  for (const w of onsetWaves) {
+    if (w.strength > 0.5) _onsetShake = Math.max(_onsetShake, w.strength * (isRottura ? 8 : 4));
+  }
+  _onsetShake *= isRottura ? 0.85 : 0.9;
+
+  // Vanishing point drift — in rottura: JUMPS instead of drifting
+  if (isRottura && shouldGlitch(state.intensity + 0.3, true, _time)) {
+    // Snap vanishing point to random position
+    _vanishX = 0.3 + Math.random() * 0.4;
+    _vanishY = 0.25 + Math.random() * 0.3;
+  }
+  _vanishDriftX += (((audio.bands.high.L - audio.bands.high.R) * 0.5) * 30 - _vanishDriftX) * (isRottura ? 0.05 : 0.01);
+  _vanishDriftY += ((audio.centroid * 20 - 10) - _vanishDriftY) * (isRottura ? 0.04 : 0.008);
 
   // Background
   fillBackground(ctx, W, H, bgStr);
@@ -146,11 +154,21 @@ export function render(ctx, W, H, env) {
         }
       }
 
-      if (d > 0.01 && bayerTest(c, r, clamp(d, 0, 1))) {
-        const fade = clamp(d * 1.5, 0.04, 0.6);
-        const rgb = lerpColor(bgRgb, dotRgb, fade);
-        ctx.fillStyle = rgbString(rgb[0], rgb[1], rgb[2]);
-        ctx.fillRect(c * breathDotSize, r * breathDotSize, breathDotSize, breathDotSize);
+      if (d > 0.01) {
+        const glitchAmt = isRottura ? 0.5 + state.intensity * 0.5 : 0;
+        const visible = glitchAmt > 0.01
+          ? bayerGlitch(c, r, clamp(d, 0, 1), glitchAmt, _time)
+          : bayerTest(c, r, clamp(d, 0, 1));
+        if (visible) {
+          const fade = clamp(d * 1.5, 0.04, 0.6);
+          let rgb = lerpColor(bgRgb, dotRgb, fade);
+          // Brief color flash in rottura
+          if (glitchAmt > 0.3 && shouldGlitch(1, true, _time + c * 0.01)) {
+            rgb = colorFlash(rgb, 0.7, _time);
+          }
+          ctx.fillStyle = rgbString(rgb[0], rgb[1], rgb[2]);
+          ctx.fillRect(c * breathDotSize, r * breathDotSize, breathDotSize, breathDotSize);
+        }
       }
     }
   }
@@ -177,8 +195,9 @@ export function render(ctx, W, H, env) {
         ? lerp(0.15, 0.85, 1 - n.note) + (Math.random() - 0.5) * spread * 0.2
         : _vanishY + (Math.random() - 0.5) * spread * 0.3;
 
-      // Voice/lead get 2x size, chords get 1.5x
-      const sizeMul = isVoice ? 2.0 : isChord ? 1.5 : isDrone ? 1.8 : 1.0;
+      // Voice/lead get 2x size, chords get 1.5x; rottura: everything bigger
+      const rotturaBoost = isRottura ? 1.5 : 1.0;
+      const sizeMul = (isVoice ? 2.0 : isChord ? 1.5 : isDrone ? 1.8 : 1.0) * rotturaBoost;
       const depth = _isRitorno
         ? (isVoice ? 0.2 + Math.random() * 0.3 : 0.05 + Math.random() * 0.15)
         : (0.4 + Math.random() * 0.6) * _params.depthRange;

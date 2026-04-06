@@ -36,9 +36,11 @@ export const worldState = {
   rhythmGrid: null,  // 16-step array [1,0,0,0,...] or null
 
   // ── Narrative arc ──
-  arc:        0,          // 0.0 → 1.0 concert position
-  energy:     'SILENCE',  // SILENCE | BUILDING | ACTIVE | INTENSE | PEAK | RELEASE
-  transition: null,       // { from, to, progress } during DJ-set transition, else null
+  arc:         0,          // 0.0 → 1.0 concert position
+  energy:      'SILENCE',  // SILENCE | BUILDING | ACTIVE | INTENSE | PEAK | RELEASE
+  transition:  null,       // { from, to, progress } during DJ-set transition, else null
+  barProgress: 0,          // 0.0 → 1.0 position within current bar (for scan lines, sync)
+  audioEnergy: 0,          // 0.0 → 1.0 real-time audio energy (RMS + onset + density)
 
   // ── Harmony (written by harmony.js — only exception to read-only rule) ──
   currentChord: [],  // MIDI notes of current chord, for arp
