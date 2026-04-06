@@ -1,95 +1,159 @@
 // ═══════════════════════════════════════════════════════════
 //  MACH:INE III — Composizione: LIMINALE
 //  Prospettiva convergente. NEBBIA (avvicinamento) + RITORNO (allontanamento).
+//  Breathing field + sediment trails + onset ripples + vanishing point drift
 // ═══════════════════════════════════════════════════════════
 
 import {
   bayerTest, fillBackground, rgbString, lerpColor, hexToRgb,
-  lerp, clamp, mapRange, noiseAt, perspectiveScale, rng, seedRng,
+  lerp, clamp, noiseAt, perspectiveScale, rng, seedRng,
+  audioDensity, audioFlicker, Sediment,
+  applyCameraTransform, restoreCameraTransform,
 } from './visual-toolkit.js';
 
-// ── Phase parameters ──
 const PHASE_PARAMS = {
-  germoglio:    { depthRange: 0.2, dotMin: 8, dotMax: 20, densityMax: 0.05, driftSpeed: 0.02 },
-  pulsazione:   { depthRange: 0.5, dotMin: 6, dotMax: 18, densityMax: 0.15, driftSpeed: 0.05 },
-  densita:      { depthRange: 0.8, dotMin: 4, dotMax: 16, densityMax: 0.40, driftSpeed: 0.10 },
-  rottura:      { depthRange: 1.0, dotMin: 2, dotMax: 24, densityMax: 0.70, driftSpeed: 0.20 },
-  dissoluzione: { depthRange: 0.3, dotMin: 10, dotMax: 20, densityMax: 0.10, driftSpeed: 0.02 },
+  germoglio:    { depthRange: 0.2, dotMin: 8,  dotMax: 20, densityMax: 0.05, driftSpeed: 0.02, breathAlpha: 0.08, sedRate: 0.90, zoom: 1.01 },
+  pulsazione:   { depthRange: 0.5, dotMin: 6,  dotMax: 18, densityMax: 0.15, driftSpeed: 0.05, breathAlpha: 0.15, sedRate: 0.88, zoom: 1.02 },
+  densita:      { depthRange: 0.8, dotMin: 4,  dotMax: 16, densityMax: 0.40, driftSpeed: 0.10, breathAlpha: 0.25, sedRate: 0.85, zoom: 1.03 },
+  rottura:      { depthRange: 1.0, dotMin: 2,  dotMax: 24, densityMax: 0.70, driftSpeed: 0.20, breathAlpha: 0.40, sedRate: 0.80, zoom: 1.06 },
+  dissoluzione: { depthRange: 0.3, dotMin: 10, dotMax: 20, densityMax: 0.10, driftSpeed: 0.02, breathAlpha: 0.06, sedRate: 0.93, zoom: 1.00 },
 };
 
-// ── Internal state ──
 let _dots = [];
 let _vanishX = 0.5;
 let _vanishY = 0.4;
+let _vanishDriftX = 0;   // slow vanishing point wander
+let _vanishDriftY = 0;
 let _isRitorno = false;
 let _time = 0;
-let _params = { depthRange: 0.2, dotMin: 8, dotMax: 20, densityMax: 0.05, driftSpeed: 0.02 };
+let _params = { ...PHASE_PARAMS.germoglio };
+let _sediment = new Sediment();
+let _onsetShake = 0;      // onset-driven shake amount
 
 export function init(env) {
   _dots = [];
   _time = 0;
+  _onsetShake = 0;
   _isRitorno = env.worldState.track === 'RITORNO';
-  _vanishX = 0.5 + (Math.random() - 0.5) * 0.2;
+  _vanishX = 0.5 + (Math.random() - 0.5) * 0.15;
   _vanishY = _isRitorno ? 0.45 : 0.35;
-  const phase = env.worldState.phase || 'germoglio';
-  _params = { ...(PHASE_PARAMS[phase] || PHASE_PARAMS.germoglio) };
+  _vanishDriftX = 0;
+  _vanishDriftY = 0;
+  _params = { ...(PHASE_PARAMS[env.worldState.phase] || PHASE_PARAMS.germoglio) };
+  _sediment.clear(1, 1); // will resize on first render
 }
 
 export function render(ctx, W, H, env) {
-  const { worldState, midiTrail, onsetWaves, audio, dt } = env;
+  const { worldState, midiTrail, onsetWaves, audio, state, dt } = env;
   _time += dt;
 
-  // Lerp params toward current phase
+  // Lerp params
   const target = PHASE_PARAMS[worldState.phase] || PHASE_PARAMS.germoglio;
-  const lspeed = 0.03;
-  _params.depthRange += (target.depthRange - _params.depthRange) * lspeed;
-  _params.dotMin += (target.dotMin - _params.dotMin) * lspeed;
-  _params.dotMax += (target.dotMax - _params.dotMax) * lspeed;
-  _params.densityMax += (target.densityMax - _params.densityMax) * lspeed;
-  _params.driftSpeed += (target.driftSpeed - _params.driftSpeed) * lspeed;
+  for (const k of Object.keys(target)) {
+    _params[k] += (target[k] - _params[k]) * 0.03;
+  }
 
   const bgRgb = hexToRgb(worldState.palette.bg);
   const dotRgb = hexToRgb(worldState.palette.dot);
   const accRgb = worldState.palette.accent ? hexToRgb(worldState.palette.accent) : dotRgb;
+  const bgStr = rgbString(bgRgb[0], bgRgb[1], bgRgb[2]);
+  const dotStr = rgbString(dotRgb[0], dotRgb[1], dotRgb[2]);
+
+  // Onset shake — decays fast
+  for (const w of onsetWaves) {
+    if (w.strength > 0.5) _onsetShake = Math.max(_onsetShake, w.strength * 4);
+  }
+  _onsetShake *= 0.9;
+
+  // Vanishing point slow drift — follows audio centroid and stereo
+  _vanishDriftX += (((audio.bands.high.L - audio.bands.high.R) * 0.5) * 30 - _vanishDriftX) * 0.01;
+  _vanishDriftY += ((audio.centroid * 20 - 10) - _vanishDriftY) * 0.008;
 
   // Background
-  fillBackground(ctx, W, H, rgbString(bgRgb[0], bgRgb[1], bgRgb[2]));
+  fillBackground(ctx, W, H, bgStr);
 
-  // Spawn dots from MIDI notes
+  // Camera — subtle zoom toward vanishing point, onset shake
+  applyCameraTransform(ctx, W, H, {
+    zoom: _params.zoom,
+    driftX: _vanishDriftX,
+    driftY: _vanishDriftY,
+    shakeAmount: _onsetShake,
+    time: _time,
+  });
+
+  // ── Layer 1: Breathing field — continuous audio-reactive halftone ──
+  const breathDotSize = Math.max(6, Math.round(lerp(14, 8, state.intensity)));
+  const cols = Math.ceil(W / breathDotSize);
+  const rows = Math.ceil(H / breathDotSize);
+
+  // Draw breathing field with perspective: denser near vanishing point
+  for (let r = 0; r < rows; r++) {
+    const ny = r / rows;
+    for (let c = 0; c < cols; c++) {
+      const nx = c / cols;
+      // Distance from vanishing point → density falloff
+      const dx = nx - _vanishX;
+      const dy = ny - _vanishY;
+      const distFromVanish = Math.sqrt(dx * dx + dy * dy);
+      const perspDensity = Math.max(0, 1 - distFromVanish * 1.8);
+
+      let d = audioDensity(audio, state, nx, ny) * _params.breathAlpha;
+      d += perspDensity * state.intensity * _params.breathAlpha * 0.5;
+      d += audioFlicker(state, _time, nx, ny) * _params.breathAlpha;
+
+      if (d > 0.02 && bayerTest(c, r, clamp(d, 0, 1))) {
+        const fade = clamp(d * 2, 0.05, 0.5);
+        const rgb = lerpColor(bgRgb, dotRgb, fade);
+        ctx.fillStyle = rgbString(rgb[0], rgb[1], rgb[2]);
+        ctx.fillRect(c * breathDotSize, r * breathDotSize, breathDotSize, breathDotSize);
+      }
+    }
+  }
+
+  // ── Layer 2: Sediment — trails from previous dots ──
+  _sediment.decay(W, H, _params.sedRate);
+  const sedCtx = _sediment.getCtx();
+
+  // ── Layer 3: Dots — MIDI-driven perspective particles ──
+  // Spawn from MIDI
   for (const n of midiTrail) {
-    if (n.time < dt * 2 && n.alpha > 0.5) {
-      const depth = _isRitorno ? 0.1 : (0.7 + Math.random() * 0.3) * _params.depthRange;
+    if (n.time < dt * 2 && n.alpha > 0.4) {
+      const depth = _isRitorno ? (0.05 + Math.random() * 0.15) : (0.6 + Math.random() * 0.4) * _params.depthRange;
       _dots.push({
-        x: _vanishX + (Math.random() - 0.5) * 0.1,
-        y: _vanishY + (Math.random() - 0.5) * 0.1,
+        x: _vanishX + (Math.random() - 0.5) * 0.12 * (1 + state.stereoWidth),
+        y: _vanishY + (Math.random() - 0.5) * 0.08,
         depth,
         size: lerp(_params.dotMin, _params.dotMax, n.vel),
-        alpha: n.vel,
-        born: _time,
+        alpha: n.vel * 0.9 + 0.1,
         ch: n.ch,
+        vx: (Math.random() - 0.5) * 0.02,  // slight horizontal wander
+        vy: (Math.random() - 0.5) * 0.01,
       });
     }
   }
 
-  // Onset waves → perspective ripple (spawn cluster of small dots)
+  // Onset → cluster burst
   for (const w of onsetWaves) {
-    if (w.strength > 0.8) {
-      for (let i = 0; i < 3; i++) {
+    if (w.strength > 0.6) {
+      const count = Math.floor(w.strength * 5);
+      for (let i = 0; i < count; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const speed = 0.01 + Math.random() * 0.03;
         _dots.push({
-          x: _vanishX + (Math.random() - 0.5) * 0.15,
-          y: _vanishY + (Math.random() - 0.5) * 0.15,
-          depth: 0.5 + Math.random() * 0.5 * _params.depthRange,
-          size: lerp(_params.dotMin * 0.5, _params.dotMax * 0.3, Math.random()),
-          alpha: 0.6,
-          born: _time,
+          x: _vanishX + (Math.random() - 0.5) * 0.1,
+          y: _vanishY + (Math.random() - 0.5) * 0.1,
+          depth: (0.4 + Math.random() * 0.6) * _params.depthRange,
+          size: lerp(_params.dotMin * 0.4, _params.dotMax * 0.4, Math.random()),
+          alpha: w.strength * 0.5,
           ch: -1,
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed,
         });
       }
     }
   }
 
-  // Cap dots
-  if (_dots.length > 200) _dots.splice(0, _dots.length - 200);
+  if (_dots.length > 300) _dots.splice(0, _dots.length - 300);
 
   // Update and render dots
   const direction = _isRitorno ? 1 : -1;
@@ -97,14 +161,16 @@ export function render(ctx, W, H, env) {
     const d = _dots[i];
 
     d.depth += direction * _params.driftSpeed * dt;
-    d.alpha -= 0.008;
+    d.x += (d.vx || 0) * dt;
+    d.y += (d.vy || 0) * dt;
+    d.alpha -= 0.006;
 
     const spread = _isRitorno ? (1 - d.depth) : d.depth;
-    const sx = _vanishX + (d.x - _vanishX) * (1 + spread * 3);
-    const sy = _vanishY + (d.y - _vanishY) * (1 + spread * 3);
+    const sx = _vanishX + (d.x - _vanishX) * (1 + spread * 3.5);
+    const sy = _vanishY + (d.y - _vanishY) * (1 + spread * 3.5);
     const scale = perspectiveScale(1, 1 - spread);
 
-    if (d.alpha < 0.02 || d.depth < 0 || d.depth > 1 || sx < -0.1 || sx > 1.1 || sy < -0.1 || sy > 1.1) {
+    if (d.alpha < 0.02 || d.depth < -0.05 || d.depth > 1.05 || sx < -0.15 || sx > 1.15 || sy < -0.15 || sy > 1.15) {
       _dots[i] = _dots[_dots.length - 1];
       _dots.length--;
       continue;
@@ -113,41 +179,38 @@ export function render(ctx, W, H, env) {
     const px = sx * W;
     const py = sy * H;
     const dotSize = Math.max(2, Math.round(d.size * scale));
-    const density = d.alpha * _params.densityMax * 3;
+    const density = clamp(d.alpha * _params.densityMax * 3, 0, 1);
     const col = Math.floor(px / dotSize);
     const row = Math.floor(py / dotSize);
 
-    if (bayerTest(col, row, clamp(density, 0, 1))) {
-      const depthFade = clamp(spread, 0, 1);
-      const rgb = lerpColor(bgRgb, d.ch === 5 || d.ch === 6 ? accRgb : dotRgb, depthFade * d.alpha);
-      ctx.fillStyle = rgbString(rgb[0], rgb[1], rgb[2]);
+    if (bayerTest(col, row, density)) {
+      const depthFade = clamp(spread * 1.2, 0, 1);
+      const isVoice = d.ch === 5 || d.ch === 6;
+      const rgb = lerpColor(bgRgb, isVoice ? accRgb : dotRgb, depthFade * d.alpha);
+      const colorStr = rgbString(rgb[0], rgb[1], rgb[2]);
+      ctx.fillStyle = colorStr;
       ctx.fillRect(px - dotSize / 2, py - dotSize / 2, dotSize, dotSize);
+
+      // Draw into sediment too — builds trails
+      if (sedCtx) {
+        sedCtx.fillStyle = colorStr;
+        sedCtx.globalAlpha = d.alpha * 0.4;
+        sedCtx.fillRect(px - dotSize / 2, py - dotSize / 2, dotSize, dotSize);
+        sedCtx.globalAlpha = 1;
+      }
     }
   }
 
-  // Ambient noise dots
-  const ambientCount = Math.floor(audio.rms * 10 * _params.densityMax);
-  seedRng(Math.floor(_time * 7));
-  for (let i = 0; i < ambientCount; i++) {
-    const ax = rng();
-    const ay = rng();
-    const adepth = rng() * _params.depthRange;
-    const asize = lerp(_params.dotMin * 0.5, _params.dotMax * 0.3, rng());
-    const aspread = _isRitorno ? (1 - adepth) : adepth;
-    const apx = lerp(_vanishX * W, ax * W, aspread);
-    const apy = lerp(_vanishY * H, ay * H, aspread);
-    const col = Math.floor(apx / asize);
-    const row = Math.floor(apy / asize);
-    if (bayerTest(col, row, 0.3 * aspread)) {
-      const fade = aspread * 0.5;
-      const rgb = lerpColor(bgRgb, dotRgb, fade);
-      ctx.fillStyle = rgbString(rgb[0], rgb[1], rgb[2], fade);
-      const s = Math.max(1, asize * perspectiveScale(1, 1 - aspread));
-      ctx.fillRect(apx, apy, s, s);
-    }
-  }
+  restoreCameraTransform(ctx);
+
+  // Composite sediment under everything? No — over bg, under camera transform already applied
+  // Actually composite it now (post-camera-restore so it's stable)
+  ctx.globalAlpha = 0.6;
+  _sediment.composite(ctx);
+  ctx.globalAlpha = 1;
 }
 
 export function destroy() {
   _dots = [];
+  _sediment.clear(1, 1);
 }
