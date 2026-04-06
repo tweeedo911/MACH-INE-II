@@ -42,7 +42,7 @@ export function initDirector3(trackName = 'SOLCO') {
 
   _applyPhase();
 
-  console.log(`[DIR3] Loaded track: ${trackName}, duration: ${_totalDuration}s`);
+  console.log(`[DIR3] Loaded track: ${trackName}, duration: ${_totalBars} bars`);
 }
 
 // ── Pause/play control ──
