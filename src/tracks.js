@@ -50,7 +50,7 @@ export const TRACKS = {
     density: { rhythm: 0.7, harmony: 0.4, bass: 0.8, melody: 0.5, texture: 0.1 },
 
     register: {
-      bass:   [36, 55],
+      bass:   [24, 43],  // sub-bass octave
       melody: [67, 84],
       lead:   [72, 96],
       chords: [55, 72],

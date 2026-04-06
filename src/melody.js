@@ -172,33 +172,23 @@ function _buildArp(chord, scale, lo, hi, noteCount) {
     }
   }
 
-  // Sort ascending
+  // Sort ascending — simple repeating pattern, not up-down
   const sorted = [...pool].sort((a, b) => a - b);
   if (sorted.length === 0) return [];
 
-  // Build ascending/descending pattern of noteCount notes
-  // Pick evenly spaced from sorted pool
+  // Pick evenly spaced notes — ascending only (hypnotic, metronomic)
   const picked = [];
   if (sorted.length <= noteCount) {
-    // Use all available notes
     picked.push(...sorted);
   } else {
-    // Evenly space picks across the sorted pool
     for (let i = 0; i < noteCount; i++) {
       const idx = Math.round(i * (sorted.length - 1) / (noteCount - 1));
       picked.push(sorted[idx]);
     }
   }
 
-  // Ascending then descending (skip endpoints to avoid repetition)
-  const pattern = [...picked];
-  if (picked.length > 2) {
-    for (let i = picked.length - 2; i >= 1; i--) {
-      pattern.push(picked[i]);
-    }
-  }
-
-  return pattern;
+  // Return ascending pattern — it will loop naturally, creating repetition
+  return picked;
 }
 
 // ═══════════════════════════════════════════════════════════

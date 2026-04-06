@@ -68,7 +68,7 @@ function _tick() {
     addMidiNote(3, note / 127, vel / 127);
     _lastNote = _step;
 
-  } else if (density > 0.4 && Math.random() < 0.20) {
+  } else if (density > 0.5 && Math.random() < 0.12) {
     // Ghost note: only on steps adjacent to the last played step
     const prevStep = (_step + 15) % 16;  // one step back (wraps)
     const nextStep = (_step + 1) % 16;
