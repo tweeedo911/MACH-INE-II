@@ -168,7 +168,7 @@ export const TRACKS = {
     bpm: 86,
     kickNote: 38,  // D2
 
-    density: { rhythm: 0.3, harmony: 0.6, bass: 0.4, melody: 0.3, texture: 0.1 },
+    density: { rhythm: 0.15, harmony: 0.6, bass: 0.4, melody: 0.3, texture: 0.1 },
 
     register: {
       bass:   [26, 45],    // sub
@@ -178,15 +178,15 @@ export const TRACKS = {
       arp:    [0, 0],      // no arp in TESSUTO
     },
     velocityCeiling: {
-      rhythm:  80,
-      harmony: 75,    // chords are the star here
+      rhythm:  65,          // quiet — impulses, not a beat
+      harmony: 75,          // chords are the star here
       bass:    70,
       melody:  55,
       texture: 30,
     },
 
-    // Very sparse kick — one per bar, only in dense phases
-    rhythmGrid: [1,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0],
+    // Irregular impulses — kick every 2 bars, off-grid placement
+    rhythmGrid: [0,0,0,0, 0,0,0,1, 0,0,0,0, 0,0,0,0],
 
     phases: {
       germoglio:    50,
