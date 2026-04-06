@@ -12,8 +12,12 @@ import { entities, fossils, updateGenerations, buildEntityGrid, triggerOnset, tr
 import { updateColors, inverted, inClimax, climaxProgress, colorEnabled, chromaticMode, chromaticTimer, palette } from './colors.js';
 import { updateDirector, applyCamera, framing, director, executeMutation, scene, arc, engineRender } from './director.js';
 import { getEngine } from './midi-patterns.js';
-import { getSequencerStatus, firma } from './sequencer.js';
-import { macroState } from './macro-composer.js';
+import { getDirector3Status, isDirector3Playing } from './director3.js';
+import { worldState, phaseState } from './world-state.js';
+
+// ── Stubs for removed v2 modules (firma, macroState) ──
+const firma = { vuotoTotale: false, gelo: false, convergenza: false };
+const macroState = { arc: 0, currentBpm: 120 };
 import { renderField, updateWaves, addOnsetWave, addMidiNote } from './field.js';
 import { recordSnapshot, recordPhaseCheck, isRecording } from './session-recorder.js';
 
@@ -175,55 +179,32 @@ export function handleKey(code) {
 function updateHUDMinimal() {
   if (!hudMinimal) return;
   const primList = dna ? dna.primitives.join('+') : '——';
-  const eng = getEngine();
-  const seq = getSequencerStatus();
-  let seqTag = '';
-  if (seq.active) {
-    const icon = seq.paused ? '⏸' : '▶';
-    const min = Math.floor(seq.elapsed / 60);
-    const sec = seq.elapsed % 60;
-    const time = `${min}:${sec < 10 ? '0' : ''}${sec}`;
-    const totalMin = Math.floor(seq.duration / 60);
-    const totalSec = seq.duration % 60;
-    const total = `${totalMin}:${totalSec < 10 ? '0' : ''}${totalSec}`;
-    const flags = (seq.looping ? ' [LOOP]' : '') + (seq.paused ? ' [PAUSED]' : '');
-    seqTag = `  ${icon} ${time}/${total} — ${seq.act || ''} ${seq.engine}${flags}`;
-  }
+  const d3 = getDirector3Status();
+  const playing = isDirector3Playing();
+  const icon = playing ? '▶' : '⏸';
+  const min = Math.floor(d3.totalTime / 60);
+  const sec = Math.floor(d3.totalTime % 60);
+  const time = `${min}:${sec < 10 ? '0' : ''}${sec}`;
   const projActive = _projectorWin && !_projectorWin.closed;
   hudMinimal.textContent =
-    (eng ? eng.toUpperCase() + '  ' : '') +
-    `${primList}  ${framing.current}` +
-    (audio.bpm ? `  ${audio.bpm}BPM` : '') +
-    seqTag +
+    `${icon} ${d3.track || '—'}  ${d3.phase}  ${time}` +
+    (worldState.bpm ? `  ${worldState.bpm}BPM` : '') +
+    `  ${primList}  ${framing.current}` +
     (midi.connected ? `  MIDI:${midi.inputCount}` : '') +
     `  G:${getAudioGain().toFixed(1)}` +
     (projActive ? '  PROJ:ON' : '') +
     (isRecording() ? '  ● REC' : '');
 }
 
-// ── Sequencer panel ──
+// ── Director panel ──
 function updateSeqPanel() {
   if (!hudSeq) return;
-  const s = getSequencerStatus();
-  if (!s.active) {
-    _seqAct.textContent    = 'SEQUENCER';
-    _seqFill.style.width   = '0%';
-    _seqStatus.textContent = '';
-    _seqKeys.textContent   = '0 — START CONCERTO';
-    return;
-  }
-  const icon    = s.paused ? '⏸' : '▶';
-  const pct     = Math.round(s.progress * 100);
-  const elapsed = `${Math.floor(s.elapsed / 60)}:${String(s.elapsed % 60).padStart(2, '0')}`;
-  const total   = `${Math.floor(s.duration / 60)}:${String(s.duration % 60).padStart(2, '0')}`;
-  const flags   = (s.paused ? '  PAUSED' : '') + (s.looping ? '  LOOP' : '') + (s.transitioning ? '  TRANS' : '');
-  _seqAct.textContent    = s.act || '';
+  const d3 = getDirector3Status();
+  const playing = isDirector3Playing();
+  const pct = Math.round(phaseState.progress * 100);
+  _seqAct.textContent    = d3.track || 'MACH:INE III';
   _seqFill.style.width   = `${pct}%`;
-  _seqStatus.textContent = `${icon}  ${elapsed} / ${total}  —  ${s.engine}${flags}`;
-  _seqKeys.textContent   =
-    'SH+0 STOP   SPC PAUSE   L LOOP\n' +
-    '→ NEXT CUE   SH+→ NEXT ATTO\n' +
-    '← PREV CUE   SH+← PREV ATTO';
+  _seqStatus.textContent = `${playing ? '▶' : '⏸'}  ${d3.phase}  ${pct}%  arc:${d3.arc.toFixed(2)}`;
 }
 
 // ── HUD Debug ──
