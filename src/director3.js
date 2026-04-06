@@ -6,6 +6,11 @@
 
 import { worldState, phaseState } from './world-state.js';
 import { TRACKS, PHASE_DENSITY, PHASE_ENERGY, TRACK_ORDER } from './tracks.js';
+import { initRhythm } from './rhythm.js';
+import { initHarmony } from './harmony.js';
+import { initBass } from './bass.js';
+import { initMelody } from './melody.js';
+import { initTexture } from './texture.js';
 
 // ── Phase order ──
 const PHASE_ORDER = ['germoglio', 'pulsazione', 'densita', 'rottura', 'dissoluzione'];
@@ -41,6 +46,13 @@ export function initDirector3(trackName = 'SOLCO') {
   worldState.visualRegime = { ...(_track.visualRegime) };
 
   _applyPhase();
+
+  // Reset all modules so they start clean on the new track
+  initRhythm();
+  initHarmony();
+  initBass();
+  initMelody();
+  initTexture();
 
   console.log(`[DIR3] Loaded track: ${trackName}, duration: ${_totalBars} bars`);
 }
@@ -203,7 +215,12 @@ export function jumpToTrack(trackName) {
     console.warn(`[DIR3] Track "${trackName}" not found`);
     return;
   }
+  const wasPlaying = !_paused;
   initDirector3(trackName);
+  if (wasPlaying) {
+    _paused = false;
+    _applyPhase();
+  }
 }
 
 export function getDirector3Status() {

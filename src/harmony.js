@@ -25,7 +25,7 @@ const BARS_PER_CHORD_DEFAULT = 4;
 let _step = 0;
 let _stepAcc = 0;
 let _bar = 0;
-let _chordIdx = 0;
+let _chordIdx = -1;    // starts at -1 so first increment lands on index 0
 let _lastDroneNote = -1;
 let _lastDroneBar  = -1;
 let _lastChordBar  = -1;
@@ -34,7 +34,7 @@ export function initHarmony() {
   _step = 0;
   _stepAcc = 0;
   _bar = 0;
-  _chordIdx = 0;
+  _chordIdx = -1;
   _lastDroneNote = -1;
   _lastDroneBar  = -1;
   _lastChordBar  = -1;

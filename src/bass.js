@@ -94,6 +94,16 @@ function _tick() {
     addMidiNote(3, note / 127, vel / 127);
     _lastNote = _step;
 
+    // Occasional 5th doubling on downbeats — bass non mono-nota
+    if (_step % 4 === 0 && density > 0.4 && Math.random() < 0.20) {
+      const fifth = note + 7;
+      if (fifth <= regHi) {
+        const fifthVel = Math.round(vel * 0.65);
+        sendMIDINote(3, fifth, fifthVel, dur);
+        addMidiNote(3, fifth / 127, fifthVel / 127);
+      }
+    }
+
   } else if (density > 0.5 && Math.random() < 0.12) {
     const prevStep = (_step + 15) % 16;
     const nextStep = (_step + 1) % 16;
