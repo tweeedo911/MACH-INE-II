@@ -77,7 +77,20 @@ game loop 60fps. Performance reali, limiti browser, anti-pattern, tecnologie fro
 - **Triggera con:** performance, fps, frame drop, latenza, memory, GC, Canvas, Web Audio, MIDI
 
 ### agent-orchestrator
-Sistema di delegazione a subagenti specializzati per task complessi. Vedi sezione dedicata sotto.
+Sistema di delegazione a subagenti specializzati per task tecnici (Coder, Debugger, Researcher,
+Reviewer, Tester, Documenter, Architect). Per task complessi che toccano piu di 2 file.
+
+### production-team
+Team creativo completo — 7 ruoli specializzati che collaborano per guidare il progetto:
+- **Compositore** — armonia, struttura formale, tensione/rilascio
+- **Producer** — mix, dinamiche, bilanciamento tra motori
+- **Performer** — suonabilita, leggibilita MIDI, spazio per interpretazione
+- **Regista Visivo** — composizione immagine, narrativa visiva, coerenza estetica
+- **Critico** — trova debolezze, ripetitivita, banalita, incoerenza
+- **Tecnico** — performance, latenza, stabilita 60 min
+- **Direttore Artistico** — visione d'insieme, arbitra i conflitti
+Workflow: tavola rotonda, review motore, review sessione, design sprint, pre-flight check.
+- **Triggera con:** team, tavola rotonda, review, critica, valuta, giudizio, qualita, pronto per live
 
 ## Regole ferree
 - Piccoli edit sicuri. Mai riscritture monolitiche.

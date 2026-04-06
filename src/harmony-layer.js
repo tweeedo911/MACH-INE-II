@@ -8,6 +8,7 @@ import { CFG } from './config.js';
 import { macroState, isPerformanceStarted } from './macro-composer.js';
 import { sendMIDINote as _rawSend, sendMIDIAllNotesOff } from './midi.js';
 import { addMidiNote as _addMidiVisual } from './field.js';
+import { recordDecision } from './session-recorder.js';
 
 // ── Gating interno (D-09: non usa presence-multiplier.js) ───────────────────
 // Identico al pattern composer (pm < 0.05) ma basato su harmonicColor
@@ -16,8 +17,11 @@ const _MODE_ENGINE = { 'A_lydian': 'deriva', 'Bb_phrygian': 'abisso', 'D_dorian'
 
 function sendNote(ch, note, vel, dur) {
   const intensity = macroState.harmonicColor;
-  if (intensity < 0.05) return;  // gating: silenzio armonico sotto la soglia
-  let scaledVel = Math.round(vel * intensity);
+  if (intensity < 0.03) return;  // hard gate sotto 0.03 (quasi-zero)
+  // v5: gradiente continuo — velocity scala con harmonicColor
+  // intensity 0.03→0.30 = ramp-up, sopra 0.30 = piena proporzionalità
+  const hcScale = Math.min(1.0, intensity * 1.5);  // 0.67 = full, sotto scala
+  let scaledVel = Math.round(vel * hcScale);
   // Modal characteristic note boost (v4.1) — chord notes on the characteristic pitch shine
   const _charNotes = CFG.modalCharacteristicNotes;
   const _ek = _MODE_ENGINE[macroState.currentMode];
@@ -49,6 +53,11 @@ let _modeChangeBar   = -999; // bar at which last mode change occurred (additive
 // Ritmo armonico
 const _droneUpdateEvery = 4; // drone refresh ogni 4 bar — invariante
 
+// ── v5: Bass step-clock dedicato (no setTimeout, background-safe) ──────────
+let _bassClock     = 0;
+let _bassLastStep  = -1;
+let _bassBar       = 0;
+
 // ── Init ────────────────────────────────────────────────────────────────────
 export function initHarmonyLayer() {
   _lastDroneBar    = -1;
@@ -63,6 +72,9 @@ export function initHarmonyLayer() {
   _prevDroneNoteHi = null;
   _breathCounter   = 0;
   _modeChangeBar   = -999;
+  _bassClock       = 0;
+  _bassLastStep    = -1;
+  _bassBar         = 0;
 
   sendMIDIAllNotesOff(); // pulire note residue da sessioni precedenti
 
@@ -113,7 +125,7 @@ export function updateHarmonyLayer(_dt) {
 
   // Step A — Bar clock e durata bar
   const currentBar = Math.floor(macroState.barClock);
-  const bpm        = CFG.MACRO.bpmReference;
+  const bpm        = macroState.currentBpm;
   const barMs      = (60 / bpm) * 4 * 1000; // durata 1 bar in ms (4/4)
 
   // RITM-05: rileva re-entry dopo break (per punch bass)
@@ -128,6 +140,7 @@ export function updateHarmonyLayer(_dt) {
     _modeChangeBar  = currentBar; // additive chord entry — track mode change bar
     // NON resettare _currentVoicing — serve per voice leading nella transizione
     console.log('[HARMONY] mode change to:', _lastMode);
+    recordDecision('mode_change', _lastMode);
   }
 
   // Step C — Drone root su CH2 (HARM-01, D-15)
@@ -254,17 +267,112 @@ export function updateHarmonyLayer(_dt) {
 
     _currentVoicing = chordNotes;
 
-    // Bass melodico su CH3 (H3)
-    // Fase pulsante (chordEvery=1): bass sempre root per pump — no alternazione
-    // Fasi lenta/normale: alterna bass/bassAlt ogni cambio accordo
-    // RITM-05: basso silenzioso durante break, punch velocity al re-entry
-    if (!macroState.breakActive) {
-      const bassNote  = chordEvery === 1
-        ? anchor.bass
-        : (_chordCycleIdx % 2 === 0 ? anchor.bass : (anchor.bassAlt ?? anchor.bass));
-      const bassBoost = breakJustEnded ? CFG.RHYTHM.break.punchVelBoost : 0;
-      const bassVel   = Math.min(127, 50 + Math.round(macroState.harmonicColor * 40) + bassBoost);
-      sendNote(3, bassNote, bassVel, barMs * chordEvery);
+    // Bass is now handled by _updateBass step-clock (v5) — not here
+  }
+
+  // v5: Bass step-clock — independent 16th-note clock, no setTimeout
+  _updateBass(_dt, breakJustEnded);
+}
+
+// ═══════════════════════════════════════════════════════════
+//  v5: BASS COME PROTAGONISTA (CH3) — step-clock dedicato
+//  Pattern 16-step per modo, zero setTimeout, background-safe.
+//  Ref: Basic Channel (sub dub), Plastikman (poche note lunghe),
+//  SOLCO vecchio (rolling pump), Burial (sincopato)
+// ═══════════════════════════════════════════════════════════
+
+// 16-step patterns: 1=play, 0=rest. Root note overridden per step where needed.
+const _BASS_PATTERNS = {
+  // A_lydian: sub pulsante lento — 1 nota ogni 2 bar (Plastikman Consumed)
+  'A_lydian':    { pat: [1,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0], interval: 2, notes: [0] },
+  // Bb_phrygian: dub — root on 1, ghost on "and of 3", fifth ogni 4 bar
+  'Bb_phrygian': { pat: [1,0,0,0, 0,0,0,0, 0,0,1,0, 0,0,0,0], interval: 1, notes: [0, 0, 0] },
+  // D_dorian: walking 8ths — root, root, fifth, alt pattern cycling
+  'D_dorian':    { pat: [1,0,1,0, 1,0,1,0, 0,0,0,0, 0,0,0,0], interval: 1, notes: [0, 0, 7, 0] },
+  // C#_dorian: rolling pump — every beat, velocity sweep (Berlin techno)
+  'C#_dorian':   { pat: [1,0,0,0, 1,0,0,0, 1,0,0,0, 1,0,0,0], interval: 1, notes: [0] },
+  // E_phrygian: sub drone — 1 nota ogni 3 bar
+  'E_phrygian':  { pat: [1,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0], interval: 3, notes: [0] },
+};
+
+function _updateBass(dt, breakJustEnded) {
+  if (macroState.breakActive) return;
+  if (!_currentAnchor) return;
+
+  const bpm = macroState.currentBpm;
+  const stepsPerSec = bpm * 4 / 60;  // 16th notes per second
+  _bassClock += dt * stepsPerSec;
+  const currentStep = Math.floor(_bassClock);
+  if (currentStep <= _bassLastStep) return;
+
+  const barMs  = (60 / bpm) * 4 * 1000;
+  const stepMs = barMs / 16;
+  const mode   = macroState.currentMode;
+  const hC     = macroState.harmonicColor;
+  const root   = _currentAnchor.bass;
+  const alt    = _currentAnchor.bassAlt ?? root;
+  const bassBoost = breakJustEnded ? CFG.RHYTHM.break.punchVelBoost : 0;
+  const velBase = Math.min(127, 55 + Math.round(hC * 45) + bassBoost);
+
+  const cfg = _BASS_PATTERNS[mode] || _BASS_PATTERNS['A_lydian'];
+
+  for (let s = _bassLastStep + 1; s <= currentStep; s++) {
+    const s16 = s % 16;
+    _bassBar  = Math.floor(s / 16);
+
+    // Interval gating: some modes only play every N bars
+    if (cfg.interval > 1 && (_bassBar % cfg.interval !== 0) && s16 === 0) continue;
+    // For interval>1, only process bar 0 of each interval group
+    if (cfg.interval > 1 && (_bassBar % cfg.interval !== 0)) continue;
+
+    if (!cfg.pat[s16]) continue;
+
+    // Note selection: root by default, offset from cfg.notes array
+    const noteOffset = cfg.notes[s16 % cfg.notes.length] || 0;
+    let note = root + noteOffset;
+
+    // Mode-specific embellishments (no setTimeout needed — all on-grid)
+    let vel = velBase;
+
+    if (mode === 'A_lydian') {
+      // Sub pulsante: velocity bassa, nota lunga
+      vel = Math.round(velBase * 0.75);
+      sendNote(3, note, vel, barMs * 2);
+
+    } else if (mode === 'Bb_phrygian') {
+      // Dub: downbeat forte, step 10 = ghost (vel dimezzata)
+      if (s16 === 0) {
+        sendNote(3, note, vel, stepMs * 8);
+      } else if (s16 === 10 && hC > 0.30) {
+        // Ghost on "and of 3"
+        sendNote(3, root, Math.round(vel * 0.4), stepMs * 3);
+      }
+      // Fifth alternation every 4 bars on step 12
+      if (s16 === 0 && _bassBar % 4 >= 2 && hC > 0.40) {
+        sendNote(3, root + 7, Math.round(vel * 0.55), stepMs * 6);
+      }
+
+    } else if (mode === 'D_dorian') {
+      // Walking 8ths: steps 0,2,4,6 with rotating notes
+      const walkPool = [root, root, root + 7, alt];
+      note = walkPool[(s16 / 2 + _bassBar) % walkPool.length];
+      const durMs = hC > 0.50 ? stepMs * 3 : stepMs * 6;
+      sendNote(3, note, vel, durMs);
+
+    } else if (mode === 'C#_dorian') {
+      // Rolling pump: every beat with velocity sweep
+      const sweepPhase = (_bassBar % 8) / 8 * Math.PI * 2;
+      const sweepVel = vel + Math.sin(sweepPhase + s16 / 16 * Math.PI) * 18;
+      sendNote(3, root, Math.max(1, Math.round(sweepVel)), stepMs * 3);
+
+    } else if (mode === 'E_phrygian') {
+      // Sub drone: one long note
+      vel = Math.round(velBase * 0.55);
+      sendNote(3, root, vel, barMs * 3);
+
+    } else {
+      sendNote(3, root, vel, stepMs * 8);
     }
   }
+  _bassLastStep = currentStep;
 }

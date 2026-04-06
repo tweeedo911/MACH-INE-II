@@ -11,18 +11,11 @@ import { dna, updatePrimitives } from './dna.js';
 import { entities, fossils, updateGenerations, buildEntityGrid, triggerOnset, triggerMIDI } from './generations.js';
 import { updateColors, inverted, inClimax, climaxProgress, colorEnabled, chromaticMode, chromaticTimer, palette } from './colors.js';
 import { updateDirector, applyCamera, framing, director, executeMutation, scene, arc, engineRender } from './director.js';
-import { getComposerStatus } from './composer.js';
-import { getAllMultipliers } from './presence-multiplier.js';
-import { getComposer2Status } from './composer2.js';
-import { getComposer3Status } from './composer3.js';
-import { getComposer4Status } from './composer4.js';
-import { getComposer5Status } from './composer5.js';
-import { getComposer6Status } from './composer6.js';
-import { getComposer7Status } from './composer7.js';
 import { getEngine } from './midi-patterns.js';
 import { getSequencerStatus, firma } from './sequencer.js';
 import { macroState } from './macro-composer.js';
 import { renderField, updateWaves, addOnsetWave, addMidiNote } from './field.js';
+import { recordSnapshot, recordPhaseCheck, isRecording } from './session-recorder.js';
 
 let canvas, ctx;
 let W, H;
@@ -148,6 +141,10 @@ export function renderFrame(_now, dt) {
     if (showHUD)   updateHUDMinimal();
     if (showDebug) { updateHUDDebug(); updateSeqPanel(); }
   }
+
+  // Session recorder — snapshot + phase change detection (throttled internally)
+  recordSnapshot(macroState, entities, dt * 1000);
+  recordPhaseCheck(macroState);
 }
 
 // ── Keyboard ──
@@ -200,7 +197,8 @@ function updateHUDMinimal() {
     seqTag +
     (midi.connected ? `  MIDI:${midi.inputCount}` : '') +
     `  G:${getAudioGain().toFixed(1)}` +
-    (projActive ? '  PROJ:ON' : '');
+    (projActive ? '  PROJ:ON' : '') +
+    (isRecording() ? '  ● REC' : '');
 }
 
 // ── Sequencer panel ──
@@ -274,44 +272,27 @@ function updateHUDDebug() {
     (firma.gelo ? '  GELO' : '') + (firma.convergenza ? '  CONV' : '') + (firma.vuotoTotale ? '  VUOTO' : '') + '\n' +
     `\n` +
     (() => {
-      if (CFG.V3_MODE) {
-        // V4: show MacroComposer state + 7 phases
-        const ms = macroState;
-        const pct = (ms.arcPercent * 100).toFixed(1);
-        const phases = ['NEBBIA','TESSUTO','SOLCO','RESPIRO','MACCHINA','TEMPESTA','RITORNO'];
-        const phasePcts = [0, 0.07, 0.186, 0.372, 0.419, 0.581, 0.814];
-        let currentPhase = phases[0];
-        for (let i = phasePcts.length - 1; i >= 0; i--) {
-          if (ms.arcPercent >= phasePcts[i]) { currentPhase = phases[i]; break; }
-        }
-        return (
-          `MODE ${ms.currentMode}  ARC ${pct}%\n` +
-          `rD:${ms.rhythmicDensity.toFixed(2)}  hC:${ms.harmonicColor.toFixed(2)}  mA:${ms.melodicActivity.toFixed(2)}  tD:${ms.textureDepth.toFixed(2)}\n` +
-          `PHASE  ${currentPhase}  bar:${ms.barClock.toFixed(0)}${ms.pivotActive ? '  PIVOT' : ''}${ms.breakActive ? '  BREAK' : ''}\n` +
-          `\n` +
-          `1 NEBBIA    ${ms.arcPercent >= 0.000 && ms.arcPercent < 0.07  ? '►' : ' '}\n` +
-          `2 TESSUTO   ${ms.arcPercent >= 0.07  && ms.arcPercent < 0.186 ? '►' : ' '}\n` +
-          `3 SOLCO     ${ms.arcPercent >= 0.186 && ms.arcPercent < 0.372 ? '►' : ' '}\n` +
-          `4 RESPIRO   ${ms.arcPercent >= 0.372 && ms.arcPercent < 0.419 ? '►' : ' '}\n` +
-          `5 MACCHINA  ${ms.arcPercent >= 0.419 && ms.arcPercent < 0.581 ? '►' : ' '}\n` +
-          `6 TEMPESTA  ${ms.arcPercent >= 0.581 && ms.arcPercent < 0.814 ? '►' : ' '}\n` +
-          `7 RITORNO   ${ms.arcPercent >= 0.814                          ? '►' : ' '}\n`
-        );
+      const ms = macroState;
+      const pct = (ms.arcPercent * 100).toFixed(1);
+      const phases = ['NEBBIA','TESSUTO','SOLCO','RESPIRO','MACCHINA','TEMPESTA','RITORNO'];
+      const phasePcts = [0, 0.07, 0.186, 0.372, 0.419, 0.581, 0.814];
+      let currentPhase = phases[0];
+      for (let i = phasePcts.length - 1; i >= 0; i--) {
+        if (ms.arcPercent >= phasePcts[i]) { currentPhase = phases[i]; break; }
       }
-      // V2: legacy engine display
-      const pm = getAllMultipliers();
-      const parts = [
-        ['1:DER', pm.deriva], ['2:CRI', pm.cristallo], ['3:ABI', pm.abisso],
-        ['4:TER', pm.terreno], ['5:MEC', pm.meccanica], ['6:VOR', pm.vortice], ['7:SOL', pm.solco],
-      ].filter(([, v]) => v > 0).map(([k, v]) => `${k}:${v.toFixed(1)}`);
-      return (parts.length ? `PM  ${parts.join('  ')}\n` : '') +
-        (() => { const s = getComposer3Status(); return s.active ? `1 DERIVA    ${s.phase}  root:${s.chordRoot}  bar:${s.bar}  ${s.ruptureStage}` : '1 DERIVA    OFF'; })() + '\n' +
-        (() => { const s = getComposer5Status(); return s.active ? `2 CRISTALLO ${s.phase}  L:${s.activeCount}  ${s.ruptureStage}` : '2 CRISTALLO OFF'; })() + '\n' +
-        (() => { const s = getComposer6Status(); return s.active ? `3 ABISSO    ${s.phase}  L:${s.activeCount}  ${s.ruptureStage}` : '3 ABISSO    OFF'; })() + '\n' +
-        (() => { const s = getComposerStatus();  return s.active ? `4 TERRENO   ${s.phase}  ${s.ruptureStage}` : '4 TERRENO   OFF'; })() + '\n' +
-        (() => { const s = getComposer2Status(); return s.active ? `5 MECCANICA ${s.phase}  L:${s.activeCount}/4  ${s.ruptureStage}` : '5 MECCANICA OFF'; })() + '\n' +
-        (() => { const s = getComposer4Status(); return s.active ? `6 VORTICE   ${s.phase}  L:${s.activeCount}  ${s.ruptureStage}` : '6 VORTICE   OFF'; })() + '\n' +
-        (() => { const s = getComposer7Status(); return s.active ? `7 SOLCO     ${s.phase}  L:${s.activeCount}  ${s.ruptureStage}` : '7 SOLCO     OFF'; })() + '\n';
+      return (
+        `MODE ${ms.currentMode}  ARC ${pct}%\n` +
+        `rD:${ms.rhythmicDensity.toFixed(2)}  hC:${ms.harmonicColor.toFixed(2)}  mA:${ms.melodicActivity.toFixed(2)}  tD:${ms.textureDepth.toFixed(2)}\n` +
+        `PHASE  ${currentPhase}  bar:${ms.barClock.toFixed(0)}${ms.pivotActive ? '  PIVOT' : ''}${ms.breakActive ? '  BREAK' : ''}\n` +
+        `\n` +
+        `1 NEBBIA    ${ms.arcPercent >= 0.000 && ms.arcPercent < 0.07  ? '►' : ' '}\n` +
+        `2 TESSUTO   ${ms.arcPercent >= 0.07  && ms.arcPercent < 0.186 ? '►' : ' '}\n` +
+        `3 SOLCO     ${ms.arcPercent >= 0.186 && ms.arcPercent < 0.372 ? '►' : ' '}\n` +
+        `4 RESPIRO   ${ms.arcPercent >= 0.372 && ms.arcPercent < 0.419 ? '►' : ' '}\n` +
+        `5 MACCHINA  ${ms.arcPercent >= 0.419 && ms.arcPercent < 0.581 ? '►' : ' '}\n` +
+        `6 TEMPESTA  ${ms.arcPercent >= 0.581 && ms.arcPercent < 0.814 ? '►' : ' '}\n` +
+        `7 RITORNO   ${ms.arcPercent >= 0.814                          ? '►' : ' '}\n`
+      );
     })() +
     `\n` +
     `H HUD  D DEBUG  F FULL  P PROJ\n` +

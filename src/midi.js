@@ -4,6 +4,7 @@
 // ═══════════════════════════════════════════════════════════
 
 import { CFG } from './config.js';
+import { recordMIDI } from './session-recorder.js';
 
 // ── MIDI role channels (0-indexed internally) ──
 // Ch 0=PULSE, Ch 1=GRAIN, Ch 2=DRONE, Ch 3=BASS, Ch 4=CHORDS, Ch 5=VOICE, Ch 6=LEAD, Ch 7=RUPTURE
@@ -142,6 +143,7 @@ export function updateMIDI() {
 // Il driver MIDI schedula il note-off con precisione hardware,
 // eliminando il drift del setTimeout sul main thread.
 export function sendMIDINote(ch, note, vel, durationMs = 200) {
+  recordMIDI(ch, note, vel, durationMs);  // session recorder hook (no-op if not recording)
   if (!midiOut) return;
   const chByte = ch & 0x0F;
   midiOut.send([0x90 | chByte, note, vel]);

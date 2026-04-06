@@ -9,6 +9,7 @@ import { startInvertDissolve, setConcertTime } from './colors.js';
 import { setPresenceMultiplier, getPresenceMultiplier, resetAllMultipliers } from './presence-multiplier.js';
 import { sendMIDIAllNotesOff } from './midi.js';
 import { CFG } from './config.js';
+import { recordDecision } from './session-recorder.js';
 
 // ── Momenti-firma state (read by generations.js, render.js) ──
 export const firma = {
@@ -48,6 +49,8 @@ const CUES = [
   { t: 420,  action: 'layer',     engine: 'abisso',    target: 0.8, duration: 30 },  // Bb Phrygian visual
   { t: 480,  action: 'fade_to',   engine: 'abisso',    target: 1.0, duration: 20 },
   { t: 480,  action: 'camera',    framing: 'MEDIUM' },
+  // v5 SILENZIO STRUTTURALE 1 — respiro dopo il primo groove pieno (~11 min)
+  { t: 660,  action: 'silence_breath', duration: 6 },
   // GELO al break ~12 min
   { t: 720,  action: 'firma',     effect: 'gelo',      active: true  },
   { t: 728,  action: 'firma',     effect: 'gelo',      active: false },
@@ -64,6 +67,8 @@ const CUES = [
   { t: 1080, action: 'layer',     engine: 'terreno',   target: 0.5, duration: 15 },
   { t: 1080, action: 'camera',    framing: 'MEDIUM' },
   { t: 1110, action: 'fade_to',   engine: 'terreno',   target: 1.0, duration: 20 },
+  // v5 SILENZIO STRUTTURALE 2 — respiro prima del gelo, tensione (~21 min)
+  { t: 1260, action: 'silence_breath', duration: 5 },
   // GELO al break ~22 min
   { t: 1320, action: 'firma',     effect: 'gelo',      active: true  },
   { t: 1328, action: 'firma',     effect: 'gelo',      active: false },
@@ -91,6 +96,9 @@ const CUES = [
   { t: 2040, action: 'fade_to',   engine: 'vortice',   target: 0.0, duration: 30 },
   { t: 2040, action: 'fade_to',   engine: 'solco',     target: 0.0, duration: 30 },
 
+  // v5 SILENZIO STRUTTURALE 3 — respiro finale dopo il climax, prima del ritorno (~34:30)
+  { t: 2070, action: 'silence_breath', duration: 8 },
+
   // ── VII. RITORNO (35:00–43:00) — dissoluzione, seed, silenzio ──
   { t: 2100, action: 'camera',    framing: 'WIDE' },
   { t: 2100, action: 'layer',     engine: 'cristallo', target: 0.5, duration: 30 },
@@ -111,6 +119,7 @@ let cueIndex = 0;
 let paused = false;
 let looping = false;
 let lastSaveTime = 0;
+let _breathEndTime = 0;  // v5: when structural silence ends
 
 // Multiple simultaneous transitions
 let transitions = [];  // [{ engine, startTime, duration, fromPm, toPm }]
@@ -356,6 +365,7 @@ function updateTransitions() {
 // ── Cue processing ──
 
 function processCue(cue) {
+  recordDecision('cue', `${cue.action}${cue.engine ? ' ' + cue.engine : ''}${cue.effect ? ' ' + cue.effect : ''} @${cue.t}s`);
   switch (cue.action) {
     case 'silence':
       sendMIDIAllNotesOff(); // flush all scheduled notes before deactivating engines
@@ -402,6 +412,18 @@ function processCue(cue) {
       console.log(`[SEQ] FIRMA ${cue.effect.toUpperCase()} ${cue.active ? 'ON' : 'OFF'}`);
       break;
 
+    // v5: structural silence — MIDI all-notes-off + visual blackout for N seconds
+    // The gesto più potente del concerto. Il pubblico trattiene il fiato.
+    case 'silence_breath': {
+      const dur = cue.duration || 6;
+      sendMIDIAllNotesOff();
+      firma.vuotoTotale = true;
+      // Schedule end of breath
+      _breathEndTime = globalTime + dur;
+      console.log(`[SEQ] ═══ SILENZIO STRUTTURALE ═══ ${dur}s`);
+      break;
+    }
+
     case 'end':
       sendMIDIAllNotesOff(); // flush all scheduled notes before stopping
       if (_deactivateAll) _deactivateAll();
@@ -437,6 +459,13 @@ export function updateSequencer(dt) {
     firma.densityCap = Math.max(0, Math.pow(1 - (globalTime - 2490) / 90, 2));
   } else {
     firma.densityCap = 1;
+  }
+
+  // v5: check structural silence end
+  if (_breathEndTime > 0 && globalTime >= _breathEndTime) {
+    firma.vuotoTotale = false;
+    _breathEndTime = 0;
+    console.log('[SEQ] ═══ SILENZIO FINE ═══');
   }
 
   // Process due cues (skipped when looping — time flows but no new cues fire)

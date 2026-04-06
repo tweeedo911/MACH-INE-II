@@ -8,7 +8,9 @@
 import { CFG } from './config.js';
 import { macroState, isPerformanceStarted } from './macro-composer.js';
 import { sendMIDINote as _rawSend, sendMIDIAllNotesOff } from './midi.js';
+import { recordDecision } from './session-recorder.js';
 import { addMidiNote as _addMidiVisual } from './field.js';
+import { gaussianRand as _gaussianRand } from './utils.js';
 
 // ── Stato step corrente — usato da sendNote per downbeat boost ────────────────
 let _currentStep16 = 0;  // step corrente nel bar 16th-note (0-15)
@@ -18,16 +20,14 @@ let _currentStep16 = 0;  // step corrente nel bar 16th-note (0-15)
 //  Downbeat boost MIDI-01, pitch range MIDI-02, phrase offset MIDI-03
 // ═══════════════════════════════════════════════════════════
 
-// Approssimazione gaussiana (media 0, sigma ~1)
-function _gaussianRand() {
-  return (Math.random() + Math.random() + Math.random() - 1.5) * 2;
-}
-
 // Wrapper MIDI con gating, range enforcement e humanization
-// Il hat NON passa qui — usa sendHatNote che bypassa il gating rhythmicDensity
+// Il hat NON passa qui — usa sendHatNote con textureDepth scaling
 function sendNote(ch, note, vel, dur) {
-  // Gating su rhythmicDensity (eccetto hat che ha percorso separato)
-  if (macroState.rhythmicDensity < 0.05) return;
+  const rD = macroState.rhythmicDensity;
+  // Gating: sotto 0.05 = silenzio totale, sopra = velocity scalata
+  if (rD < 0.05) return;
+  // Gradiente continuo: velocity × rD (kick/perc emergono col MacroComposer)
+  vel = vel * Math.min(1.0, rD * 1.5);  // rD=0.67 → full vel, sotto scala
 
   // MIDI-02: pitch range enforcement per canale
   const range = ch === 0
@@ -63,9 +63,16 @@ function sendNote(ch, note, vel, dur) {
   _rawSend(ch, note, vel, dur);
 }
 
-// Wrapper dedicato hi-hat — bypassa gating rhythmicDensity (RITM-01, D-06)
-// Il hat suona SEMPRE — solo il velFloor garantisce presenza minima
+// Wrapper dedicato hi-hat — textureDepth scaling (v5: hat obbedisce al MacroComposer)
+// Il hat scala con textureDepth: sotto 0.08 = silente, pieno a 0.30+
 function sendHatNote(note, vel, dur) {
+  const tD = macroState.textureDepth;
+  // v5 FIX: hat gated by textureDepth — no more bypassing MacroComposer
+  if (tD < 0.08) return;  // NEBBIA: hat silente, solo drone + gocce melodiche
+  // Gradiente continuo: velocity × tD scaling (0.08→0.30 = ramp up)
+  const hatScale = Math.min(1.0, (tD - 0.08) / 0.22);  // 0@tD=0.08, 1@tD=0.30
+  vel = vel * hatScale;
+
   // MIDI-02: pitch range enforcement CH1 (C2-C4)
   const range = CFG.RHYTHM.midi.pitchRange.ch1;
   note = Math.max(range.min, Math.min(range.max, note));
@@ -78,7 +85,7 @@ function sendHatNote(note, vel, dur) {
     vel = vel * (1 - CFG.RHYTHM.midi.offbeatReduce);
   }
 
-  // Velocity floor assoluto — il hat non si azzera mai (D-06, RITM-01)
+  // Velocity floor — but only AFTER scaling (hat can be silent now)
   vel = Math.max(CFG.RHYTHM.hat.velFloor, vel);
   vel = Math.max(1, Math.min(127, Math.round(vel)));
 
@@ -275,6 +282,7 @@ function _onKickStep(step) {
           Math.floor(Math.random() * (br.maxCooldownBars - br.minCooldownBars + 1));
         _nextBreakBar = _bar + cooldown;
         console.log('[RHYTHM] break end — punch re-entry @bar', _bar, '| next in', cooldown, 'bars');
+        recordDecision('break_end', `bar:${_bar} cooldown:${cooldown}`);
       }
     } else if (_bar >= _nextBreakBar && arc >= br.minArc && arc <= br.maxArc) {
       // Inizia nuovo break con probabilita'
@@ -285,6 +293,7 @@ function _onKickStep(step) {
         _breakActive           = true;
         macroState.breakActive = true;
         console.log('[RHYTHM] break start @bar', _bar, '| dur:', _breakDurBars, 'bars');
+        recordDecision('break_start', `bar:${_bar} dur:${_breakDurBars}`);
       } else {
         // Riprova al prossimo slot
         _nextBreakBar = _bar + br.minCooldownBars;
@@ -343,10 +352,14 @@ function _onKickStep(step) {
     pattern = pats.broken1;
   }
 
+  // v5: kick pitch tied to current mode — 5 different kicks for 5 identities
+  const kickNote = (CFG.RHYTHM.kick.noteForMode && CFG.RHYTHM.kick.noteForMode[macroState.currentMode])
+    || CFG.RHYTHM.kick.note;
+
   // Fill: colpo anacrusico al beat 15 ogni 4 bar (frase chiara) (D-03)
   if (s16 === 15 && (_bar % 4 === 3) && Math.random() < CFG.RHYTHM.kick.fillProb) {
     const fillVel = Math.round(CFG.RHYTHM.kick.velOffbeat * 0.85);
-    sendNote(CFG.RHYTHM.midi.channels.kick, CFG.RHYTHM.kick.note, fillVel, CFG.RHYTHM.kick.durMs);
+    sendNote(CFG.RHYTHM.midi.channels.kick, kickNote, fillVel, CFG.RHYTHM.kick.durMs);
   }
 
   if (!pattern || !pattern[s16]) return;
@@ -357,7 +370,7 @@ function _onKickStep(step) {
     baseVel = Math.min(127, baseVel + CFG.RHYTHM.break.punchVelBoost);
     _punchNextKick = false;
   }
-  sendNote(CFG.RHYTHM.midi.channels.kick, CFG.RHYTHM.kick.note, baseVel, CFG.RHYTHM.kick.durMs);
+  sendNote(CFG.RHYTHM.midi.channels.kick, kickNote, baseVel, CFG.RHYTHM.kick.durMs);
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -398,7 +411,8 @@ function _updateHatPhasing(dt, bpm) {
   if (curStepA > _hatLastStepA) {
     for (let s = _hatLastStepA + 1; s <= curStepA; s++) {
       const si = s % CFG.RHYTHM.hat.phasingStepsA;
-      // Suona sempre (step 0 oppure hit casuali per texture aritmica)
+      // v5: in arhythmic solo step 0 (1 hit per ciclo = goccia rara)
+      // Altre fasi: tutti gli step — densità controllata dal textureDepth scaling in sendHatNote
       if (si === 0 || _currentPhase !== 'arhythmic') {
         _onHatHit(si);
       }
@@ -528,7 +542,7 @@ export function updateRhythmLayer(dt) {
 
   // Step 2 — Step sequencer principale 16th-note (pattern identico a composer.js)
   const bpm = CFG.RHYTHM.bpmSource === 'macro'
-    ? CFG.MACRO.bpmReference
+    ? macroState.currentBpm
     : CFG.RHYTHM.bpm;
   const stepsPerSec = bpm * 4 / 60;
   _clock += dt * stepsPerSec;
