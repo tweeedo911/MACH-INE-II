@@ -22,13 +22,16 @@ const PHASE_PARAMS = {
 let _dots = [];
 let _vanishX = 0.5;
 let _vanishY = 0.4;
-let _vanishDriftX = 0;   // slow vanishing point wander
+let _vanishDriftX = 0;
 let _vanishDriftY = 0;
 let _isRitorno = false;
 let _time = 0;
 let _params = { ...PHASE_PARAMS.germoglio };
 let _sediment = new Sediment();
-let _onsetShake = 0;      // onset-driven shake amount
+let _onsetShake = 0;
+
+// ── Audio-reactive zones — Bayer clusters that grow with sound ──
+let _zones = [];  // { x, y, radius, targetRadius, density, born }
 
 export function init(env) {
   _dots = [];
@@ -40,7 +43,8 @@ export function init(env) {
   _vanishDriftX = 0;
   _vanishDriftY = 0;
   _params = { ...(PHASE_PARAMS[env.worldState.phase] || PHASE_PARAMS.germoglio) };
-  _sediment.clear(1, 1); // will resize on first render
+  _sediment.clear(1, 1);
+  _zones = [];
 }
 
 export function render(ctx, W, H, env) {
@@ -81,32 +85,68 @@ export function render(ctx, W, H, env) {
     time: _time,
   });
 
-  // ── Layer 1: Bayer matrix base — always present, the "tessuto" del canvas ──
-  // Full-screen halftone field: audio-reactive, perspective-weighted, always visible
+  // ── Layer 1: Audio-reactive zones — Bayer clusters that breathe and grow ──
+  // No sound = no matrix. Sound spawns zones at random positions that expand.
   const breathDotSize = Math.max(5, Math.round(lerp(12, 6, state.intensity)));
+
+  // Spawn new zones when audio is active
+  if (audio.rms > 0.05) {
+    // Spawn rate proportional to intensity
+    const spawnChance = state.intensity * 0.15 + audio.flux * 0.3;
+    if (Math.random() < spawnChance && _zones.length < 12) {
+      _zones.push({
+        x: Math.random(),
+        y: Math.random(),
+        radius: 0.01,
+        targetRadius: 0.08 + Math.random() * 0.15 + state.intensity * 0.12,
+        density: 0,
+        born: _time,
+      });
+    }
+  }
+
+  // Update zones: grow, fade, remove dead
+  for (let i = _zones.length - 1; i >= 0; i--) {
+    const z = _zones[i];
+    // Grow toward target
+    z.radius += (z.targetRadius - z.radius) * 0.02;
+    // Density follows audio — alive when sound, fades in silence
+    const targetDensity = audioDensity(audio, state, z.x, z.y) * _params.breathAlpha * 1.5
+                        + audioFlicker(state, _time, z.x, z.y) * _params.breathAlpha;
+    z.density += (targetDensity - z.density) * 0.08;
+    // Shrink when no audio
+    if (audio.rms < 0.03) {
+      z.targetRadius *= 0.995;
+      z.density *= 0.98;
+    }
+    // Remove dead zones
+    if (z.density < 0.005 && z.radius < 0.02) {
+      _zones[i] = _zones[_zones.length - 1];
+      _zones.length--;
+    }
+  }
+
+  // Render zones as circular Bayer clusters
   const cols = Math.ceil(W / breathDotSize);
   const rows = Math.ceil(H / breathDotSize);
-
   for (let r = 0; r < rows; r++) {
     const ny = r / rows;
     for (let c = 0; c < cols; c++) {
       const nx = c / cols;
-      const dx = nx - _vanishX;
-      const dy = ny - _vanishY;
-      const distFromVanish = Math.sqrt(dx * dx + dy * dy);
-      // Perspective gradient: denser near vanishing point, fades outward
-      const perspDensity = Math.max(0, 1 - distFromVanish * 1.4);
+      // Accumulate density from all active zones at this point
+      let d = 0;
+      for (const z of _zones) {
+        const dx = nx - z.x;
+        const dy = ny - z.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < z.radius) {
+          // Soft falloff from center
+          const falloff = 1 - (dist / z.radius);
+          d += z.density * falloff * falloff;
+        }
+      }
 
-      // Base Bayer presence — always there, even in silence
-      let d = 0.03 + perspDensity * 0.06;
-      // Audio-reactive layer on top
-      d += audioDensity(audio, state, nx, ny) * _params.breathAlpha;
-      d += perspDensity * state.intensity * _params.breathAlpha * 0.8;
-      d += audioFlicker(state, _time, nx, ny) * _params.breathAlpha * 0.5;
-      // Noise variation to avoid uniformity
-      d += noiseAt(c * 0.5, r * 0.5, _time * 0.3) * 0.03;
-
-      if (bayerTest(c, r, clamp(d, 0, 1))) {
+      if (d > 0.01 && bayerTest(c, r, clamp(d, 0, 1))) {
         const fade = clamp(d * 1.5, 0.04, 0.6);
         const rgb = lerpColor(bgRgb, dotRgb, fade);
         ctx.fillStyle = rgbString(rgb[0], rgb[1], rgb[2]);
