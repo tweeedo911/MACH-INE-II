@@ -6,6 +6,7 @@
 
 import { worldState } from './world-state.js';
 import * as toolkit from './visual-toolkit.js';
+import { Sediment } from './visual-toolkit.js';
 
 // ── Composition modules ──
 import * as compLiminale from './comp-liminale.js';
@@ -30,6 +31,9 @@ let _activeComp = null;       // current composition module
 let _activeTrack = null;      // current track name
 let _outgoingComp = null;     // composition being faded out during transition
 let _transitionAlpha = 0;     // 0 = all outgoing, 1 = all incoming
+
+// ── Shared sediment — persists across track changes (scene memory) ──
+let _sharedSediment = new Sediment();
 
 // ── Offscreen buffer for crossfade ──
 let _offCanvas = null;
@@ -56,6 +60,7 @@ function buildEnv(extra) {
     dt: extra.dt,
     globalTime: extra.globalTime,
     toolkit,
+    sharedSediment: _sharedSediment,  // scene memory — persists across tracks
   };
 }
 
@@ -143,7 +148,15 @@ export function renderField(ctx, W, H, envData) {
   if (track !== _activeTrack) {
     const newComp = COMP_MAP[track];
     if (newComp) {
-      // Start transition if we have an outgoing composition
+      // Capture current frame into shared sediment before switching (scene memory)
+      if (_activeComp && W > 0 && H > 0) {
+        _sharedSediment._ensure(W, H);
+        const sCtx = _sharedSediment.getCtx();
+        sCtx.globalAlpha = 0.7;
+        sCtx.drawImage(ctx.canvas, 0, 0);
+        sCtx.globalAlpha = 1;
+      }
+
       if (_activeComp && worldState.transition) {
         _outgoingComp = _activeComp;
         _transitionAlpha = 0;
@@ -183,4 +196,11 @@ export function renderField(ctx, W, H, envData) {
     // Normal render — single composition
     _activeComp.render(ctx, W, H, env);
   }
+
+  // Shared sediment: composite scene memory OVER the composition
+  // Decays slowly (0.97) — old scenes ghost under the new one for ~3-4 seconds
+  _sharedSediment.decay(W, H, 0.97);
+  ctx.globalAlpha = 0.35;
+  _sharedSediment.composite(ctx);
+  ctx.globalAlpha = 1;
 }
