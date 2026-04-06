@@ -86,8 +86,9 @@ function _tick() {
     addMidiNote(CH_KICK, kickNote / 127, vel / 127);
   }
 
-  // ── CH1 HAT ──
-  const hatPat = HAT_PATTERNS[phase] || HAT_PATTERNS.germoglio;
+  // ── CH1 HAT ── (use per-track pattern if defined, else default)
+  const customHat = trackDef.hatPatterns && trackDef.hatPatterns[phase];
+  const hatPat = customHat || HAT_PATTERNS[phase] || HAT_PATTERNS.germoglio;
   const hasHat = hatPat[_step] === 1;
   let hatSent   = false;
 

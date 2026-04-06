@@ -101,6 +101,15 @@ export const TRACKS = {
     arpRate: 8,   // 8th notes
     arpNotes: 4,  // 4-note pattern derived from currentChord
 
+    // ── Melody strategy: BASS is the star, voice rare and precious ──
+    melodyStrategy: {
+      voiceEveryBars: 4,       // 1 phrase every 4 bars (rare, precious)
+      voicePhraseLen: [4, 6],  // short phrases
+      leadMode: 'none',        // no lead — groove speaks for itself
+      arpRole: 'accompany',    // arp present but secondary
+      arpVelScale: 0.7,        // quieter than voice
+    },
+
     palette: { bg: '#282B26', dot: '#FE6B0D', accent: '#CDD71D' },
     visualRegime: { maxDensity: 0.65, minDotSize: 4, composition: 'ASIMMETRIA' },
   },
@@ -154,6 +163,16 @@ export const TRACKS = {
     arpRate: 0,
     arpNotes: 0,
 
+    // ── Melody strategy: drops then counterpoint, intimate ──
+    melodyStrategy: {
+      voiceEveryBars: 4,       // rare drops
+      voicePhraseLen: [1, 3],  // very short — single notes to tiny motifs
+      leadMode: 'response',    // lead enters in pulsazione as counterpoint
+      leadProb: 0.3,           // not too often
+      arpRole: 'none',
+      arpVelScale: 0,
+    },
+
     palette: { bg: '#0A0A0A', dot: '#EFE6DE', accent: null },
     visualRegime: { maxDensity: 0.15, minDotSize: 10, composition: 'VUOTO' },
   },
@@ -172,8 +191,8 @@ export const TRACKS = {
 
     register: {
       bass:   [26, 45],    // sub
-      melody: [62, 79],
-      lead:   [0, 0],      // no lead in TESSUTO
+      melody: [0, 0],      // voice tace in TESSUTO — lead prende il suo posto
+      lead:   [62, 79],    // lead come voce melodica
       chords: [50, 67],
       arp:    [0, 0],      // no arp in TESSUTO
     },
@@ -212,6 +231,18 @@ export const TRACKS = {
 
     arpRate: 0,
     arpNotes: 0,
+
+    // ── Melody strategy: voice tace, LEAD is the melodic voice (introduces CH6) ──
+    melodyStrategy: {
+      voiceEveryBars: 0,       // voice OFF — silent
+      voicePhraseLen: [0, 0],
+      leadMode: 'solo',        // lead plays independently (not response to voice)
+      leadProb: 1.0,           // always active when density allows
+      leadEveryBars: 2,        // 1 phrase every 2 bars
+      leadPhraseLen: [4, 8],   // medium phrases
+      arpRole: 'none',
+      arpVelScale: 0,
+    },
 
     palette: { bg: '#20130D', dot: '#CDD71D', accent: '#EFE6DE' },
     visualRegime: { maxDensity: 0.40, minDotSize: 6, composition: 'GRIGLIA' },
@@ -264,6 +295,16 @@ export const TRACKS = {
     bassPattern: null,
     arpRate: 0,
     arpNotes: 0,
+
+    // ── Melody strategy: voice sola, spazio aperto ──
+    melodyStrategy: {
+      voiceEveryBars: 3,       // moderate
+      voicePhraseLen: [5, 8],  // medium — breathing phrases
+      leadMode: 'echo',        // lead echoes voice, softer and delayed
+      leadProb: 0.25,          // rare echoes
+      arpRole: 'none',
+      arpVelScale: 0,
+    },
 
     palette: { bg: '#7BBA91', dot: '#20130D', accent: null },
     visualRegime: { maxDensity: 0.20, minDotSize: 8, composition: 'RESPIRO' },
@@ -321,6 +362,25 @@ export const TRACKS = {
     arpRate: 16,   // 16th notes — fast
     arpNotes: 4,
 
+    // ── Melody strategy: ARP protagonist, voice+lead as fleeting color ──
+    melodyStrategy: {
+      voiceEveryBars: 8,       // voice very rare — 1 phrase every 8 bars
+      voicePhraseLen: [3, 5],  // short interjections
+      leadMode: 'response',    // lead responds to voice, brief
+      leadProb: 0.3,           // infrequent
+      arpRole: 'protagonist',  // arp is the main melodic element
+      arpVelScale: 1.0,        // full velocity
+    },
+
+    // ── Custom hat: tight mechanical 16ths ──
+    hatPatterns: {
+      germoglio:    [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0],
+      pulsazione:   [1,0,1,0, 1,0,1,0, 1,0,1,0, 1,0,1,0],  // straight 8ths from the start
+      densita:      [1,1,1,1, 1,1,1,1, 1,1,1,1, 1,1,1,1],  // tight 16ths — mechanical
+      rottura:      [1,1,1,1, 1,1,1,1, 1,1,1,1, 1,1,1,1],
+      dissoluzione: [1,0,1,0, 0,0,1,0, 0,0,0,0, 1,0,0,0],
+    },
+
     palette: { bg: '#1A1A2E', dot: '#F8ED00', accent: '#DD3A44' },
     visualRegime: { maxDensity: 0.80, minDotSize: 2, composition: 'GRIGLIA' },
   },
@@ -377,6 +437,25 @@ export const TRACKS = {
     arpRate: 16,   // 16th notes
     arpNotes: 6,   // wider pattern
 
+    // ── Melody strategy: VOICE+LEAD hocket (interlocked), arp as texture ──
+    melodyStrategy: {
+      voiceEveryBars: 1,       // voice always active — dense
+      voicePhraseLen: [8, 12], // long intertwined phrases
+      leadMode: 'hocket',      // lead and voice alternate notes (zipper)
+      leadProb: 1.0,           // always — they are one instrument split in two
+      arpRole: 'texture',      // arp drops to background
+      arpVelScale: 0.4,        // quiet — texture underneath the voices
+    },
+
+    // ── Custom hat: complex polyrhythmic (additive 3+3+3+3+4) ──
+    hatPatterns: {
+      germoglio:    [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0],
+      pulsazione:   [1,0,0,1, 0,0,1,0, 0,1,0,0, 1,0,0,0],  // asymmetric
+      densita:      [1,0,1,1, 0,1,1,0, 1,0,1,1, 0,1,0,1],  // polyrhythmic dense
+      rottura:      [1,1,1,1, 1,0,1,1, 1,1,0,1, 1,1,1,0],  // almost full but with holes
+      dissoluzione: [1,0,0,0, 0,0,1,0, 0,0,0,0, 0,0,0,0],
+    },
+
     palette: { bg: '#000000', dot: '#FFFFFF', accent: '#91010F' },
     visualRegime: { maxDensity: 1.0, minDotSize: 1, composition: 'DATA' },
   },
@@ -431,6 +510,16 @@ export const TRACKS = {
 
     arpRate: 8,    // 8th notes — slower than MACCHINA/TEMPESTA
     arpNotes: 3,   // minimal pattern
+
+    // ── Melody strategy: VOICE sola esposta, lead eco lontana, arp muore ──
+    melodyStrategy: {
+      voiceEveryBars: 2,       // voice presente — è il cuore
+      voicePhraseLen: [6, 10], // long exposed phrases
+      leadMode: 'echo',        // lead ripete voice, più piano, ritardata
+      leadProb: 0.35,          // non sempre — momenti di solitudine
+      arpRole: 'dying',        // arp solo in pulsazione, poi muore
+      arpVelScale: 0.5,        // fading
+    },
 
     palette: { bg: '#0A0A0A', dot: '#9B8FCE', accent: '#EFE6DE' },
     visualRegime: { maxDensity: 0.30, minDotSize: 6, composition: 'DISSOLVENZA' },
