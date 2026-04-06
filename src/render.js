@@ -8,7 +8,7 @@ import { midi, noteName } from './midi.js';
 import { state } from './state.js';
 import { dna, updatePrimitives } from './dna.js';
 import { entities, fossils, updateGenerations, buildEntityGrid, triggerOnset, triggerMIDI } from './generations.js';
-import { updateColors, getPalette, getBgString, snapPalette } from './colors.js';
+import { updateColors, getPalette, getBgString } from './colors.js';
 import { getDirector3Status, isDirector3Playing } from './director3.js';
 import { worldState, phaseState } from './world-state.js';
 import { renderField, updateWaves, addOnsetWave, addMidiNote } from './field.js';
