@@ -10,8 +10,7 @@ import { state, updateState } from './state.js';
 import { initRender, renderFrame, resize, setHUDElements, handleKey, setProjectorWindow } from './render.js';
 import { generateDNA } from './dna.js';
 import { resetGenerations } from './generations.js';
-import { resetClimax } from './colors.js';
-import { initDirector, initDirectorEvents } from './director.js';
+import { snapPalette } from './colors.js';
 import { WakeLockManager } from '../.claude/skills/runtime-expert/scripts/perf-utils.js';
 
 // ── MACH:INE III modules ──
@@ -76,13 +75,12 @@ startScreen.addEventListener('click', async () => {
 
   await initMIDI();
 
-  // ── Visual director (scene, camera, arc) — reads audio, stays as-is ──
+  // ── DNA + palette ──
   generateDNA();
-  initDirector(state);
-  initDirectorEvents();
 
   // ── MACH:INE III composition system ──
   initDirector3('NEBBIA');
+  snapPalette();
   initRhythm();
   initHarmony();
   initBass();
@@ -139,8 +137,6 @@ document.addEventListener('keydown', (e) => {
   if (result === 'REGEN') {
     generateDNA();
     resetGenerations();
-    resetClimax();
-    initDirector(state);
   }
 });
 
