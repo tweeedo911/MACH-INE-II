@@ -49,6 +49,8 @@ const ARP_VEL_BASE    = 35;
 const ARP_VEL_RANGE   = 30;
 const ARP_HUMANIZE    = 3;    // ±3 velocity jitter
 const ARP_DUR_RATIO   = 0.85; // 85% of step interval
+const ARP_DUCK_FACTOR = 0.4;  // arp velocity multiplier when lead is active
+const ARP_DUCK_TICKS  = 8;    // how many ticks the arp stays ducked after lead
 
 // ── Voice velocity parameters ──
 const VOICE_VEL_FLOOR = 40;
@@ -74,6 +76,7 @@ let _pendingLead = null;  // { note, vel, dur } — fires on next tick
 let _arpPattern = [];     // current arp pattern (MIDI notes)
 let _arpIdx = 0;          // position within arp cycle
 let _lastChordStr = '';   // serialized chord for change detection
+let _leadDuckCounter = 0; // ticks remaining for arp ducking after lead fires
 
 export function initMelody() {
   _step = 0;
@@ -86,6 +89,7 @@ export function initMelody() {
   _arpPattern = [];
   _arpIdx = 0;
   _lastChordStr = '';
+  _leadDuckCounter = 0;
   console.log('[MELODY] Initialized');
 }
 
@@ -234,7 +238,9 @@ function _tick() {
     sendMIDINote(CH_LEAD, _pendingLead.note, _pendingLead.vel, _pendingLead.dur);
     addMidiNote(CH_LEAD, _pendingLead.note / 127, _pendingLead.vel / 127);
     _pendingLead = null;
+    _leadDuckCounter = ARP_DUCK_TICKS;  // duck arp while lead resonates
   }
+  if (_leadDuckCounter > 0) _leadDuckCounter--;
 
   // ──────────────────────────────────────────────
   //  2. CH5 VOICE — melodic phrases
@@ -280,7 +286,9 @@ function _tick() {
       // ──────────────────────────────────────────
       //  3. CH6 LEAD — call-response (schedule for NEXT tick)
       // ──────────────────────────────────────────
-      if (!isGermoglio && density > LEAD_MIN_DENSITY && Math.random() < LEAD_PROB) {
+      // Lead less likely when arp is active (they share space)
+      const leadProb = (_arpPattern.length > 0 && density > ARP_MIN_DENSITY) ? LEAD_PROB * 0.5 : LEAD_PROB;
+      if (!isGermoglio && density > LEAD_MIN_DENSITY && Math.random() < leadProb) {
         // Response interval: minor or major third
         const interval = LEAD_INTERVALS[Math.floor(Math.random() * LEAD_INTERVALS.length)];
         const direction = Math.random() < 0.5 ? 1 : -1;
@@ -327,8 +335,9 @@ function _tick() {
       const arpNote = _arpPattern[_arpIdx % _arpPattern.length];
       _arpIdx = (_arpIdx + 1) % _arpPattern.length;
 
-      // Velocity: base + density scaling, humanized, scaled down
-      const rawArpVel = (ARP_VEL_BASE + density * ARP_VEL_RANGE) * 0.7;
+      // Velocity: base + density scaling, ducked when lead is active
+      const duckMul = _leadDuckCounter > 0 ? ARP_DUCK_FACTOR : 1.0;
+      const rawArpVel = (ARP_VEL_BASE + density * ARP_VEL_RANGE) * 0.7 * duckMul;
       const arpHumanize = Math.round((Math.random() * ARP_HUMANIZE * 2) - ARP_HUMANIZE);
       const arpVel = Math.min(Math.max(Math.round(rawArpVel + arpHumanize), 1), velCeil);
       const arpDur = Math.round(stepMs * arpStepInterval * ARP_DUR_RATIO);
