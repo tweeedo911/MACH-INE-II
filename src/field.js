@@ -1,87 +1,87 @@
 // ═══════════════════════════════════════════════════════════
-//  MACH:INE II — Halftone Density Field + Bayer Dither Render
+//  MACH:INE III — Visual Dispatcher
+//  Routes rendering to the active composition module.
+//  Handles crossfade during track transitions.
 // ═══════════════════════════════════════════════════════════
 
-import { CFG } from './config.js';
-import { audio } from './audio.js';
-import { macroState } from './macro-composer.js';
-import { getNotePosition } from './midi-patterns.js';
-import { dna, getZone, primitiveDensity, isInVuoto } from './dna.js';
-import { entityDensityAt, entityColorAt } from './generations.js';
-import {
-  inverted, invertDissolving, invertDissolveProgress, invertTarget,
-  climaxProgress, inClimax, getCellColor, getMidiColor,
-} from './colors.js';
-import { scene, engineRender } from './director.js';
-import { firma } from './sequencer.js';
+import { worldState } from './world-state.js';
+import * as toolkit from './visual-toolkit.js';
 
-// ── Bayer 8x8 ──
-const BAYER8 = new Float32Array([
-   0/64, 32/64,  8/64, 40/64,  2/64, 34/64, 10/64, 42/64,
-  48/64, 16/64, 56/64, 24/64, 50/64, 18/64, 58/64, 26/64,
-  12/64, 44/64,  4/64, 36/64, 14/64, 46/64,  6/64, 38/64,
-  60/64, 28/64, 52/64, 20/64, 62/64, 30/64, 54/64, 22/64,
-   3/64, 35/64, 11/64, 43/64,  1/64, 33/64,  9/64, 41/64,
-  51/64, 19/64, 59/64, 27/64, 49/64, 17/64, 57/64, 25/64,
-  15/64, 47/64,  7/64, 39/64, 13/64, 45/64,  5/64, 37/64,
-  63/64, 31/64, 55/64, 23/64, 61/64, 29/64, 53/64, 21/64,
-]);
+// ── Composition modules ──
+import * as compLiminale from './comp-liminale.js';
+import * as compLinee from './comp-linee.js';
+import * as compQuadrati from './comp-quadrati.js';
+import * as compNegativo from './comp-negativo.js';
+import * as compGriglia from './comp-griglia.js';
+import * as compTreno from './comp-treno.js';
 
-// ── Bayer 8x8 second grid for moiré interference (v4.1) ──
-// Same matrix sampled at 9/8 scale offset — two slightly mismatched grids
-// create geological strata and interference fringes
-const BAYER8_B = new Float32Array(64);
-for (let r = 0; r < 8; r++) {
-  for (let c = 0; c < 8; c++) {
-    // Shift by (3,2) and scale by 9/8 — irrational-ish offset avoids alignment
-    const sr = ((r * 9 + 2) >> 3) & 7;
-    const sc = ((c * 9 + 3) >> 3) & 7;
-    BAYER8_B[r * 8 + c] = BAYER8[sr * 8 + sc];
+const COMP_MAP = {
+  NEBBIA:   compLiminale,
+  TESSUTO:  compLinee,
+  SOLCO:    compQuadrati,
+  RESPIRO:  compNegativo,
+  MACCHINA: compGriglia,
+  TEMPESTA: compTreno,
+  RITORNO:  compLiminale,
+};
+
+// ── State ──
+let _activeComp = null;       // current composition module
+let _activeTrack = null;      // current track name
+let _outgoingComp = null;     // composition being faded out during transition
+let _transitionAlpha = 0;     // 0 = all outgoing, 1 = all incoming
+
+// ── Offscreen buffer for crossfade ──
+let _offCanvas = null;
+let _offCtx = null;
+
+function ensureOffscreen(W, H) {
+  if (!_offCanvas || _offCanvas.width !== W || _offCanvas.height !== H) {
+    _offCanvas = document.createElement('canvas');
+    _offCanvas.width = W;
+    _offCanvas.height = H;
+    _offCtx = _offCanvas.getContext('2d');
   }
 }
 
-// ── Onset waves ──
-export let onsetWaves = [];
-
-export function addOnsetWave(cx, cy, W, H) {
-  onsetWaves.push({ cx: cx * W, cy: cy * H, radius: 0, alpha: 1 });
+// ── Build env object for composition modules ──
+function buildEnv(extra) {
+  return {
+    worldState,
+    midiTrail: extra.midiTrail || [],
+    onsetWaves: extra.onsetWaves || [],
+    audio: extra.audio,
+    midi: extra.midi,
+    state: extra.state,
+    dt: extra.dt,
+    globalTime: extra.globalTime,
+    toolkit,
+  };
 }
 
-// ── MIDI note trail ──
-const MAX_TRAIL = 64;
-export let midiTrail = [];
+// ── Init: called when system boots ──
+export function initField() {
+  // Will be initialized on first renderField call
+}
 
-// Per-channel max concurrent trail slots — prevents high-freq channels (CH1 grain)
-// from evicting low-freq channels (CH4 chords, CH5 voice, CH6 lead) via FIFO.
-// CH5 VOICE gets the most slots — it's the protagonist.
-const CH_MAX = [4, 2, 3, 7, 9, 14, 10, 5]; // CH0-CH7 — CH1 grain: 2 slot max (anti-dominanza)
+// ── Onset waves (kept here for render.js compatibility) ──
+export let onsetWaves = [];
+export function addOnsetWave(cx, cy, W, H) {
+  onsetWaves.push({ cx: cx * W, cy: cy * H, radius: 0, strength: 1 });
+}
+
+// ── MIDI trail (kept here for render.js compatibility) ──
+export let midiTrail = [];
+const MAX_TRAIL = 80;
+const CH_MAX = [4, 2, 3, 7, 9, 14, 10, 5];
 
 export function addMidiNote(ch, noteNorm, velNorm) {
-  // CH2–CH6 (drone/bass/chords/voice/lead) arrivano con vel attenuata da macroState —
-  // floor visivo garantisce presenza minima anche quando harmonicColor/melodicActivity è basso
+  // Floor for voice/lead visibility
   const visVel = (ch === 5 || ch === 6) ? Math.max(velNorm, 0.75)
               : (ch >= 2 && ch <= 4)   ? Math.max(velNorm, 0.3)
               : velNorm;
-  const pos = getNotePosition(ch, noteNorm, visVel);
-  if (!pos) return;
 
-  // Scale radius by scene midiScale (engine override if active) + engine shapeScale
-  const mScale = (engineRender.active && engineRender.midiScale != null) ? engineRender.midiScale : scene.midiScale;
-  const scaledRadius = pos.radius * mScale * engineRender.shapeScale;
-
-  // Reinforce: if a similar note exists from same channel, boost it
-  for (const n of midiTrail) {
-    if (n.ch === ch && Math.abs(n.x - pos.x) < 0.04 && Math.abs(n.y - pos.y) < 0.04) {
-      n.alpha = Math.min(1, n.alpha + visVel * 0.5);
-      n.vel = Math.max(n.vel, visVel);
-      n.radius = scaledRadius;
-      n.time = 0;
-      return;
-    }
-  }
-
-  // Per-channel eviction: if this channel has too many entries, remove its oldest one.
-  // This ensures CH1 grain never pushes CH4/CH5/CH6 out of the trail.
+  // Per-channel eviction
   const chMax = CH_MAX[ch] ?? 6;
   let chCount = 0, oldestIdx = -1, oldestTime = -1;
   for (let i = 0; i < midiTrail.length; i++) {
@@ -91,31 +91,29 @@ export function addMidiNote(ch, noteNorm, velNorm) {
     }
   }
   if (chCount >= chMax && oldestIdx >= 0) {
-    midiTrail.splice(oldestIdx, 1);
+    midiTrail[oldestIdx] = midiTrail[midiTrail.length - 1];
+    midiTrail.length--;
   }
 
   midiTrail.push({
-    x: pos.x, y: pos.y,
-    vel: visVel, alpha: 1,
-    radius: scaledRadius,
-    decay: pos.decay,
-    shape: pos.shape,
-    color: pos.color,
-    ch: ch,
+    ch, note: noteNorm, vel: visVel,
+    x: noteNorm,                        // normalized 0-1 (comp decides mapping)
+    y: 1 - noteNorm,                    // default: pitch → vertical
+    alpha: 1,
     time: 0,
+    decay: 0.97,
   });
 
-  const maxTrail = engineRender.active ? engineRender.trailMax : MAX_TRAIL;
-  if (midiTrail.length > maxTrail) midiTrail.shift(); // global safety net
+  if (midiTrail.length > MAX_TRAIL) midiTrail.shift();
 }
 
+// ── Update waves and trail decay ──
 export function updateWaves(dt) {
   for (let i = onsetWaves.length - 1; i >= 0; i--) {
     const w = onsetWaves[i];
-    const waveSpeed = (engineRender.active && engineRender.onsetWaveSpeed != null) ? engineRender.onsetWaveSpeed : CFG.onsetWaveSpeed;
-    w.radius += waveSpeed * dt;
-    w.alpha *= CFG.onsetDecayRate;
-    if (w.alpha < 0.01) {
+    w.radius += 300 * dt;
+    w.strength *= 0.96;
+    if (w.strength < 0.01) {
       onsetWaves[i] = onsetWaves[onsetWaves.length - 1];
       onsetWaves.length--;
     }
@@ -123,7 +121,7 @@ export function updateWaves(dt) {
   for (let i = midiTrail.length - 1; i >= 0; i--) {
     const n = midiTrail[i];
     n.time += dt;
-    n.alpha *= n.decay || 0.97;
+    n.alpha *= n.decay;
     if (n.alpha < 0.01) {
       midiTrail[i] = midiTrail[midiTrail.length - 1];
       midiTrail.length--;
@@ -131,551 +129,58 @@ export function updateWaves(dt) {
   }
 }
 
-// ── MIDI color field ──
-function midiColorAt(nx, ny) {
-  let bestCh = -1, bestAlpha = 0;
-  for (const n of midiTrail) {
-    if (n.alpha < 0.03 || n.color === null) continue;
-    const dx = nx - n.x, dy = ny - n.y;
+// ── Main render entry point ──
+export function renderField(ctx, W, H, envData) {
+  const env = buildEnv({
+    ...envData,
+    midiTrail,
+    onsetWaves,
+  });
 
-    let influence = 0;
-    if (n.shape === 'pulse') {
-      // Rettangolo pieno — colore istantaneo
-      const hw = n.radius * 1.6, hh = n.radius * 0.9;
-      const adx = Math.abs(dx), ady = Math.abs(dy);
-      if (adx < hw && ady < hh) {
-        influence = (1 - adx / hw) * (1 - ady / hh) * n.alpha * n.vel;
-      }
-    } else if (n.shape === 'rect') {
-      // Quadrato pitch-posizionato — colore uniforme per bordi netti
-      const hw = n.radius * 1.0, hh = n.radius * 1.0;
-      const adx = Math.abs(dx), ady = Math.abs(dy);
-      if (adx < hw && ady < hh) {
-        influence = n.alpha * n.vel;
-      }
-    } else if (n.shape === 'band') {
-      // Banda orizzontale full-width — colore su tutta la larghezza del canvas
-      const bandH = n.radius * 1.5;
-      if (Math.abs(dy) < bandH) {
-        influence = (1 - Math.abs(dy) / bandH) * n.alpha * n.vel;
-      }
-    } else if (n.shape === 'column') {
-      // Colonna verticale — strip stretta in x, piena altezza
-      const hw = n.radius * 0.9;
-      if (Math.abs(dx) < hw) {
-        influence = (1 - Math.abs(dx) / hw) * n.alpha * n.vel;
-      }
-    } else if (n.shape === 'trail') {
-      // Colore rettangolare verticale
-      const hw = n.radius * 1.2, hh = n.radius * 2.0;
-      const adx = Math.abs(dx), ady = Math.abs(dy);
-      if (adx < hw && ady < hh) {
-        influence = (1 - ady / hh) * n.alpha * n.vel;
-      }
-    } else if (n.shape === 'rupture') {
-      // Rettangoli frammentati: fasce orizzontali con lacune animate
-      const fragIndex = Math.floor(Math.abs(dx * 9 + n.time * 1.3)) % 3;
-      const bandH = n.radius * 0.55;
-      const slotY = Math.floor(dy / bandH + 2) % 3;
-      const gap = (Math.sin(n.time * 4.7 + slotY * 2.1) > 0.3) ? 1 : 0;
-      if (gap && Math.abs(dy) < n.radius * 1.6 && fragIndex > 0) {
-        influence = (1 - Math.abs(dy) / (n.radius * 1.6)) * n.alpha * n.vel * 0.85;
-      }
-    } else {
-      // Scatter — piccolo rettangolo colore
-      const hw = n.radius * 1.0, hh = n.radius * 0.8;
-      if (Math.abs(dx) < hw && Math.abs(dy) < hh) {
-        influence = n.alpha * n.vel * 0.6;
-      }
-    }
+  const track = worldState.track;
 
-    if (influence > bestAlpha) {
-      bestAlpha = influence;
-      bestCh = n.color;
+  // Detect track change → switch composition
+  if (track !== _activeTrack) {
+    const newComp = COMP_MAP[track];
+    if (newComp) {
+      // Start transition if we have an outgoing composition
+      if (_activeComp && worldState.transition) {
+        _outgoingComp = _activeComp;
+        _transitionAlpha = 0;
+      } else if (_activeComp) {
+        _activeComp.destroy();
+      }
+      _activeComp = newComp;
+      _activeTrack = track;
+      _activeComp.init(env);
     }
   }
 
-  // Trail contour lines carry color
-  if (midiTrail.length >= 2) {
-    for (let i = 1; i < midiTrail.length; i++) {
-      const a = midiTrail[i - 1], b = midiTrail[i];
-      if (a.shape !== 'trail' || b.shape !== 'trail' || a.ch !== b.ch) continue;
-      if (a.color === null || a.alpha < 0.05 || b.alpha < 0.05) continue;
-      const abx = b.x - a.x, aby = b.y - a.y;
-      const abLen2 = abx * abx + aby * aby;
-      if (abLen2 < 0.0001) continue;
-      const t = Math.max(0, Math.min(1, ((nx - a.x) * abx + (ny - a.y) * aby) / abLen2));
-      const px2 = a.x + t * abx, py2 = a.y + t * aby;
-      const lineDist = Math.sqrt((nx - px2) * (nx - px2) + (ny - py2) * (ny - py2));
-      const colorWidth = 0.04;
-      if (lineDist < colorWidth) {
-        const lineAlpha = Math.min(a.alpha, b.alpha) * (1 - lineDist / colorWidth) * 0.7;
-        if (lineAlpha > bestAlpha) { bestAlpha = lineAlpha; bestCh = a.color; }
-      }
+  // Handle crossfade transition
+  if (_outgoingComp && worldState.transition) {
+    _transitionAlpha = worldState.transition.progress || 0;
+    ensureOffscreen(W, H);
+
+    // Draw outgoing to offscreen
+    _offCtx.clearRect(0, 0, W, H);
+    _outgoingComp.render(_offCtx, W, H, env);
+
+    // Draw incoming to main canvas
+    _activeComp.render(ctx, W, H, env);
+
+    // Composite outgoing with fading alpha
+    ctx.save();
+    ctx.globalAlpha = 1 - _transitionAlpha;
+    ctx.drawImage(_offCanvas, 0, 0);
+    ctx.restore();
+
+    // Transition complete
+    if (_transitionAlpha >= 1) {
+      _outgoingComp.destroy();
+      _outgoingComp = null;
     }
+  } else if (_activeComp) {
+    // Normal render — single composition
+    _activeComp.render(ctx, W, H, env);
   }
-
-  return [bestCh, bestAlpha];
-}
-
-// ── Grid distortion time (v4) — slow sinusoidal wave on Bayer lookup ──
-let _distortTime = 0;
-
-// ── Smoothed intensity for low-reactivity zones ──
-let smoothedIntensity = 0;
-
-// ── Total density at point ──
-function computeDensity(nx, ny, px, py, state, globalTime, W, H) {
-  if (isInVuoto(nx, ny)) return 0;
-
-  const zone = getZone(nx, ny);
-  const r = zone.reactivity;
-
-  const localIntensity = state.intensity * r + smoothedIntensity * (1 - r);
-  const intCurve = Math.pow(localIntensity, 1.5);
-  let d = CFG.densityBase + (CFG.densityMax - CFG.densityBase) * intCurve;
-
-  d += state.brightness * CFG.brightnessDensityBoost * localIntensity;
-
-  // Flicker only in reactive zones — per-zone speed and amplitude (engine override)
-  if (r > 0.3 && state.rhythmicity > 0.01) {
-    const baseFlicker = (engineRender.active && engineRender.flickerSpeed != null) ? engineRender.flickerSpeed : CFG.rhythmFlickerSpeed;
-    const speed = zone.flickerSpeed || baseFlicker;
-    const flickerT = globalTime * speed + zone.flickerPhase * Math.PI * 2;
-    const amp = zone.flickerAmp || CFG.rhythmFlickerAmp;
-    d += Math.sin(flickerT * Math.PI * 2) * amp * state.rhythmicity * r * r;
-  }
-  d *= zone.densityMul;
-
-  // Scene density multiplier (engine override multiplies on top)
-  d *= scene.densityMul;
-  if (engineRender.active && engineRender.densityMul != null) d *= engineRender.densityMul;
-
-  // Composition regions — spatial density override
-  for (const reg of scene.regions) {
-    if (nx >= reg.x && nx < reg.x + reg.w && ny >= reg.y && ny < reg.y + reg.h) {
-      d *= reg.mul;
-      break;
-    }
-  }
-
-  if (state.stereoWidth < 1) {
-    const centerDist = Math.abs(nx - 0.5) * 2;
-    d *= 1 - Math.pow(centerDist, CFG.widthCenterFalloff * (1 - state.stereoWidth)) * (1 - state.stereoWidth);
-  }
-
-  if (state.trajectory === 1) d += (1 - ny) * 0.08 * localIntensity;
-  else if (state.trajectory === -1) d += ny * 0.08 * localIntensity;
-
-  // Frequency bands → spatial regions
-  const bandAvg = (band) => (band.L + band.R) * 0.5;
-  const subLow = bandAvg(audio.bands.sub) * 0.6 + bandAvg(audio.bands.low) * 0.4;
-  const mid = bandAvg(audio.bands.mid);
-  const highAir = bandAvg(audio.bands.high) * 0.6 + bandAvg(audio.bands.air) * 0.4;
-
-  if (ny > 0.6) d += subLow * 0.08 * (ny - 0.6) / 0.4;
-  else if (ny > 0.3) d += mid * 0.06 * (1 - Math.abs(ny - 0.5) / 0.2);
-  if (ny < 0.4) d += highAir * 0.07 * (0.4 - ny) / 0.4;
-
-  // Engine density gravity — shift density weight vertically
-  // positive = bottom-heavy (ABISSO), negative = top-light (CRISTALLO)
-  if (engineRender.active && engineRender.densityGravity !== 0) {
-    const g = engineRender.densityGravity;
-    d *= 1 + g * (ny - 0.5);  // ny 0=top 1=bottom: g>0 boosts bottom, g<0 boosts top
-  }
-
-  const pd = primitiveDensity(nx, ny, state, W, H);
-  if (pd === -1) return 0;
-  d += pd;
-
-  d += entityDensityAt(nx, ny, W, H);
-
-  for (const w of onsetWaves) {
-    // Onda rettangolare orizzontale che si espande verticalmente
-    const dy = Math.abs(py - w.cy);
-    const bandDist = Math.abs(dy - w.radius);
-    if (bandDist < CFG.onsetWaveWidth) {
-      d = Math.max(d, (1 - bandDist / CFG.onsetWaveWidth) * CFG.onsetWaveDensity * w.alpha);
-    }
-  }
-
-  // MIDI trail — percussion: max (clean landmarks); trail/melodic: accumulate (disegnano lo spazio)
-  let maxMidiD = 0, trailAccum = 0;
-  for (const n of midiTrail) {
-    if (n.alpha < 0.02) continue;
-    const dx = nx - n.x, dy = ny - n.y;
-    let midiD = 0;
-
-    if (n.shape === 'pulse') {
-      // Rettangolo pieno — impatto nitido, nessuna geometria circolare
-      const hw = n.radius * 1.2, hh = n.radius * 0.6;
-      const adx = Math.abs(dx), ady = Math.abs(dy);
-      if (adx < hw && ady < hh) {
-        midiD = (1 - adx / hw) * (1 - ady / hh) * n.vel * n.alpha;
-      }
-    } else if (n.shape === 'rect') {
-      // Quadrato pitch-posizionato — densità costante per bordi netti nel Bayer
-      const hw = n.radius * 0.85, hh = n.radius * 0.85;
-      const adx = Math.abs(dx), ady = Math.abs(dy);
-      if (adx < hw && ady < hh) {
-        midiD = n.vel * n.alpha;
-      }
-    } else if (n.shape === 'band') {
-      // Banda orizzontale full-width — copre tutto il canvas in larghezza
-      const bandH = n.radius * 0.8;
-      const bandDist = Math.abs(dy);
-      if (bandDist < bandH) {
-        midiD = (1 - bandDist / bandH) * n.vel * n.alpha * 0.7;
-      }
-    } else if (n.shape === 'column') {
-      const hw = n.radius * 0.7;
-      if (Math.abs(dx) < hw) {
-        midiD = (1 - Math.abs(dx) / hw) * n.vel * n.alpha * 0.9;
-      }
-    } else if (n.shape === 'scatter') {
-      const hw = n.radius * 0.5, hh = n.radius * 0.3;
-      if (Math.abs(dx) < hw && Math.abs(dy) < hh) {
-        midiD = n.vel * n.alpha * 0.5;
-      }
-    } else {
-      // trail — striscia verticale ampia mappata al pitch: disegna lo spazio melodico
-      const hw = n.radius * 1.5, hh = n.radius * 1.2;
-      const adx = Math.abs(dx), ady = Math.abs(dy);
-      if (adx < hw && ady < hh) {
-        midiD = (1 - ady / hh) * (1 - adx / hw * 0.4) * n.vel * n.alpha;
-      }
-    }
-
-    // Trail melodici si accumulano — più note = spazio più denso
-    if (n.shape === 'trail' || n.shape === 'rect') {
-      trailAccum += midiD;
-    } else if (midiD > maxMidiD) {
-      maxMidiD = midiD;
-    }
-  }
-  d += (maxMidiD + Math.min(0.9, trailAccum * 0.65)) * engineRender.midiDensityMul;
-
-  // Melodic contour: lines between consecutive TRAIL notes of same channel
-  if (midiTrail.length >= 2) {
-    for (let i = 1; i < midiTrail.length; i++) {
-      const a = midiTrail[i - 1], b = midiTrail[i];
-      if (a.shape !== 'trail' || b.shape !== 'trail') continue;
-      if (a.ch !== b.ch) continue;
-      if (a.alpha < 0.05 || b.alpha < 0.05) continue;
-      const abx = b.x - a.x, aby = b.y - a.y;
-      const abLen2 = abx * abx + aby * aby;
-      if (abLen2 < 0.0001) continue;
-      const t = Math.max(0, Math.min(1, ((nx - a.x) * abx + (ny - a.y) * aby) / abLen2));
-      const px2 = a.x + t * abx, py2 = a.y + t * aby;
-      const lineDist = Math.sqrt((nx - px2) * (nx - px2) + (ny - py2) * (ny - py2));
-      const lineWidth = 0.045;  // was 0.02 — contorno melodico visibile
-      if (lineDist < lineWidth) {
-        d += Math.min(a.alpha, b.alpha) * (1 - lineDist / lineWidth) * 0.5;  // was 0.3
-      }
-    }
-  }
-
-  if (inClimax) d += CFG.climaxDensityBoost * climaxProgress;
-
-  // v5: regime maxDensity cap — enforced from VISUAL.modeParams
-  if (engineRender.active && engineRender.maxDensity != null) {
-    d = Math.min(d, engineRender.maxDensity);
-  }
-
-  // Concert opening/closing density cap
-  if (firma.densityCap < 1) d *= firma.densityCap;
-
-  // Non-linear compression: create true negative space
-  d = Math.max(0, Math.min(1, d));
-  if (d < CFG.densityVoidThreshold) return 0;
-  return Math.pow((d - CFG.densityVoidThreshold) / (1 - CFG.densityVoidThreshold), 1.6);
-}
-
-// ── Render: fillRect path (large dots) ──
-function renderFillRect(ctx, dotSize, state, globalTime, W, H) {
-  const cols = Math.ceil(W / dotSize);
-  const rows = Math.ceil(H / dotSize);
-  let lastFill = '';
-  const baseInv = (engineRender.active && engineRender.forceInvert != null) ? engineRender.forceInvert : inverted;
-
-  // Grid distortion (v4) — precompute amplitude once per frame
-  const distAmp = engineRender.gridDistortAmp || 0;
-  const distT = _distortTime;
-  // Moiré interference (v4.1) — 0.0=off, 0.3-0.8=subtle geological strata
-  const moireAmt = engineRender.moireAmount || 0;
-  // Film grain (v4.1) — noise on Bayer threshold, 0.0=off, 0.02-0.08=subtle texture
-  const grainAmt = engineRender.filmGrainAmount || 0;
-
-  for (let row = 0; row < rows; row++) {
-    const py = row * dotSize, ny = py / H;
-    // Precompute row-dependent sine offset for grid distortion — hoisted from inner loop (v4)
-    const rowSinOffset = distAmp > 0 ? Math.sin(row * 0.08 + distT * 0.7) * distAmp : 0;
-    for (let col = 0; col < cols; col++) {
-      const px = col * dotSize, nx = px / W;
-
-      // Distorted Bayer coordinates (v4) — sinusoidal wave deforms halftone pattern
-      // dCol shifts by row-dependent sine; dRow shifts by col-dependent cosine
-      let bCol = col, bRow = row;
-      if (distAmp > 0) {
-        bCol = (col + rowSinOffset) | 0;
-        bRow = (row + Math.cos(col * 0.06 + distT * 0.5) * distAmp) | 0;
-      }
-
-      let cellInv = baseInv;
-      if (invertDissolving) {
-        const bayerVal = BAYER8[(bRow & 7) * 8 + (bCol & 7)];
-        cellInv = invertDissolveProgress > bayerVal ? invertTarget : baseInv;
-      }
-
-      const zone = getZone(nx, ny);
-      const thresholdShift = (1 - zone.dotSizeMul) * 0.3;
-      let threshold = BAYER8[(bRow & 7) * 8 + (bCol & 7)] + thresholdShift;
-      // Moiré: blend second grid at slightly different scale — creates interference fringes
-      if (moireAmt > 0) {
-        const bVal2 = BAYER8_B[(bRow & 7) * 8 + (bCol & 7)];
-        threshold = threshold * (1 - moireAmt) + Math.max(threshold, bVal2) * moireAmt;
-      }
-      // Film grain: random noise on threshold — organic texture
-      if (grainAmt > 0) threshold += (Math.random() - 0.5) * grainAmt;
-      threshold = Math.max(CFG.densityFloor, Math.min(1, threshold));
-      const density = computeDensity(nx, ny, px, py, state, globalTime, W, H);
-      if (density > threshold) {
-        const zDot = Math.max(1, Math.round(dotSize * zone.dotSizeMul));
-        const fgVal = cellInv ? 0 : 255;
-        const [mCh, mAlpha] = midiColorAt(nx, ny);
-        let fill;
-        // Priority: strong MIDI > region fill > entity color > fg
-        if (mCh >= 0 && mAlpha > 0.15) {
-          const mc = getMidiColor(mCh, mAlpha, fgVal);
-          if (mc) fill = `rgb(${mc[0]},${mc[1]},${mc[2]})`;
-        }
-        if (!fill) {
-          let regionFill = null;
-          for (const reg of scene.regions) {
-            if (reg.fillColor && reg.mul >= 1.5 && nx >= reg.x && nx < reg.x + reg.w && ny >= reg.y && ny < reg.y + reg.h) {
-              regionFill = reg.fillColor; break;
-            }
-          }
-          if (regionFill) {
-            const rc = getCellColor(regionFill, 0.85, fgVal);
-            if (rc) fill = `rgb(${rc[0]},${rc[1]},${rc[2]})`;
-          }
-        }
-        if (!fill) {
-          const [cId, cAlpha] = entityColorAt(nx, ny, W, H);
-          const climaxAlpha = inClimax ? Math.min(1, cAlpha * (1 + climaxProgress * 2)) : cAlpha;
-          const cellColor = getCellColor(cId, climaxAlpha, fgVal);
-          if (cellColor) fill = `rgb(${cellColor[0]},${cellColor[1]},${cellColor[2]})`;
-          else fill = cellInv ? '#000000' : '#FFFFFF';
-        }
-        if (fill !== lastFill) { ctx.fillStyle = fill; lastFill = fill; }
-        ctx.fillRect(px, py, zDot, zDot);
-      }
-    }
-  }
-}
-
-// ── Render: buffer path (small dots) ──
-let bufferCanvas = null, bufferCtx = null;
-
-// ── Sedimentazione (V3) — persistenza visiva frame precedenti per-modo ──
-// DERIVA e CRISTALLO: trail lunghi. TERRENO e ABISSO: rendering asciutto.
-const _SEDIMENT_BY_MODE = {
-  'A_lydian':    0.88,  // deriva — scatter rarefatto con trails sottili
-  'Bb_phrygian': 0,     // abisso — colonne stark, nessun residuo
-  'D_dorian':    0,     // terreno — groove asciutto, no sediment
-  'C#_dorian':   0.82,  // solco — trails techno, depth nel bianco/acciaio
-  'E_phrygian':  0.92,  // cristallo — sparkle lunghi, massima persistenza
-};
-let _sedCanvas = null, _sedCtx = null, _lastSedMode = null;
-
-function renderBuffer(ctx, dotSize, state, globalTime, W, H) {
-  const bw = Math.ceil(W / dotSize), bh = Math.ceil(H / dotSize);
-
-  if (!bufferCanvas || bufferCanvas.width !== bw || bufferCanvas.height !== bh) {
-    bufferCanvas = document.createElement('canvas');
-    bufferCanvas.width = bw; bufferCanvas.height = bh;
-    bufferCtx = bufferCanvas.getContext('2d');
-  }
-
-  const imgData = bufferCtx.createImageData(bw, bh);
-  const data = imgData.data;
-  const baseInv = (engineRender.active && engineRender.forceInvert != null) ? engineRender.forceInvert : inverted;
-  const fgVal = baseInv ? 0 : 255;
-
-  // Grid distortion (v4) — precompute amplitude once per frame
-  const distAmp = engineRender.gridDistortAmp || 0;
-  const distT = _distortTime;
-  // Moiré interference (v4.1)
-  const moireAmt = engineRender.moireAmount || 0;
-  // Film grain (v4.1)
-  const grainAmt = engineRender.filmGrainAmount || 0;
-  // Film grain LCG PRNG — fast, no GC, deterministic-enough per frame
-  let _grainSeed = (globalTime * 12345.6789) & 0x7FFFFFFF;
-
-  for (let row = 0; row < bh; row++) {
-    const ny = row / bh, py = row * dotSize;
-    // Precompute row-dependent sine offset for grid distortion — hoisted from inner loop (v4)
-    const rowSinOffset = distAmp > 0 ? Math.sin(row * 0.08 + distT * 0.7) * distAmp : 0;
-    for (let col = 0; col < bw; col++) {
-      const nx = col / bw, px = col * dotSize;
-
-      // Distorted Bayer coordinates (v4) — sinusoidal wave deforms halftone pattern
-      // dCol shifts by row-dependent sine; dRow shifts by col-dependent cosine
-      let bCol = col, bRow = row;
-      if (distAmp > 0) {
-        bCol = (col + rowSinOffset) | 0;
-        bRow = (row + Math.cos(col * 0.06 + distT * 0.5) * distAmp) | 0;
-      }
-
-      let cellFg = fgVal;
-      if (invertDissolving) {
-        const bayerVal = BAYER8[(bRow & 7) * 8 + (bCol & 7)];
-        cellFg = invertDissolveProgress > bayerVal ? (invertTarget ? 0 : 255) : fgVal;
-      }
-
-      const zone = getZone(nx, ny);
-      const thresholdShift = (1 - zone.dotSizeMul) * 0.3;
-      let threshold = BAYER8[(bRow & 7) * 8 + (bCol & 7)] + thresholdShift;
-      // Moiré: blend second grid at slightly different scale
-      if (moireAmt > 0) {
-        const bVal2 = BAYER8_B[(bRow & 7) * 8 + (bCol & 7)];
-        threshold = threshold * (1 - moireAmt) + Math.max(threshold, bVal2) * moireAmt;
-      }
-      // Film grain: LCG noise on threshold — avoids Math.random() GC pressure in buffer path
-      if (grainAmt > 0) {
-        _grainSeed = (_grainSeed * 1103515245 + 12345) & 0x7FFFFFFF;
-        threshold += ((_grainSeed / 0x7FFFFFFF) - 0.5) * grainAmt;
-      }
-      threshold = Math.max(CFG.densityFloor, Math.min(1, threshold));
-      const density = computeDensity(nx, ny, px, py, state, globalTime, W, H);
-      const idx = (row * bw + col) * 4;
-      if (density > threshold) {
-        const [mCh, mAlpha] = midiColorAt(nx, ny);
-        let colored = false;
-        // Priority: strong MIDI > region fill > entity color > fg
-        if (mCh >= 0 && mAlpha > 0.15) {
-          const mc = getMidiColor(mCh, mAlpha, cellFg);
-          if (mc) { data[idx] = mc[0]; data[idx+1] = mc[1]; data[idx+2] = mc[2]; colored = true; }
-        }
-        if (!colored) {
-          let regionFill = null;
-          for (const reg of scene.regions) {
-            if (reg.fillColor && reg.mul >= 1.5 && nx >= reg.x && nx < reg.x + reg.w && ny >= reg.y && ny < reg.y + reg.h) {
-              regionFill = reg.fillColor; break;
-            }
-          }
-          if (regionFill) {
-            const rc = getCellColor(regionFill, 0.85, cellFg);
-            if (rc) { data[idx] = rc[0]; data[idx+1] = rc[1]; data[idx+2] = rc[2]; colored = true; }
-          }
-        }
-        if (!colored) {
-          const [cId, cAlpha] = entityColorAt(nx, ny, W, H);
-          const climaxAlpha = inClimax ? Math.min(1, cAlpha * (1 + climaxProgress * 2)) : cAlpha;
-          const cellColor = getCellColor(cId, climaxAlpha, cellFg);
-          if (cellColor) { data[idx] = cellColor[0]; data[idx+1] = cellColor[1]; data[idx+2] = cellColor[2]; }
-          else { data[idx] = cellFg; data[idx+1] = cellFg; data[idx+2] = cellFg; }
-        }
-        data[idx+3] = 255;
-      }
-    }
-  }
-
-  bufferCtx.putImageData(imgData, 0, 0);
-  ctx.imageSmoothingEnabled = false;
-  ctx.drawImage(bufferCanvas, 0, 0, W, H);
-  ctx.imageSmoothingEnabled = true;
-}
-
-// ── MATRICE render ──
-function drawMatrice(ctx, state, globalTime, W, H) {
-  if (!dna || !dna.primitives.includes('MATRICE')) return;
-  const cs = dna.matrice.cellSize;
-  const cols = Math.ceil(W / cs), rows = Math.ceil(H / cs);
-  const chars = dna.matrice.chars;
-
-  ctx.font = `${cs - 2}px 'Courier New', monospace`;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-
-  for (let row = 0; row < rows; row++) {
-    const ny = row / rows;
-    for (let col = 0; col < cols; col++) {
-      const nx = col / cols;
-      let d = entityDensityAt(nx, ny, W, H) + state.intensity * 0.5;
-      if (firma.densityCap < 1) d *= firma.densityCap;
-      if (d < 0.06 || Math.random() > d * 1.4) continue;
-      const charIdx = Math.floor((globalTime * state.rhythmicity * 3 + col * 7 + row * 13) % chars.length);
-      const alpha = Math.min(1, d) * 0.85;
-      const fgVal = inverted ? 0 : 255;
-      const [cId, cAlpha] = entityColorAt(nx, ny, W, H);
-      const cellColor = getCellColor(cId, cAlpha, fgVal);
-      if (cellColor) ctx.fillStyle = `rgba(${cellColor[0]},${cellColor[1]},${cellColor[2]},${alpha})`;
-      else ctx.fillStyle = inverted ? `rgba(0,0,0,${alpha})` : `rgba(255,255,255,${alpha})`;
-      ctx.fillText(chars[charIdx], col * cs + cs / 2, row * cs + cs / 2);
-    }
-  }
-}
-
-// ── Public render entry point ──
-export function renderField(ctx, W, H, state, globalTime) {
-  // Advance grid distortion time (v4) — uses globalTime delta approximation
-  _distortTime = globalTime * 0.5;  // slow evolution, tied to global clock
-
-  smoothedIntensity += (state.intensity - smoothedIntensity) * 0.0008;
-
-  // v5: regime minDotSize enforced — ogni modo ha il suo floor
-  const regimeMinDot = (engineRender.active && engineRender.minDotSize != null)
-    ? engineRender.minDotSize : CFG.dotSizeMin;
-  let dotSize = Math.max(regimeMinDot, (engineRender.active && engineRender.dotSize != null) ? engineRender.dotSize : scene.dotSize);
-  if (climaxProgress > 0.1) {
-    const compress = 1 - (1 - CFG.climaxDotCompress) * climaxProgress;
-    dotSize = Math.max(regimeMinDot, Math.round(dotSize * compress));
-  }
-
-  const sedDecay = _SEDIMENT_BY_MODE[macroState.currentMode] ?? 0;
-
-  if (sedDecay > 0) {
-    // Crea o resetta sediment canvas su cambio dimensione o cambio modo
-    const curMode = macroState.currentMode;
-    if (!_sedCanvas || _sedCanvas.width !== W || _sedCanvas.height !== H || curMode !== _lastSedMode) {
-      if (!_sedCanvas || _sedCanvas.width !== W || _sedCanvas.height !== H) {
-        _sedCanvas = document.createElement('canvas');
-        _sedCanvas.width = W; _sedCanvas.height = H;
-        _sedCtx = _sedCanvas.getContext('2d');
-      }
-      // Reset trasparente — render.js gestisce il bg, sediment accumula solo i dot
-      _sedCtx.clearRect(0, 0, W, H);
-      _lastSedMode = curMode;
-    }
-
-    // Fade dei frame precedenti — riduce alpha dei dot (non del bg)
-    _sedCtx.globalCompositeOperation = 'destination-out';
-    _sedCtx.globalAlpha = 1 - sedDecay;
-    _sedCtx.fillStyle = 'black';
-    _sedCtx.fillRect(0, 0, W, H);
-    _sedCtx.globalAlpha = 1.0;
-    _sedCtx.globalCompositeOperation = 'source-over';
-
-    // Render frame corrente nel sediment canvas
-    if (dotSize >= CFG.dotSizeBufferThreshold) {
-      renderFillRect(_sedCtx, dotSize, state, globalTime, W, H);
-    } else {
-      renderBuffer(_sedCtx, dotSize, state, globalTime, W, H);
-    }
-
-    // Copia sediment canvas su output
-    ctx.drawImage(_sedCanvas, 0, 0);
-  } else {
-    // Comportamento diretto — nessuna sedimentazione
-    if (dotSize >= CFG.dotSizeBufferThreshold) {
-      renderFillRect(ctx, dotSize, state, globalTime, W, H);
-    } else {
-      renderBuffer(ctx, dotSize, state, globalTime, W, H);
-    }
-  }
-
-  // Matrice sempre su ctx diretto — non entra nel sediment, niente accumulo
-  drawMatrice(ctx, state, globalTime, W, H);
 }
