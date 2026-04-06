@@ -35,8 +35,11 @@ const HAT_PATTERNS = {
   dissoluzione: [1,0,0,0, 0,0,0,0, 1,0,0,0, 0,0,0,0],  // dying — 2 hits
 };
 
-// ── Backbeat steps for snare (steps 4 and 12, 0-indexed) ──
-const SNARE_STEPS = new Set([4, 12]);
+// ── Snare probability and variation ──
+const SNARE_BASE_STEPS = [4, 12];  // standard backbeat positions
+const SNARE_SHIFT_PROB = 0.25;     // 25% chance to shift snare ±1 step
+const SNARE_SKIP_PROB = 0.15;      // 15% chance to skip a snare hit entirely
+const SNARE_FLAM_PROB = 0.10;      // 10% chance of ghost flam 1 step before
 
 let _step = 0;        // 0–15 (16th note position in bar)
 let _stepAcc = 0;     // accumulator for step timing
@@ -100,15 +103,37 @@ function _tick() {
     hatSent = true;
   }
 
-  // ── CH1 SNARE ──
-  // Backbeat on steps 4 and 12 during densita and rottura when density > 0.5
+  // ── CH1 SNARE — variable backbeat ──
   const snarePhase = phase === 'densita' || phase === 'rottura';
-  if (snarePhase && density > 0.5 && SNARE_STEPS.has(_step)) {
-    const rawVel = 50 + density * 35 + (Math.random() * 10 - 5);  // ±5 humanize
-    const vel    = Math.min(Math.round(rawVel), ceiling);
+  if (snarePhase && density > 0.5) {
     const stepMs = (60 / worldState.bpm / 4) * 1000;
-    sendMIDINote(CH_PERC, SNARE, vel, stepMs * 0.9);
-    addMidiNote(CH_PERC, SNARE / 127, vel / 127);
+
+    for (const baseStep of SNARE_BASE_STEPS) {
+      // Determine actual step for this hit (may shift ±1)
+      let actualStep = baseStep;
+      if (Math.random() < SNARE_SHIFT_PROB) {
+        actualStep = baseStep + (Math.random() < 0.5 ? -1 : 1);
+        if (actualStep < 0) actualStep = 0;
+        if (actualStep > 15) actualStep = 15;
+      }
+
+      if (_step === actualStep) {
+        // Skip this hit entirely sometimes
+        if (Math.random() < SNARE_SKIP_PROB) break;
+
+        const rawVel = 50 + density * 35 + (Math.random() * 10 - 5);
+        const vel    = Math.min(Math.round(rawVel), ceiling);
+        sendMIDINote(CH_PERC, SNARE, vel, stepMs * 0.9);
+        addMidiNote(CH_PERC, SNARE / 127, vel / 127);
+      }
+
+      // Ghost flam: soft hit 1 step before the snare
+      if (_step === actualStep - 1 && Math.random() < SNARE_FLAM_PROB) {
+        const flamVel = Math.round(22 + Math.random() * 10);
+        sendMIDINote(CH_PERC, SNARE, flamVel, stepMs * 0.4);
+        addMidiNote(CH_PERC, SNARE / 127, flamVel / 127);
+      }
+    }
   }
 
   // ── CH1 GHOST ──
