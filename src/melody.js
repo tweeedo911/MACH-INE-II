@@ -78,6 +78,11 @@ let _arpIdx = 0;          // position within arp cycle
 let _lastChordStr = '';   // serialized chord for change detection
 let _leadDuckCounter = 0; // ticks remaining for arp ducking after lead fires
 
+// ── Lead solo mode (TESSUTO: lead plays independently) ──
+let _leadPhraseNotes = [];
+let _leadPhraseIdx = 0;
+let _leadPhraseRepeat = 0;
+
 export function initMelody() {
   _step = 0;
   _stepAcc = 0;
@@ -90,6 +95,9 @@ export function initMelody() {
   _arpIdx = 0;
   _lastChordStr = '';
   _leadDuckCounter = 0;
+  _leadPhraseNotes = [];
+  _leadPhraseIdx = 0;
+  _leadPhraseRepeat = 0;
   console.log('[MELODY] Initialized');
 }
 
@@ -222,99 +230,139 @@ function _tick() {
   const velCeil = worldState.velocityCeiling.melody || 127;
   const scale   = worldState.scale;
   const bpm     = worldState.bpm || 60;
-  const stepMs  = (60 / bpm / 4) * 1000;  // ms per 16th note
+  const stepMs  = (60 / bpm / 4) * 1000;
 
   const [voiceLo, voiceHi] = worldState.register.melody;
   const [leadLo, leadHi]   = worldState.register.lead;
   const [arpLo, arpHi]     = worldState.register.arp;
 
   const track = TRACKS[worldState.track];
+  const strat = (track && track.melodyStrategy) || {};
   const isGermoglio = phase === 'germoglio';
 
   // ──────────────────────────────────────────────
-  //  1. Fire pending lead note (top of tick, NO setTimeout)
+  //  0. Fire pending lead (top of tick, NO setTimeout)
   // ──────────────────────────────────────────────
   if (_pendingLead !== null) {
     sendMIDINote(CH_LEAD, _pendingLead.note, _pendingLead.vel, _pendingLead.dur);
     addMidiNote(CH_LEAD, _pendingLead.note / 127, _pendingLead.vel / 127);
     _pendingLead = null;
-    _leadDuckCounter = ARP_DUCK_TICKS;  // duck arp while lead resonates
+    _leadDuckCounter = ARP_DUCK_TICKS;
   }
   if (_leadDuckCounter > 0) _leadDuckCounter--;
 
   // ──────────────────────────────────────────────
-  //  2. CH5 VOICE — melodic phrases
+  //  1. CH5 VOICE — driven by strategy
   // ──────────────────────────────────────────────
-  const voiceRate = VOICE_RATE[phase] ?? VOICE_RATE_DEFAULT;
+  const voiceEveryBars = strat.voiceEveryBars ?? 2;
+  const voiceEnabled = voiceEveryBars > 0 && voiceLo > 0 && voiceHi > 0;
 
-  // In germoglio: only play on bar boundaries every 4 bars
-  const voiceGate = isGermoglio
-    ? (_step === 0 && _bar % 4 === 0)
-    : (_step % voiceRate === 0);
+  if (voiceEnabled) {
+    const voiceRate = VOICE_RATE[phase] ?? VOICE_RATE_DEFAULT;
+    const barsGate = _step === 0 && _bar % voiceEveryBars === 0;
+    const stepGate = isGermoglio ? barsGate : (_step % voiceRate === 0);
+    // Only start new phrases on bar boundaries matching voiceEveryBars
+    const canStartPhrase = barsGate && _phraseIdx >= _phraseNotes.length;
 
-  if (voiceGate && density > 0.1) {
-    // Phrase management: exhausted → repeat or generate new
-    if (_phraseIdx >= _phraseNotes.length) {
-      if (_phraseRepeat < MAX_PHRASE_REPEATS && _phraseNotes.length > 0) {
-        // Repeat for memorability
-        _phraseIdx = 0;
-        _phraseRepeat++;
-      } else {
-        // Generate new phrase
-        const len = isGermoglio
-          ? PHRASE_LEN_GERMOGLIO
-          : PHRASE_LEN_MIN + Math.floor(Math.random() * (PHRASE_LEN_MAX - PHRASE_LEN_MIN + 1));
-        _phraseNotes = _generatePhrase(scale, voiceLo, voiceHi, len);
-        _phraseIdx = 0;
-        _phraseRepeat = 0;
+    if ((stepGate || _phraseIdx < _phraseNotes.length) && density > 0.1) {
+      // Generate phrase if exhausted
+      if (_phraseIdx >= _phraseNotes.length) {
+        if (_phraseRepeat < MAX_PHRASE_REPEATS && _phraseNotes.length > 0 && !canStartPhrase) {
+          _phraseIdx = 0;
+          _phraseRepeat++;
+        } else if (canStartPhrase || _phraseNotes.length === 0) {
+          const [minLen, maxLen] = strat.voicePhraseLen || [PHRASE_LEN_MIN, PHRASE_LEN_MAX];
+          const len = isGermoglio ? 1 : minLen + Math.floor(Math.random() * (maxLen - minLen + 1));
+          _phraseNotes = _generatePhrase(scale, voiceLo, voiceHi, Math.max(1, len));
+          _phraseIdx = 0;
+          _phraseRepeat = 0;
+        }
       }
-    }
 
-    if (_phraseIdx < _phraseNotes.length) {
-      const note = _phraseNotes[_phraseIdx];
-      _phraseIdx++;
+      // Play current note on step boundary
+      if (_phraseIdx < _phraseNotes.length && stepGate) {
+        const note = _phraseNotes[_phraseIdx];
+        _phraseIdx++;
 
-      // Velocity: base + density scaling, humanized, clamped to ceiling
-      const rawVel = VOICE_VEL_BASE + density * VOICE_VEL_RANGE;
-      const humanize = Math.round((Math.random() * VOICE_HUMANIZE * 2) - VOICE_HUMANIZE);
-      const vel = Math.min(Math.max(Math.round(rawVel + humanize), VOICE_VEL_FLOOR), velCeil);
-      const dur = Math.round(stepMs * voiceRate * VOICE_DUR_RATIO);
+        const rawVel = VOICE_VEL_BASE + density * VOICE_VEL_RANGE;
+        const humanize = Math.round((Math.random() * VOICE_HUMANIZE * 2) - VOICE_HUMANIZE);
+        const vel = Math.min(Math.max(Math.round(rawVel + humanize), VOICE_VEL_FLOOR), velCeil);
+        const dur = Math.round(stepMs * voiceRate * VOICE_DUR_RATIO);
 
-      sendMIDINote(CH_VOICE, note, vel, dur);
-      addMidiNote(CH_VOICE, note / 127, vel / 127);
+        sendMIDINote(CH_VOICE, note, vel, dur);
+        addMidiNote(CH_VOICE, note / 127, vel / 127);
 
-      // ──────────────────────────────────────────
-      //  3. CH6 LEAD — call-response (schedule for NEXT tick)
-      // ──────────────────────────────────────────
-      // Lead less likely when arp is active (they share space), but still present
-      const leadProb = (_arpPattern.length > 0 && density >= ARP_MIN_DENSITY) ? LEAD_PROB * 0.65 : LEAD_PROB;
-      if (!isGermoglio && density >= LEAD_MIN_DENSITY && Math.random() < leadProb) {
-        // Response interval: minor or major third
-        const interval = LEAD_INTERVALS[Math.floor(Math.random() * LEAD_INTERVALS.length)];
-        const direction = Math.random() < 0.5 ? 1 : -1;
-        let responseNote = note + (interval * direction);
+        // Schedule lead response if mode is 'response'
+        if (strat.leadMode === 'response' && !isGermoglio && density >= LEAD_MIN_DENSITY) {
+          const lp = strat.leadProb ?? LEAD_PROB;
+          if (Math.random() < lp) {
+            _scheduleLead(note, vel, stepMs, voiceRate, scale, leadLo, leadHi, velCeil);
+          }
+        }
 
-        // Clamp to lead register
-        responseNote = Math.max(leadLo, Math.min(leadHi, responseNote));
+        // Schedule lead echo if mode is 'echo'
+        if (strat.leadMode === 'echo' && !isGermoglio) {
+          const lp = strat.leadProb ?? 0.3;
+          if (Math.random() < lp) {
+            const echoVel = Math.round(vel * 0.55); // much softer
+            _pendingLead = { note: _snapToScale(note, scale), vel: Math.min(echoVel, velCeil), dur: Math.round(dur * 1.5) };
+          }
+        }
 
-        // Snap to closest scale note
-        responseNote = _snapToScale(responseNote, scale);
-
-        // Final register clamp after snapping
-        responseNote = Math.max(leadLo, Math.min(leadHi, responseNote));
-
-        const leadVel = Math.min(Math.round(vel * LEAD_VEL_SCALE), velCeil);
-        const leadDur = Math.round(stepMs * voiceRate * VOICE_DUR_RATIO);
-
-        // Queue for next tick — no setTimeout
-        _pendingLead = { note: responseNote, vel: leadVel, dur: leadDur };
+        // Hocket mode: voice played, lead plays next note on next tick
+        if (strat.leadMode === 'hocket' && _phraseIdx < _phraseNotes.length) {
+          const hocketNote = _phraseNotes[_phraseIdx];
+          _phraseIdx++; // consume two notes per tick pair
+          let hn = hocketNote;
+          hn = Math.max(leadLo, Math.min(leadHi, hn));
+          hn = _snapToScale(hn, scale);
+          hn = Math.max(leadLo, Math.min(leadHi, hn));
+          _pendingLead = { note: hn, vel: Math.min(vel, velCeil), dur };
+        }
       }
     }
   }
 
   // ──────────────────────────────────────────────
-  //  4. CH7 ARP — repetitive pattern from currentChord
+  //  2. CH6 LEAD solo mode (independent, not response to voice)
   // ──────────────────────────────────────────────
+  if (strat.leadMode === 'solo' && leadLo > 0 && leadHi > 0 && density > 0.1 && !isGermoglio) {
+    const leadEvery = strat.leadEveryBars || 2;
+    const leadRate = VOICE_RATE[phase] ?? VOICE_RATE_DEFAULT;
+    const barsGate = _step === 0 && _bar % leadEvery === 0;
+
+    // Reuse phrase system but for lead
+    if (_leadPhraseIdx >= _leadPhraseNotes.length && barsGate) {
+      const [minLen, maxLen] = strat.leadPhraseLen || [4, 8];
+      const len = minLen + Math.floor(Math.random() * (maxLen - minLen + 1));
+      _leadPhraseNotes = _generatePhrase(scale, leadLo, leadHi, len);
+      _leadPhraseIdx = 0;
+      _leadPhraseRepeat = 0;
+    } else if (_leadPhraseIdx >= _leadPhraseNotes.length && _leadPhraseRepeat < MAX_PHRASE_REPEATS && _leadPhraseNotes.length > 0) {
+      _leadPhraseIdx = 0;
+      _leadPhraseRepeat++;
+    }
+
+    if (_leadPhraseIdx < _leadPhraseNotes.length && _step % leadRate === 0) {
+      const note = _leadPhraseNotes[_leadPhraseIdx];
+      _leadPhraseIdx++;
+      const rawVel = VOICE_VEL_BASE + density * VOICE_VEL_RANGE;
+      const humanize = Math.round((Math.random() * VOICE_HUMANIZE * 2) - VOICE_HUMANIZE);
+      const vel = Math.min(Math.max(Math.round(rawVel + humanize), VOICE_VEL_FLOOR), velCeil);
+      const dur = Math.round(stepMs * leadRate * VOICE_DUR_RATIO);
+      sendMIDINote(CH_LEAD, note, vel, dur);
+      addMidiNote(CH_LEAD, note / 127, vel / 127);
+    }
+  }
+
+  // ──────────────────────────────────────────────
+  //  3. CH7 ARP — role from strategy
+  // ──────────────────────────────────────────────
+  const arpRole = strat.arpRole || 'accompany';
+  if (arpRole === 'none') return;
+
+  // Dying arp: only in pulsazione phase
+  if (arpRole === 'dying' && phase !== 'pulsazione') return;
 
   // Rebuild arp when chord changes
   const chordStr = worldState.currentChord ? worldState.currentChord.join(',') : '';
@@ -325,9 +373,7 @@ function _tick() {
     _arpIdx = 0;
   }
 
-  // Arp active: not in germoglio, density above threshold, pattern exists
   if (!isGermoglio && density >= ARP_MIN_DENSITY && _arpPattern.length > 0) {
-    // arpRate 8 = 8th notes = every 2 steps; 16 = 16th notes = every step
     const arpRate = (track && track.arpRate) || 8;
     const arpStepInterval = Math.max(1, Math.round(16 / arpRate));
 
@@ -335,9 +381,9 @@ function _tick() {
       const arpNote = _arpPattern[_arpIdx % _arpPattern.length];
       _arpIdx = (_arpIdx + 1) % _arpPattern.length;
 
-      // Velocity: base + density scaling, ducked when lead is active
+      const arpVelMul = strat.arpVelScale ?? 0.7;
       const duckMul = _leadDuckCounter > 0 ? ARP_DUCK_FACTOR : 1.0;
-      const rawArpVel = (ARP_VEL_BASE + density * ARP_VEL_RANGE) * duckMul;
+      const rawArpVel = (ARP_VEL_BASE + density * ARP_VEL_RANGE) * arpVelMul * duckMul;
       const arpHumanize = Math.round((Math.random() * ARP_HUMANIZE * 2) - ARP_HUMANIZE);
       const arpVel = Math.min(Math.max(Math.round(rawArpVel + arpHumanize), 1), velCeil);
       const arpDur = Math.round(stepMs * arpStepInterval * ARP_DUR_RATIO);
@@ -346,4 +392,17 @@ function _tick() {
       addMidiNote(CH_ARP, arpNote / 127, arpVel / 127);
     }
   }
+}
+
+// ── Helper: schedule lead response note ──
+function _scheduleLead(voiceNote, voiceVel, stepMs, voiceRate, scale, leadLo, leadHi, velCeil) {
+  const interval = LEAD_INTERVALS[Math.floor(Math.random() * LEAD_INTERVALS.length)];
+  const direction = Math.random() < 0.5 ? 1 : -1;
+  let responseNote = voiceNote + (interval * direction);
+  responseNote = Math.max(leadLo, Math.min(leadHi, responseNote));
+  responseNote = _snapToScale(responseNote, scale);
+  responseNote = Math.max(leadLo, Math.min(leadHi, responseNote));
+  const leadVel = Math.min(Math.round(voiceVel * LEAD_VEL_SCALE), velCeil);
+  const leadDur = Math.round(stepMs * voiceRate * VOICE_DUR_RATIO);
+  _pendingLead = { note: responseNote, vel: leadVel, dur: leadDur };
 }
