@@ -49,7 +49,7 @@ export const TRACKS = {
   SOLCO: {
     scale: SCALES.G_dorian,
     root: 55,   // G3
-    bpm: 128,
+    bpm: 129,     // 43×3 — ratio 3:2 with TESSUTO (86)
     kickNote: 38,  // D2
 
     density: { rhythm: 0.7, harmony: 0.4, bass: 0.8, melody: 0.5, texture: 0.1 },
@@ -276,7 +276,7 @@ export const TRACKS = {
   MACCHINA: {
     scale: SCALES.D_dorian,
     root: 50,   // D3
-    bpm: 138,
+    bpm: 129,     // 43×3 — same tempo as SOLCO, energy from density not speed
     kickNote: 38,  // D2
 
     density: { rhythm: 0.8, harmony: 0.5, bass: 0.85, melody: 0.6, texture: 0.15 },
@@ -332,7 +332,7 @@ export const TRACKS = {
   TEMPESTA: {
     scale: SCALES.E_phrygian,
     root: 52,   // E3
-    bpm: 142,
+    bpm: 129,     // 43×3 — same tempo, peak from density and complexity
     kickNote: 40,  // E2
 
     density: { rhythm: 0.95, harmony: 0.5, bass: 0.95, melody: 0.7, texture: 0.3 },
@@ -388,7 +388,7 @@ export const TRACKS = {
   RITORNO: {
     scale: SCALES.A_aeolian,
     root: 57,   // A3 — same root class as NEBBIA opening (circles back)
-    bpm: 82,    // slow — winding down
+    bpm: 86,    // 43×2 — mirrors TESSUTO, winding down
     kickNote: 45,  // A2
 
     density: { rhythm: 0.4, harmony: 0.5, bass: 0.3, melody: 0.5, texture: 0.1 },
