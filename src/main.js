@@ -82,7 +82,7 @@ startScreen.addEventListener('click', async () => {
   initDirectorEvents();
 
   // ── MACH:INE III composition system ──
-  initDirector3('SOLCO');
+  initDirector3('NEBBIA');
   initRhythm();
   initHarmony();
   initBass();
