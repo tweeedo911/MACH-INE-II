@@ -91,42 +91,57 @@ function _tick() {
   }
 
   // ──────────────────────────────────────────────
-  //  CH4 CHORDS — rate depends on phase
+  //  CH4 CHORDS — sustained or rhythmic (chordGrid)
   // ──────────────────────────────────────────────
-  const barsPerChord = BARS_PER_CHORD[phase] ?? BARS_PER_CHORD_DEFAULT;
+  const trackData = TRACKS[worldState.track];
+  if (!trackData || !trackData.chords || trackData.chords.length === 0) return;
 
+  const barsPerChord = BARS_PER_CHORD[phase] ?? BARS_PER_CHORD_DEFAULT;
+  const chordGrid = trackData.chordGrid || null;
+
+  // Advance chord on bar boundary
   if (_step === 0 && _bar % barsPerChord === 0 && _bar !== _lastChordBar) {
     _lastChordBar = _bar;
-
-    const trackData = TRACKS[worldState.track];
-    if (!trackData || !trackData.chords || trackData.chords.length === 0) return;
-
-    // Advance chord index
     _chordIdx = (_chordIdx + 1) % trackData.chords.length;
-    const rawChord = trackData.chords[_chordIdx];
+  }
 
-    // Clamp each note to register range by transposing octaves
-    const chord = rawChord.map(n => {
-      while (n < regLo) n += 12;
-      while (n > regHi) n -= 12;
-      return n;
-    });
+  const rawChord = trackData.chords[_chordIdx];
+  const chord = rawChord.map(n => {
+    while (n < regLo) n += 12;
+    while (n > regHi) n -= 12;
+    return n;
+  });
 
-    // Chord duration: ~87% of the chord period
-    const chordDur = Math.round(beatMs * 4 * barsPerChord * 0.87);
+  if (chordGrid) {
+    // ── Rhythmic chords: staccato hits on grid pattern ──
+    if (chordGrid[_step]) {
+      const stepMs = (60 / bpm / 4) * 1000;
+      const chordDur = Math.round(stepMs * 2.5);  // short — staccato
+      const baseVel = Math.round(40 + density * 35);
 
-    // Base velocity
-    const baseVel = Math.round(35 + density * 30);
+      chord.forEach(note => {
+        const humanize = Math.round((Math.random() * 6) - 3);
+        const vel = Math.min(Math.max(baseVel + humanize, 1), velCeil);
+        sendMIDINote(CH_CHORDS, note, vel, chordDur);
+        addMidiNote(CH_CHORDS, note / 127, vel / 127);
+      });
 
-    chord.forEach(note => {
-      // ±3 humanization (integer jitter)
-      const humanize = Math.round((Math.random() * 6) - 3);
-      const vel = Math.min(Math.max(baseVel + humanize, 1), velCeil);
-      sendMIDINote(CH_CHORDS, note, vel, chordDur);
-      addMidiNote(CH_CHORDS, note / 127, vel / 127);
-    });
+      worldState.currentChord = [...chord];
+    }
+  } else {
+    // ── Sustained chords: one hit per chord change ──
+    if (_step === 0 && _bar === _lastChordBar) {
+      const chordDur = Math.round(beatMs * 4 * barsPerChord * 0.87);
+      const baseVel = Math.round(35 + density * 30);
 
-    // Write currentChord so melody/arp module can read it
-    worldState.currentChord = [...chord];
+      chord.forEach(note => {
+        const humanize = Math.round((Math.random() * 6) - 3);
+        const vel = Math.min(Math.max(baseVel + humanize, 1), velCeil);
+        sendMIDINote(CH_CHORDS, note, vel, chordDur);
+        addMidiNote(CH_CHORDS, note / 127, vel / 127);
+      });
+
+      worldState.currentChord = [...chord];
+    }
   }
 }

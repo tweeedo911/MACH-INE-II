@@ -111,6 +111,15 @@ export function jumpToPhase(name) {
   }
 }
 
+// ── Switch track (keyboard 6-7 or future sequencer) ──
+export function jumpToTrack(trackName) {
+  if (!TRACKS[trackName]) {
+    console.warn(`[DIR3] Track "${trackName}" not found`);
+    return;
+  }
+  initDirector3(trackName);
+}
+
 export function getDirector3Status() {
   return {
     track: worldState.track,
