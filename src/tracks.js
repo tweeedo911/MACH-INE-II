@@ -207,8 +207,8 @@ export const TRACKS = {
       [45, 48, 52],  // Am (A C E)
     ],
 
-    // Sparse bass: one note per bar on beat 3
-    bassPattern: [0,0,0,0, 0,0,0,0, 5,0,0,0, 0,0,0,0],
+    // Follow harmony mode: long sustained notes on chord root changes
+    bassPattern: null,
 
     arpRate: 0,
     arpNotes: 0,
