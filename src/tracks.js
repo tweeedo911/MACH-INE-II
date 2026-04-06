@@ -25,7 +25,7 @@ export { SCALES };
 // ── Density profiles per phase (multiplied by track density) ──
 const PHASE_DENSITY = {
   germoglio:    { rhythm: 0.0, harmony: 0.5, bass: 0.3, melody: 0.2, texture: 0.1 },
-  pulsazione:   { rhythm: 0.4, harmony: 0.6, bass: 0.6, melody: 0.4, texture: 0.15 },
+  pulsazione:   { rhythm: 0.4, harmony: 0.6, bass: 0.6, melody: 0.6, texture: 0.15 },
   densita:      { rhythm: 0.8, harmony: 0.7, bass: 0.9, melody: 0.7, texture: 0.2 },
   rottura:      { rhythm: 1.0, harmony: 0.5, bass: 1.0, melody: 0.9, texture: 0.5 },
   dissoluzione: { rhythm: 0.3, harmony: 0.4, bass: 0.05, melody: 0.3, texture: 0.1 },
@@ -115,12 +115,12 @@ export const TRACKS = {
     bpm: null,  // no rhythmic clock — ambient
     kickNote: null,
 
-    density: { rhythm: 0, harmony: 0.3, bass: 0, melody: 0.15, texture: 0.05 },
+    density: { rhythm: 0, harmony: 0.3, bass: 0, melody: 0.5, texture: 0.05 },
 
     register: {
       bass:   [0, 0],      // no bass
       melody: [67, 84],    // high — floating
-      lead:   [0, 0],      // no lead
+      lead:   [72, 88],    // lead enters in pulsazione — counterpoint
       chords: [55, 72],
       arp:    [0, 0],      // no arp
     },
@@ -135,11 +135,11 @@ export const TRACKS = {
     rhythmGrid: null,
 
     phases: {
-      germoglio:    90,   // silence → drone fade in
-      pulsazione:   60,   // drops + first chord
+      germoglio:    90,   // silence → drone → voice drops (no lead yet)
+      pulsazione:   70,   // voice + lead counterpoint enters, chords present
       densita:      0,    // skip
       rottura:      0,    // skip
-      dissoluzione: 60,   // drone shifts toward D (prepares TESSUTO)
+      dissoluzione: 50,   // everything fades — drone + last lead notes → silence for TESSUTO
     },
 
     // 4 chords × 16 bar = 64 bar (power of 2) — very slow
