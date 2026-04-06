@@ -44,6 +44,7 @@ export function initDirector3(trackName = 'SOLCO') {
 // ── Pause/play control ──
 export function toggleDirector3() {
   _paused = !_paused;
+  if (!_paused) _applyPhase();  // restore density values on unpause
   console.log(`[DIR3] ${_paused ? 'PAUSED' : 'PLAYING'}`);
   return !_paused;
 }
@@ -54,7 +55,13 @@ export function isDirector3Playing() {
 
 // ── Update: called every MIDI clock tick (~2ms) ──
 export function updateDirector3(dt) {
-  if (_paused) return;
+  if (_paused) {
+    // Silence all modules while paused
+    for (const mod of ['rhythm', 'harmony', 'bass', 'melody', 'texture']) {
+      worldState.density[mod] = 0;
+    }
+    return;
+  }
   _phaseTime += dt;
   _totalTime += dt;
 
