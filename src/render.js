@@ -248,7 +248,7 @@ function updateHUDDebug() {
     `── DIRECTOR ──\n` +
     `${playing ? '▶' : '⏸'}  ${d3.track}  ${d3.phase}  ${min}:${sec < 10 ? '0' : ''}${sec}\n` +
     `ARC  ${bar(d3.arc)}  ${(d3.arc * 100).toFixed(1)}%\n` +
-    `PHASE ${bar(phaseState.progress)}  ${Math.floor(phaseState.elapsed)}/${Math.floor(phaseState.duration)}s\n` +
+    `PHASE ${bar(phaseState.progress)}  bar ${Math.floor(phaseState.elapsed)}/${Math.floor(phaseState.duration)}\n` +
     `ENERGY  ${ws.energy}\n` +
     `\n` +
     `── WORLD STATE ──\n` +
