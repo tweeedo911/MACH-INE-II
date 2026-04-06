@@ -4,7 +4,8 @@
 
 import { CFG } from './config.js';
 import { dna, primState, isInVuoto, getZone } from './dna.js';
-import { firma } from './sequencer.js';
+// v3: firma removed — gelo/convergenza/densityCap no longer used
+const firma = { gelo: false, convergenza: false, densityCap: 1 };
 
 export let entities = [];
 export let fossils = [];
