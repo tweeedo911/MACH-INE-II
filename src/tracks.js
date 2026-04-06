@@ -73,13 +73,14 @@ export const TRACKS = {
     rhythmGrid: [1,0,0,0, 1,0,0,1, 1,0,0,0, 0,1,0,0],
 
     // Phase durations in seconds
+    // Phase durations in BARS (at 129 BPM: 1 bar ≈ 1.86s)
     phases: {
-      germoglio:    60,
-      pulsazione:   55,
-      densita:      80,
-      rottura:      28,
-      dissoluzione: 65,
-    },
+      germoglio:    32,   // ~60s
+      pulsazione:   32,   // ~60s
+      densita:      48,   // ~89s — the groove
+      rottura:      16,   // ~30s
+      dissoluzione: 32,   // ~60s
+    },  // total: 160 bars ≈ 5 min
 
     // Chord progression — 8 chords × 4 bar = 32 bar cycle (power of 2)
     chords: [
@@ -143,13 +144,14 @@ export const TRACKS = {
 
     rhythmGrid: null,
 
+    // Phase durations in BARS (at 60 BPM fallback: 1 bar = 4s)
     phases: {
-      germoglio:    90,   // silence → drone → voice drops (no lead yet)
-      pulsazione:   70,   // voice + lead counterpoint enters, chords present
+      germoglio:    24,   // ~96s — silence → drone → voice drops
+      pulsazione:   16,   // ~64s — voice + lead counterpoint
       densita:      0,    // skip
       rottura:      0,    // skip
-      dissoluzione: 50,   // everything fades — drone + last lead notes → silence for TESSUTO
-    },
+      dissoluzione: 12,   // ~48s — fades → silence for TESSUTO
+    },  // total: 52 bars ≈ 3.5 min
 
     // 4 chords × 16 bar = 64 bar (power of 2) — very slow
     chords: [
@@ -207,13 +209,14 @@ export const TRACKS = {
     // Irregular impulses — kick every 2 bars, off-grid placement
     rhythmGrid: [0,0,0,0, 0,0,0,1, 0,0,0,0, 0,0,0,0],
 
+    // Phase durations in BARS (at 86 BPM: 1 bar ≈ 2.79s)
     phases: {
-      germoglio:    50,
-      pulsazione:   60,
-      densita:      70,
-      rottura:      20,
-      dissoluzione: 50,   // bass disappears here (density × 0.05 ≈ 0)
-    },
+      germoglio:    16,   // ~45s
+      pulsazione:   24,   // ~67s
+      densita:      24,   // ~67s
+      rottura:      8,    // ~22s
+      dissoluzione: 16,   // ~45s — bass disappears
+    },  // total: 88 bars ≈ 4 min
 
     // Rhythmic chord hits — staccato on this grid instead of sustained
     chordGrid: [1,0,0,0, 0,0,1,0, 0,1,0,0, 0,0,0,1],
@@ -277,13 +280,14 @@ export const TRACKS = {
 
     rhythmGrid: null,
 
+    // Phase durations in BARS (at 60 BPM fallback: 1 bar = 4s)
     phases: {
-      germoglio:    40,
-      pulsazione:   50,
+      germoglio:    8,    // ~32s
+      pulsazione:   12,   // ~48s
       densita:      0,    // skip
       rottura:      0,    // skip
-      dissoluzione: 40,
-    },
+      dissoluzione: 8,    // ~32s
+    },  // total: 28 bars ≈ 2 min
 
     chords: [
       [60, 64, 67],  // C (C E G)
@@ -340,13 +344,14 @@ export const TRACKS = {
     // Mechanical groove — almost 4/4 but with push
     rhythmGrid: [1,0,0,0, 1,0,0,0, 1,0,0,0, 1,0,0,1],
 
+    // Phase durations in BARS (at 129 BPM: 1 bar ≈ 1.86s)
     phases: {
-      germoglio:    45,
-      pulsazione:   55,
-      densita:      90,
-      rottura:      25,
-      dissoluzione: 55,
-    },
+      germoglio:    24,   // ~45s
+      pulsazione:   32,   // ~60s
+      densita:      48,   // ~89s — the machine runs
+      rottura:      16,   // ~30s
+      dissoluzione: 32,   // ~60s
+    },  // total: 152 bars ≈ 4.7 min
 
     // 4 chords × 4 bar = 16 bar (shorter cycle = more mechanical)
     chords: [
@@ -415,13 +420,14 @@ export const TRACKS = {
     // Driving 4/4 with offbeat push
     rhythmGrid: [1,0,0,0, 1,0,0,0, 1,0,0,1, 1,0,0,0],
 
+    // Phase durations in BARS (at 129 BPM: 1 bar ≈ 1.86s)
     phases: {
-      germoglio:    35,
-      pulsazione:   45,
-      densita:      100,   // longest densita — the peak should last
-      rottura:      30,
-      dissoluzione: 50,
-    },
+      germoglio:    16,   // ~30s — quick build
+      pulsazione:   24,   // ~45s
+      densita:      64,   // ~119s — the peak LASTS
+      rottura:      16,   // ~30s
+      dissoluzione: 32,   // ~60s
+    },  // total: 152 bars ≈ 4.7 min
 
     // 4 chords × 2 bar = 8 bar cycle (fast, relentless)
     chords: [
@@ -490,13 +496,14 @@ export const TRACKS = {
     // Sparse, dissolving rhythm
     rhythmGrid: [1,0,0,0, 0,0,0,0, 1,0,0,0, 0,0,0,0],
 
+    // Phase durations in BARS (at 86 BPM: 1 bar ≈ 2.79s)
     phases: {
-      germoglio:    40,
-      pulsazione:   50,
-      densita:      60,
+      germoglio:    16,   // ~45s
+      pulsazione:   16,   // ~45s
+      densita:      24,   // ~67s
       rottura:      0,    // no rupture — only descent
-      dissoluzione: 80,   // long fade
-    },
+      dissoluzione: 32,   // ~89s — long fade
+    },  // total: 88 bars ≈ 4 min
 
     chords: [
       [57, 60, 64],  // Am (A C E)

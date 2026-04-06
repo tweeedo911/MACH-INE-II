@@ -13,8 +13,10 @@ const PHASE_ORDER = ['germoglio', 'pulsazione', 'densita', 'rottura', 'dissoluzi
 let _track = null;     // current track definition
 let _phaseIdx = 0;     // index into PHASE_ORDER
 let _phaseTime = 0;    // seconds elapsed in current phase
+let _phaseBars = 0;    // bars elapsed in current phase
+let _barAcc = 0;       // accumulator for bar counting (seconds within current bar)
 let _totalTime = 0;    // total seconds since start
-let _totalDuration = 0; // sum of all phase durations
+let _totalBars = 0;    // total bars for all phases
 let _paused = true;     // starts paused — performer presses Space to begin
 
 // ── Init: load a track into worldState ──
@@ -24,8 +26,10 @@ export function initDirector3(trackName = 'SOLCO') {
 
   _phaseIdx = 0;
   _phaseTime = 0;
+  _phaseBars = 0;
+  _barAcc = 0;
   _totalTime = 0;
-  _totalDuration = PHASE_ORDER.reduce((sum, p) => sum + (_track.phases[p] || 0), 0);
+  _totalBars = PHASE_ORDER.reduce((sum, p) => sum + (_track.phases[p] || 0), 0);
 
   // Load track identity into worldState
   worldState.track = trackName;
@@ -65,14 +69,24 @@ export function updateDirector3(dt) {
   _phaseTime += dt;
   _totalTime += dt;
 
-  // Update arc (concert position)
-  worldState.arc = Math.min(1, _totalTime / _totalDuration);
+  // Count bars using BPM (4 beats per bar)
+  const bpm = worldState.bpm || 60;
+  const barDuration = 240 / bpm; // seconds per bar (4 beats)
+  _barAcc += dt;
+  while (_barAcc >= barDuration) {
+    _barAcc -= barDuration;
+    _phaseBars++;
+  }
 
-  // Advance phase if duration exceeded
+  // Update arc (concert position) — based on total bars
+  const totalElapsedBars = PHASE_ORDER.slice(0, _phaseIdx).reduce((sum, p) => sum + (_track.phases[p] || 0), 0) + _phaseBars;
+  worldState.arc = _totalBars > 0 ? Math.min(1, totalElapsedBars / _totalBars) : 0;
+
+  // Advance phase if bar count exceeded
   const phaseName = PHASE_ORDER[_phaseIdx];
-  const phaseDur = _track.phases[phaseName] || 60;
+  const phaseDurBars = _track.phases[phaseName] || 16;
 
-  if (_phaseTime >= phaseDur) {
+  if (_phaseBars >= phaseDurBars) {
     if (_phaseIdx < PHASE_ORDER.length - 1) {
       // Skip phases with duration 0
       _phaseIdx++;
@@ -80,6 +94,8 @@ export function updateDirector3(dt) {
         _phaseIdx++;
       }
       _phaseTime = 0;
+      _phaseBars = 0;
+      _barAcc = 0;
       _applyPhase();
       console.log(`[DIR3] Phase: ${PHASE_ORDER[_phaseIdx]} (arc: ${worldState.arc.toFixed(2)})`);
     } else {
@@ -89,9 +105,9 @@ export function updateDirector3(dt) {
   }
 
   // Update phase state (for HUD)
-  phaseState.elapsed = _phaseTime;
-  phaseState.duration = phaseDur;
-  phaseState.progress = Math.min(1, _phaseTime / phaseDur);
+  phaseState.elapsed = _phaseBars;
+  phaseState.duration = phaseDurBars;
+  phaseState.progress = phaseDurBars > 0 ? Math.min(1, _phaseBars / phaseDurBars) : 0;
 }
 
 // ── Auto-advance to next track in album order ──
@@ -162,6 +178,8 @@ export function skipPhase(direction = 1) {
   if (newIdx !== _phaseIdx) {
     _phaseIdx = newIdx;
     _phaseTime = 0;
+    _phaseBars = 0;
+    _barAcc = 0;
     _applyPhase();
     console.log(`[DIR3] Skipped to: ${PHASE_ORDER[_phaseIdx]}`);
   }
@@ -172,6 +190,8 @@ export function jumpToPhase(name) {
   if (idx >= 0) {
     _phaseIdx = idx;
     _phaseTime = 0;
+    _phaseBars = 0;
+    _barAcc = 0;
     _applyPhase();
     console.log(`[DIR3] Jumped to: ${name}`);
   }
