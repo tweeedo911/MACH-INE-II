@@ -286,9 +286,9 @@ function _tick() {
       // ──────────────────────────────────────────
       //  3. CH6 LEAD — call-response (schedule for NEXT tick)
       // ──────────────────────────────────────────
-      // Lead less likely when arp is active (they share space)
-      const leadProb = (_arpPattern.length > 0 && density > ARP_MIN_DENSITY) ? LEAD_PROB * 0.5 : LEAD_PROB;
-      if (!isGermoglio && density > LEAD_MIN_DENSITY && Math.random() < leadProb) {
+      // Lead less likely when arp is active (they share space), but still present
+      const leadProb = (_arpPattern.length > 0 && density >= ARP_MIN_DENSITY) ? LEAD_PROB * 0.65 : LEAD_PROB;
+      if (!isGermoglio && density >= LEAD_MIN_DENSITY && Math.random() < leadProb) {
         // Response interval: minor or major third
         const interval = LEAD_INTERVALS[Math.floor(Math.random() * LEAD_INTERVALS.length)];
         const direction = Math.random() < 0.5 ? 1 : -1;
@@ -326,7 +326,7 @@ function _tick() {
   }
 
   // Arp active: not in germoglio, density above threshold, pattern exists
-  if (!isGermoglio && density > ARP_MIN_DENSITY && _arpPattern.length > 0) {
+  if (!isGermoglio && density >= ARP_MIN_DENSITY && _arpPattern.length > 0) {
     // arpRate 8 = 8th notes = every 2 steps; 16 = 16th notes = every step
     const arpRate = (track && track.arpRate) || 8;
     const arpStepInterval = Math.max(1, Math.round(16 / arpRate));
@@ -337,7 +337,7 @@ function _tick() {
 
       // Velocity: base + density scaling, ducked when lead is active
       const duckMul = _leadDuckCounter > 0 ? ARP_DUCK_FACTOR : 1.0;
-      const rawArpVel = (ARP_VEL_BASE + density * ARP_VEL_RANGE) * 0.7 * duckMul;
+      const rawArpVel = (ARP_VEL_BASE + density * ARP_VEL_RANGE) * duckMul;
       const arpHumanize = Math.round((Math.random() * ARP_HUMANIZE * 2) - ARP_HUMANIZE);
       const arpVel = Math.min(Math.max(Math.round(rawArpVel + arpHumanize), 1), velCeil);
       const arpDur = Math.round(stepMs * arpStepInterval * ARP_DUR_RATIO);
