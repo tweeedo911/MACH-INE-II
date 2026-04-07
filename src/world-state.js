@@ -45,6 +45,14 @@ export const worldState = {
   // ── Harmony (written by harmony.js — only exception to read-only rule) ──
   currentChord: [],  // MIDI notes of current chord, for arp
 
+  // ── V3: Degradation (Hecker §A.7) — only active in dissoluzione final 16 bars ──
+  // 0 = no degradation; 1 = full degradation. Modules opt-in.
+  degradation: {
+    noteDropProb:   0,      // 0 → 0.4: probability of dropping a melody/chord note
+    timingJitterMs: 0,      // 0 → 25: random delay added to rhythm hits
+    chordNoteCount: 99,     // 99 = no limit; 4 → 3 → 2 → 1 = chord stripping
+  },
+
   // ── Visual regime (read by renderer) ──
   palette:      { bg: '#000000', dot: '#FFFFFF', accent: null },
   visualRegime: { maxDensity: 0.5, minDotSize: 4, composition: 'DEFAULT' },

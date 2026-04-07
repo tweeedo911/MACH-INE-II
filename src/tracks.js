@@ -4,6 +4,8 @@
 //  The Director loads these and interpolates during transitions.
 // ═══════════════════════════════════════════════════════════
 
+import { CFG } from './config.js';
+
 // ── Scale definitions (MIDI notes spanning 2+ octaves) ──
 const SCALES = {
   // ── Modes of F major (TESSUTO, SOLCO share this family) ──
@@ -167,12 +169,13 @@ export const TRACKS = {
 
     // ── Melody strategy: drops then counterpoint, intimate ──
     melodyStrategy: {
-      voiceEveryBars: 4,       // rare drops
-      voicePhraseLen: [1, 3],  // very short — single notes to tiny motifs
-      leadMode: 'response',    // lead enters in pulsazione as counterpoint
-      leadProb: 0.3,           // not too often
+      voiceEveryBars: 4,             // base — gets reduced by growth curve
+      voicePhraseLen: [1, 3],        // very short — single notes to tiny motifs
+      leadMode: 'response',          // lead enters in pulsazione as counterpoint
+      leadProb: 0.3,                 // not too often
       arpRole: 'none',
       arpVelScale: 0,
+      voiceGrowInGermoglio: true,    // V3: crescita progressiva nelle 32 bar di germoglio
     },
 
     palette: { bg: '#0A0A0A', dot: '#EFE6DE', accent: null },
@@ -532,6 +535,77 @@ export const TRACKS = {
     visualRegime: { maxDensity: 0.30, minDotSize: 6, composition: 'DISSOLVENZA' },
   }
 };
+
+// ═══════════════════════════════════════════════════════════
+//  A/B EXPERIMENT — Music overrides (post-tavola-rotonda 2026-04-06)
+//  Reversible: snapshot of original values is taken on first apply,
+//  so toggling MUSIC_EXPERIMENT at runtime restores the v1 baseline.
+// ═══════════════════════════════════════════════════════════
+
+let _musicExperimentActive = false;
+let _v1Snapshot = null;  // captured on first apply, used to restore on disable
+
+// Snapshot only the fields touched by the experiment.
+function _captureSnapshot() {
+  return {
+    TESSUTO_velCeil:  { ...TRACKS.TESSUTO.velocityCeiling  },
+    SOLCO_velCeil:    { ...TRACKS.SOLCO.velocityCeiling    },
+    MACCHINA_velCeil: { ...TRACKS.MACCHINA.velocityCeiling },
+    TEMPESTA_velCeil: { ...TRACKS.TEMPESTA.velocityCeiling },
+    TEMPESTA_arpVelScale: TRACKS.TEMPESTA.melodyStrategy.arpVelScale,
+    RITORNO_phases:   { ...TRACKS.RITORNO.phases },
+  };
+}
+
+export function applyMusicExperimentOverrides(enable) {
+  if (enable && !_musicExperimentActive) {
+    if (!_v1Snapshot) _v1Snapshot = _captureSnapshot();
+
+    // ── Velocity ceilings: alzare harmony e melody, soprattutto in TEMPESTA ──
+    TRACKS.TESSUTO.velocityCeiling.harmony = 85;   // 75 → 85
+    TRACKS.TESSUTO.velocityCeiling.melody  = 60;   // 55 → 60
+
+    TRACKS.SOLCO.velocityCeiling.harmony   = 70;   // 60 → 70
+    TRACKS.SOLCO.velocityCeiling.melody    = 80;   // 75 → 80
+
+    TRACKS.MACCHINA.velocityCeiling.harmony = 75;  // 60 → 75
+    TRACKS.MACCHINA.velocityCeiling.melody  = 85;  // 80 → 85
+
+    TRACKS.TEMPESTA.velocityCeiling.harmony = 95;  // 65 → 95 — il picco deve esplodere
+    TRACKS.TEMPESTA.velocityCeiling.melody  = 100; // 85 → 100
+
+    // ── ARP TEMPESTA: era inudibile a 0.4 → ora protagonista di texture ──
+    TRACKS.TEMPESTA.melodyStrategy.arpVelScale = 0.65;  // 0.4 → 0.65
+
+    // ── RITORNO accorciato: 128 bar → 80 bar (~3.7 min invece di 6) ──
+    TRACKS.RITORNO.phases = {
+      germoglio:    16,   // 24 → 16
+      pulsazione:   16,   // 24 → 16
+      densita:      24,   // 32 → 24
+      rottura:      0,
+      dissoluzione: 24,   // 48 → 24 — dimezzato, il taglio principale
+    };
+
+    _musicExperimentActive = true;
+    console.log('[MUSIC_EXP] Track overrides APPLIED');
+  } else if (!enable && _musicExperimentActive && _v1Snapshot) {
+    // Restore baseline values
+    TRACKS.TESSUTO.velocityCeiling  = { ..._v1Snapshot.TESSUTO_velCeil };
+    TRACKS.SOLCO.velocityCeiling    = { ..._v1Snapshot.SOLCO_velCeil };
+    TRACKS.MACCHINA.velocityCeiling = { ..._v1Snapshot.MACCHINA_velCeil };
+    TRACKS.TEMPESTA.velocityCeiling = { ..._v1Snapshot.TEMPESTA_velCeil };
+    TRACKS.TEMPESTA.melodyStrategy.arpVelScale = _v1Snapshot.TEMPESTA_arpVelScale;
+    TRACKS.RITORNO.phases = { ..._v1Snapshot.RITORNO_phases };
+
+    _musicExperimentActive = false;
+    console.log('[MUSIC_EXP] Track overrides REVERTED to v1 baseline');
+  }
+}
+
+// Apply at module load if flag is on at boot
+if (CFG.MUSIC_EXPERIMENT) {
+  applyMusicExperimentOverrides(true);
+}
 
 // ── Track sequence (the album order) ──
 export const TRACK_ORDER = ['NEBBIA', 'TESSUTO', 'SOLCO', 'RESPIRO', 'MACCHINA', 'TEMPESTA', 'RITORNO'];

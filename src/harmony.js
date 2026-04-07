@@ -4,8 +4,9 @@
 //  Reads worldState. Writes worldState.currentChord (only exception).
 // ═══════════════════════════════════════════════════════════
 
+import { CFG } from './config.js';
 import { worldState } from './world-state.js';
-import { sendMIDINote } from './midi.js';
+import { sendMIDINote, sendMIDIPitchBend } from './midi.js';
 import { addMidiNote } from './field.js';
 import { TRACKS } from './tracks.js';
 
@@ -30,6 +31,14 @@ let _lastDroneNote = -1;
 let _lastDroneBar  = -1;
 let _lastChordBar  = -1;
 
+// V3: pitch drift state — slow LFO over CH2 drone (Sakamoto §A.5)
+// Period 24 bars ≈ 60s @ 96 BPM. Amplitude ±614 ≈ ±15 cents.
+let _pitchDriftStep = 0;
+const PITCH_DRIFT_PERIOD_BARS = 24;
+const PITCH_DRIFT_AMPLITUDE   = 614;
+const PITCH_BEND_CENTER       = 8192;
+let _lastPitchBend = -1;
+
 export function initHarmony() {
   _step = 0;
   _stepAcc = 0;
@@ -38,6 +47,12 @@ export function initHarmony() {
   _lastDroneNote = -1;
   _lastDroneBar  = -1;
   _lastChordBar  = -1;
+  _pitchDriftStep = 0;
+  // Reset pitch bend to center on init (avoid stale bend from previous track)
+  if (CFG.MUSIC_STRUCTURAL) {
+    sendMIDIPitchBend(CH_DRONE, PITCH_BEND_CENTER);
+    _lastPitchBend = PITCH_BEND_CENTER;
+  }
   console.log('[HARMONY] Initialized');
 }
 
@@ -67,6 +82,22 @@ function _tick() {
 
   // ── Velocity ceiling guard ──
   const velCeil  = worldState.velocityCeiling.harmony || 127;
+
+  // ──────────────────────────────────────────────
+  //  V3: CH2 drone pitch drift (Sakamoto §A.5)
+  //  Slow sin LFO ±15 cents, period 24 bars (~60s @ 96 BPM).
+  //  Sent every quarter note to keep bandwidth low (~6Hz at 96 BPM).
+  // ──────────────────────────────────────────────
+  if (CFG.MUSIC_STRUCTURAL && _step % 4 === 0) {
+    const periodSteps = PITCH_DRIFT_PERIOD_BARS * 16;
+    _pitchDriftStep = (_pitchDriftStep + 4) % periodSteps;
+    const phaseRad = (_pitchDriftStep / periodSteps) * Math.PI * 2;
+    const bendValue = PITCH_BEND_CENTER + Math.round(Math.sin(phaseRad) * PITCH_DRIFT_AMPLITUDE);
+    if (bendValue !== _lastPitchBend) {
+      sendMIDIPitchBend(CH_DRONE, bendValue);
+      _lastPitchBend = bendValue;
+    }
+  }
 
   // ──────────────────────────────────────────────
   //  CH2 DRONE — every 4 bars, on step 0
@@ -106,11 +137,18 @@ function _tick() {
   }
 
   const rawChord = trackData.chords[_chordIdx];
-  const chord = rawChord.map(n => {
+  let chord = rawChord.map(n => {
     while (n < regLo) n += 12;
     while (n > regHi) n -= 12;
     return n;
   });
+
+  // V3: Degradation — strip chord notes (4 → 3 → 2 → root only) in dissoluzione final
+  const chordLimit = worldState.degradation?.chordNoteCount ?? 99;
+  if (chordLimit < chord.length) {
+    // Keep root + lowest notes (drop the top, "the chord crumbles inward")
+    chord = chord.slice(0, chordLimit);
+  }
 
   if (chordGrid) {
     // ── Rhythmic chords: staccato hits on grid pattern ──

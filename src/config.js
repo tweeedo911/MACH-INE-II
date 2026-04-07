@@ -7,6 +7,20 @@ export const CFG = {
   V3_MODE: true,        // false = v2 behavior (7 motori); true = v3 layer system (Phase 1+)
   bpmLerpBeats: 2,      // BPM transition lerp duration in beats (tempo-relative smoothing)
   debug: false,         // false per performance live — true solo per diagnostica
+
+  // ── A/B MUSIC EXPERIMENT (post-tavola-rotonda 2026-04-06) ──
+  // v2 — calibrazione tattica (leggera coerenza armonica, ceiling alzati, silenzi)
+  // false = v1 originale (default)
+  // Toggle live: tasto 'M'
+  MUSIC_EXPERIMENT: false,
+
+  // ── A/C MUSIC STRUCTURAL (post-RESEARCH-V4 2026-04-07) ──
+  // v3 — trasformazioni strutturali (call-response, tension waves, walls of sound,
+  //      bass cycle extension, Burial stumble, degradation arc)
+  // false = nessuna trasformazione strutturale (default)
+  // Toggle live: tasto 'N' — combinabile con MUSIC_EXPERIMENT (M)
+  // Combinazioni: A=off+off, B=on+off, C=off+on, D=on+on
+  MUSIC_STRUCTURAL: false,
   // ── Audio analyser ──
   fftSize: 2048,
   smoothing: 0.82,
