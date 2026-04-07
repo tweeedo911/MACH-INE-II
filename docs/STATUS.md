@@ -1,7 +1,7 @@
 # STATUS — MACH:INE III
 
 > Snapshot vivo. Rigenerato a fine sessione. Punto di entrata di ogni nuova sessione.
-> **Last updated:** 2026-04-07 (sessione P1 Fase B — isRottura → rupture envelope nelle 6 comp-*)
+> **Last updated:** 2026-04-07 (debiti tecnici — doc fix, CH7 arp, ghost/fossil overlay)
 
 ## ⚠️ Limiti noti (post A.2)
 
@@ -101,30 +101,29 @@ Tutte le 6 comp migrate al layer stack 4-canonico (commit `16abb8e`).
 
 ### P1 — Visual System Bible Fase B / C
 3. ✅ **Rupture 4 stadi — Fase B completa** — tutte le 6 comp-* migrate da
-   `isRottura` (bool) a `rupture.intensity` (0→1 smooth). Stage-specifici:
-   `comp-negativo` `isRotturaExtra` solo su `takeover`; `comp-griglia` `rowSpan=2`
-   solo su `takeover|residue`. Bug latente TDZ fixato in `comp-griglia`.
-   **Test live necessario** per verificare gradualità visiva in rottura.
-4. **Memoria inter-traccia** — `_sharedSediment` da secondi a minuti in `field.js`.
-5. ✅ **trackPalettes Bible §12** → `worldState.palette` (bg/dot/accent/ruptureTint/residual).
-   `colors.js` ora a 5 canali + blend ruptureTint. Colori live: accettati.
+   `isRottura` (bool) a `rupture.intensity` (0→1 smooth). **Test live necessario.**
+4. ✅ **Memoria inter-traccia** — `_sharedSediment` decay 0.9997/frame (half-life ~38s),
+   deposito continuo per-frame (palimpsesto). Parametri in `CFG.VISUAL.sediment`.
+5. ✅ **trackPalettes Bible §12** → `worldState.palette`. Colori live: accettati.
+6. ✅ **Crossfade transizioni** — 3s ease-in-out cubico (era hard cut). `CFG.VISUAL.trackFadeDuration`.
+7. ✅ **Micro-glitch ritmo-gated** — solo quando `rhythmicity > 0.4`, raro. `CFG.VISUAL.glitch`.
 
-### P2 — debiti tecnici differiti
-6. Push 14 commit + apertura PR verso `main` (dopo A.4 primi checkpoint).
-7. Refactor `director3.js` (521 LOC): split scheduler/density/phases.
-8. Refactor `melody-v3.js` (503 LOC): estrarre logica comune A/B/C.
-9. Profilo CPU su Chrome DevTools: target costante 60fps su 60min.
-
-### P2 — alta priorità visiva
-6. Ricaricare enrich di `comp-quadrati` e `comp-negativo` (breathing, sediment, holes)
-7. Verificare zone Bayer crescenti coerenti con `worldState.density`
-8. Glitch layer: ridurre layer, aumentare sottrazione (regola "meno è più")
+### P2 — ✅ COMPLETATO
+8. ✅ **Enrich comp-quadrati** — breathing 3×, rhythm density boost, arp sediment.
+9. ✅ **Enrich comp-negativo** — breathing Bayer MG, bass holes in densita, closeSpeed per-buco.
+10. ✅ **Zone Bayer coerenti con density** — `density.X` come floor dinamico in tutte le 6 comp.
+11. ✅ **Glitch layer meno è più** — da 5 a 4 modi, tutti sottrattivi.
 
 ### P3 — debiti tecnici
-9. Refactor `director3.js` (521 LOC): split scheduler/density/phases
-10. Refactor `melody-v3.js` (503 LOC): estrarre logica comune A/B/C
-11. Profilo CPU su Chrome DevTools: target costante 60fps su 60min
-12. `scripts/snapshot.sh` — usarlo prima di edit invasivi a `index.html`/`render.js`
+1. Test live completo: rupture Fase B gradualità, sediment palimpsesto, crossfade 3s, glitch ritmico, enrich comp-*
+2. ✅ **Fix doc** — `03-VISUAL.md` mapping comp↔traccia corretto
+3. ✅ **Fix CH7=arp** — `comp-quadrati.js` (era CH6 primario, ora CH7)
+4. ✅ **Ghost/fossil overlay** — `field.js` consuma event-register, sblocca firma gelo/convergenza
+5. **Calibrazione ghost/fossil** — test live, aggiustare densità/blend in `CFG.VISUAL.ghostOverlay`
+6. Push 14+ commit + apertura PR verso `main`
+7. Refactor `director3.js` (521 LOC): split scheduler/density/phases
+8. Refactor `melody-v3.js` (503 LOC): estrarre logica comune A/B/C
+9. Profilo CPU su Chrome DevTools: target costante 60fps su 60min
 
 ### P4 — esperimenti / esplorazione
 13. RITM-05 break ciclico kick+basso (130 LOC in `archive/.../rhythm-layer.js`) — solo se servono respiri ritmici
@@ -154,4 +153,5 @@ Tutte le 6 comp migrate al layer stack 4-canonico (commit `16abb8e`).
 | Regole (versioning, commit, style) | `docs/04-RULES.md` |
 | Roadmap strategica (milestone) | `docs/05-ROADMAP.md` |
 | Routing skill / agenti | `docs/06-AGENTS.md` |
+| Gap artistici + strategia prossima milestone | `docs/07-ARTISTIC-GAPS.md` |
 | Comportamenti morti riusabili | `SALVAGE.md` (in root) |

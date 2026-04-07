@@ -270,7 +270,9 @@ export function render(ctx, W, H, env) {
       }
 
       const s       = Math.max(2, Math.round(o.size * sizeBoost));
-      const density = Math.min(clamp(o.alpha * planeAlpha * _params.density * 2, 0, 1), worldState.visualRegime.maxDensity);
+      const _rDen = ((worldState.density && worldState.density.rhythm) || 0);
+      const _bDen = ((worldState.density && worldState.density.bass)   || 0);
+      const density = Math.min(clamp(o.alpha * planeAlpha * _params.density * 2 + (_rDen + _bDen) * 0.035, 0, 1), worldState.visualRegime.maxDensity);
       const baseRgb = o.isAccent ? accRgb : dotRgb;
       const fadedRgb = lerpColor(bgRgb, baseRgb, saturation * planeAlpha * o.alpha);
       const rdx = o.isAccent ? RISO_OFFSET_X : 0;

@@ -231,7 +231,8 @@ export function render(ctx, W, H, env) {
     const onsetBoost = 1 + _onsetThick * (line.isLead ? 0.8 : 0.4);
     const thickness = Math.max(1, Math.round(baseThick * rmsThickMul * onsetBoost));
     const dotSize   = Math.max(2, thickness * 2);
-    const density   = clamp(line.brightness * _params.thickness * 0.15, 0.05, 0.85);
+    const density   = clamp(line.brightness * _params.thickness * 0.15
+                          + ((worldState.density && worldState.density.melody) || 0) * 0.08, 0.05, 0.85);
 
     const baseLineRgb = line.isLead ? accRgb
                       : line.isDrone ? lerpColor(bgRgb, dotRgb, 0.3)
@@ -301,7 +302,7 @@ export function render(ctx, W, H, env) {
         const oscYs = Math.sin(c * osc.freq + _time * 1.4) * osc.amp;
         const baseRowY = py + oscYs;
         const row = Math.floor(baseRowY / Math.max(2, (_params.thickness || 1) * 2));
-        if (bayerTest(c, row, density * 0.5)) {
+        if (bayerTest(c, row, Math.min(density * 0.5, worldState.visualRegime.maxDensity))) {
           sCtx.fillRect(c * Math.max(2, (_params.thickness || 1) * 2), baseRowY, Math.max(2, (_params.thickness || 1) * 2), Math.max(2, (_params.thickness || 1) * 2));
         }
       }

@@ -6,6 +6,119 @@
 
 ---
 
+## 2026-04-07 (sera, debiti tecnici) — doc fix + CH6/CH7 + ghost/fossil overlay
+
+**Versione fine sessione:** v3.4.2 (no bump — fix tecnici, nessun comportamento musicale)
+**Branch:** `machine-iii`
+
+### Obiettivo
+Completare i 3 debiti tecnici emersi dall'analisi Bible:
+1. Doc 03-VISUAL.md obsoleto (mapping comp↔traccia sbagliato)
+2. comp-quadrati usava CH6=lead come arp primario invece di CH7=arp
+3. event-register mai consumato dalle comp-* → firma gelo/convergenza senza target visibili
+
+### Fatto
+
+**Fix `docs/03-VISUAL.md`**
+- Tabella comp↔traccia corretta (rifletteva versione pre-A.4)
+- Header aggiornato "7 composizioni" → "6 composizioni" (comp-liminale copre NEBBIA+RITORNO)
+- Nota esplicita "fonte di verità: field.js → COMP_MAP"
+
+**Fix `comp-quadrati.js` — CH7=arp primario**
+- `isArpCh = n.ch === 7 || (ruptI > 0.4 && n.ch === 6)`
+- Prima: CH6=lead era primario, CH7=arp solo in takeover
+- Ora: CH7=arp primario (coerente con CH_ROLE e Bible SOLCO), CH6=lead aggiuntivo in takeover
+
+**Ghost/fossil overlay in `field.js`**
+- Import `getEvents, STATE_GHOST, STATE_FOSSIL` da event-register.js
+- Render pass dopo comp render, prima dell'accumulo sediment
+- Dot 2px Bayer, colore lerp(dot→bg) per gradazione ghost/fossil
+- Parametri in `CFG.VISUAL.ghostOverlay` (config.js)
+- Effetti sbloccati: firma.gelo cristallizza eventi visibili; firma.convergenza attira posizioni reali
+- Ghost dots finiscono nel sediment (accumulo dopo il pass) → build-up nel palimpsesto
+
+### File toccati
+- `docs/03-VISUAL.md`
+- `src/comp-quadrati.js`
+- `src/config.js` (nuovo blocco CFG.VISUAL.ghostOverlay)
+- `src/field.js` (import + render pass ~35 LOC)
+
+### Prossimo
+- Test live: verificare che ghost/fossil siano visibili (sottili, non invadenti)
+- Calibrare se necessario: ghostDensity, fossilDensity, ghostBlend, fossilBlend in config.js
+- Test firma.gelo: tieni G premuto → eventi si cristallizzano visibili per tutta la durata
+- Test firma.convergenza: tieni J → dot ghost convergono verso centro
+- P3: push 14+ commit + PR verso main
+- P3: refactor director3.js / melody-v3.js
+
+---
+
+## 2026-04-07 (pomeriggio) — P1 memoria inter-traccia + P2 visual enrich
+
+**Versione fine sessione:** v3.4.2 (no bump — infra visiva, nessun comportamento musicale cambiato)
+**Branch:** `machine-iii`
+
+### Obiettivo
+P1: memoria inter-traccia `_sharedSediment`.
+P2: enrich comp-quadrati/negativo, zone Bayer coerenti con density, glitch layer.
+
+### Fatto
+
+**P1 — Memoria inter-traccia (`field.js`, `config.js`)**
+- `_sharedSediment` decay da 0.97 a 0.9997/frame → half-life ~38s, visibile ~2min.
+- Deposito continuo per-frame (`accumAlpha=0.0001`): palimpsesto atmosferico.
+- Composite alpha 0.35 → 0.30 (ridotto per persistenza lunga).
+- Parametri in `CFG.VISUAL.sediment`.
+
+**P1 — Micro-glitch ritmo-gated (`field.js`, `config.js`)**
+- Rimosso floor fisso `+0.3`. Aggiunto gate `rhythmicity > 0.4`.
+- Scala `audioEnergy × rhythmicity × 0.5` → glitch solo in momenti ritmici, raro.
+- Parametri in `CFG.VISUAL.glitch`.
+
+**P1 — Crossfade transizioni (`field.js`, `config.js`)**
+- `worldState.transition` era sempre `null` → le transizioni erano hard cut.
+- Aggiunto `_fadeTimer` self-managed + ease-in-out cubico 3s.
+- Parametro `CFG.VISUAL.trackFadeDuration`.
+
+**P2 — Enrich `comp-quadrati`**
+- `breathAlpha` in PHASE_PARAMS aumentati (0.05→0.18 … 0.35→0.60).
+- Breathing boost da `density.rhythm × 0.20`.
+- Arp head scrive nell'OVERLAY: sediment memoria delle orbite.
+
+**P2 — Enrich `comp-negativo`**
+- Aggiunto `renderBreathingField` nel MG: dot ink-black pulsano sul sage verde quando `rhythmicity > 0.15`.
+- Bass (CH3) crea buchi leggeri anche in `densita` (non solo in `takeover`).
+- `closeSpeed` per-buco: eco → resta, voice → medio, bass → chiude veloce.
+
+**P2 — Zone Bayer coerenti con `worldState.density`**
+- `comp-griglia`: `ghostBase` cresce con `density.rhythm × 0.08`.
+- `comp-linee`: density base + `density.melody × 0.08`; fix sediment bayerTest senza cap.
+- `comp-liminale`: density base + `density.harmony × 0.06`.
+- `comp-treno`: density base + `(density.rhythm + density.bass) × 0.035`.
+
+**P2 — Glitch layer: meno è più**
+- Da 5 a 4 modi, tutti sottrattivi. Rimossi: scan lines colorate (case 1), Bayer flip (case 4).
+- Aggiunto scan line tear subtrattivo (clear 1-3 righe sottili).
+- Rimossi import inutilizzati da `field.js` (`hexToRgb`, `rgbString`, `colorFlash`).
+
+### File toccati
+- `src/field.js`
+- `src/config.js`
+- `src/comp-quadrati.js`
+- `src/comp-negativo.js`
+- `src/comp-griglia.js`
+- `src/comp-linee.js`
+- `src/comp-liminale.js`
+- `src/comp-treno.js`
+
+### Prossimo
+- Test live: rupture envelope graduale (Fase B), sediment palimpsesto, crossfade 3s, glitch ritmico.
+- P2 `comp-quadrati`/`comp-negativo`: valutare live se breathing è troppo o corretto.
+- P3: refactor director3.js (521 LOC), melody-v3.js (503 LOC).
+- P3: profilo CPU Chrome DevTools (target 60fps/60min).
+
+---
+
 ## 2026-04-07 (notte) — P1 Fase B: isRottura → rupture envelope nelle 6 comp-*
 
 **Versione fine sessione:** v3.4.2 (no bump — infra, nessun comportamento musicale cambiato)

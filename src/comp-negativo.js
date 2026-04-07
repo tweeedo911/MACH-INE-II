@@ -20,7 +20,7 @@ import {
   bayerGlitch, colorFlash, shouldGlitch,
   applyCameraTransform, restoreCameraTransform,
   lerpKForTrack,
-  renderBayerScaffold,
+  renderBayerScaffold, renderBreathingField,
 } from './visual-toolkit.js';
 
 import {
@@ -70,6 +70,7 @@ export function init(env) {
 // ── Render ────────────────────────────────────────────────
 export function render(ctx, W, H, env) {
   const { worldState, midiTrail, onsetWaves, dt, audio, state } = env;
+  const rhythmicity = (state && state.rhythmicity) || 0;
   _time += dt;
 
   // ── Smooth phase transition ──
@@ -157,30 +158,43 @@ export function render(ctx, W, H, env) {
     }
   }
 
+  // Breathing Bayer field — dot ink-black che pulsano sul sage quando c'è ritmo
+  if (lMg && rhythmicity > 0.15) {
+    const dotStr = rgbString(dotRgb[0], dotRgb[1], dotRgb[2]);
+    renderBreathingField(lMg, W, H, audio, state, _time, DOT_SIZE, dotStr,
+      rhythmicity * 0.22, 0.05);
+  }
+
   // ── 3. Spawn holes from voice (CH5) and lead echo (CH6) ──
-  // Rottura: also react to kick (CH0), bass (CH3) — everything carves holes
+  // Rottura: kick/bass/all carve holes. Densita: bass apre buchi leggeri ambientali.
   for (const n of midiTrail) {
-    const isVoiceLead = n.ch === 5 || n.ch === 6;
+    const isVoiceLead  = n.ch === 5 || n.ch === 6;
     const isRotturaExtra = rupture.stage === 'takeover' && (n.ch === 0 || n.ch === 3 || n.ch === 7);
-    if ((isVoiceLead || isRotturaExtra) && n.time < dt * 2 && n.alpha > 0.4) {
+    const isBassAmbient  = (worldState.phase === 'densita' || worldState.phase === 'rottura')
+                           && n.ch === 3 && n.alpha > 0.65 && !isRotturaExtra;
+    if ((isVoiceLead || isRotturaExtra || isBassAmbient) && n.time < dt * 2 && n.alpha > 0.4) {
       const isEcho = n.ch === 6;
       const isKick = n.ch === 0;
+      const isBass = n.ch === 3;
       const hx = clamp(0.15 + n.note * 0.7 + (isKick ? (Math.random() - 0.5) * 0.3 : 0), 0.05, 0.95);
       const hy = clamp(0.15 + (1 - n.note) * 0.7 + (isEcho ? 0.05 : 0), 0.05, 0.95);
-      // Rottura: holes open progressivamente più veloci, grandi, sovrapposti
       const rotturaBoost = lerp(1.0, 3.0, ruptI);
+      // Per-hole close speed: eco resta, voice medio, bass chiude veloce
+      const csMul = isEcho ? (0.3 + Math.random() * 0.4)
+                  : isBass ? (1.5 + Math.random())
+                  :          (0.6 + Math.random() * 0.8);
       _holes.push({
         x: hx,
         y: hy,
-        radius: ruptI * 0.02,           // omen: piccola apertura istantanea; takeover: 0.02
-        maxRadius: _params.holeSize * (isEcho ? 0.6 : 1) * n.vel * rotturaBoost,
-        alpha: _params.holeDepth * (isEcho ? 0.5 : 1),
+        radius: ruptI * 0.02,
+        maxRadius: _params.holeSize * (isEcho ? 0.6 : isBass ? 0.4 : 1) * n.vel * rotturaBoost,
+        alpha: _params.holeDepth * (isEcho ? 0.5 : isBass ? 0.3 : 1),
         closing: false,
-        growSpeed: (isEcho ? 0.08 : 0.15) * lerp(1, 5, ruptI),
+        growSpeed: (isEcho ? 0.08 : isBass ? 0.12 : 0.15) * lerp(1, 5, ruptI),
+        closeSpeed: _params.closeSpeed * csMul,
       });
-      // Camera drifts toward latest melody hole
-      if (!isEcho) {
-        _camTargetX = (hx - 0.5) * -W * 0.015;   // subtle: max ~±1.5% of W
+      if (!isEcho && !isBass) {
+        _camTargetX = (hx - 0.5) * -W * 0.015;
         _camTargetY = (hy - 0.5) * -H * 0.015;
       }
     }
@@ -215,7 +229,7 @@ export function render(ctx, W, H, env) {
       if (h.radius >= h.maxRadius) h.closing = true;
     }
     if (h.closing) {
-      h.radius -= _params.closeSpeed;
+      h.radius -= (h.closeSpeed ?? _params.closeSpeed);
       h.alpha  *= 0.995;
     }
     if (h.radius < 0.002 || h.alpha < 0.02) {

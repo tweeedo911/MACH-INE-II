@@ -4,10 +4,12 @@
 //  Handles crossfade during track transitions.
 // ═══════════════════════════════════════════════════════════
 
+import { CFG } from './config.js';
 import { worldState } from './world-state.js';
 import * as toolkit from './visual-toolkit.js';
-import { Sediment, shouldGlitch, hexToRgb, rgbString, colorFlash, clamp } from './visual-toolkit.js';
+import { Sediment, shouldGlitch, clamp } from './visual-toolkit.js';
 import { firma } from './firma.js';
+import { getEvents, STATE_GHOST, STATE_FOSSIL } from './event-register.js';
 
 // ── Composition modules ──
 import * as compLiminale from './comp-liminale.js';
@@ -32,6 +34,7 @@ let _activeComp = null;       // current composition module
 let _activeTrack = null;      // current track name
 let _outgoingComp = null;     // composition being faded out during transition
 let _transitionAlpha = 0;     // 0 = all outgoing, 1 = all incoming
+let _fadeTimer = 0;           // elapsed seconds in current crossfade
 
 // ── Shared sediment — persists across track changes (scene memory) ──
 let _sharedSediment = new Sediment();
@@ -172,11 +175,10 @@ export function renderField(ctx, W, H, envData) {
         sCtx.globalAlpha = 1;
       }
 
-      if (_activeComp && worldState.transition) {
+      if (_activeComp) {
         _outgoingComp = _activeComp;
+        _fadeTimer = 0;
         _transitionAlpha = 0;
-      } else if (_activeComp) {
-        _activeComp.destroy();
       }
       _activeComp = newComp;
       _activeTrack = track;
@@ -184,9 +186,11 @@ export function renderField(ctx, W, H, envData) {
     }
   }
 
-  // Handle crossfade transition
-  if (_outgoingComp && worldState.transition) {
-    _transitionAlpha = worldState.transition.progress || 0;
+  // Handle crossfade transition — self-managed timer, ease-in-out cubic
+  if (_outgoingComp) {
+    _fadeTimer += envData.dt || 0.016;
+    const _t = Math.min(1, _fadeTimer / CFG.VISUAL.trackFadeDuration);
+    _transitionAlpha = _t < 0.5 ? 4*_t*_t*_t : 1 - Math.pow(-2*_t + 2, 3) / 2;
     ensureOffscreen(W, H);
 
     // Draw outgoing to offscreen
@@ -212,10 +216,54 @@ export function renderField(ctx, W, H, envData) {
     _activeComp.render(ctx, W, H, env);
   }
 
+  // ── Ghost/fossil overlay — eventi persistenti da event-register ──
+  // Renderizza solo STATE_GHOST e STATE_FOSSIL come dot Bayer desaturati.
+  // STATE_NEWBORN e STATE_STABLE sono già coperti dal midiTrail nelle comp-*.
+  // firma.gelo: già gestito in updateEvents (aging frozen → eventi restano nel loro stato).
+  // firma.convergenza: già gestito in updateEvents (e.nx/ny attratti verso centro).
+  if (_activeComp && W > 0 && H > 0) {
+    const events = getEvents();
+    if (events.length > 0) {
+      const gcfg   = CFG.VISUAL.ghostOverlay;
+      const dotSz  = gcfg.dotSize;
+      const bgRgb  = toolkit.hexToRgb(worldState.palette.bg);
+      const dotRgb = toolkit.hexToRgb(worldState.palette.dot);
+
+      for (const e of events) {
+        if (e.state < STATE_GHOST) continue;  // skip newborn + stable
+
+        const isGhost = e.state === STATE_GHOST;
+        const density = isGhost ? gcfg.ghostDensity  : gcfg.fossilDensity;
+        const blend   = isGhost ? gcfg.ghostBlend    : gcfg.fossilBlend;
+
+        const px  = e.nx * W;
+        const py  = e.ny * H;
+        const col = Math.floor(px / dotSz);
+        const row = Math.floor(py / dotSz);
+
+        if (!toolkit.bayerTest(col, row, density)) continue;
+
+        const rgb = toolkit.lerpColor(dotRgb, bgRgb, blend);
+        ctx.fillStyle = toolkit.rgbString(rgb[0] | 0, rgb[1] | 0, rgb[2] | 0);
+        ctx.fillRect(px - dotSz * 0.5, py - dotSz * 0.5, dotSz, dotSz);
+      }
+    }
+  }
+
+  // Continuous accumulation — light per-frame deposit into sediment (palimpsesto)
+  // Captures current comp frame AFTER ghost/fossil overlay → ghost dots finiscono nel sediment.
+  if (_activeComp && W > 0 && H > 0) {
+    _sharedSediment._ensure(W, H);
+    const sCtx = _sharedSediment.getCtx();
+    sCtx.globalAlpha = CFG.VISUAL.sediment.accumAlpha;
+    sCtx.drawImage(ctx.canvas, 0, 0);
+    sCtx.globalAlpha = 1;
+  }
+
   // Shared sediment: composite scene memory OVER the composition
-  // Decays slowly (0.97) — old scenes ghost under the new one for ~3-4 seconds
-  _sharedSediment.decay(W, H, 0.97);
-  ctx.globalAlpha = 0.35;
+  // Decay lento (0.9997 @60fps) → half-life ~38s, memoria visibile ~2min per traccia
+  _sharedSediment.decay(W, H, CFG.VISUAL.sediment.decayRate);
+  ctx.globalAlpha = CFG.VISUAL.sediment.compositeAlpha;
   _sharedSediment.composite(ctx);
   ctx.globalAlpha = 1;
 
@@ -224,35 +272,27 @@ export function renderField(ctx, W, H, envData) {
   const audioEnergy = worldState.audioEnergy || 0;
   const isRottura = worldState.phase === 'rottura';
   const gt = envData.globalTime || 0;
+  const rhythmicity = (envData.state && envData.state.rhythmicity) || 0;
 
-  if (shouldGlitch(audioEnergy + 0.3, isRottura, gt)) {
-    // Pick a random glitch type
-    // Glitch grammar: SUBTRACTION, not accumulation. Tear/clear pixels, don't add flashes.
-    const mode = Math.floor(gt * 17.3) % 5;
+  if (rhythmicity > CFG.VISUAL.glitch.rhythmThreshold &&
+      shouldGlitch(audioEnergy * rhythmicity * CFG.VISUAL.glitch.intensityMul, isRottura, gt)) {
+    // Glitch grammar: SUBTRACTION only — tear/clear pixels, never add flashes.
+    // 4 modes: strip, scan-tear, shift, column. Removed: colored bars, Bayer flip.
+    const mode = Math.floor(gt * 17.3) % 4;
     switch (mode) {
       case 0: {
         // Strip removal — clear horizontal band of 8-16 rows for 1 frame
-        // Replaces the old additive flash. Subtract, don't add.
         const stripH = 8 + Math.floor(Math.random() * 8);
         const stripY = Math.random() * (H - stripH);
         ctx.clearRect(0, stripY, W, stripH);
         break;
       }
       case 1: {
-        // Horizontal scan line glitch — draw a few random horizontal bars
-        const barCount = 1 + Math.floor(audioEnergy * 4);
-        const bgRgb = hexToRgb(worldState.palette.bg);
-        const flashRgb = colorFlash(bgRgb, 0.8, gt);
-        ctx.fillStyle = rgbString(
-          clamp(flashRgb[0], 0, 255),
-          clamp(flashRgb[1], 0, 255),
-          clamp(flashRgb[2], 0, 255),
-          0.4
-        );
-        for (let i = 0; i < barCount; i++) {
+        // Scan line tear — clear 1-3 thin rows (subtractive, no color added)
+        const count = 1 + Math.floor(Math.random() * 2);
+        for (let i = 0; i < count; i++) {
           const y = Math.random() * H;
-          const h = 1 + Math.random() * 4;
-          ctx.fillRect(0, y, W, h);
+          ctx.clearRect(0, y, W, 1 + Math.floor(Math.random() * 2));
         }
         break;
       }
@@ -270,15 +310,6 @@ export function renderField(ctx, W, H, envData) {
         const stripW = 4 + Math.floor(Math.random() * 8);
         const stripX = Math.random() * (W - stripW);
         ctx.clearRect(stripX, 0, stripW, H);
-        break;
-      }
-      case 4: {
-        // Bayer threshold flip — invert dot pattern for 1 frame via difference op
-        ctx.save();
-        ctx.globalCompositeOperation = 'difference';
-        ctx.fillStyle = '#FFFFFF';
-        ctx.fillRect(0, 0, W, H);
-        ctx.restore();
         break;
       }
     }

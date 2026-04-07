@@ -242,7 +242,8 @@ export function render(ctx, W, H, env) {
       const flickerMod = (state && state.rhythmicity !== undefined)
         ? audioFlicker(state, _time, nx, ny) * rms
         : 0;
-      const ghostBase = 0.02 + rms * 0.03;
+      // Zone Bayer crescono col ritmo — density.rhythm alza il ghost floor
+      const ghostBase = 0.02 + rms * 0.03 + ((worldState.density && worldState.density.rhythm) || 0) * 0.08;
       effectiveBrightness = Math.max(effectiveBrightness, ghostBase + flickerMod);
 
       if (doScan && r === scanRow) {

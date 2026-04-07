@@ -31,23 +31,23 @@ import {
 const PHASE_PARAMS = {
   germoglio:    {
     blocks: 2,  fillDensity: 0.15, flashIntensity: 0.3,  arpVisible: false,
-    breathAlpha: 0.05, sedimentRate: 0.92,
+    breathAlpha: 0.18, sedimentRate: 0.92,
   },
   pulsazione:   {
     blocks: 4,  fillDensity: 0.35, flashIntensity: 0.6,  arpVisible: false,
-    breathAlpha: 0.12, sedimentRate: 0.88,
+    breathAlpha: 0.30, sedimentRate: 0.88,
   },
   densita:      {
     blocks: 6,  fillDensity: 0.55, flashIntensity: 0.85, arpVisible: true,
-    breathAlpha: 0.20, sedimentRate: 0.85,
+    breathAlpha: 0.45, sedimentRate: 0.85,
   },
   rottura:      {
     blocks: 8,  fillDensity: 0.80, flashIntensity: 1.0,  arpVisible: true,
-    breathAlpha: 0.35, sedimentRate: 0.78,
+    breathAlpha: 0.60, sedimentRate: 0.78,
   },
   dissoluzione: {
     blocks: 3,  fillDensity: 0.20, flashIntensity: 0.3,  arpVisible: false,
-    breathAlpha: 0.08, sedimentRate: 0.93,
+    breathAlpha: 0.18, sedimentRate: 0.93,
   },
 };
 
@@ -136,10 +136,13 @@ export function render(ctx, W, H, env) {
   if (lBg) fillBackground(lBg, W, H, rgbString(bgRgb[0], bgRgb[1], bgRgb[2]));
 
   // ── MG layer: breathing halftone field ──
+  // Rhythm density boosts the field — il groove si vede nel campo
   if (lMg && _params.breathAlpha > 0.01) {
     const dotColorStr = rgbString(dotRgb[0], dotRgb[1], dotRgb[2]);
     const jitter = lerp(0.15, 0.5, ruptI);
-    renderBreathingField(lMg, W, H, audio, state, _time, 8, dotColorStr, _params.breathAlpha, jitter);
+    const rhythmBoost = ((worldState.density && worldState.density.rhythm) || 0) * 0.20;
+    renderBreathingField(lMg, W, H, audio, state, _time, 8, dotColorStr,
+      clamp(_params.breathAlpha + rhythmBoost, 0, 0.70), jitter);
   }
 
   // ── MIDI segnali ──
@@ -230,10 +233,10 @@ export function render(ctx, W, H, env) {
     if (lOv) fillBayer(lOv, bx, by, bw, bh, density * 0.7, dotSize + 1, colorStr);
   }
 
-  // ── Arp particles — CH6=LEAD, orbite imperfette ──
+  // ── Arp particles — CH7=ARP primario, CH6=LEAD aggiuntivo in takeover ──
   if (_params.arpVisible) {
     for (const n of midiTrail) {
-      const isArpCh = n.ch === 6 || (ruptI > 0.4 && n.ch === 7);
+      const isArpCh = n.ch === 7 || (ruptI > 0.4 && n.ch === 6);
       if (isArpCh && n.time < dt * 2 && n.alpha > 0.5) {
         const bi     = Math.floor((n.note || 60) * _blocks.length / 128) % _blocks.length;
         const block  = _blocks[bi] || _blocks[0];
@@ -310,6 +313,14 @@ export function render(ctx, W, H, env) {
       const hdx = headAccent ? RISO_OFFSET_X : 0;
       const hdy = headAccent ? RISO_OFFSET_Y : 0;
       lFg.fillRect(px + hdx, py + hdy, p.size, p.size);
+
+      // Arp head leaves sediment trail — memoria delle orbite
+      if (lOv) {
+        lOv.globalAlpha = p.alpha * 0.30;
+        lOv.fillStyle   = headAccent ? accStr : dotStr;
+        lOv.fillRect(px, py, p.size, p.size);
+        lOv.globalAlpha = 1;
+      }
     }
     if (lFg) lFg.globalAlpha = 1;
   }

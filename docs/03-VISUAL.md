@@ -29,19 +29,18 @@ ogni traccia ha una propria identità grafica.
 
 Applica soglia Bayer e disegna dot. **Zone Bayer crescono con l'audio.**
 
-## 7 composizioni grafiche (comp-*)
+## 6 composizioni grafiche (comp-*)
 
-Ogni traccia ha la sua composizione visiva:
+Ogni traccia ha la sua composizione visiva (fonte di verità: `field.js` → `COMP_MAP`):
 
-| comp           | traccia      | tratto                                 |
-|----------------|--------------|----------------------------------------|
-| `comp-griglia` | NEBBIA       | griglia sospesa, breathing             |
-| `comp-liminale`| TESSUTO      | MIDI dots 2x, voice riempie il canvas  |
-| `comp-linee`   | SOLCO        | linee solco, sediment                  |
-| `comp-treno`   | MACCHINA     | bande verticali ritmiche               |
-| `comp-quadrati`| TEMPESTA     | quadrati che breathing + holes organici|
-| `comp-negativo`| RESPIRO      | negativo / fondo bianco                |
-| `(default)`    | RITORNO      | dissoluzione su fondo neutro           |
+| comp            | traccia          | tratto                                      |
+|-----------------|------------------|---------------------------------------------|
+| `comp-liminale` | NEBBIA + RITORNO | prospettiva convergente, dots profondità    |
+| `comp-linee`    | TESSUTO          | linee orizzontali parallele, voice leading  |
+| `comp-quadrati` | SOLCO            | blocchi pulsanti col groove, arp orbite     |
+| `comp-negativo` | RESPIRO          | fondo saturo, note scavano buchi scuri      |
+| `comp-griglia`  | MACCHINA         | griglia Data/Ikeda, colonne MIDI            |
+| `comp-treno`    | TEMPESTA         | viaggio laterale, parallasse 3 piani        |
 
 ## Sistema cromatico A / B / C
 
