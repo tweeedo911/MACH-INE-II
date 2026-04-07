@@ -1,7 +1,7 @@
 # STATUS — MACH:INE III
 
 > Snapshot vivo. Rigenerato a fine sessione. Punto di entrata di ogni nuova sessione.
-> **Last updated:** 2026-04-07 (sessione Visual Bible Fase A.4 — comp-negativo layer stack)
+> **Last updated:** 2026-04-07 (sessione Visual Bible Fase A.4 — tutte le 6 comp migrate)
 
 ## ⚠️ Limiti noti (post A.2)
 
@@ -29,7 +29,7 @@
 **v3.4.2** — single source: `src/VERSION.js` (`APP_VERSION`)
 
 Tag git: `v3.4.2` su `ccbbb13`.
-HEAD: `b4fa11f` (Visual Bible Fase A.4 — comp-negativo migrato).
+HEAD: `16abb8e` (Visual Bible Fase A.4 — tutte le 6 comp migrate).
 Branch attivo: `machine-iii` (14 commit avanti su `origin/machine-iii`, mai pushato).
 
 ---
@@ -86,14 +86,20 @@ layers.js         →  4 layer canonici stackati (BG/MG/FG/Overlay) — Bible §
 
 ## Prossimo (priorità top→bottom)
 
-### P0 — Visual System Bible Fase A.4 (in corso)
-1. ✅ **`comp-negativo` (RESPIRO) migrato** — layer stack 4-canonico (commit `b4fa11f`).
-   **Da testare live prima di procedere.**
-2. **Seconda comp** — candidata `comp-liminale` (NEBBIA / RITORNO).
-   Stessa procedura: test live → commit atomico (Bible §15.2).
-3. Poi estendere alle 4 comp rimanenti, una per sessione.
+### P0 — Visual System Bible Fase A.4 ✅ COMPLETA
+Tutte le 6 comp migrate al layer stack 4-canonico (commit `16abb8e`).
+**Da testare live su tutte le tracce prima di procedere alla Fase B.**
 
-### P1 — Visual System Bible Fase B / C (post A.4)
+| Comp | BG | MG | FG | OVERLAY | Sediment |
+|---|---|---|---|---|---|
+| negativo | ✓ | shadow (fresh) | buchi (cam) | memoria buchi | OVERLAY |
+| liminale | ✓ | zones (fresh) | dots (cam) | trails α×0.6 | OVERLAY |
+| griglia | ✓ | afterglow (persist) | celle (cam) | — | MG |
+| linee | ✓ | noise (fresh) | linee (cam) | — | privato (screen) |
+| quadrati | ✓ | breath (fresh) | blocchi+arp (cam) | sediment α0.5 | OVERLAY |
+| treno | ✓ | breath (fresh) | oggetti (cam) | — | privato (frame-cap) |
+
+### P1 — Visual System Bible Fase B / C (post test live A.4)
 3. Implementare **rupture 4 stadi** (Omen→Infiltration→Takeover→Residue)
    come stato del director3 con envelope temporale, non flag binario.
 4. **Memoria inter-traccia** più esplicita — aumentare durata di
