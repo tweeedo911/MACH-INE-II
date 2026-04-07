@@ -177,11 +177,12 @@ export function render(ctx, W, H, env) {
   if (_densityWaves.length > 20) _densityWaves.length = 20;
 
   // ── Onset reactions ──
-  const isRottura = (env.worldState.phase === 'rottura');
+  const { rupture } = worldState;
+  const ruptI = rupture.intensity;   // 0→1 smooth (omen→infiltration→takeover→residue)
   for (const w of (env.onsetWaves || [])) {
     if (w.strength > 0.4) {
-      _onsetThick = Math.max(_onsetThick, w.strength * (isRottura ? 6 : 3));
-      _onsetJitterX = (Math.random() - 0.5) * w.strength * (isRottura ? 20 : 8);
+      _onsetThick = Math.max(_onsetThick, w.strength * lerp(3, 6, ruptI));
+      _onsetJitterX = (Math.random() - 0.5) * w.strength * lerp(8, 20, ruptI);
     }
   }
   _onsetThick *= 0.85;
@@ -207,7 +208,7 @@ export function render(ctx, W, H, env) {
     zoom:   _zoom,
     driftX: _onsetJitterX,
     driftY: _cameraY,
-    shakeAmount: isRottura ? _onsetThick * 0.5 : 0,
+    shakeAmount: _onsetThick * 0.5 * ruptI,
     time:   _time,
   };
   if (lFg) applyCameraTransform(lFg, W, H, camOpts);
@@ -242,8 +243,8 @@ export function render(ctx, W, H, env) {
     for (let c = 0; c < cols; c++) {
       const nx = c / cols;
 
-      const rotturaJitter = isRottura
-        ? (noiseAt(c, li, _time * 8) - 0.5) * _onsetThick * 2.5
+      const rotturaJitter = ruptI > 0.05
+        ? (noiseAt(c, li, _time * 8) - 0.5) * _onsetThick * 2.5 * ruptI
         : 0;
       const oscY = Math.sin(c * osc.freq + _time * 1.4) * osc.amp + rotturaJitter;
 
@@ -261,7 +262,7 @@ export function render(ctx, W, H, env) {
       const d = Math.min(clamp(density + waveDensity + noiseAt(c, li, _time) * 0.05, 0, 1), worldState.visualRegime.maxDensity);
 
       let lineRgb = lerpColor(baseLineRgb, accRgb, clamp(waveColorShift, 0, 0.7));
-      if (isRottura && shouldGlitch(0.6, true, _time + c * 0.1 + li * 3)) {
+      if (ruptI > 0.1 && shouldGlitch(0.6 * ruptI, true, _time + c * 0.1 + li * 3)) {
         lineRgb = colorFlash(lineRgb, 0.7, _time + li);
       }
       const colorStr = rgbString(
@@ -275,7 +276,7 @@ export function render(ctx, W, H, env) {
       for (let t = 0; t < thickness; t++) {
         const baseRowY = py + oscY + t * dotSize - thickness * dotSize / 2;
         const row = Math.floor(baseRowY / dotSize);
-        const glitchAmt = isRottura ? 0.3 + _onsetThick * 0.1 : 0;
+        const glitchAmt = ruptI * (0.3 + _onsetThick * 0.1);
         const visible = glitchAmt > 0.01
           ? bayerGlitch(c, row, d, glitchAmt, _time)
           : bayerTest(c, row, d);

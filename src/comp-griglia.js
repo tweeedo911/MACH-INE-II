@@ -108,6 +108,9 @@ export function render(ctx, W, H, env) {
     initGrid(target.cols, target.rows);
   }
 
+  const { rupture } = worldState;
+  const ruptI = rupture.intensity;   // 0→1 smooth (omen→infiltration→takeover→residue)
+
   // ── Layer contexts ──
   // FG è fresco ogni frame (celle live si ridisegnano da zero).
   // MG NON viene azzerato — accumula il sediment afterglow (decay via updateLayers).
@@ -158,14 +161,14 @@ export function render(ctx, W, H, env) {
 
     if (n.ch === 0 && n.alpha > 0.3) {
       const row = Math.floor(_rows / 2);
-      const rowSpan = isRottura ? 2 : 1;
+      const rowSpan = (rupture.stage === 'takeover' || rupture.stage === 'residue') ? 2 : 1;
       for (let ri = 0; ri < rowSpan; ri++) {
         const tr = (row + ri) % _rows;
         for (let c = 0; c < _cols; c++) {
           _grid[tr][c].brightness = clamp(_grid[tr][c].brightness + n.vel * 0.6, 0, 1);
         }
       }
-      _kickZoom = isRottura ? KICK_ZOOM_TARGET + 0.01 : KICK_ZOOM_TARGET;
+      _kickZoom = KICK_ZOOM_TARGET + ruptI * 0.01;
     }
 
     if (n.ch === 3) {
@@ -192,7 +195,6 @@ export function render(ctx, W, H, env) {
 
   // ── Scan line (densita + rottura only) ───────────────────
   const doScan = SCAN_PHASES.has(worldState.phase);
-  const isRottura = worldState.phase === 'rottura';
   let scanRow = -1;
   if (doScan && worldState.barProgress !== undefined) {
     scanRow = Math.floor(worldState.barProgress * _rows) % _rows;
@@ -211,7 +213,7 @@ export function render(ctx, W, H, env) {
           _grid[flashRow][c].brightness = clamp(_grid[flashRow][c].brightness + w.strength * 0.7, 0, 1);
         }
       }
-      if (isRottura) _gridJolt = Math.max(_gridJolt, Math.ceil(w.strength * 2));
+      if (ruptI > 0.1) _gridJolt = Math.max(_gridJolt, Math.ceil(w.strength * lerp(1, 2, ruptI)));
     }
   }
 
@@ -270,7 +272,7 @@ export function render(ctx, W, H, env) {
 
       const rdx = cell.accent ? RISO_OFFSET_X : 0;
       const rdy = cell.accent ? RISO_OFFSET_Y : 0;
-      const glitchAmt = isRottura ? 0.4 + rms * 0.6 : 0;
+      const glitchAmt = lerp(0, 0.4, ruptI) + rms * ruptI * 0.6;
 
       if (lFg) lFg.fillStyle = rgbString(cellRgb[0], cellRgb[1], cellRgb[2]);
 
