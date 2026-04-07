@@ -51,13 +51,37 @@ app/
 └── scripts/                # snapshot.sh, health-check.sh
 ```
 
+## Protocollo sessione — workflow management
+
+**START sessione (sempre, prima di qualsiasi altra cosa):**
+1. Leggi `docs/STATUS.md` → snapshot vivo (versione, moduli attivi, prossimi step P0-P4)
+2. Leggi l'ultima entry di `docs/WORKLOG.md` → cosa è successo l'ultima volta
+3. Conferma con utente: "ripartiamo da [P0 di STATUS]?" o chiedi cosa fare
+
+**DURANTE la sessione:**
+- Decisione architetturale o di processo non banale → append in `docs/DECISIONS.md` con numero progressivo
+- Nuovo task scoperto → annota nel "Prossimo" di `STATUS.md` (P3/P4) o in linea con la priorità
+- Mai modificare entry passate di `WORKLOG.md` o `DECISIONS.md` (append-only)
+
+**END sessione:**
+1. Append nuova entry in `WORKLOG.md` (data, obiettivo, fatto, file toccati, decisioni #, prossimo)
+2. Rigenera `STATUS.md` (versione, stato runtime, riprioritizza "Prossimo", aggiorna `Last updated`)
+3. Commit unico: `wm: session log YYYY-MM-DD` (wm = workflow management)
+
 ## Docs di riferimento — leggi PRIMA di lavorare
+
+**Operativi (live, aggiornati ogni sessione):**
+- `docs/STATUS.md` — **PUNTO DI ENTRATA** — snapshot vivo, prossimi step
+- `docs/WORKLOG.md` — diario append-only sessioni passate
+- `docs/DECISIONS.md` — ADR-light, perché abbiamo scelto X
+
+**Riferimento (statici, raramente aggiornati):**
 - `docs/00-VISION.md` — vision e principi non negoziabili
 - `docs/01-ARCHITECTURE.md` — pattern Band con Direttore, file map, aree protette
 - `docs/02-MUSIC.md` — 7 tracce, 5 fasi, modal characteristic, regola potenze di 2
 - `docs/03-VISUAL.md` — DNA, halftone Bayer, comp-*, firma, camera
 - `docs/04-RULES.md` — versioning, commit, code style, working mode
-- `docs/05-ROADMAP.md` — stato corrente + prossimi step
+- `docs/05-ROADMAP.md` — visione strategica milestone (non backlog operativo: quello vive in STATUS)
 - `docs/06-AGENTS.md` — skill mapping, routing subagenti, anti-pattern
 
 ## Skill specializzate (`.claude/skills/`)
