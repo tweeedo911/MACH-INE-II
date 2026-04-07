@@ -48,9 +48,18 @@ const DEFAULT_DECAY = {
   [LAYER_OVERLAY]: 0.985, // residuo/ghost, decade lentissimo
 };
 
+// ── Alpha per layer al momento del composite (default 1.0 = pieno) ──
+const DEFAULT_COMPOSITE_ALPHA = {
+  [LAYER_BG]: 1,
+  [LAYER_MG]: 1,
+  [LAYER_FG]: 1,
+  [LAYER_OVERLAY]: 1,
+};
+
 // ── Stato del modulo ──
 const _layers = {};           // name → Sediment
 const _decayRates = { ...DEFAULT_DECAY };
+const _compositeAlphas = { ...DEFAULT_COMPOSITE_ALPHA };
 let _W = 0, _H = 0;
 let _initialized = false;
 
@@ -102,6 +111,11 @@ export function resetAllDecayRates() {
   for (const name of LAYER_ORDER) _decayRates[name] = DEFAULT_DECAY[name];
 }
 
+// Alpha applicata al composite di un layer (es. sediment a 0.5 in comp-quadrati)
+export function setLayerCompositeAlpha(name, alpha) {
+  if (name in _compositeAlphas) _compositeAlphas[name] = alpha;
+}
+
 // Decay per-frame di tutti i layer.
 // firma.gelo → skip totale (nessun decay = frame cristallizzato nei layer)
 export function updateLayers(dt) {
@@ -112,11 +126,14 @@ export function updateLayers(dt) {
   }
 }
 
-// Cancella tutti i layer — su REGEN / track switch / session reset
+// Cancella tutti i layer — su REGEN / track switch / session reset.
+// Resetta anche decay rates e composite alphas ai default.
 export function clearAllLayers() {
   if (!_initialized) return;
   for (const name of LAYER_ORDER) {
     _layers[name].clear(_W, _H);
+    _decayRates[name] = DEFAULT_DECAY[name];
+    _compositeAlphas[name] = DEFAULT_COMPOSITE_ALPHA[name];
   }
 }
 
@@ -128,11 +145,20 @@ export function clearLayer(name) {
 }
 
 // Fonde i layer su ctx nell'ordine canonico BG → MG → FG → OVERLAY.
+// Rispetta per-layer composite alpha (setLayerCompositeAlpha).
 // Le comp-* chiameranno questa funzione alla fine del loro render.
 export function compositeLayers(ctx) {
   if (!_initialized) return;
   for (const name of LAYER_ORDER) {
-    _layers[name].composite(ctx);
+    const alpha = _compositeAlphas[name];
+    if (alpha !== 1) {
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      _layers[name].composite(ctx);
+      ctx.restore();
+    } else {
+      _layers[name].composite(ctx);
+    }
   }
 }
 
