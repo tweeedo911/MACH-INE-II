@@ -293,7 +293,9 @@ export function render(ctx, W, H, env) {
     const px = sx * W;
     const py = sy * H;
     const dotSize = Math.max(2, Math.round(d.size * scale));
-    const density = Math.min(clamp(d.alpha * _params.densityMax * 3, 0, 1), worldState.visualRegime.maxDensity);
+    const density = Math.min(clamp(d.alpha * _params.densityMax * 3
+                           + ((worldState.density && worldState.density.harmony) || 0) * 0.06, 0, 1),
+                           worldState.visualRegime.maxDensity);
     const col = Math.floor(px / dotSize);
     const row = Math.floor(py / dotSize);
 

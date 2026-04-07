@@ -1135,5 +1135,39 @@ export const CFG = {
         maxDensity: 0.20, minDotSize: 8,
       },
     },
+
+    // ── Shared sediment — memoria inter-traccia ──
+    // decayRate:      per frame @60fps → half-life ~38s, visibile ~2min (era 0.97 = ~4s)
+    // accumAlpha:     deposito continuo per-frame — palimpsesto atmosferico (regime ~33%)
+    // compositeAlpha: blend sediment→canvas (ridotto da 0.35 per persistenza lunga)
+    sediment: {
+      decayRate:      0.9997,
+      accumAlpha:     0.0001,
+      compositeAlpha: 0.30,
+    },
+
+    // ── Crossfade visivo al cambio traccia ──
+    // Durata in secondi — ease-in-out cubico. 0 = hard cut.
+    trackFadeDuration: 3.0,
+
+    // ── Micro-glitch globale (field.js) ──
+    // rhythmThreshold: rhythmicity minima per attivare (0 = sempre, 1 = solo piena pulsazione)
+    // intensityMul:    scala audioEnergy × rhythmicity → prob glitch (era floor +0.3 fisso)
+    glitch: {
+      rhythmThreshold: 0.4,
+      intensityMul:    0.5,
+    },
+
+    // ── Ghost/fossil overlay (field.js) ──
+    // Renderizza eventi STATE_GHOST e STATE_FOSSIL da event-register come dot desaturati.
+    // Sblocca firma.gelo (elementi cristallizzati visibili) e firma.convergenza (posizioni reali).
+    // ghostBlend / fossilBlend: 0 = colore dot pieno, 1 = invisibile (fonde con bg).
+    ghostOverlay: {
+      dotSize:       2,     // px — punto minimo, discreto
+      ghostDensity:  0.35,  // Bayer threshold per STATE_GHOST
+      fossilDensity: 0.18,  // Bayer threshold per STATE_FOSSIL
+      ghostBlend:    0.52,  // lerp dot→bg per ghost (muted ma visibile)
+      fossilBlend:   0.78,  // lerp dot→bg per fossil (quasi scomparso)
+    },
   },
 };
