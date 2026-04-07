@@ -1,0 +1,1325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Eval Review</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600&family=Lora:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js" integrity="sha384-EnyY0/GSHQGSxSgMwaIPzSESbqoOLSexfnSMN2AP+39Ckmn92stwABZynq1JyzdT" crossorigin="anonymous"></script>
+  <style>
+    :root {
+      --bg: #faf9f5;
+      --surface: #ffffff;
+      --border: #e8e6dc;
+      --text: #141413;
+      --text-muted: #b0aea5;
+      --accent: #d97757;
+      --accent-hover: #c4613f;
+      --green: #788c5d;
+      --green-bg: #eef2e8;
+      --red: #c44;
+      --red-bg: #fceaea;
+      --header-bg: #141413;
+      --header-text: #faf9f5;
+      --radius: 6px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Lora', Georgia, serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ---- Header ---- */
+    .header {
+      background: var(--header-bg);
+      color: var(--header-text);
+      padding: 1rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-shrink: 0;
+    }
+    .header h1 {
+      font-family: 'Poppins', sans-serif;
+      font-size: 1.25rem;
+      font-weight: 600;
+    }
+    .header .instructions {
+      font-size: 0.8rem;
+      opacity: 0.7;
+      margin-top: 0.25rem;
+    }
+    .header .progress {
+      font-size: 0.875rem;
+      opacity: 0.8;
+      text-align: right;
+    }
+
+    /* ---- Main content ---- */
+    .main {
+      flex: 1;
+      overflow-y: auto;
+      padding: 1.5rem 2rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+
+    /* ---- Sections ---- */
+    .section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      flex-shrink: 0;
+    }
+    .section-header {
+      font-family: 'Poppins', sans-serif;
+      padding: 0.75rem 1rem;
+      font-size: 0.75rem;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border);
+      background: var(--bg);
+    }
+    .section-body {
+      padding: 1rem;
+    }
+
+    /* ---- Config badge ---- */
+    .config-badge {
+      display: inline-block;
+      padding: 0.2rem 0.625rem;
+      border-radius: 9999px;
+      font-family: 'Poppins', sans-serif;
+      font-size: 0.6875rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      margin-left: 0.75rem;
+      vertical-align: middle;
+    }
+    .config-badge.config-primary {
+      background: rgba(33, 150, 243, 0.12);
+      color: #1976d2;
+    }
+    .config-badge.config-baseline {
+      background: rgba(255, 193, 7, 0.15);
+      color: #f57f17;
+    }
+
+    /* ---- Prompt ---- */
+    .prompt-text {
+      white-space: pre-wrap;
+      font-size: 0.9375rem;
+      line-height: 1.6;
+    }
+
+    /* ---- Outputs ---- */
+    .output-file {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .output-file + .output-file {
+      margin-top: 1rem;
+    }
+    .output-file-header {
+      padding: 0.5rem 0.75rem;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+      font-family: 'SF Mono', SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .output-file-header .dl-btn {
+      font-size: 0.7rem;
+      color: var(--accent);
+      text-decoration: none;
+      cursor: pointer;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-weight: 500;
+      opacity: 0.8;
+    }
+    .output-file-header .dl-btn:hover {
+      opacity: 1;
+      text-decoration: underline;
+    }
+    .output-file-content {
+      padding: 0.75rem;
+      overflow-x: auto;
+    }
+    .output-file-content pre {
+      font-size: 0.8125rem;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-family: 'SF Mono', SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace;
+    }
+    .output-file-content img {
+      max-width: 100%;
+      height: auto;
+      border-radius: 4px;
+    }
+    .output-file-content iframe {
+      width: 100%;
+      height: 600px;
+      border: none;
+    }
+    .output-file-content table {
+      border-collapse: collapse;
+      font-size: 0.8125rem;
+      width: 100%;
+    }
+    .output-file-content table td,
+    .output-file-content table th {
+      border: 1px solid var(--border);
+      padding: 0.375rem 0.5rem;
+      text-align: left;
+    }
+    .output-file-content table th {
+      background: var(--bg);
+      font-weight: 600;
+    }
+    .output-file-content .download-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 1rem;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--accent);
+      text-decoration: none;
+      font-size: 0.875rem;
+      cursor: pointer;
+    }
+    .output-file-content .download-link:hover {
+      background: var(--border);
+    }
+    .empty-state {
+      color: var(--text-muted);
+      font-style: italic;
+      padding: 2rem;
+      text-align: center;
+    }
+
+    /* ---- Feedback ---- */
+    .prev-feedback {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 0.625rem 0.75rem;
+      margin-top: 0.75rem;
+      font-size: 0.8125rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+    .prev-feedback-label {
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: 0.25rem;
+      color: var(--text-muted);
+    }
+    .feedback-textarea {
+      width: 100%;
+      min-height: 100px;
+      padding: 0.75rem;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      font-family: inherit;
+      font-size: 0.9375rem;
+      line-height: 1.5;
+      resize: vertical;
+      color: var(--text);
+    }
+    .feedback-textarea:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+    }
+    .feedback-status {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-top: 0.5rem;
+      min-height: 1.1em;
+    }
+
+    /* ---- Grades (collapsible) ---- */
+    .grades-toggle {
+      display: flex;
+      align-items: center;
+      cursor: pointer;
+      user-select: none;
+    }
+    .grades-toggle:hover {
+      color: var(--accent);
+    }
+    .grades-toggle .arrow {
+      margin-right: 0.5rem;
+      transition: transform 0.15s;
+      font-size: 0.75rem;
+    }
+    .grades-toggle .arrow.open {
+      transform: rotate(90deg);
+    }
+    .grades-content {
+      display: none;
+      margin-top: 0.75rem;
+    }
+    .grades-content.open {
+      display: block;
+    }
+    .grades-summary {
+      font-size: 0.875rem;
+      margin-bottom: 0.75rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .grade-badge {
+      display: inline-block;
+      padding: 0.125rem 0.5rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .grade-pass { background: var(--green-bg); color: var(--green); }
+    .grade-fail { background: var(--red-bg); color: var(--red); }
+    .assertion-list {
+      list-style: none;
+    }
+    .assertion-item {
+      padding: 0.625rem 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.8125rem;
+    }
+    .assertion-item:last-child { border-bottom: none; }
+    .assertion-status {
+      font-weight: 600;
+      margin-right: 0.5rem;
+    }
+    .assertion-status.pass { color: var(--green); }
+    .assertion-status.fail { color: var(--red); }
+    .assertion-evidence {
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      margin-top: 0.25rem;
+      padding-left: 1.5rem;
+    }
+
+    /* ---- View tabs ---- */
+    .view-tabs {
+      display: flex;
+      gap: 0;
+      padding: 0 2rem;
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .view-tab {
+      font-family: 'Poppins', sans-serif;
+      padding: 0.625rem 1.25rem;
+      font-size: 0.8125rem;
+      font-weight: 500;
+      cursor: pointer;
+      border: none;
+      background: none;
+      color: var(--text-muted);
+      border-bottom: 2px solid transparent;
+      transition: all 0.15s;
+    }
+    .view-tab:hover { color: var(--text); }
+    .view-tab.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+    }
+    .view-panel { display: none; }
+    .view-panel.active { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
+
+    /* ---- Benchmark view ---- */
+    .benchmark-view {
+      padding: 1.5rem 2rem;
+      overflow-y: auto;
+      flex: 1;
+    }
+    .benchmark-table {
+      border-collapse: collapse;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      font-size: 0.8125rem;
+      width: 100%;
+      margin-bottom: 1.5rem;
+    }
+    .benchmark-table th, .benchmark-table td {
+      padding: 0.625rem 0.75rem;
+      text-align: left;
+      border: 1px solid var(--border);
+    }
+    .benchmark-table th {
+      font-family: 'Poppins', sans-serif;
+      background: var(--header-bg);
+      color: var(--header-text);
+      font-weight: 500;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .benchmark-table tr:hover { background: var(--bg); }
+    .benchmark-table tr.benchmark-row-with { background: rgba(33, 150, 243, 0.06); }
+    .benchmark-table tr.benchmark-row-without { background: rgba(255, 193, 7, 0.06); }
+    .benchmark-table tr.benchmark-row-with:hover { background: rgba(33, 150, 243, 0.12); }
+    .benchmark-table tr.benchmark-row-without:hover { background: rgba(255, 193, 7, 0.12); }
+    .benchmark-table tr.benchmark-row-avg { font-weight: 600; border-top: 2px solid var(--border); }
+    .benchmark-table tr.benchmark-row-avg.benchmark-row-with { background: rgba(33, 150, 243, 0.12); }
+    .benchmark-table tr.benchmark-row-avg.benchmark-row-without { background: rgba(255, 193, 7, 0.12); }
+    .benchmark-delta-positive { color: var(--green); font-weight: 600; }
+    .benchmark-delta-negative { color: var(--red); font-weight: 600; }
+    .benchmark-notes {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1rem;
+    }
+    .benchmark-notes h3 {
+      font-family: 'Poppins', sans-serif;
+      font-size: 0.875rem;
+      margin-bottom: 0.75rem;
+    }
+    .benchmark-notes ul {
+      list-style: disc;
+      padding-left: 1.25rem;
+    }
+    .benchmark-notes li {
+      font-size: 0.8125rem;
+      line-height: 1.6;
+      margin-bottom: 0.375rem;
+    }
+    .benchmark-empty {
+      color: var(--text-muted);
+      font-style: italic;
+      text-align: center;
+      padding: 3rem;
+    }
+
+    /* ---- Navigation ---- */
+    .nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1rem 2rem;
+      border-top: 1px solid var(--border);
+      background: var(--surface);
+      flex-shrink: 0;
+    }
+    .nav-btn {
+      font-family: 'Poppins', sans-serif;
+      padding: 0.5rem 1.25rem;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--surface);
+      cursor: pointer;
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: var(--text);
+      transition: all 0.15s;
+    }
+    .nav-btn:hover:not(:disabled) {
+      background: var(--bg);
+      border-color: var(--text-muted);
+    }
+    .nav-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+    .done-btn {
+      font-family: 'Poppins', sans-serif;
+      padding: 0.5rem 1.5rem;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--surface);
+      color: var(--text);
+      cursor: pointer;
+      font-size: 0.875rem;
+      font-weight: 500;
+      transition: all 0.15s;
+    }
+    .done-btn:hover {
+      background: var(--bg);
+      border-color: var(--text-muted);
+    }
+    .done-btn.ready {
+      border: none;
+      background: var(--accent);
+      color: white;
+      font-weight: 600;
+    }
+    .done-btn.ready:hover {
+      background: var(--accent-hover);
+    }
+    /* ---- Done overlay ---- */
+    .done-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 100;
+      justify-content: center;
+      align-items: center;
+    }
+    .done-overlay.visible {
+      display: flex;
+    }
+    .done-card {
+      background: var(--surface);
+      border-radius: 12px;
+      padding: 2rem 3rem;
+      text-align: center;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      max-width: 500px;
+    }
+    .done-card h2 {
+      font-size: 1.5rem;
+      margin-bottom: 0.5rem;
+    }
+    .done-card p {
+      color: var(--text-muted);
+      margin-bottom: 1.5rem;
+      line-height: 1.5;
+    }
+    .done-card .btn-row {
+      display: flex;
+      gap: 0.5rem;
+      justify-content: center;
+    }
+    .done-card button {
+      padding: 0.5rem 1.25rem;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--surface);
+      cursor: pointer;
+      font-size: 0.875rem;
+    }
+    .done-card button:hover {
+      background: var(--bg);
+    }
+    /* ---- Toast ---- */
+    .toast {
+      position: fixed;
+      bottom: 5rem;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--header-bg);
+      color: var(--header-text);
+      padding: 0.625rem 1.25rem;
+      border-radius: var(--radius);
+      font-size: 0.875rem;
+      opacity: 0;
+      transition: opacity 0.3s;
+      pointer-events: none;
+      z-index: 200;
+    }
+    .toast.visible {
+      opacity: 1;
+    }
+  </style>
+</head>
+<body>
+  <div id="app" style="height:100vh; display:flex; flex-direction:column;">
+    <div class="header">
+      <div>
+        <h1>Eval Review: <span id="skill-name"></span></h1>
+        <div class="instructions">Review each output and leave feedback below. Navigate with arrow keys or buttons. When done, copy feedback and paste into Claude Code.</div>
+      </div>
+      <div class="progress" id="progress"></div>
+    </div>
+
+    <!-- View tabs (only shown when benchmark data exists) -->
+    <div class="view-tabs" id="view-tabs" style="display:none;">
+      <button class="view-tab active" onclick="switchView('outputs')">Outputs</button>
+      <button class="view-tab" onclick="switchView('benchmark')">Benchmark</button>
+    </div>
+
+    <!-- Outputs panel (qualitative review) -->
+    <div class="view-panel active" id="panel-outputs">
+    <div class="main">
+      <!-- Prompt -->
+      <div class="section">
+        <div class="section-header">Prompt <span class="config-badge" id="config-badge" style="display:none;"></span></div>
+        <div class="section-body">
+          <div class="prompt-text" id="prompt-text"></div>
+        </div>
+      </div>
+
+      <!-- Outputs -->
+      <div class="section">
+        <div class="section-header">Output</div>
+        <div class="section-body" id="outputs-body">
+          <div class="empty-state">No output files found</div>
+        </div>
+      </div>
+
+      <!-- Previous Output (collapsible) -->
+      <div class="section" id="prev-outputs-section" style="display:none;">
+        <div class="section-header">
+          <div class="grades-toggle" onclick="togglePrevOutputs()">
+            <span class="arrow" id="prev-outputs-arrow">&#9654;</span>
+            Previous Output
+          </div>
+        </div>
+        <div class="grades-content" id="prev-outputs-content"></div>
+      </div>
+
+      <!-- Grades (collapsible) -->
+      <div class="section" id="grades-section" style="display:none;">
+        <div class="section-header">
+          <div class="grades-toggle" onclick="toggleGrades()">
+            <span class="arrow" id="grades-arrow">&#9654;</span>
+            Formal Grades
+          </div>
+        </div>
+        <div class="grades-content" id="grades-content"></div>
+      </div>
+
+      <!-- Feedback -->
+      <div class="section">
+        <div class="section-header">Your Feedback</div>
+        <div class="section-body">
+          <textarea
+            class="feedback-textarea"
+            id="feedback"
+            placeholder="What do you think of this output? Any issues, suggestions, or things that look great?"
+          ></textarea>
+          <div class="feedback-status" id="feedback-status"></div>
+          <div class="prev-feedback" id="prev-feedback" style="display:none;">
+            <div class="prev-feedback-label">Previous feedback</div>
+            <div id="prev-feedback-text"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="nav" id="outputs-nav">
+      <button class="nav-btn" id="prev-btn" onclick="navigate(-1)">&#8592; Previous</button>
+      <button class="done-btn" id="done-btn" onclick="showDoneDialog()">Submit All Reviews</button>
+      <button class="nav-btn" id="next-btn" onclick="navigate(1)">Next &#8594;</button>
+    </div>
+    </div><!-- end panel-outputs -->
+
+    <!-- Benchmark panel (quantitative stats) -->
+    <div class="view-panel" id="panel-benchmark">
+      <div class="benchmark-view" id="benchmark-content">
+        <div class="benchmark-empty">No benchmark data available. Run a benchmark to see quantitative results here.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Done overlay -->
+  <div class="done-overlay" id="done-overlay">
+    <div class="done-card">
+      <h2>Review Complete</h2>
+      <p>Your feedback has been saved. Go back to your Claude Code session and tell Claude you're done reviewing.</p>
+      <div class="btn-row">
+        <button onclick="closeDoneDialog()">OK</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
+  <script>
+    // ---- Embedded data (injected by generate_review.py) ----
+    const EMBEDDED_DATA = {"skill_name": "creative-critic", "runs": [{"id": "eval-1-track-feedback-with_skill", "prompt": "Ho finito una traccia techno, 130 BPM, abbastanza ipnotica con un kick martellante e dei pad atmosferici. Il breakdown \u00e8 lungo circa 32 battute con un rientro graduale. Mi sembra che manchi qualcosa ma non capisco cosa. Puoi darmi un feedback?", "eval_id": 1, "outputs": [{"name": "response.md", "type": "text", "content": "# Feedback sulla tua traccia techno\n\n## Prima impressione\n\n130 BPM con kick martellante e pad atmosferici \u2014 sei nel territorio della techno ipnotica, quella che funziona nel club non per il brivido ma per l'accumulo di micro-variazioni. La struttura che descrivi (breakdown di 32 battute con rientro graduale) \u00e8 classica, ben calibrata. Al primo ascolto comunica tensione e rilascio, il ciclo che la techno sa fare bene. Il problema che percepisci \u2014 \"manca qualcosa\" \u2014 \u00e8 interessante perch\u00e9 \u00e8 una sensazione vaga che non corrisponde a un errore ovvio.\n\n## Dove probabilmente sta il nodo\n\nLa mia ipotesi: il tuo breakdown di 32 battute lavora bene come *spazio*, ma potrebbe mancare un elemento che *dirige* lo spazio.\n\nQuando togli gli elementi principali (kick, hi-hat, basso), il pad atmosferico da solo sostiene la tensione ma non la *modula*. Stai creando silenzio ma non contrapposizione. \u00c8 come avere una stanza bianca \u2014 pulita, ma senza contrasto visivo. La sensazione di \"manca qualcosa\" potrebbe venire dal fatto che il breakdown non ha una sua logica interna, solo una logica di sottrazione.\n\n## Suggerimenti concreti\n\n### 1. **Introduci un elemento nuovo nel breakdown**\nNon aggiungere, ma *sostituire*. Mentre il kick e il basso se ne vanno, potresti:\n- Mandare in primo piano una texture che nel resto della traccia \u00e8 nascosta \u2014 un granello sintetico, un effetto di filtro che si muove, una hi-hat residua che cambia pattern\n- Usare una versione ridotta del tuo pad con un FX diverso (reverb maggiore, delay ritmico, granulazione)\n- Creare una micro-melodia minimalista (3-4 note) che emerge solo qui\n\nQuesto non aggiunge caos: *reindirizza l'attenzione* verso una nuova qualit\u00e0 del suono.\n\n### 2. **Gestisci il rientro come climax, non come ripristino**\nSe il rientro \u00e8 \"graduale\", fai s\u00ec che sia *una costruzione*, non una restituzione. Il primo elemento a tornare non dovrebbe essere il kick \u2014 dovrebbe essere qualcosa che prepara il ritorno del kick. Un basso che rientra prima, un rimbalzo sintetico, una stuttering delay. Il kick quando torna ha pi\u00f9 peso perch\u00e9 era stato assente in modo consapevole.\n\n### 3. **Prova asimmetria nel breakdown**\n32 battute \u00e8 pulito, ma potrebbe essere troppo simmetrico. Se il breakdown \u00e8 totale per 16 battute e poi inizia un micro-rientro di elementi per altre 16 \u2014 alternando vuoto e densit\u00e0 parziale \u2014 la sensazione di \"assenza\" diventa una progressione, non un plateau.\n\n## Sul kick e il pad\n\nIl kick martellante su 130 BPM funziona. I pad sono atmosferici \u2014 buono. Ma se il problema \u00e8 che \"manca qualcosa\", la combinazione dei due nel resto della traccia potrebbe essere troppo stabile. Prova:\n- Variare il filtering sul pad nei 32 battute precedenti il breakdown \u2014 non drastico, ma sufficiente perch\u00e9 l'orecchio senta che qualcosa sta accadendo anche quando la struttura rimane ferma\n- Sul kick: \u00e8 sempre uguale o c'\u00e8 movimento nel sustain, nella distorsione, nella compressione? Anche 2-3 dB di variation nella dinamica aggiungono respiro\n\n## La domanda che ti farei\n\nQuando ascolti il breakdown, ti senti in sospensione oppure ti senti in attesa? Se \u00e8 sospensione, funziona \u2014 il tuo cervello \u00e8 calmo. Se \u00e8 attesa, significa che il breakdown promette qualcosa che non mantiene, e il rientro \u00e8 un sollievo, non un'illuminazione. In quel caso il problema \u00e8 che gli elementi che reintroduci non portano abbastanza novit\u00e0.\n\n## Conclusione\n\nNon \u00e8 un problema di mancanza di elementi \u2014 \u00e8 un problema di *direzione*. La tua traccia probabilmente ha la struttura giusta, ma il movimento interno nel breakdown \u00e8 troppo passivo. Trasformalo da spazio vuoto a spazio *consapevole*. Il listener deve sentire che stai costruendo qualcosa, non solo che hai tolto il caff\u00e8.\n\nProva e fammi sapere come cambia la sensazione.\n"}], "grading": {"eval_id": 1, "eval_name": "track-feedback", "variant": "with_skill", "expectations": [{"text": "Il tono \u00e8 diretto e tecnico, non vago o generico", "passed": true, "evidence": "The response establishes a clear diagnostic tone from the start: 'La mia ipotesi: il tuo breakdown di 32 battute lavora bene come *spazio*, ma potrebbe mancare un elemento che *dirige* lo spazio.' It uses precise technical language like 'kick martellante', 'hi-hat', 'FX diverso (reverb maggiore, delay ritmico, granulazione)' and avoids generic praise."}, {"text": "Usa italiano con terminologia tecnica inglese naturale (kick, breakdown, pad, ecc.)", "passed": true, "evidence": "Throughout the response: 'kick martellante', 'pad atmosferici', 'breakdown', 'hi-hat residua', 'FX diverso', 'reverb', 'delay ritmico', 'filtering sul pad', 'distorsione', 'compressione'. The mixing is natural and unforced."}, {"text": "Fornisce suggerimenti concreti e actionable, non generici", "passed": true, "evidence": "Three concrete suggestions: 1) Introduce a new element during breakdown (specific options: synthetic grain, filter effect, minimal micro-melody with 3-4 notes); 2) Manage re-entry as climax with specific elements (bass re-entry before kick); 3) Try asymmetry (16 battute total emptiness + 16 with partial re-entry). Each includes specific technical details."}, {"text": "Include riferimenti alla scena elettronica (artisti, label, generi)", "passed": false, "evidence": "The response lacks direct references to artists, labels, or specific scene touchpoints. It discusses generic ambient/industrial practitioners but does not name specific artists, producers, or labels to contextualize the hypnotic techno scene."}, {"text": "Segue una struttura di analisi (impressione, struttura, sound design, contesto, suggerimenti)", "passed": true, "evidence": "Clear structure: 1) Prima impressione (lines 3-5), 2) Dove probabilmente sta il nodo - analysis (6-11), 3) Suggerimenti concreti (13-32), 4) Sul kick e il pad - sound design discussion (29-33), 5) La domanda che ti farei - context (35-37), 6) Conclusione (39-41)."}]}}, {"id": "eval-1-track-feedback-without_skill", "prompt": "Ho finito una traccia techno, 130 BPM, abbastanza ipnotica con un kick martellante e dei pad atmosferici. Il breakdown \u00e8 lungo circa 32 battute con un rientro graduale. Mi sembra che manchi qualcosa ma non capisco cosa. Puoi darmi un feedback?", "eval_id": 1, "outputs": [{"name": "response.md", "type": "text", "content": "# Feedback sulla tua traccia techno\n\nOttimo lavoro su 130 BPM con un kick martellante e pad atmosferici! Ecco alcune considerazioni su quello che potrebbe mancare:\n\n## Aspetti positivi\n- **Fondamento solido**: Un kick a 130 BPM \u00e8 perfetto per techno ipnotica e crea quella base ipnotizzante che hai ottenuto\n- **Pad atmosferici**: Un'ottima scelta per aggiungere profondit\u00e0 e movimento\n- **Breakdown di 32 battute**: Una durata appropriata che d\u00e0 spazio alla progressione\n\n## Cosa potrebbe mancare\n\n### 1. **Contrasto e movimento**\nIl tuo breakdown potrebbe sentirsi statico se i pad atmosferici e gli elementi rimangono troppo simili. Considera di:\n- Introdurre nuovi elementi durante il breakdown (effetti, reverse, filter sweeps)\n- Fare dei drop parziali dove il kick scompare brevemente\n- Aggiungere un elemento ritmico leggero per mantenere il movimento\n\n### 2. **Progressione sensoriale**\nNel techno ipnotico, la progressione \u00e8 fondamentale:\n- **Automazioni**: Filtri che si aprono/chiudono gradualmente, riverbero che cresce\n- **Texture**: Hats, hi-hat o snare leggeri che entrano in modo subtile durante il rientro\n- **Delay/Effetti**: Elementi con feedback che creano movimento spaciale\n\n### 3. **Rientro (Re-entry)**\nUn rientro graduale \u00e8 gi\u00e0 un buon inizio, ma:\n- Potrebbe mancare un elemento \"di gancio\" che cattura l'attenzione al rientro del kick\n- Una melodia o arpeggio minimalista potrebbe aiutare\n- Un crash o elemento percussivo particolare per marcare il ritorno\n\n### 4. **Dimensione armonica/melodica**\nSe hai principalmente kick, atmosfera e pad:\n- Una linea di basso minimalista ma presente potrebbe dare pi\u00f9 solidit\u00e0\n- Un lead ricco di effetti anche se breve/minimalista\n\n### 5. **Dinamica generale**\nVerifica che ci sia:\n- Uno o due momenti di \"vuoto\" o riduzione radicale prima del rientro\n- Variazione nella densit\u00e0 degli elementi (non tutto pieno tutto il tempo)\n- Almeno una o due \"sorprese\" che mantengono l'ascoltatore attento\n\n## Suggerimenti pratici\n1. Aggiungi un elemento percussivo minimalista (closed hi-hat, perc ritmico) durante il breakdown\n2. Prova un filtro low-pass automato che cala durante il breakdown e risale al rientro\n3. Inserisci una breve linea di basso (anche solo 2-4 note ripetute) che entra verso la fine del breakdown\n4. Sperimenta con effetti di delay/reverb su uno degli elementi per creare senso di spazio\n\nLa traccia ha fondamenta solide \u2014 il feedback potrebbe essere semplicemente quella \"qualcosa in pi\u00f9\" che la differenzia: un elemento caratteristico o una progressione che la rende memorabile.\n"}], "grading": {"eval_id": 1, "eval_name": "track-feedback", "variant": "without_skill", "expectations": [{"text": "Il tono \u00e8 diretto e tecnico, non vago o generico", "passed": true, "evidence": "Establishes technical tone with specific feedback on contrasts, automations, and effects: 'Filtri che si aprono/chiudono gradualmente, riverbero che cresce', 'Hats, hi-hat o snare leggeri'. Avoids vague praise."}, {"text": "Usa italiano con terminologia tecnica inglese naturale (kick, breakdown, pad, ecc.)", "passed": true, "evidence": "Natural mixing: 'kick martellante', 'pad atmosferici', 'breakdown', 'hi-hat', 'snare', 'delay/effetti', 'filter sweeps', 'reverse'. Terminology is integrated smoothly."}, {"text": "Fornisce suggerimenti concreti e actionable, non generici", "passed": true, "evidence": "Five sections of specific suggestions: 1) Introduce filter sweeps, reverse elements, partial drops; 2) Automations, texture, delay effects with specifics; 3) Re-entry with 'gancio' element, minimal arpeggio, crash; 4) Harmonic/melodic dimension with bass line options; 5) Four practical suggestions (hi-hat, low-pass filter automation, bass line, delay/reverb effects)."}, {"text": "Include riferimenti alla scena elettronica (artisti, label, generi)", "passed": false, "evidence": "No specific artist, label, or genre reference. Discussion remains at the level of general electronic music production without contextualizing within the hypnotic techno scene or naming influential artists."}, {"text": "Segue una struttura di analisi (impressione, struttura, sound design, contesto, suggerimenti)", "passed": true, "evidence": "Structure present: 1) Aspetti positivi (6-8), 2) Cosa potrebbe mancare with five subsections (10-39), 3) Suggerimenti pratici (41-45), 4) Conclusione (47). However, less developed than with_skill version."}]}}, {"id": "eval-2-set-building-with_skill", "prompt": "Devo preparare un set di 2 ore per un club, slot dalle 2 alle 4 di notte. Parto da techno hypnotica e vorrei arrivare a qualcosa di pi\u00f9 duro verso la fine. Ho una ventina di tracce ma non so come ordinarle. Mi aiuti a ragionare sull'arco narrativo?", "eval_id": 2, "outputs": [{"name": "response.md", "type": "text", "content": "# Set Construction: Techno Hypnotica \u2192 Hard (2 ore, slot 02:00\u201304:00)\n\n## Partiamo dal contesto\n\nSlot 02:00\u201304:00 \u00e8 il momento in cui il club \u00e8 gi\u00e0 pieno, ma la notte \u00e8 ancora lunga. Non \u00e8 apertura (dove cerchi minimalismo e pulizia), non \u00e8 chiusura (dove puoi permetterti caos). \u00c8 il *cuore della sessione*: persone che hanno ballato, che sono dentro, ma ancora desiderose di lasciare il corpo guidare. La transizione che proponi\u2014da hypnotica a hard\u2014\u00e8 il gesto giusto per questo orario: cere gradualmente la pressione, intensifichi il groove, destabilizzi quando serve.\n\n## L'arco narrativo che propongo\n\nNon pensare al set come a una progressione lineare (soft \u2192 hard). Pensalo come a un **percorso emotivo con contrasti strutturati**. Hai 20 tracce. Gestiscile cos\u00ec:\n\n### Fase 1: Immersione (tracce 1\u20135, ~15\u201320 min)\n\nApri con **hypnotica pura**. Non minimal, non svuotata\u2014ipnotica significa tracce con loop, ripetizione ossessiva, profondit\u00e0. Cercate un mood oneirico, quasi allucinato. Il kick \u00e8 pr\u00e9sente ma non aggressivo (questo \u00e8 essenziale: il corpo deve sentire il groove prima di sentire l'energia).\n\n**Chiave**: le tracce di questa fase stabiliscono il territorio. Il dancefloor \u00e8 con te gi\u00e0, ma non lo sai ancora. \u00c8 come l'intro di un film\u2014senza fretta.\n\n**Qualit\u00e0 delle scelte**: se qui non sei preciso, il resto non funziona. Una traccia fuori luogo (troppo snella, troppo nervosa) spezza la magia. Coerenza assoluta.\n\n### Fase 2: Sviluppo (tracce 6\u201312, ~30\u201340 min)\n\nInizia qui la **destabilizzazione consapevole**. Le tracce mantengono il respiro hypnotico, ma cominciano a muoversi. Cercate:\n\n- **Complessit\u00e0 armonica o timbrica**: se le prime 5 tracce erano monocromatiche, qui var\u00ec la palette. Un pad pi\u00f9 sporco, un synth che tira in alto, una percussione che aggiunge nervosismo.\n- **Aumento della densit\u00e0**: non \u00e8 ancora hard, ma il track \u00e8 pi\u00f9 affollato. Pi\u00f9 layer, pi\u00f9 movimento interno.\n- **Lentissima accelerazione del BPM**: se apri a 118 BPM, verso la fine di questa fase puoi essere a 122\u2013124. Non un salto\u2014una rampa.\n\n**Transizioni critiche**: qui \u00e8 dove il DJ diventa visibile. Le transizioni non devono essere \"morbide per forza\"\u2014una transizione netta (cut, restart, effetto) preparata bene \u00e8 pi\u00f9 potente di una dissolvenza anonima. Usa il mixer per creare micro-rotture che mantengono il focus.\n\n**Qualit\u00e0 delle scelte**: cominciate a mescolare il noto con l'oscuro. Se hai un nome che il crowd riconosce, piazzalo qui\u2014non all'inizio (dove non ha il contesto), non alla fine (dove tira gi\u00e0 per conto suo). Qui lo \"scivolone\" (la traccia che fa dire \"oh, questa!\") \u00e8 un alleato.\n\n### Fase 3: Rottura consapevole (tracce 13\u201316, ~20\u201325 min)\n\nQuesto \u00e8 il momento dove **cambi registro**. Non bruscamente\u2014ma consapevolmente. La techno hypnotica \u00e8 stata il vostro universo; ora uscite da quella atmosfera.\n\nLe tracce qui dovrebbero:\n\n- **Perdere ipnosi, guadagnare attacco**: il kick si fa pi\u00f9 secco, il basso pi\u00f9 presente, la geometria pi\u00f9 netta.\n- **Mantener il groove come filo rosso**: non \u00e8 techno berlinese brutale (ancora). \u00c8 hard techno, s\u00ec, ma con memoria di dove venite. Il basso ricorda il drone ipnotico, il kick \u00e8 pi\u00f9 duro.\n- **Sorpresa dosata**: una traccia che stravolge (IDM, breakcore, glitch che si evolve in hard techno) pu\u00f2 stare qui se la preparate\u2014ma deve arrivare come una conclusione logica della direzione intrapresa, non come un pugno dal nulla.\n\n**Qualit\u00e0 delle scelte**: qui la selezione \u00e8 feroce. Una traccia sbagliata non \u00e8 \"leggermente fuori\"\u2014\u00e8 un incidente. Deve tutto filare. Il crowd sente che la sessione sta prendendo una piega nuova, e deve sembrare inevitabile.\n\n### Fase 4: Climax (tracce 17\u201320, ~10\u201315 min)\n\nHard techno puro. BPM alto (130\u2013135), kick secco e tagliente, basso assertivo. Minimal ma teso\u2014il minimalismo qui non \u00e8 rilassamento, \u00e8 compressione.\n\n**Struttura interna**: il climax non \u00e8 un plateau piatto. Ha picchi e tregue *all'interno*. Transizioni che colpiscono, breakdown netti seguiti da drop che suonano come una liberazione, non come una ripresa automatica.\n\n**Qualit\u00e0 delle scelte**: qui non c'\u00e8 spazio per la tolleranza. Ogni traccia deve essere *necessaria*. Se la traccia X potrebbe essere sostituita dalla Y senza che nessuno se ne accorga, usate Y e cestinate X.\n\n## Criteri pratici per scegliere l'ordine\n\nUna volta che avete le vostre 20 tracce, applicatevi questi filtri:\n\n### 1. **Congruenza energetica locale**\nDue tracce consecutive non dovrebbero essere identiche (lo stesso BPM, la stessa densit\u00e0). Cercate una micro-variazione che mantiene coesione ma evita monotonia. Esempio: traccia A \u00e8 120 BPM, hypnotica, dron; traccia B \u00e8 121 BPM, hypnotica, ma con un hi-hat che muove. La differenza \u00e8 microtone\u2014il body non se la coglie consciamente, ma la percepisce.\n\n### 2. **Transizionabilit\u00e0 oggettiva**\nPotete mischiarla bene tecnicamente? Se la risposta \u00e8 \"difficile\" ma la transizione \u00e8 importante concettualmente, rendetela *difficile in modo deliberato*\u2014usate un cut netto, un effetto, una rotazione di contrasto. Se la risposta \u00e8 \"non sta\" allora la combinazione non funziona, punto.\n\n### 3. **Arco emotivo interno della coppia/terna**\nOgni due o tre tracce, chiedetevi: c'\u00e8 una micro-narrazione qui? A introduce il territorio, B lo complica, C lo risolve o lo apre ancora? Se avete tre tracce di fila che suonano identiche, una non serve.\n\n### 4. **Posizionamento dei nomi / degli elementi riconoscibili**\nSe avete una traccia che \u00e8 un cavallo di battaglia, non mettetela subito. Mettetela nel momento dove il crowd \u00e8 *dentro* il territorio narrativo, dove l'arrivo di quel nome \u00e8 una coronazione, non una sorpresa isolata.\n\n### 5. **Respirazione**\nIl set non respira solo a livello macro (phase 1, 2, 3, 4). Respira anche internamente. Dopo una sequenza densa (tante tracce veloci, tante layer), una traccia che toglie (minimal, spazi ampi, basso semplice) \u00e8 come una boccata d'aria. Dosatela.\n\n## Metodo pratico per ordinarle\n\n1. **Dividi le 20 tracce in categorie**: hypnotica pura, hypnotica con movimento, transizione, hard hypnotica, hard puro. Non \u00e8 una tassonomia rigida\u2014\u00e8 una mappa mentale per vederci chiaro.\n\n2. **Costruisci lo scheletro**: scegli 1 traccia per ogni fase-cardine (fase 1, fine fase 2, inizio fase 3, fine fase 4). Questi quattro punti sono il tuo asse narrativo. Tutto il resto si organizza attorno a loro.\n\n3. **Inserisci i riempimenti**: per ogni spazio tra i quattro punti, riempi con le tracce che supportano il movimento da un punto all'altro. Non casualmente\u2014con intenzione. Ogni traccia prepara il terreno per la prossima.\n\n4. **Verifica il flusso ascoltandolo mentally**: puoi fare questo leggendo i BPM e immaginando il viaggio energetico. Il BPM sale? Scende? Come? Ha senso narrativamente?\n\n5. **Testare**: se potete, testare il set. Non interamente\u2014ma le sezioni critiche (fine fase 2 verso fase 3, il passaggio verso hard). Vi dir\u00e0 subito se le transizioni sono reali o solo teoriche.\n\n## Avvertenze finali\n\n- **Non confondete hypnotica con noiosa**: hypnotica significa *ossessione*.Significa un'idea sonora che si ripete e che mentre si ripete rivela layer, tensione, dettagli. Se una traccia hypnotica non ha questo, non \u00e8 hypnotica\u2014\u00e8 flaccida.\n\n- **L'escalation verso hard deve guadagnarsi il diritto di esistere**: non dovete fare hard techno per forza. Se il vostro territorio \u00e8 hypnotica tutta la notte, raccontatelo. Ma se transitare verso l'hard, fatelo con consapevolezza. Ogni traccia della fase 3 deve spiegare perch\u00e9 quella transizione \u00e8 inevitabile.\n\n- **La mezzanotte \u00e8 un momento di massima sensibilit\u00e0 narrativa**: il crowd sente tutto. Se il set ha una storia, la seguir\u00e0. Se il set \u00e8 una sequenza di tracce brave-ma-senza-senso, lo sapr\u00e0. Usate questa sensibilit\u00e0 a vostro favore.\n\n- **Le tracce che non siete sicuri**: cestinate. Se nella vostra selezione c'\u00e8 una traccia di cui dubidate (\"ma magari funziona?\"), probabilmente no. Meglio 18 tracce perfette che 20 tracce con due falle.\n\n---\n\n**Ultima cosa**: il set che costruirete sar\u00e0 unico perch\u00e9 siete voi a farlo. Non cercate il set perfetto universale\u2014cercate il set che racconta *questa* storia, nel *questo* momento, con il *corpo di questa gente*. La tecnica \u00e8 il mezzo; la narrazione \u00e8 il fine.\n"}], "grading": {"eval_id": 2, "eval_name": "set-building", "variant": "with_skill", "expectations": [{"text": "Propone un arco narrativo chiaro con fasi distinte", "passed": true, "evidence": "Four distinct phases clearly outlined: Phase 1 (Immersione, tracce 1-5, 15-20 min), Phase 2 (Sviluppo, tracce 6-12, 30-40 min), Phase 3 (Rottura consapevole, tracce 13-16, 20-25 min), Phase 4 (Climax, tracce 17-20, 10-15 min). Each has distinct character and purpose."}, {"text": "Parla di tensione, rilascio, plateau e dinamica del set", "passed": true, "evidence": "Explicitly discusses: 'il momento in cui il club \u00e8 gi\u00e0 pieno', 'destabilizzate quando serve', 'Transizioni critiche', 'clima[x]' as 'compressione', 'picchi e tregue *all'interno*' (phase 4 structure). Addresses tension-release cycles and plateau dynamics throughout."}, {"text": "Tiene conto del contesto (slot 2-4 di notte, club)", "passed": true, "evidence": "Opens with specific slot analysis: 'Slot 02:00\u201304:00 \u00e8 il momento in cui il club \u00e8 gi\u00e0 pieno, ma la notte \u00e8 ancora lunga.' Distinguishes from opening/closing and explains why transition from hypnotica to hard is appropriate for this exact time slot."}, {"text": "Fornisce criteri pratici per ordinare le tracce", "passed": true, "evidence": "Section 'Criteri pratici per scegliere l'ordine' (lines 51-68) provides five explicit filters: 1) Congruenza energetica locale (micro-variations), 2) Transizionabilit\u00e0 oggettiva, 3) Arco emotivo interno della coppia/terna, 4) Posizionamento dei nomi, 5) Respirazione."}, {"text": "Include consigli sulle transizioni come momenti creativi", "passed": true, "evidence": "Transitions treated as creative moments: 'Transizioni critiche: qui \u00e8 dove il DJ diventa visibile. Le transizioni non devono essere \"morbide per forza\"\u2014una transizione netta (cut, restart, effetto) preparata bene \u00e8 pi\u00f9 potente di una dissolvenza anonima.' Also discusses transition at phase boundaries as narrative tools."}]}}, {"id": "eval-2-set-building-without_skill", "prompt": "Devo preparare un set di 2 ore per un club, slot dalle 2 alle 4 di notte. Parto da techno hypnotica e vorrei arrivare a qualcosa di pi\u00f9 duro verso la fine. Ho una ventina di tracce ma non so come ordinarle. Mi aiuti a ragionare sull'arco narrativo?", "eval_id": 2, "outputs": [{"name": "response.md", "type": "text", "content": "# Arco Narrativo per Set Techno da 2 Ore (2-4 di notte)\n\n## Principi Fondamentali\n\nUn set da 2 ore in una fascia oraria come le 2-4 di notte ha un'opportunit\u00e0 narrativa unica: il club \u00e8 gi\u00e0 riscaldato, il pubblico \u00e8 immerso, e c'\u00e8 spazio per costruire tensione progressiva. La transizione da techno hypnotica a \"pi\u00f9 duro\" non dovrebbe essere uno strappo, ma un'evoluzione organica.\n\n## Struttura Consigliata (120 minuti)\n\n### Fase 1: Consolidamento (0-25 minuti)\n**Obiettivo**: Stabilire lo spazio ipnotico, sfruttare l'energia gi\u00e0 presente\n\n- Inizia con 1-2 tracce che riconoscano lo stato di trance gi\u00e0 in atto\n- Techno hypnotica: minimal, groove ipnotico, elementi ripetitivi\n- BPM stabile e controllato (tipicamente 120-125)\n- Costruisci familiarit\u00e0 prima di esplorare\n\n**Logica**: Non sorprendere. Il pubblico \u00e8 gi\u00e0 connesso, quindi consolida questo legame con patterns che suonino riconoscibili ma comunque interessanti.\n\n### Fase 2: Sviluppo e Profondit\u00e0 (25-55 minuti)\n**Obiettivo**: Approfondire l'esperienza, introdurre texture pi\u00f9 ricche\n\n- Mantieni il BPM ma aggiungi complessit\u00e0: layer sonori, evoluzione timbrica\n- Experimenta con elementi che aggiungono atmosfera senza rompere l'ipnosi\n- Puoi gi\u00e0 iniziare a introdurre tracce che suggeriscono l'evoluzione futura (un po' pi\u00f9 energiche, ma ancora coerenti)\n\n**Logica**: Questo \u00e8 il momento per mostrare il tuo gusto artistico. Non \u00e8 ancora il climax, ma la traccia verso di esso. Crea familiarit\u00e0 emotiva con ogni transizione.\n\n### Fase 3: Transizione Strategica (55-85 minuti)\n**Obiettivo**: Passare gradualmente da hypnotica a \"duro\" senza disorientare\n\nQuesta \u00e8 la sezione critica. Ecco come gestirla:\n\n**Opzione A (Approccio Gradualistico)**:\n- Aumenta il BPM lentamente (5-10 BPM ogni 2-3 tracce)\n- Introduce elementi percussivi pi\u00f9 marcati, ma mantenendo effetti ipnotici\n- Usa tracce \"ponte\": techno che \u00e8 sia ipnotica che energica\n- Aggiungi effetti, reverb, delay su elementi familiari per far sentire l'evoluzione come naturale\n\n**Opzione B (Approccio del Contrasto Controllato)**:\n- Mantieni alcune tracce hypnotica come ancore emozionali\n- Affianca loro versioni pi\u00f9 dure della stessa energia\n- Crea dialogo: una traccia sofisticata, una pi\u00f9 grezza, una che le sintetizza\n\n### Fase 4: Climax (85-110 minuti)\n**Obiettivo**: Esprimere la parte \"dura\" con massima impatto\n\n- BPM pi\u00f9 elevato (130-135+), drums pi\u00f9 prominenti\n- Bassline aggressive ma mantieni coesione con quello che precede\n- Puoi permetterti transizioni pi\u00f9 coraggiose qui\n- Massimizza energia senza perdere il filo narrativo\n\n**Logica**: Il pubblico ha fatto il viaggio con te. Ora sa dove sei e pu\u00f2 apprezzare l'escalation.\n\n### Fase 5: Epilogo e Chiusura (110-120 minuti)\n**Obiettivo**: Concludere con integrit\u00e0\n\n- Non scegliamo di tornare a hypnotica (sentirebbe come una regressione)\n- Neanche restare al massimo sarebbe costruttivo\n- Una traccia che sia \"dura ma consapevole\", che chiuda il cerchio\n\n## Consigli Pratici per Ordinare le 20 Tracce\n\n1. **Ascolta tutto con orecchio narrativo**: Non pensare singolarmente, ma come conversazione. Quali tracce rispondono ad altre? Quali creano progressione naturale?\n\n2. **Identifica le \"ancle emozionali\"**: Quali 2-3 tracce sono imprescindibili nei punti chiave? Quelle che generano il massimo collegamento emotivo. Piazzale strategicamente.\n\n3. **Crea coppie e triadi**: Raggruppa tracce che dialogo bene insieme. Non devi usare tutto singolarmente; sequenze di 2-3 tracce possono formare un'unit\u00e0 narrativa.\n\n4. **Testa le transizioni**: Se possibile, ascolta prima il passaggio tra traccia A e traccia B. La transizione deve sentirsi inevitabile, non forzata.\n\n5. **Mappa i \"picchi\" di energia**: Identifica quali tracce sono naturalmente pi\u00f9 intense. Non metterle tutte insieme nella fase 4; distribuiscile strategicamente.\n\n## Errori Comuni da Evitare\n\n- **Fretta nella transizione**: Passare da hypnotica a duro troppo velocemente (in 20 minuti) sentirebbe come incoerente\n- **Picchi casuali**: Una traccia molto dura piazzata male nella fase 2 rompe il viaggio\n- **Underestimating degli elementi ipnotici**: Anche nella fase 4, piccoli elementi hypnotica mantengono la coerenza stilistica\n- **Assenza di \"respiro\"**: Dopo un picco intenso, permetti una traccia leggermente pi\u00f9 soft (non come regressione, ma come momento di assorbimento)\n\n## Domande da Porsi Mentre Ordini\n\n1. Quale traccia sentirei naturalmente come inizio di questo set?\n2. Quale voglio che sia l'ultima cosa che il pubblico sente?\n3. Dove inizia il pubblico a sentire il cambio di direzione?\n4. Ci sono coppie di tracce che creano un \"dialogo\" particolarmente forte?\n5. Qual \u00e8 il climax emotivo, non necessariamente il pi\u00f9 veloce/duro?\n\n## Considerazione Finale\n\nUn set di 2 ore dalle 2 alle 4 di notte \u00e8 un privilegio: hai tempo per costruire, non devi preoccuparti di \"rianimare\" la pista come faresti alle 23. Usa questo per fare un arco narrativo consapevole e inaspettato. La transizione da hypnotica a duro dovrebbe sentirsi come la rivelazione naturale di un viaggio che era gi\u00e0 in corso, non come un cambio di opinione.\n\nBuona creativit\u00e0 con la sequenza!\n"}], "grading": {"eval_id": 2, "eval_name": "set-building", "variant": "without_skill", "expectations": [{"text": "Propone un arco narrativo chiaro con fasi distinte", "passed": true, "evidence": "Five phases outlined: 1) Consolidamento (0-25 min), 2) Sviluppo e Profondit\u00e0 (25-55 min), 3) Transizione Strategica with two sub-options (55-85 min), 4) Climax (85-110 min), 5) Epilogo e Chiusura (110-120 min). Clear structure with distinct phases."}, {"text": "Parla di tensione, rilascio, plateau e dinamica del set", "passed": true, "evidence": "Discusses tension dynamics: 'costruire tensione progressiva', 'Puoi permetterti transizioni pi\u00f9 coraggiose', 'massimizza energia'. References breath and absorption: 'momento di assorbimento' in phase 5, though less detailed than with_skill version."}, {"text": "Tiene conto del contesto (slot 2-4 di notte, club)", "passed": true, "evidence": "Opens with: 'Un set da 2 ore in una fascia oraria come le 2-4 di notte ha un'opportunit\u00e0 narrativa unica: il club \u00e8 gi\u00e0 riscaldato, il pubblico \u00e8 immerso'. Acknowledges this is not opening/closing but a privileged middle slot."}, {"text": "Fornisce criteri pratici per ordinare le tracce", "passed": true, "evidence": "Section 'Consigli Pratici per Ordinare le 20 Tracce' (lines 61-71) provides five practical steps: 1) Ascolta con orecchio narrativo, 2) Identifica 'ancle emozionali', 3) Crea coppie e triadi, 4) Testa le transizioni, 5) Mappa i 'picchi' di energia."}, {"text": "Include consigli sulle transizioni come momenti creativi", "passed": false, "evidence": "Transitions are mentioned briefly ('Testa le transizioni: Se possibile, ascolta prima il passaggio tra traccia A e traccia B') and in error avoidance section ('Fretta nella transizione'), but not developed as creative moments with specific techniques or philosophical framing. Treatment is more pragmatic than creative."}]}}, {"id": "eval-3-art-direction-with_skill", "prompt": "Sto lanciando un progetto musicale nuovo, ambient/drone con influenze industrial. Ho il nome (STRATA), alcune tracce quasi finite, ma zero identit\u00e0 visiva. Vorrei qualcosa di coerente \u2014 cover, logo, presenza social. Da dove parto? Che direzione estetica mi consigli?", "eval_id": 3, "outputs": [{"name": "response.md", "type": "text", "content": "# STRATA: Direzione Artistica per un Progetto Ambient/Drone/Industrial\n\n## Situazione iniziale\n\nHai il grosso: nome efficace (STRATA \u00e8 minimalista, semanticamente rilevante \u2014 rimanda a stratificazione, sedimentazione, archeologia sonora), e tracce quasi finite. La parte visiva \u00e8 assente. Bene \u2014 significa che puoi costruire coerenza da zero, senza dover retroattivamente allineare un visual a un suono gi\u00e0 definito.\n\nPrima di dare una direzione, per\u00f2, devo capire il tuo posizionamento sonoro. Ambient/drone/industrial \u00e8 uno spettro largo. Wolfgang Voigt suona diverso da Karenn, che suona diverso da Sarah Davachi. Dove ti collochi tu?\n\n## Domande critiche (rispondi internamente)\n\n1. **Il tuo industrial \u00e8 rotto e distorto (Merzbow, Perc, Ancient Methods) o strutturato e narrativo (Coil, Alva Noto)?**\n2. **Il drone \u00e8 minimalista e statico (\u00c9liane Radigue, Lawrence English) o in evoluzione lenta ma costante?**\n3. **L'ambient \u00e8 comfort e immersivo (generative, passivo) o inquietante e straniante (onirico, perturbato)?**\n4. **Ci sono elementi di ritmo, o \u00e8 completamente aritimico?**\n5. **La palette sonora tende al freddo (digitale, sintetico) o al caldo (analogico, organico, fieldwork)?**\n\nLe risposte a queste domande definiscono tutto ci\u00f2 che segue.\n\n## Tre direzioni possibili (scegli il tuo quartiere estetico)\n\n### A. Minimalismo Geometrico Astratto\n\n**Se il suono \u00e8:** freddo, strutturale, pulito. Poco rumore, molto silenzio. Linee sonore precise.\n\n**Direzione visiva:**\n- **Palette:** scala di grigi. Bianco, nero, grigio neutro. Una sola second color \u2014 non un giallo caldo, ma un grigio freddo con una tinta, un blu ghiaccio, un beige minerale.\n- **Tipografia:** sans-serif asciutta (Helvetica, Univers, Grotesk). Lowercase esclusivamente. Una sola famiglia tipografica, una sola dimensione.\n- **Imagery:** geometria pura. Linee, rettangoli, divisioni dello spazio. No fotografia, no figura umana. Se hai bisogno di un visual, generat ivo o algoritmo (grid, pattern mathematico, progression). Ispirati a: Ryoji Ikeda, Carsten Nicolai, le release di Editions Mego.\n- **Logo:** una linea, una divisione, una proporzione. Non un oggetto. Pensa a come il logo di Braun funziona \u2014 assoluta essenzialit\u00e0, riconoscibile a qualunque scala.\n- **Applicazione:** cover 1:1 quadrata (quadrato nero con una linea orizzontale grigia in proporzione del rapporto aureo). Poster minimalista per live. Bio e press kit in griglia ristretta, spaziatura ampia.\n- **Sentimento:** austerit\u00e0, purezza, rigore. Senza warmth, ma neanche gelido \u2014 precisione.\n\n### B. Texture Industriale & Decay\n\n**Se il suono \u00e8:** sporco, brutalista, con frammenti di rumore. Distorsione, erosione. Industrial con patina vintage.\n\n**Direzione visiva:**\n- **Palette:** nero puro, grigi molto scuri, marrone ossidato, accenni di rosso rugginoso o arancione corroso. Colori di materiali che invecchiano \u2014 non di design pulito.\n- **Imagery:** fotografia di superficie (cemento, lamiera, legno marcio, corrosione). Close-up di dettagli industriali non riconoscibili a prima vista. Texture e rumore visivo \u2014 film grain, artefatti digitali, pixelizzazione. Nessun soggetto leggibile, solo materia.\n- **Tipografia:** Monospace (Courier, IBM Plex Mono) o slab serif heavy (stile anni '70 costruttivista). Stampato male, offset, colori non perfettamente allineati. Non \u00e8 errore \u2014 \u00e8 stilizzazione.\n- **Logo:** un'iniziale S distorta, pixelata, corrosa. O un simbolo industriale (bullone, tubo, grana) stilizzato. Deve sembrare che il tempo l'abbia rovinato.\n- **Applicazione:** cover con texture dominante, nome artistico sobrio in angolo. Post per social con noise, distorsione, palette ridotta. Poster di live con carta scura e inchiostro metallico.\n- **Sentimento:** materialit\u00e0 bruta, tempo passato, degradazione controllata. Post-industriale consapevole.\n\n### C. Ambient Onirico & Atmospheric\n\n**Se il suono \u00e8:** stratificato, con respiri, forse field recording. Drone che evolve. Timbri soft, atmosferico, ma con profondit\u00e0.\n\n**Direzione visiva:**\n- **Palette:** blues, grigi raffinati, magentas freddi, bianchi rotti. Due, massimo tre colori. Tonalit\u00e0 notturne, ma non dark \u2014 piuttosto crepuscolare.\n- **Imagery:** fotografia astratta di paesaggi (montagne, acqua, cielo). Non landscape classica \u2014 inquadrature strane, dettagli, fuori fuoco, movimento. O CG ambient (gradienti, superfici soft, forme non definite).\n- **Tipografia:** serif elegante (Garamond, Caslon) o sans-serif sottile e spazioso (Montserrat Light, Optima). Lettere ben distanziate. Il testo respira.\n- **Logo:** una forma soft, un contorno, un'onda. Non riempito \u2014 outline. Richiama movimento lento e continuo. Ispirati a: album art di Fennesz, Sarah Davachi, GAS.\n- **Applicazione:** cover verticale (formato LP, non quadrato) con gradiente o immagine dominante. Nome in basso, minuscolo, quasi nascosto. Bio poetica e breve. Playlist social con atmosfere notturne.\n- **Sentimento:** intimit\u00e0, immersione, sogno controllato. Quiete che non \u00e8 vuoto.\n\n## Dove partire: step operativi\n\n### 1. Definirti (un'ora)\nIdentifica quale delle tre direzioni (o un ibrido) corrisponde al tuo suono. Ascolta le tracce e chiediti: se queste dovessero avere un colore, quale sarebbe? Una texture fisica? Una temperatura?\n\n### 2. Reference visivi concreti (2-4 ore)\nRaccogli 20-30 immagini, copertine, poster, font che ti parlano. Non perch\u00e9 assomigliano al tuo suono, ma perch\u00e9 il loro *approccio* estetico \u00e8 coerente con quello che stai facendo. Crea un moodboard su Pinterest o Figma. Include:\n- Copertine di tre artisti che consideri precedenti (anche lontani).\n- Tre poster di live, di club, di mostre che rispecchiano la vibe.\n- Tre esempi di tipografia che t'interessano.\n- Tre palette di colori estratte da immagini (usa Coolors per reference).\n\n### 3. Logo e naming coerenti (2-3 ore)\nSTRATA \u00e8 il nome. Bene. Decidi:\n- Un colore primario e un secondario (o una scala monocromatica).\n- Un family tipografico (una sola font).\n- La forma che rappresenta STRATA graficamente. Semplice \u2014 una linea, una forma, un pattern che si ripete.\n\nIl logo deve funzionare:\n- A 1cm di diametro (favicon, story IG).\n- A 1m di altezza (poster).\n- In bianco e nero (se stai senza budget per colore).\n- In un singolo colore.\n\n### 4. Primo set di visual (1 cover art, 1 logo, 1 palette definita) \u2014 4-8 ore\nSe lavori con un designer: briefing che riassuma i tre punti sopra + 3-4 reference chiare. Non \"qualcosa che suona ambient\" \u2014 \"voglio la palette di questa immagine, la tipografia di questo poster, la semplicit\u00e0 di questo logo\".\n\nSe lo fai da solo: Figma, Photoshop, o anche Figma template. Parti dalla cover \u2014 \u00e8 il pezzo pi\u00f9 importante perch\u00e9 comparir\u00e0 ovunque (Spotify, social, vinile). Una sola immagine, uno o due elementi, nome chiaro e leggibile anche small.\n\n### 5. Social presence architecture\nPrima di aprire account:\n- Decidi il colore dominante e uno secondario per ogni piattaforma.\n- Stories su Instagram = palette monocromatica o bianco-nero per coerenza.\n- Post = formula visiva replicabile (es: testo + sfondo colore flat, niente foto random).\n- Bio: una frase, link al sito o alla musica. Concisione.\n\n### 6. Strategia contenuti initial (prima di uscire)\n- 5-6 post: una preview audio + visual al giorno, in countdown.\n- Story: behind-the-scenes minimal (waveform, traccia in mix, setup studio).\n- Bio e link bio stabiliti.\n\n## Errori comuni da evitare\n\n1. **Coerenza falsa**: Non mettere quattro colori solo perch\u00e9 \"la musica \u00e8 sfaccettata\". La coerenza \u00e8 limitazione consapevole, non libert\u00e0 totale.\n2. **Visual generico**: \"Ambient\" non significa \"qualunque cosa soft\". Sfocato, gradiente dolce, e lo senti su mille progetti. Trova una specifica direzione.\n3. **Disconnessione suono-visual**: Se la musica \u00e8 brutale (anche se ambient) e la visiva \u00e8 carino-decorativo, non funziona. Devono parlare lo stesso linguaggio.\n4. **Troppo AI art**: Intelligenza artificiale \u00e8 uno strumento. Se la usi per cover art, \u00e8 visible. Non \u00e8 necessariamente un male, ma sii consapevole. Non nascondere dietro all'AI una assenza di visione.\n5. **Logo troppo complesso**: Pi\u00f9 il logo \u00e8 semplice, pi\u00f9 \u00e8 riconoscibile. Micron su Figma. Niente sfumature.\n\n## Prossimi step dopo il visual\n\nUna volta definita la direzione visiva e il logo:\n\n1. **EPK (Electronic Press Kit)**: una pagina, nome, bio (3 righe), link Spotify/Bandcamp, foto per stampa (quadrata, in colore della palette).\n2. **Link in bio**: YouTube Music, Apple Music, Spotify, Bandcamp. Un solo link (Linktree, Beacons, o custom).\n3. **Email press**: un template visuale (mail con header in palette colore, logo, link). Template per inviare a blogger, curator, label, radio.\n\n## Conclusione\n\nSTRATA ha il potenziale per essere un progetto visivamente coeso e riconoscibile. La direzione estetica giusta non \u00e8 quella \"pi\u00f9 bella\" \u2014 \u00e8 quella coerente con il suono e sostenibile nel tempo (cio\u00e8, che non stanchi dopo tre mesi).\n\nScegli il tuo quartiere estetico, raccogli reference concreti, disegna il logo, e le tracce troveranno il loro visual naturale.\n\nVai.\n"}], "grading": {"eval_id": 3, "eval_name": "art-direction", "variant": "with_skill", "expectations": [{"text": "Include riferimenti visivi specifici (artisti, label, stili)", "passed": true, "evidence": "Multiple specific references: 'Ryoji Ikeda, Carsten Nicolai, le release di Editions Mego' (geometric direction), 'album art di Fennesz, Sarah Davachi, GAS' (ambient direction). Also mentions 'Wolfgang Voigt', 'Karenn', 'Lawrence English', '\u00c9liane Radigue', 'Coil', 'Alva Noto'."}, {"text": "Collega le scelte visive al suono ambient/drone/industrial", "passed": true, "evidence": "Three directions explicitly connect visual language to sound: A) 'freddo, strutturale, pulito' \u2192 'scala di grigi', 'sans-serif asciutta', 'geometria pura'; B) 'sporco, brutalista, frammenti di rumore' \u2192 'nero puro, grigi molto scuri, marrone ossidato', 'fotografia di superficie', 'Monospace'; C) 'stratificato, con respiri, field recording' \u2192 'blues, grigi raffinati', 'serif elegante', 'una forma soft, un contorno, un'onda'."}, {"text": "Fornisce passi operativi concreti (da dove partire, cosa fare prima)", "passed": true, "evidence": "Section 'Dove partire: step operativi' (lines 57-97) with six explicit steps: 1) Definirti (1 hour), 2) Reference visivi concreti (2-4 hours), 3) Logo and naming (2-3 hours), 4) First set of visuals (4-8 hours), 5) Social presence architecture, 6) Initial content strategy with specific timelines."}, {"text": "Analizza il nome STRATA e le sue implicazioni estetiche", "passed": true, "evidence": "Name analysis: 'STRATA \u00e8 minimalista, semanticamente rilevante \u2014 rimanda a stratificazione, sedimentazione, archeologia sonora' (line 5). Later: 'STRATA \u00e8 il nome. Bene. Decidi:' (line 70) and ties logo design back to stratification concept."}, {"text": "Include dettagli tecnici (tipografia, palette, formati)", "passed": true, "evidence": "Extensive technical details across three directions: A) 'Helvetica, Univers, Grotesk', 'grayscale palette', 'cover 1:1 quadrata'; B) 'Monospace (Courier, IBM Plex Mono) o slab serif heavy', 'nero puro, grigi molto scuri, marrone ossidato'; C) 'serif elegante (Garamond, Caslon) o sans-serif sottile (Montserrat Light, Optima)', 'cover verticale (formato LP)'. Logo requirements: '1cm di diametro', '1m di altezza', 'bianco e nero', 'singolo colore'."}]}}, {"id": "eval-3-art-direction-without_skill", "prompt": "Sto lanciando un progetto musicale nuovo, ambient/drone con influenze industrial. Ho il nome (STRATA), alcune tracce quasi finite, ma zero identit\u00e0 visiva. Vorrei qualcosa di coerente \u2014 cover, logo, presenza social. Da dove parto? Che direzione estetica mi consigli?", "eval_id": 3, "outputs": [{"name": "response.md", "type": "text", "content": "# STRATA - Strategia di Identit\u00e0 Visiva\n\nHai un'ottima base di partenza: un nome forte e tracce concrete. Ecco come costruire un'identit\u00e0 visiva coerente per ambient/drone industriale.\n\n---\n\n## 1. DIREZIONE ESTETICA CONSIGLIATA\n\n### Core Concept: \"Stratificazione Minimalista\"\nIl nome STRATA suggerisce naturalmente layers, profondit\u00e0, accumulo. L'estetica ambient/industrial con influenze drone pu\u00f2 sfruttare questo:\n\n**Palette Colori:**\n- Grigio scuro/nero profondo (base industriale)\n- Accenti in colori freddi (blu acido, ciano, teal) o caldi controllati (rosso-bruno, arancio bruciato)\n- Opzione monocromatica minimalista per un'identit\u00e0 ancora pi\u00f9 distaccata/fredda\n- Considera un \"colore firma\" che riconosciuto subito\n\n**Tipografia:**\n- Sans-serif geometrico (Futura, Helvetica, DM Sans, Space Mono)\n- Niente decorativo o handwritten\n- Spacing ampio, lettere ben definite\n- Il contrasto tra spazio vuoto e testo denso rispecchia la tua musica\n\n**Texture & Materiali:**\n- Superfici ruvide, corrosive, metalliche\n- Effetti di degradazione, noise visivo, glitch\n- Sovrapposizioni di linee, graffiti geometrici\n- Fotografia industriale: calcestruzzo, ruggine, luci fredde, architetture brutali\n\n---\n\n## 2. DOVE PARTIRE (STRATEGIA OPERATIVA)\n\n### Fase 1: Audit & Reference (1-2 giorni)\n1. **Crea una mood board**: cerca su Pinterest/Are.na artisti come Oneohtrix Point Never, Arca, Ben Frost, William Basinski per visual identity - guarda come si posizionano\n2. **Ispirati a generi visual affini**:\n   - Industrial/power electronics (Merzbow, Throbbing Gristle, NON)\n   - Ambient experimentale (Alva Noto, Ryoji Ikeda)\n   - Dark minimal (Akira Yamaoka, Gestaltd)\n3. **Prendi nota**: quali colori/forme/composizioni risuonano con la TUA visione?\n\n### Fase 2: Logo (Core Foundation)\nIl logo \u00e8 il pilastro. Opzioni:\n\n**Opzione A: Geometric Abstract**\n- Linee che si stratificano, un simbolo che suggerisce profondit\u00e0\n- Es. quadrati/rettangoli sovrapposti in scala, grigio/nero con un accent color\n- Versatile (funziona monocolore, su social, stampa)\n\n**Opzione B: Typographic**\n- \"STRATA\" in sans-serif minimalista con una modifica geometrica\n- Una linea/elemento visivo che \"taglia\" o \"stratifica\" le lettere\n- Semplice, memorabile, profesionale\n\n**Opzione C: Broken/Glitch**\n- Logo che incorpora glitch, pixelizzazione, degradazione\n- Rispecchia il tuo industrial drone\n- Rischio: datato se non ben eseguito\n\n**Consiglio**: parti da geometric abstract. \u00c8 senza tempo, scalabile, e funziona su ogni supporto.\n\n### Fase 3: Palette Estesa\nUna volta definito il logo:\n- 1 colore primary (il tuo accent)\n- 2-3 secondary colors (grigio scuro, un colore freddo/caldo per contrast)\n- Versioni monocromatiche (bianco/nero) per flessibilit\u00e0\n\n### Fase 4: Album/Single Artwork\n- **Cover Art**: coerente con l'estetica ma visivamente unica per ogni release\n- **Pattern/Sistema**: puoi creare un sistema generativo (es. griglia di linee, noise patterns) che evolve per ogni progetto\n- Mantieni coerenza attraverso tipografia, palette, texture\n\n---\n\n## 3. SOCIAL PRESENCE - Primo Posizionamento\n\n**Instagram/TikTok (Visuals):**\n- Feed monocromatico o con palette stretta\n- 1-2 colori accent massimo\n- Content mix:\n  - Studio shots (industrial aesthetic, setup)\n  - Artwork in process (waveforms, synthesis, sound design visuals)\n  - Glitch/abstract videos sincronizzati con snippet audio\n  - Minimalista: meno \u00e8 pi\u00f9\n\n**Account Essentials:**\n- Bio: nome STRATA + genere (\"ambient/drone industrial\")\n- Highlight della storia: album artwork, mood, process\n- Link in bio: Spotify/Bandcamp una volta che sei online\n\n**YouTube/SoundCloud:**\n- Channel art coerente (banner gray/minimal + logo)\n- Thumbnail standardizzate (stesso stile, colori, layout)\n\n---\n\n## 4. CHECKLIST - PRIORIT\u00c0 DI AZIONE\n\n**SUBITO (Questa settimana):**\n- [ ] Crea una mood board visiva (50-100 immagini)\n- [ ] Scegli il tuo accent color (il colore che NON \u00e8 grigio/nero)\n- [ ] Disegna 3-5 sketch di logo (anche solo carta/Procreate)\n\n**NELLA PROSSIMA SETTIMANA:**\n- [ ] Refina il logo con 2 tools:\n  - Se sei digitale: Figma (gratis, ottimo per geometry)\n  - Se vuoi aiuto: fiverr/99designs (designer freelance, budget 150-300\u20ac per logo iniziale)\n- [ ] Crea una guida di stile minima (colori, font, come usarli)\n- [ ] Disegna la cover del tuo primo singolo/album\n\n**DOPO (Fase Social):**\n- [ ] Template Instagram stories/posts su Figma\n- [ ] Setup dei tuoi canali (Instagram, TikTok, YouTube, Bandcamp)\n- [ ] Pubblican con coerenza visiva\n\n---\n\n## 5. TOOL CONSIGLIATI (Budget-Friendly)\n\n**Grafica:**\n- **Figma** (gratis): logo, design system, social templates\n- **Procreate** (12\u20ac): sketches, artwork, texture\n- **Canva Pro** (130\u20ac/anno): quick social graphics se non hai tempo\n\n**Estetica Industriale:**\n- **Unsplash/Pexels**: foto stock (grigio, acciaio, architettura)\n- **Glitch Art Generator**: online tool per effetti glitch veloci\n- **Glitch Lab** (app): glitch video su mobile\n\n**Musica & Branding:**\n- **Bandcamp**: host musicale minimalista, ottimo per aesthetic\n- **Spotify for Artists**: distribuzione + analytics\n\n---\n\n## 6. DOMANDE DA FARTI (Per Definire Meglio)\n\n1. **Tono emotivo**: vuoi trasmettere freddo/distacco o inquietudine/tensione?\n2. **Ispirazioni visive**: che artisti/visual design ti attraggono (a prescindere da genere)?\n3. **Supporti prioritari**: dove distribuisci prima? (Bandcamp, Spotify, SoundCloud?)\n4. **Budget**: puoi investire in un designer pro o preferisci DIY?\n\n---\n\n## CONCLUSIONE\n\n**Il tuo prossimo passo**, in ordine:\n\n1. **Mood board** (2-3 ore su Pinterest)\n2. **Scegliere colore accent** (fondamentale per riconoscibilit\u00e0)\n3. **Logo sketch** (5-10 sketch, non devi essere un artista)\n4. **Affidarsi a designer freelance o iniziare DIY con Figma**\n\nIl tuo genere (ambient/drone + industrial) permette estetica pulita, sofisticata, e a basso budget visivo. Punta su **minimalismo con attrito**: semplice, ma con texture e glitch che ricordano la natura industriale della tua musica.\n\nBuona fortuna con STRATA. La coerenza visiva che metterai ora pagher\u00e0 enormemente una volta che la tua musica avr\u00e0 trazione.\n"}], "grading": {"eval_id": 3, "eval_name": "art-direction", "variant": "without_skill", "expectations": [{"text": "Include riferimenti visivi specifici (artisti, label, stili)", "passed": true, "evidence": "References provided: 'Oneohtrix Point Never, Arca, Ben Frost, William Basinski' (line 35), 'Merzbow, Throbbing Gristle, NON' (line 37), 'Alva Noto, Ryoji Ikeda' (line 38), 'Akira Yamaoka' (line 39). Pinterest/Are.na mention for research."}, {"text": "Collega le scelte visive al suono ambient/drone/industrial", "passed": true, "evidence": "Connects visual to sound: 'Core Concept: \"Stratificazione Minimalista\"' (line 9) links to 'ambient/industrial con influenze drone'. Palette suggestions (grigio scuro, accent colors, mono option) explicitly tied to industrial aesthetic. Texture & Materiali section connects 'superfici ruvide, corrosive, metalliche' to drone/industrial sound."}, {"text": "Fornisce passi operativi concreti (da dove partire, cosa fare prima)", "passed": true, "evidence": "Section '2. DOVE PARTIRE (STRATEGIA OPERATIVA)' (lines 32-72) with clear phases: Fase 1 (Audit & Reference, 1-2 days), Fase 2 (Logo with three options), Fase 3 (Palette Estesa), Fase 4 (Album/Single Artwork). Also '4. CHECKLIST - PRIORIT\u00c0 DI AZIONE' (lines 97-114) with this week/next week/after timeline."}, {"text": "Analizza il nome STRATA e le sue implicazioni estetiche", "passed": true, "evidence": "Analysis at line 9-10: 'Il nome STRATA suggerisce naturalmente layers, profondit\u00e0, accumulo. L'estetica ambient/industrial con influenze drone pu\u00f2 sfruttare questo:' Shows understanding of name's implications for visual direction."}, {"text": "Include dettagli tecnici (tipografia, palette, formati)", "passed": true, "evidence": "Technical details: Palette (grigio scuro/nero, ciano/teal/rosso-bruno, monocromatica option), Tipografia (sans-serif geometrico: Futura, Helvetica, DM Sans, Space Mono), Logo requirements (scalable, monochrome, all scales), Formats mention (social, Instagram stories), Tools (Figma, Procreate, Canva Pro). Less comprehensive than with_skill but adequate."}]}}, {"id": "eval-4-bio-review-with_skill", "prompt": "Ho scritto questa bio per il mio progetto: 'STRATA \u00e8 un progetto di musica elettronica che esplora i confini tra ambient, drone e industrial. Nato nel 2024, il progetto si propone di creare paesaggi sonori immersivi che sfidano le convenzioni. STRATA ha suonato in vari club e festival.' Me la revisioni? \u00c8 per il press kit.", "eval_id": 4, "outputs": [{"name": "response.md", "type": "text", "content": "# Critica della bio STRATA per press kit\n\n## Efficacia comunicativa\n\nQui il problema \u00e8 immediato: potrebbe descrivere almeno duecento progetti. \"Musica elettronica che esplora i confini\", \"paesaggi sonori immersivi\", \"sfidare le convenzioni\" \u2014 sono frasi che funzionano a caso su qualsiasi cosa nel circuito della musica sperimentale contemporanea. La bio non dice nulla di specifico su *questo* progetto. Chi \u00e8 STRATA? Cosa lo distingue dal prossimo producer di ambient-industrial che legge la stessa bio?\n\nManca completamente un elemento narrativo: cosa ti ha spinto a partire? C'\u00e8 una ricerca particolare dietro? Un'ossessione? Una metodologia?\n\n## Tono\n\nIl tono \u00e8 troppo generico, quasi neutrale. Leggi come un comunicato stampa di una label media \u2014 distaccato, educato, zero personalit\u00e0. Una bio per il press kit dovrebbe darti subito un senso di chi \u00e8 questo artista e come suona. Non c'\u00e8 colore qui.\n\nInoltre, il passaggio \"si propone di creare paesaggi sonori immersivi che sfidano le convenzioni\" suona quasi come una mission statement aziendale. Se davvero sfidi le convenzioni, una bio dovrebbe mostrarlo \u2014 non dirlo.\n\n## Concretezza\n\nPunti concreti: anno di inizio (2024) \u2014 bene. Ma tutto il resto \u00e8 astratto.\n\nDomande che mancano risposte:\n- Quali club e festival? Nomi specifici cambiano tutto. \"Suonato al Berghain\" non \u00e8 lo stesso che \"suonato in tre piccoli club locali\".\n- Qual \u00e8 il suono effettivo? Dici \"ambient, drone e industrial\" \u2014 ma come si ascoltano assieme? C'\u00e8 un brano che rappresenta meglio questa ibridazione?\n- Chi \u00e8 il musicista/i musicisti dietro STRATA? Provenienza, background, precedenti progetti?\n- C'\u00e8 un rilascio specifico da menzione? Un EP, una traccia che rappresenta il progetto?\n\nLa bio attuale\u00e8 un guscio vuoto. Ogni frase potrebbe essere tolta senza cambiare il senso complessivo.\n\n## Il vero problema: cosa comunica al primo ascolto?\n\nImmagina un curatore che legge questa bio. Non sa nulla di pi\u00f9 su STRATA dopo di quanto non sapesse prima. Non c'\u00e8 aggancio, niente che lo spinga a cercare il Bandcamp o a mettere una traccia in coda.\n\nUna bio funziona quando lascia un'immagine residua \u2014 un'ossessione, un territorio sonoro, una domanda sulla quale il progetto gira intorno. Qui non c'\u00e8 niente.\n\n## Suggerimenti per la riscrittura\n\nProva a rispondere a queste domande primarie, poi ricostruisci da l\u00ec:\n\n1. **La scintilla**: perch\u00e9 STRATA \u00e8 nato? \"Nel 2024 ho cominciato a fare esperimenti su...\" \u00e8 gi\u00e0 meglio. Quali esperimenti?\n\n2. **Il territorio sonoro specifico**: non dire \"ambient, drone, industrial\" \u2014 *mostra* come convivono. Esempio ipotetico (non usare cos\u00ec): \"Combina pad ambient di lunga durata con frame industriali rotti e timbri risonanti \u2014 il suono \u00e8 calmo, ma instabile, come attraversare una stanza dove le pareti vibrano appena.\"\n\n3. **Un riferimento concreto**: cos'\u00e8 il \"paesaggio sonoro\" che crei davvero? Dov'\u00e8 il riferimento che mi aiuta a capire? Se hai ascoltato Eliane Radigue e Merzbow nello sviluppo, dillo (non cos\u00ec nudo, ma la ricerca deve trasparire).\n\n4. **Performance e contesto**: \"Suonato in vari club e festival\" \u2192 Nomina almeno due. E come sono stati quei live? Cosa \u00e8 successo? Una bio non \u00e8 una lista, \u00e8 una narrazione. \"Presentato per la prima volta al [club name] con un setup che combina [hardware/software], seguito da...\" \u00e8 gi\u00e0 diverso.\n\n5. **La visione attuale**: dove sta andando? Cosa stai preparando? Una bio \u00e8 un snapshot, non una conclusione.\n\n## Riscrittura proposta (example direction)\n\nNota: questa \u00e8 solo una direzione, adatta alle tue realt\u00e0 specifiche:\n\n---\n\nSTRATA \u00e8 uno studio di texture dove ambient, drone e industrial convivono in tensione. Nato nel 2024 da una ricerca su sequenze risonanti e deterioramento del suono, il progetto costruisce paesaggi dove il minimalismo e il rumore occupano lo stesso spazio. Le performance sono stati test di questa ambiguit\u00e0 \u2014 non DJ set, non installation, ma live in cui la stabilit\u00e0 timbrica viene smontata progressivamente. Ogni elemento \u00e8 asfissiante e quieto assieme.\n\n---\n\nNon \u00e8 il testo definitivo \u2014 \u00e8 una struttura dove specifico > generico, dove \"ricerca su...\" > \"esplora\", dove la dissonanza sonora effettivamente emerge.\n\n## Verdict\n\nLa bio attuale non ti serve. S\u00ec, \u00e8 corretta grammaticalmente, s\u00ec, \u00e8 professionionale nel tono, ma \u00e8 invisibile. Un press kit ha una sola chance di fare impressione: questa non la fa.\n\nRiparti dalla domanda: \"Se leggessero solo questa bio, cosa saprebbero di me?\" Ora la risposta \u00e8 \"quasi nulla\". Quello che cambia tutto.\n"}], "grading": {"eval_id": 4, "eval_name": "bio-review", "variant": "with_skill", "expectations": [{"text": "Identifica chiaramente i problemi della bio (genericit\u00e0, clich\u00e9, mancanza di specificit\u00e0)", "passed": true, "evidence": "Directly identifies problems: 'potrebbe descrivere almeno duecento progetti' (line 3), 'sono frasi che funzionano a caso su qualsiasi cosa' (line 3), 'non dice nulla di specifico su *questo* progetto' (line 4), 'Manca completamente un elemento narrativo' (line 7). Calls out specific clich\u00e9s: 'paesaggi sonori immersivi', 'sfidare le convenzioni'."}, {"text": "Propone una riscrittura o direzione alternativa concreta", "passed": true, "evidence": "Section 'Riscrittura proposta (example direction)' (lines 47-54) provides alternative bio with specific narrative direction: 'studio di texture dove ambient, drone e industrial convivono in tensione. Nato nel 2024 da una ricerca su sequenze risonanti e deterioramento del suono...' Shows structure without generic language."}, {"text": "Spiega perch\u00e9 certi elementi non funzionano, non solo cosa cambiare", "passed": true, "evidence": "Explains why things fail: 'Il tono \u00e8 troppo generico, quasi neutrale' (line 11), 'leggi come un comunicato stampa' (line 11), 'zero personalit\u00e0' (line 11). Explains 'si propone di creare...' doesn't work: 'Se davvero sfidi le convenzioni, una bio dovrebbe mostrarlo \u2014 non dirlo' (line 13). Explains generic club references: 'Quali club e festival? Nomi specifici cambiano tutto' (line 20)."}, {"text": "\u00c8 diretto e onesto senza essere condiscendente", "passed": true, "evidence": "Tone is direct and honest: 'La bio non ti serve' (line 60), '\u00e8 invisibile' (line 60), 'Un press kit ha una sola chance' (line 60). But maintains respect: frames as structural problem ('guscio vuoto') rather than attacking the artist. Offers constructive example without condescension."}, {"text": "Tiene conto del contesto d'uso (press kit) nelle sue osservazioni", "passed": true, "evidence": "Explicitly addresses press kit context: 'Immagina un curatore che legge questa bio' (line 28), 'Una bio funziona quando lascia un'immagine residua' (line 31), 'Un press kit ha una sola chance di fare impressione' (line 60). Shows understanding of how curators/press will use this."}]}}, {"id": "eval-4-bio-review-without_skill", "prompt": "Ho scritto questa bio per il mio progetto: 'STRATA \u00e8 un progetto di musica elettronica che esplora i confini tra ambient, drone e industrial. Nato nel 2024, il progetto si propone di creare paesaggi sonori immersivi che sfidano le convenzioni. STRATA ha suonato in vari club e festival.' Me la revisioni? \u00c8 per il press kit.", "eval_id": 4, "outputs": [{"name": "response.md", "type": "text", "content": "# Revisione Bio STRATA - Press Kit\n\n## Valutazione della bio originale\n\nLa bio ha una solida struttura di base e comunica chiaramente il nucleo del progetto. Ecco i miei suggerimenti per migliorarla:\n\n### Punti di forza\n- Posizionamento generico chiaro (ambient, drone, industrial)\n- Menzione dell'anno di fondazione (2024)\n- Riferimento alle performance live\n\n### Aree di miglioramento\n\n**1. Essere pi\u00f9 specifici sulle performance**\nInvece di \"vari club e festival\", nomina alcuni luoghi o festival reali che danno credibilit\u00e0. Se non puoi elencarne, potresti dire \"incluse esibizioni presso [venue/festival specifici]\" oppure rimuovere questa parte e aggiungerla man mano che accumuli credenziali.\n\n**2. Aggiungere dettagli distintivi**\nChe cosa distingue STRATA da altri progetti simili? C'\u00e8 un'estetica visuale? Un processo creativo particolare? Un concetto dietro il nome?\n\n**3. Tono leggermente pi\u00f9 maturo**\nFrasi come \"sfidare le convenzioni\" sono piuttosto generiche nel contesto della musica sperimentale. Potresti essere pi\u00f9 concreto: quali convenzioni? In che modo?\n\n**4. Lunghezza**\nPer un press kit, questa \u00e8 buona come punto di partenza, ma potresti espanderla un po' (magari aggiungendo una frase su influenze, strumenti usati, o visione futura).\n\n## Versione revisionata suggerita\n\n> STRATA \u00e8 un progetto di musica elettronica fondato nel 2024 che esplora le intersezioni tra ambient, drone e industrial. Attraverso la manipolazione di suoni organici e sintetici, STRATA crea paesaggi sonori immersivi e destabilizzanti che trasgrediscono i confini tra generi. Con esibizioni presso [aggiungere specifiche], il progetto continua a sviluppare un linguaggio sonoro unico incentrato su [aggiungere elemento distintivo].\n\n## Prossimi passi\n\nConsidera di:\n- Aggiungere nomi specifici di venue e festival\n- Identificare 1-2 elementi distintivi del tuo sound\n- Decidere se includere dettagli sui tuoi strumenti o processo creativo\n- Valutare se aggiungere una frase sulla visione futura del progetto\n"}], "grading": {"eval_id": 4, "eval_name": "bio-review", "variant": "without_skill", "expectations": [{"text": "Identifica chiaramente i problemi della bio (genericit\u00e0, clich\u00e9, mancanza di specificit\u00e0)", "passed": true, "evidence": "Identifies weaknesses: 'Essere pi\u00f9 specifici', 'generiche nel contesto della musica sperimentale', 'piuttosto generico', 'Frasi come \"sfidare le convenzioni\" sono piuttosto generiche' (lines 13-21). Also notes missing details: 'Quale \u00e8 il suono effettivo?', 'Chi \u00e8 il musicista/i musicisti?', 'C'\u00e8 un rilascio specifico?' (lines 32-36). However, identification is less incisive than with_skill version."}, {"text": "Propone una riscrittura o direzione alternativa concreta", "passed": true, "evidence": "Section 'Versione revisionata suggerita' (lines 26-28) offers alternative: 'STRATA \u00e8 un progetto di musica elettronica fondato nel 2024 che esplora le intersezioni tra ambient, drone e industrial...' with placeholders for specifics. However, the rewrite is itself generic with '[aggiungere specifiche]' and '[aggiungere elemento distintivo]' \u2014 less concrete than with_skill's example."}, {"text": "Spiega perch\u00e9 certi elementi non funzionano, non solo cosa cambiare", "passed": false, "evidence": "Mostly lists what to change ('Aggiungere nomi specifici', 'Identificare 1-2 elementi distintivi') but does not deeply explain *why* these elements fail or how they undermine press kit effectiveness. Limited reasoning for recommendations compared to with_skill version."}, {"text": "\u00c8 diretto e onesto senza essere condiscendente", "passed": true, "evidence": "Tone is professional and supportive: 'La bio ha una solida struttura di base' (line 5), 'comunica chiaramente il nucleo del progetto' (line 5), 'Punti di forza' section (lines 7-10). Suggestions are framed as improvements rather than critique. Appropriately professional but less incisive."}, {"text": "Tiene conto del contesto d'uso (press kit) nelle sue osservazioni", "passed": true, "evidence": "References press kit context: 'Per un press kit' (line 23), 'aggiungere una frase sulla visione futura del progetto' (line 35). Shows awareness of press kit format, though could deepen analysis of how press/curators will evaluate the bio."}]}}], "previous_feedback": {}, "previous_outputs": {}, "benchmark": {"metadata": {"skill_name": "creative-critic", "timestamp": "2026-03-26T22:40:00Z", "runs_per_configuration": 1}, "runs": [{"eval_id": 1, "eval_name": "track-feedback", "with_skill": {"pass_rate": 0.8, "passed": 4, "total": 5, "time_seconds": 24.6, "tokens": 46917}, "without_skill": {"pass_rate": 0.8, "passed": 4, "total": 5, "time_seconds": 13.4, "tokens": 42364}}, {"eval_id": 2, "eval_name": "set-building", "with_skill": {"pass_rate": 1.0, "passed": 5, "total": 5, "time_seconds": 42.7, "tokens": 48488}, "without_skill": {"pass_rate": 0.8, "passed": 4, "total": 5, "time_seconds": 25.8, "tokens": 43524}}, {"eval_id": 3, "eval_name": "art-direction", "with_skill": {"pass_rate": 1.0, "passed": 5, "total": 5, "time_seconds": 46.6, "tokens": 48638}, "without_skill": {"pass_rate": 1.0, "passed": 5, "total": 5, "time_seconds": 31.4, "tokens": 43799}}, {"eval_id": 4, "eval_name": "bio-review", "with_skill": {"pass_rate": 1.0, "passed": 5, "total": 5, "time_seconds": 27.8, "tokens": 47170}, "without_skill": {"pass_rate": 0.8, "passed": 4, "total": 5, "time_seconds": 13.6, "tokens": 42772}}], "run_summary": {"with_skill": {"avg_pass_rate": 0.95, "avg_time_seconds": 35.4, "avg_tokens": 47803}, "without_skill": {"avg_pass_rate": 0.85, "avg_time_seconds": 21.1, "avg_tokens": 43115}, "delta": {"pass_rate": "+0.10", "time_seconds": "+14.3", "tokens": "+4688"}}, "notes": ["With-skill consistently provides deeper scene references and more specific technical guidance", "Eval 1 (track-feedback) tied on pass rate but with_skill response was qualitatively richer", "Eval 3 (art-direction) tied on pass rate \u2014 baseline also performed well", "With-skill uses ~10% more tokens and takes longer due to reading the skill file"]}};
+
+    // ---- State ----
+    let feedbackMap = {};  // run_id -> feedback text
+    let currentIndex = 0;
+    let visitedRuns = new Set();
+
+    // ---- Init ----
+    async function init() {
+      // Load saved feedback from server — but only if this isn't a fresh
+      // iteration (indicated by previous_feedback being present). When
+      // previous feedback exists, the feedback.json on disk is stale from
+      // the prior iteration and should not pre-fill the textareas.
+      const hasPrevious = Object.keys(EMBEDDED_DATA.previous_feedback || {}).length > 0
+        || Object.keys(EMBEDDED_DATA.previous_outputs || {}).length > 0;
+      if (!hasPrevious) {
+        try {
+          const resp = await fetch("/api/feedback");
+          const data = await resp.json();
+          if (data.reviews) {
+            for (const r of data.reviews) feedbackMap[r.run_id] = r.feedback;
+          }
+        } catch { /* first run, no feedback yet */ }
+      }
+
+      document.getElementById("skill-name").textContent = EMBEDDED_DATA.skill_name;
+      showRun(0);
+
+      // Wire up feedback auto-save
+      const textarea = document.getElementById("feedback");
+      let saveTimeout = null;
+      textarea.addEventListener("input", () => {
+        clearTimeout(saveTimeout);
+        document.getElementById("feedback-status").textContent = "";
+        saveTimeout = setTimeout(() => saveCurrentFeedback(), 800);
+      });
+    }
+
+    // ---- Navigation ----
+    function navigate(delta) {
+      const newIndex = currentIndex + delta;
+      if (newIndex >= 0 && newIndex < EMBEDDED_DATA.runs.length) {
+        saveCurrentFeedback();
+        showRun(newIndex);
+      }
+    }
+
+    function updateNavButtons() {
+      document.getElementById("prev-btn").disabled = currentIndex === 0;
+      document.getElementById("next-btn").disabled =
+        currentIndex === EMBEDDED_DATA.runs.length - 1;
+    }
+
+    // ---- Show a run ----
+    function showRun(index) {
+      currentIndex = index;
+      const run = EMBEDDED_DATA.runs[index];
+
+      // Progress
+      document.getElementById("progress").textContent =
+        `${index + 1} of ${EMBEDDED_DATA.runs.length}`;
+
+      // Prompt
+      document.getElementById("prompt-text").textContent = run.prompt;
+
+      // Config badge
+      const badge = document.getElementById("config-badge");
+      const configMatch = run.id.match(/(with_skill|without_skill|new_skill|old_skill)/);
+      if (configMatch) {
+        const config = configMatch[1];
+        const isBaseline = config === "without_skill" || config === "old_skill";
+        badge.textContent = config.replace(/_/g, " ");
+        badge.className = "config-badge " + (isBaseline ? "config-baseline" : "config-primary");
+        badge.style.display = "inline-block";
+      } else {
+        badge.style.display = "none";
+      }
+
+      // Outputs
+      renderOutputs(run);
+
+      // Previous outputs
+      renderPrevOutputs(run);
+
+      // Grades
+      renderGrades(run);
+
+      // Previous feedback
+      const prevFb = (EMBEDDED_DATA.previous_feedback || {})[run.id];
+      const prevEl = document.getElementById("prev-feedback");
+      if (prevFb) {
+        document.getElementById("prev-feedback-text").textContent = prevFb;
+        prevEl.style.display = "block";
+      } else {
+        prevEl.style.display = "none";
+      }
+
+      // Feedback
+      document.getElementById("feedback").value = feedbackMap[run.id] || "";
+      document.getElementById("feedback-status").textContent = "";
+
+      updateNavButtons();
+
+      // Track visited runs and promote done button when all visited
+      visitedRuns.add(index);
+      const doneBtn = document.getElementById("done-btn");
+      if (visitedRuns.size >= EMBEDDED_DATA.runs.length) {
+        doneBtn.classList.add("ready");
+      }
+
+      // Scroll main content to top
+      document.querySelector(".main").scrollTop = 0;
+    }
+
+    // ---- Render outputs ----
+    function renderOutputs(run) {
+      const container = document.getElementById("outputs-body");
+      container.innerHTML = "";
+
+      const outputs = run.outputs || [];
+      if (outputs.length === 0) {
+        container.innerHTML = '<div class="empty-state">No output files</div>';
+        return;
+      }
+
+      for (const file of outputs) {
+        const fileDiv = document.createElement("div");
+        fileDiv.className = "output-file";
+
+        // Always show file header with download link
+        const header = document.createElement("div");
+        header.className = "output-file-header";
+        const nameSpan = document.createElement("span");
+        nameSpan.textContent = file.name;
+        header.appendChild(nameSpan);
+        const dlBtn = document.createElement("a");
+        dlBtn.className = "dl-btn";
+        dlBtn.textContent = "Download";
+        dlBtn.download = file.name;
+        dlBtn.href = getDownloadUri(file);
+        header.appendChild(dlBtn);
+        fileDiv.appendChild(header);
+
+        const content = document.createElement("div");
+        content.className = "output-file-content";
+
+        if (file.type === "text") {
+          const pre = document.createElement("pre");
+          pre.textContent = file.content;
+          content.appendChild(pre);
+        } else if (file.type === "image") {
+          const img = document.createElement("img");
+          img.src = file.data_uri;
+          img.alt = file.name;
+          content.appendChild(img);
+        } else if (file.type === "pdf") {
+          const iframe = document.createElement("iframe");
+          iframe.src = file.data_uri;
+          content.appendChild(iframe);
+        } else if (file.type === "xlsx") {
+          renderXlsx(content, file.data_b64);
+        } else if (file.type === "binary") {
+          const a = document.createElement("a");
+          a.className = "download-link";
+          a.href = file.data_uri;
+          a.download = file.name;
+          a.textContent = "Download " + file.name;
+          content.appendChild(a);
+        } else if (file.type === "error") {
+          const pre = document.createElement("pre");
+          pre.textContent = file.content;
+          pre.style.color = "var(--red)";
+          content.appendChild(pre);
+        }
+
+        fileDiv.appendChild(content);
+        container.appendChild(fileDiv);
+      }
+    }
+
+    // ---- XLSX rendering via SheetJS ----
+    function renderXlsx(container, b64Data) {
+      try {
+        const raw = Uint8Array.from(atob(b64Data), c => c.charCodeAt(0));
+        const wb = XLSX.read(raw, { type: "array" });
+
+        for (let i = 0; i < wb.SheetNames.length; i++) {
+          const sheetName = wb.SheetNames[i];
+          const ws = wb.Sheets[sheetName];
+
+          if (wb.SheetNames.length > 1) {
+            const sheetLabel = document.createElement("div");
+            sheetLabel.style.cssText =
+              "font-weight:600; font-size:0.8rem; color:#b0aea5; margin-top:0.5rem; margin-bottom:0.25rem;";
+            sheetLabel.textContent = "Sheet: " + sheetName;
+            container.appendChild(sheetLabel);
+          }
+
+          const htmlStr = XLSX.utils.sheet_to_html(ws, { editable: false });
+          const wrapper = document.createElement("div");
+          wrapper.innerHTML = htmlStr;
+          container.appendChild(wrapper);
+        }
+      } catch (err) {
+        container.textContent = "Error rendering spreadsheet: " + err.message;
+      }
+    }
+
+    // ---- Grades ----
+    function renderGrades(run) {
+      const section = document.getElementById("grades-section");
+      const content = document.getElementById("grades-content");
+
+      if (!run.grading) {
+        section.style.display = "none";
+        return;
+      }
+
+      const grading = run.grading;
+      section.style.display = "block";
+      // Reset to collapsed
+      content.classList.remove("open");
+      document.getElementById("grades-arrow").classList.remove("open");
+
+      const summary = grading.summary || {};
+      const expectations = grading.expectations || [];
+
+      let html = '<div style="padding: 1rem;">';
+
+      // Summary line
+      const passRate = summary.pass_rate != null
+        ? Math.round(summary.pass_rate * 100) + "%"
+        : "?";
+      const badgeClass = summary.pass_rate >= 0.8 ? "grade-pass" : summary.pass_rate >= 0.5 ? "" : "grade-fail";
+      html += '<div class="grades-summary">';
+      html += '<span class="grade-badge ' + badgeClass + '">' + passRate + '</span>';
+      html += '<span>' + (summary.passed || 0) + ' passed, ' + (summary.failed || 0) + ' failed of ' + (summary.total || 0) + '</span>';
+      html += '</div>';
+
+      // Assertions list
+      html += '<ul class="assertion-list">';
+      for (const exp of expectations) {
+        const statusClass = exp.passed ? "pass" : "fail";
+        const statusIcon = exp.passed ? "\u2713" : "\u2717";
+        html += '<li class="assertion-item">';
+        html += '<span class="assertion-status ' + statusClass + '">' + statusIcon + '</span>';
+        html += '<span>' + escapeHtml(exp.text) + '</span>';
+        if (exp.evidence) {
+          html += '<div class="assertion-evidence">' + escapeHtml(exp.evidence) + '</div>';
+        }
+        html += '</li>';
+      }
+      html += '</ul>';
+
+      html += '</div>';
+      content.innerHTML = html;
+    }
+
+    function toggleGrades() {
+      const content = document.getElementById("grades-content");
+      const arrow = document.getElementById("grades-arrow");
+      content.classList.toggle("open");
+      arrow.classList.toggle("open");
+    }
+
+    // ---- Previous outputs (collapsible) ----
+    function renderPrevOutputs(run) {
+      const section = document.getElementById("prev-outputs-section");
+      const content = document.getElementById("prev-outputs-content");
+      const prevOutputs = (EMBEDDED_DATA.previous_outputs || {})[run.id];
+
+      if (!prevOutputs || prevOutputs.length === 0) {
+        section.style.display = "none";
+        return;
+      }
+
+      section.style.display = "block";
+      // Reset to collapsed
+      content.classList.remove("open");
+      document.getElementById("prev-outputs-arrow").classList.remove("open");
+
+      // Render the files into the content area
+      content.innerHTML = "";
+      const wrapper = document.createElement("div");
+      wrapper.style.padding = "1rem";
+
+      for (const file of prevOutputs) {
+        const fileDiv = document.createElement("div");
+        fileDiv.className = "output-file";
+
+        const header = document.createElement("div");
+        header.className = "output-file-header";
+        const nameSpan = document.createElement("span");
+        nameSpan.textContent = file.name;
+        header.appendChild(nameSpan);
+        const dlBtn = document.createElement("a");
+        dlBtn.className = "dl-btn";
+        dlBtn.textContent = "Download";
+        dlBtn.download = file.name;
+        dlBtn.href = getDownloadUri(file);
+        header.appendChild(dlBtn);
+        fileDiv.appendChild(header);
+
+        const fc = document.createElement("div");
+        fc.className = "output-file-content";
+
+        if (file.type === "text") {
+          const pre = document.createElement("pre");
+          pre.textContent = file.content;
+          fc.appendChild(pre);
+        } else if (file.type === "image") {
+          const img = document.createElement("img");
+          img.src = file.data_uri;
+          img.alt = file.name;
+          fc.appendChild(img);
+        } else if (file.type === "pdf") {
+          const iframe = document.createElement("iframe");
+          iframe.src = file.data_uri;
+          fc.appendChild(iframe);
+        } else if (file.type === "xlsx") {
+          renderXlsx(fc, file.data_b64);
+        } else if (file.type === "binary") {
+          const a = document.createElement("a");
+          a.className = "download-link";
+          a.href = file.data_uri;
+          a.download = file.name;
+          a.textContent = "Download " + file.name;
+          fc.appendChild(a);
+        }
+
+        fileDiv.appendChild(fc);
+        wrapper.appendChild(fileDiv);
+      }
+
+      content.appendChild(wrapper);
+    }
+
+    function togglePrevOutputs() {
+      const content = document.getElementById("prev-outputs-content");
+      const arrow = document.getElementById("prev-outputs-arrow");
+      content.classList.toggle("open");
+      arrow.classList.toggle("open");
+    }
+
+    // ---- Feedback (saved to server -> feedback.json) ----
+    function saveCurrentFeedback() {
+      const run = EMBEDDED_DATA.runs[currentIndex];
+      const text = document.getElementById("feedback").value;
+
+      if (text.trim() === "") {
+        delete feedbackMap[run.id];
+      } else {
+        feedbackMap[run.id] = text;
+      }
+
+      // Build reviews array from map
+      const reviews = [];
+      for (const [run_id, feedback] of Object.entries(feedbackMap)) {
+        if (feedback.trim()) {
+          reviews.push({ run_id, feedback, timestamp: new Date().toISOString() });
+        }
+      }
+
+      fetch("/api/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reviews, status: "in_progress" }),
+      }).then(() => {
+        document.getElementById("feedback-status").textContent = "Saved";
+      }).catch(() => {
+        // Static mode or server unavailable — no-op on auto-save,
+        // feedback will be downloaded on final submit
+        document.getElementById("feedback-status").textContent = "Will download on submit";
+      });
+    }
+
+    // ---- Done ----
+    function showDoneDialog() {
+      // Save current textarea to feedbackMap (but don't POST yet)
+      const run = EMBEDDED_DATA.runs[currentIndex];
+      const text = document.getElementById("feedback").value;
+      if (text.trim() === "") {
+        delete feedbackMap[run.id];
+      } else {
+        feedbackMap[run.id] = text;
+      }
+
+      // POST once with status: complete — include ALL runs so the model
+      // can distinguish "no feedback" (looks good) from "not reviewed"
+      const reviews = [];
+      const ts = new Date().toISOString();
+      for (const r of EMBEDDED_DATA.runs) {
+        reviews.push({ run_id: r.id, feedback: feedbackMap[r.id] || "", timestamp: ts });
+      }
+      const payload = JSON.stringify({ reviews, status: "complete" }, null, 2);
+      fetch("/api/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: payload,
+      }).then(() => {
+        document.getElementById("done-overlay").classList.add("visible");
+      }).catch(() => {
+        // Server not available (static mode) — download as file
+        const blob = new Blob([payload], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "feedback.json";
+        a.click();
+        URL.revokeObjectURL(url);
+        document.getElementById("done-overlay").classList.add("visible");
+      });
+    }
+
+    function closeDoneDialog() {
+      // Reset status back to in_progress
+      saveCurrentFeedback();
+      document.getElementById("done-overlay").classList.remove("visible");
+    }
+
+    // ---- Toast ----
+    function showToast(message) {
+      const toast = document.getElementById("toast");
+      toast.textContent = message;
+      toast.classList.add("visible");
+      setTimeout(() => toast.classList.remove("visible"), 2000);
+    }
+
+    // ---- Keyboard nav ----
+    document.addEventListener("keydown", (e) => {
+      // Don't capture when typing in textarea
+      if (e.target.tagName === "TEXTAREA") return;
+
+      if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
+        e.preventDefault();
+        navigate(-1);
+      } else if (e.key === "ArrowRight" || e.key === "ArrowDown") {
+        e.preventDefault();
+        navigate(1);
+      }
+    });
+
+    // ---- Util ----
+    function getDownloadUri(file) {
+      if (file.data_uri) return file.data_uri;
+      if (file.data_b64) return "data:application/octet-stream;base64," + file.data_b64;
+      if (file.type === "text") return "data:text/plain;charset=utf-8," + encodeURIComponent(file.content);
+      return "#";
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement("div");
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    // ---- View switching ----
+    function switchView(view) {
+      document.querySelectorAll(".view-tab").forEach(t => t.classList.remove("active"));
+      document.querySelectorAll(".view-panel").forEach(p => p.classList.remove("active"));
+      document.querySelector(`[onclick="switchView('${view}')"]`).classList.add("active");
+      document.getElementById("panel-" + view).classList.add("active");
+    }
+
+    // ---- Benchmark rendering ----
+    function renderBenchmark() {
+      const data = EMBEDDED_DATA.benchmark;
+      if (!data) return;
+
+      // Show the tabs
+      document.getElementById("view-tabs").style.display = "flex";
+
+      const container = document.getElementById("benchmark-content");
+      const summary = data.run_summary || {};
+      const metadata = data.metadata || {};
+      const notes = data.notes || [];
+
+      let html = "";
+
+      // Header
+      html += "<h2 style='font-family: Poppins, sans-serif; margin-bottom: 0.5rem;'>Benchmark Results</h2>";
+      html += "<p style='color: var(--text-muted); font-size: 0.875rem; margin-bottom: 1.25rem;'>";
+      if (metadata.skill_name) html += "<strong>" + escapeHtml(metadata.skill_name) + "</strong> &mdash; ";
+      if (metadata.timestamp) html += metadata.timestamp + " &mdash; ";
+      if (metadata.evals_run) html += "Evals: " + metadata.evals_run.join(", ") + " &mdash; ";
+      html += (metadata.runs_per_configuration || "?") + " runs per configuration";
+      html += "</p>";
+
+      // Summary table
+      html += '<table class="benchmark-table">';
+
+      function fmtStat(stat, pct) {
+        if (!stat) return "—";
+        const suffix = pct ? "%" : "";
+        const m = pct ? (stat.mean * 100).toFixed(0) : stat.mean.toFixed(1);
+        const s = pct ? (stat.stddev * 100).toFixed(0) : stat.stddev.toFixed(1);
+        return m + suffix + " ± " + s + suffix;
+      }
+
+      function deltaClass(val) {
+        if (!val) return "";
+        const n = parseFloat(val);
+        if (n > 0) return "benchmark-delta-positive";
+        if (n < 0) return "benchmark-delta-negative";
+        return "";
+      }
+
+      // Discover config names dynamically (everything except "delta")
+      const configs = Object.keys(summary).filter(k => k !== "delta");
+      const configA = configs[0] || "config_a";
+      const configB = configs[1] || "config_b";
+      const labelA = configA.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+      const labelB = configB.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+      const a = summary[configA] || {};
+      const b = summary[configB] || {};
+      const delta = summary.delta || {};
+
+      html += "<thead><tr><th>Metric</th><th>" + escapeHtml(labelA) + "</th><th>" + escapeHtml(labelB) + "</th><th>Delta</th></tr></thead>";
+      html += "<tbody>";
+
+      html += "<tr><td><strong>Pass Rate</strong></td>";
+      html += "<td>" + fmtStat(a.pass_rate, true) + "</td>";
+      html += "<td>" + fmtStat(b.pass_rate, true) + "</td>";
+      html += '<td class="' + deltaClass(delta.pass_rate) + '">' + (delta.pass_rate || "—") + "</td></tr>";
+
+      // Time (only show row if data exists)
+      if (a.time_seconds || b.time_seconds) {
+        html += "<tr><td><strong>Time (s)</strong></td>";
+        html += "<td>" + fmtStat(a.time_seconds, false) + "</td>";
+        html += "<td>" + fmtStat(b.time_seconds, false) + "</td>";
+        html += '<td class="' + deltaClass(delta.time_seconds) + '">' + (delta.time_seconds ? delta.time_seconds + "s" : "—") + "</td></tr>";
+      }
+
+      // Tokens (only show row if data exists)
+      if (a.tokens || b.tokens) {
+        html += "<tr><td><strong>Tokens</strong></td>";
+        html += "<td>" + fmtStat(a.tokens, false) + "</td>";
+        html += "<td>" + fmtStat(b.tokens, false) + "</td>";
+        html += '<td class="' + deltaClass(delta.tokens) + '">' + (delta.tokens || "—") + "</td></tr>";
+      }
+
+      html += "</tbody></table>";
+
+      // Per-eval breakdown (if runs data available)
+      const runs = data.runs || [];
+      if (runs.length > 0) {
+        const evalIds = [...new Set(runs.map(r => r.eval_id))].sort((a, b) => a - b);
+
+        html += "<h3 style='font-family: Poppins, sans-serif; margin-bottom: 0.75rem;'>Per-Eval Breakdown</h3>";
+
+        const hasTime = runs.some(r => r.result && r.result.time_seconds != null);
+        const hasErrors = runs.some(r => r.result && r.result.errors > 0);
+
+        for (const evalId of evalIds) {
+          const evalRuns = runs.filter(r => r.eval_id === evalId);
+          const evalName = evalRuns[0] && evalRuns[0].eval_name ? evalRuns[0].eval_name : "Eval " + evalId;
+
+          html += "<h4 style='font-family: Poppins, sans-serif; margin: 1rem 0 0.5rem; color: var(--text);'>" + escapeHtml(evalName) + "</h4>";
+          html += '<table class="benchmark-table">';
+          html += "<thead><tr><th>Config</th><th>Run</th><th>Pass Rate</th>";
+          if (hasTime) html += "<th>Time (s)</th>";
+          if (hasErrors) html += "<th>Crashes During Execution</th>";
+          html += "</tr></thead>";
+          html += "<tbody>";
+
+          // Group by config and render with average rows
+          const configGroups = [...new Set(evalRuns.map(r => r.configuration))];
+          for (let ci = 0; ci < configGroups.length; ci++) {
+            const config = configGroups[ci];
+            const configRuns = evalRuns.filter(r => r.configuration === config);
+            if (configRuns.length === 0) continue;
+
+            const rowClass = ci === 0 ? "benchmark-row-with" : "benchmark-row-without";
+            const configLabel = config.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+
+            for (const run of configRuns) {
+              const r = run.result || {};
+              const prClass = r.pass_rate >= 0.8 ? "benchmark-delta-positive" : r.pass_rate < 0.5 ? "benchmark-delta-negative" : "";
+              html += '<tr class="' + rowClass + '">';
+              html += "<td>" + configLabel + "</td>";
+              html += "<td>" + run.run_number + "</td>";
+              html += '<td class="' + prClass + '">' + ((r.pass_rate || 0) * 100).toFixed(0) + "% (" + (r.passed || 0) + "/" + (r.total || 0) + ")</td>";
+              if (hasTime) html += "<td>" + (r.time_seconds != null ? r.time_seconds.toFixed(1) : "—") + "</td>";
+              if (hasErrors) html += "<td>" + (r.errors || 0) + "</td>";
+              html += "</tr>";
+            }
+
+            // Average row
+            const rates = configRuns.map(r => (r.result || {}).pass_rate || 0);
+            const avgRate = rates.reduce((a, b) => a + b, 0) / rates.length;
+            const avgPrClass = avgRate >= 0.8 ? "benchmark-delta-positive" : avgRate < 0.5 ? "benchmark-delta-negative" : "";
+            html += '<tr class="benchmark-row-avg ' + rowClass + '">';
+            html += "<td>" + configLabel + "</td>";
+            html += "<td>Avg</td>";
+            html += '<td class="' + avgPrClass + '">' + (avgRate * 100).toFixed(0) + "%</td>";
+            if (hasTime) {
+              const times = configRuns.map(r => (r.result || {}).time_seconds).filter(t => t != null);
+              html += "<td>" + (times.length ? (times.reduce((a, b) => a + b, 0) / times.length).toFixed(1) : "—") + "</td>";
+            }
+            if (hasErrors) html += "<td></td>";
+            html += "</tr>";
+          }
+          html += "</tbody></table>";
+
+          // Per-assertion detail for this eval
+          const runsWithExpectations = {};
+          for (const config of configGroups) {
+            runsWithExpectations[config] = evalRuns.filter(r => r.configuration === config && r.expectations && r.expectations.length > 0);
+          }
+          const hasAnyExpectations = Object.values(runsWithExpectations).some(runs => runs.length > 0);
+          if (hasAnyExpectations) {
+            // Collect all unique assertion texts across all configs
+            const allAssertions = [];
+            const seen = new Set();
+            for (const config of configGroups) {
+              for (const run of runsWithExpectations[config]) {
+                for (const exp of (run.expectations || [])) {
+                  if (!seen.has(exp.text)) {
+                    seen.add(exp.text);
+                    allAssertions.push(exp.text);
+                  }
+                }
+              }
+            }
+
+            html += '<table class="benchmark-table" style="margin-top: 0.5rem;">';
+            html += "<thead><tr><th>Assertion</th>";
+            for (const config of configGroups) {
+              const label = config.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+              html += "<th>" + escapeHtml(label) + "</th>";
+            }
+            html += "</tr></thead><tbody>";
+
+            for (const assertionText of allAssertions) {
+              html += "<tr><td>" + escapeHtml(assertionText) + "</td>";
+
+              for (const config of configGroups) {
+                html += "<td>";
+                for (const run of runsWithExpectations[config]) {
+                  const exp = (run.expectations || []).find(e => e.text === assertionText);
+                  if (exp) {
+                    const cls = exp.passed ? "benchmark-delta-positive" : "benchmark-delta-negative";
+                    const icon = exp.passed ? "\u2713" : "\u2717";
+                    html += '<span class="' + cls + '" title="Run ' + run.run_number + ': ' + escapeHtml(exp.evidence || "") + '">' + icon + "</span> ";
+                  } else {
+                    html += "— ";
+                  }
+                }
+                html += "</td>";
+              }
+              html += "</tr>";
+            }
+            html += "</tbody></table>";
+          }
+        }
+      }
+
+      // Notes
+      if (notes.length > 0) {
+        html += '<div class="benchmark-notes">';
+        html += "<h3>Analysis Notes</h3>";
+        html += "<ul>";
+        for (const note of notes) {
+          html += "<li>" + escapeHtml(note) + "</li>";
+        }
+        html += "</ul></div>";
+      }
+
+      container.innerHTML = html;
+    }
+
+    // ---- Start ----
+    init();
+    renderBenchmark();
+  </script>
+</body>
+</html>
