@@ -6,8 +6,7 @@ import { CFG } from './config.js';
 import { audio, getAudioGain } from './audio.js';
 import { midi, noteName } from './midi.js';
 import { state } from './state.js';
-import { dna, updatePrimitives } from './dna.js';
-import { entities, fossils, updateGenerations, buildEntityGrid, triggerOnset, triggerMIDI } from './generations.js';
+import { onMidiNote, onAudioOnset, updateEvents, eventCount } from './event-register.js';
 import { updateColors, getPalette, getBgString } from './colors.js';
 import { getDirector3Status, isDirector3Playing } from './director3.js';
 import { worldState, phaseState } from './world-state.js';
@@ -66,14 +65,15 @@ export function renderFrame(_now, dt) {
     return;  // skip everything: nessuna entità, nessun MIDI render, schermo nero
   }
 
-  // Onset detection → entity spawn + onset wave
+  // Onset detection → LifecycleEvent + onset wave (for comp-* trails)
   if (audio.onset && !lastOnset) {
-    const pos = triggerOnset(state, { A: true, B: true, C: true });
-    addOnsetWave(pos.cx, pos.cy, W, H);
+    const cx = 0.5, cy = 0.5;
+    onAudioOnset(cx, cy, globalTime);
+    addOnsetWave(cx * W, cy * H, W, H);
   }
   lastOnset = audio.onset;
 
-  // MIDI notes → entity spawn + midi trail
+  // MIDI notes → LifecycleEvent (per-role lifecycle) + midi trail (comp-*)
   const notes = midi.newNotes;
   if (notes.length > CFG.maxMidiNotesPerFrame) {
     notes.sort((a, b) => b.vel - a.vel);
@@ -82,17 +82,17 @@ export function renderFrame(_now, dt) {
   for (const n of notes) {
     const noteNorm = n.note / 127;
     const velNorm = n.vel / 127;
-    triggerMIDI(state, { A: true, B: true, C: true }, noteNorm, velNorm);
+    // nx/ny neutral per ora — le comp-* mappano via addMidiNote/midiTrail,
+    // il mapping spaziale nel LifecycleEvent sarà cablato in A.3/A.4.
+    onMidiNote(n.ch, noteNorm, velNorm, globalTime, 0.5, 1 - noteNorm);
     addMidiNote(n.ch, noteNorm, velNorm);
   }
   midi.newNotes.length = 0;
 
   // Update systems
   updateColors(dt);
-  updatePrimitives(dt, state, 1);
-  updateGenerations(dt, state, 1, false, 0, { A: true, B: true, C: true }, 'normal');
+  updateEvents(dt);
   updateWaves(dt);
-  buildEntityGrid(W, H);
 
   // Background — from current interpolated palette
   const bgStr = getBgString();
@@ -114,8 +114,8 @@ export function renderFrame(_now, dt) {
     if (showDebug) { updateHUDDebug(); updateSeqPanel(); }
   }
 
-  // Session recorder
-  recordSnapshot({ arc: worldState.arc, currentBpm: worldState.bpm || 0 }, entities, dt * 1000);
+  // Session recorder — entities array removed post-A.2, pass empty
+  recordSnapshot({ arc: worldState.arc, currentBpm: worldState.bpm || 0 }, [], dt * 1000);
   recordPhaseCheck({ arc: worldState.arc, currentBpm: worldState.bpm || 0 });
 }
 
@@ -144,7 +144,7 @@ export function handleKey(code) {
 // ── HUD Minimal ──
 function updateHUDMinimal() {
   if (!hudMinimal) return;
-  const primList = dna ? dna.primitives.join('+') : '——';
+  const evCount = eventCount();
   const d3 = getDirector3Status();
   const playing = isDirector3Playing();
   const icon = playing ? '▶' : '⏸';
@@ -155,7 +155,7 @@ function updateHUDMinimal() {
   hudMinimal.textContent =
     `${icon} ${d3.track || '—'}  ${d3.phase}  ${time}` +
     (worldState.bpm ? `  ${worldState.bpm}BPM` : '') +
-    `  ${primList}` +
+    `  ev:${evCount}` +
     (midi.connected ? `  MIDI:${midi.inputCount}` : '') +
     `  G:${getAudioGain().toFixed(1)}` +
     (projActive ? '  PROJ:ON' : '') +

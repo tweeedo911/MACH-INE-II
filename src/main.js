@@ -10,8 +10,7 @@ import { initMIDI, updateMIDI, sendMIDIStart, updateMIDIClock, sendMIDIAllNotesO
 import { applyMusicExperimentOverrides } from './tracks.js';
 import { state, updateState } from './state.js';
 import { initRender, renderFrame, resize, setHUDElements, handleKey, setProjectorWindow } from './render.js';
-import { generateDNA } from './dna.js';
-import { resetGenerations } from './generations.js';
+import { resetEvents } from './event-register.js';
 import { snapPalette } from './colors.js';
 import { WakeLockManager } from '../.claude/skills/runtime-expert/scripts/perf-utils.js';
 
@@ -128,9 +127,6 @@ startScreen.addEventListener('click', async () => {
 
   await initMIDI();
 
-  // ── DNA + palette ──
-  generateDNA();
-
   // ── MACH:INE III composition system ──
   initDirector3('NEBBIA');
   snapPalette();
@@ -217,8 +213,7 @@ document.addEventListener('keydown', (e) => {
 
   const result = handleKey(e.code);
   if (result === 'REGEN') {
-    generateDNA();
-    resetGenerations();
+    resetEvents();
   }
 });
 
