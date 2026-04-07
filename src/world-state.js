@@ -61,8 +61,18 @@ export const worldState = {
     chordNoteCount: 99,     // 99 = no limit; 4 → 3 → 2 → 1 = chord stripping
   },
 
+  // ── V3: Rupture envelope (4 stadi: omen→infiltration→takeover→residue) ──
+  // Written by director3 only during 'rottura' phase. Null stage outside rottura.
+  // comp-* and render.js read this for smooth temporal transitions (not binary isRottura).
+  rupture: {
+    stage:     null,  // null | 'omen' | 'infiltration' | 'takeover' | 'residue'
+    stageT:    0,     // 0→1 progress within current stage
+    t:         0,     // 0→1 global position within rottura phase
+    intensity: 0,     // 0→1 smooth intensity (omen builds, takeover peaks, residue decays)
+  },
+
   // ── Visual regime (read by renderer) ──
-  palette:      { bg: '#000000', dot: '#FFFFFF', accent: null },
+  palette:      { bg: '#000000', dot: '#FFFFFF', accent: null, ruptureTint: null, residual: null },
   visualRegime: { maxDensity: 0.5, minDotSize: 4, composition: 'DEFAULT' },
   camera:       { mode: 'WIDE', drift: 0, focusPoint: [0.5, 0.5] },
 };

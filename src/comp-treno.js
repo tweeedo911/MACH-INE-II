@@ -78,7 +78,8 @@ export function render(ctx, W, H, env) {
 
   const phase  = worldState.phase || 'germoglio';
   const target = PHASE_PARAMS[phase] || PHASE_PARAMS.germoglio;
-  const isRottura = phase === 'rottura';
+  const { rupture } = worldState;
+  const ruptI = rupture.intensity;   // 0→1 smooth (omen→infiltration→takeover→residue)
 
   const trackK = lerpKForTrack(worldState.track, dt);
   _params.scrollSpeed += (target.scrollSpeed - _params.scrollSpeed) * trackK;
@@ -103,7 +104,7 @@ export function render(ctx, W, H, env) {
 
   // ── Scroll advance ──
   let scrollDir = 1;
-  if (isRottura && shouldGlitch(state ? state.intensity : 0.5, true, _time)) {
+  if (ruptI > 0.2 && shouldGlitch((state ? state.intensity : 0.5) * ruptI, true, _time)) {
     scrollDir = -1;
   }
   for (let p = 0; p < 3; p++) {
@@ -128,12 +129,12 @@ export function render(ctx, W, H, env) {
   if (lMg && audio && state) {
     const breathAlpha = clamp(0.05 + state.intensity * 0.07, 0.05, 0.12);
     const breathDotColor = rgbString(dotRgb[0], dotRgb[1], dotRgb[2], breathAlpha);
-    const jitter = isRottura ? 0.6 : 0.2;
+    const jitter = lerp(0.2, 0.6, ruptI);
     renderBreathingField(lMg, W, H, audio, state, _time, 4, breathDotColor, breathAlpha, jitter);
   }
 
   // ── FG layer: oggetti, sparkles, ambient con camera ──
-  const cameraZoom = isRottura ? lerp(1.0, 1.04, clamp(_params.density - 0.5, 0, 1) * 2) : 1.0;
+  const cameraZoom = lerp(1.0, lerp(1.0, 1.04, clamp(_params.density - 0.5, 0, 1) * 2), ruptI);
   if (lFg) applyCameraTransform(lFg, W, H, {
     zoom:        cameraZoom,
     shakeAmount: _shakeAmt,
@@ -173,15 +174,15 @@ export function render(ctx, W, H, env) {
     });
 
     if (n.ch === 1) {
-      const sparkCount = isRottura ? 4 : 2;
+      const sparkCount = ruptI > 0.4 ? 4 : 2;
       for (let si = 0; si < sparkCount; si++) {
         const sp = Math.floor(rng() * 3);
         _sparkles.push({
           x:       W + rng() * 20,
           y:       rng() * H,
-          alpha:   n.vel * (isRottura ? 1.0 : 0.8),
+          alpha:   n.vel * lerp(0.8, 1.0, ruptI),
           plane:   sp,
-          size:    isRottura ? 3 : 2,
+          size:    Math.round(lerp(2, 3, ruptI)),
           trail:   [],
         });
       }
@@ -206,7 +207,7 @@ export function render(ctx, W, H, env) {
     }
   }
 
-  if (isRottura) {
+  if (ruptI > 0.1) {
     for (const w of (onsetWaves || [])) {
       if (w.strength > 0.5) {
         const burstCount = Math.floor(w.strength * 15);
@@ -301,7 +302,7 @@ export function render(ctx, W, H, env) {
       if (s.trail.length > 4) s.trail.shift();
 
       s.x    -= speed * dt;
-      s.alpha *= isRottura ? 0.96 : 0.93;
+      s.alpha *= lerp(0.93, 0.96, ruptI);
 
       if (s.x < -10 || s.alpha < 0.03) {
         _sparkles[i] = _sparkles[_sparkles.length - 1];
@@ -320,9 +321,9 @@ export function render(ctx, W, H, env) {
     }
 
     // Rottura shimmer
-    if (isRottura && lFg) {
+    if (ruptI > 0.1 && lFg) {
       const shimmerCount = Math.floor(4 + rng() * 6);
-      const shimmerAlpha = 0.15 + rng() * 0.35;
+      const shimmerAlpha = ruptI * (0.15 + rng() * 0.35);
       let shRgb = lerpColor(bgRgb, dotRgb, saturation);
       if (shouldGlitch(1, true, _time + p * 0.3)) {
         shRgb = colorFlash(shRgb, 0.8, _time);

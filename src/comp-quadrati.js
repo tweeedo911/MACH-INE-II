@@ -102,7 +102,8 @@ export function render(ctx, W, H, env) {
   const { worldState, midiTrail, onsetWaves, audio, state, dt } = env;
   _time += dt;
 
-  const isRottura = worldState.phase === 'rottura';
+  const { rupture } = worldState;
+  const ruptI = rupture.intensity;   // 0→1 smooth (omen→infiltration→takeover→residue)
 
   const target = PHASE_PARAMS[worldState.phase] || PHASE_PARAMS.germoglio;
   const trackK = lerpKForTrack(worldState.track, dt);
@@ -137,7 +138,7 @@ export function render(ctx, W, H, env) {
   // ── MG layer: breathing halftone field ──
   if (lMg && _params.breathAlpha > 0.01) {
     const dotColorStr = rgbString(dotRgb[0], dotRgb[1], dotRgb[2]);
-    const jitter = isRottura ? 0.5 : 0.15;
+    const jitter = lerp(0.15, 0.5, ruptI);
     renderBreathingField(lMg, W, H, audio, state, _time, 8, dotColorStr, _params.breathAlpha, jitter);
   }
 
@@ -183,12 +184,12 @@ export function render(ctx, W, H, env) {
     b.shakeY = Math.cos(_time * 53 + i * 2.3) * _onsetShake * 0.004;
 
     if (kickHit) {
-      const jumpScale = isRottura ? 0.06 : 0.015;
+      const jumpScale = lerp(0.015, 0.06, ruptI);
       b.jumpX = (Math.random() - 0.5) * jumpScale;
       b.jumpY = (Math.random() - 0.5) * jumpScale;
     }
-    b.jumpX *= isRottura ? 0.75 : 0.85;
-    b.jumpY *= isRottura ? 0.75 : 0.85;
+    b.jumpX *= lerp(0.85, 0.75, ruptI);
+    b.jumpY *= lerp(0.85, 0.75, ruptI);
 
     b.x += b.vx * dt * 60;
     b.y += b.vy * dt * 60;
@@ -199,9 +200,9 @@ export function render(ctx, W, H, env) {
 
     const breathe = 1 + Math.sin(_time * 1.8 + b.breathPhase) * bassEnergy * 0.12;
 
-    const densityBoost = isRottura ? rmsBoost + 0.08 : rmsBoost;
+    const densityBoost = rmsBoost + ruptI * 0.08;
     let density  = clamp(_params.fillDensity + b.flash * 0.4 + densityBoost, 0, 1);
-    if (isRottura && shouldGlitch(1, true, _time + i * 0.7)) {
+    if (ruptI > 0.3 && shouldGlitch(ruptI, true, _time + i * 0.7)) {
       density = Math.random() > 0.5 ? 1.0 : 0.05;
     }
     density = Math.min(density, worldState.visualRegime.maxDensity);
@@ -216,7 +217,7 @@ export function render(ctx, W, H, env) {
     let blockRgb = b.accentFlash > 0.1
       ? lerpColor(dotRgb, accRgb, b.accentFlash)
       : dotRgb;
-    if (isRottura && shouldGlitch(0.8, true, _time + i * 1.3)) {
+    if (ruptI > 0.3 && shouldGlitch(0.8 * ruptI, true, _time + i * 1.3)) {
       blockRgb = colorFlash(blockRgb, 0.6, _time + i);
     }
     const colorStr = rgbString(
@@ -232,15 +233,13 @@ export function render(ctx, W, H, env) {
   // ── Arp particles — CH6=LEAD, orbite imperfette ──
   if (_params.arpVisible) {
     for (const n of midiTrail) {
-      const isArpCh = n.ch === 6 || (isRottura && n.ch === 7);
+      const isArpCh = n.ch === 6 || (ruptI > 0.4 && n.ch === 7);
       if (isArpCh && n.time < dt * 2 && n.alpha > 0.5) {
         const bi     = Math.floor((n.note || 60) * _blocks.length / 128) % _blocks.length;
         const block  = _blocks[bi] || _blocks[0];
         if (block) {
           const baseRadius = Math.max(block.w, block.h) * W * 0.6;
-          const spawnCount = isRottura
-            ? 4 + Math.floor(Math.random() * 3)
-            : 3 + Math.floor(Math.random() * 3);
+          const spawnCount = 3 + Math.floor(Math.random() * 3) + (ruptI > 0.5 ? 1 : 0);
           for (let k = 0; k < spawnCount; k++) {
             _arpParticles.push({
               cx:          (block.x + block.w * 0.5) * W,

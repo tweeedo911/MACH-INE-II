@@ -83,7 +83,8 @@ export function render(ctx, W, H, env) {
   _params.sedimentRate = target.sedimentRate;          // snap — affects decay immediately
   setLayerDecay(LAYER_OVERLAY, _params.sedimentRate);  // propagate to layer system next frame
 
-  const isRottura = worldState.phase === 'rottura';
+  const { rupture } = worldState;
+  const ruptI = rupture.intensity;   // 0→1 smooth (omen→infiltration→takeover→residue)
   const glitchAmt = _params.glitch || 0;
 
   const bgRgb  = hexToRgb(worldState.palette.bg);
@@ -115,7 +116,7 @@ export function render(ctx, W, H, env) {
   ];
 
   // Glitch: brief bg color inversion on onset during rottura/densita
-  if (glitchAmt > 0.05 && shouldGlitch(intensity + 0.5, isRottura, _time)) {
+  if (glitchAmt > 0.05 && shouldGlitch(intensity + 0.5, ruptI > 0.05, _time)) {
     brightBg = colorFlash(brightBg, glitchAmt, _time);
   }
 
@@ -160,22 +161,22 @@ export function render(ctx, W, H, env) {
   // Rottura: also react to kick (CH0), bass (CH3) — everything carves holes
   for (const n of midiTrail) {
     const isVoiceLead = n.ch === 5 || n.ch === 6;
-    const isRotturaExtra = isRottura && (n.ch === 0 || n.ch === 3 || n.ch === 7);
+    const isRotturaExtra = rupture.stage === 'takeover' && (n.ch === 0 || n.ch === 3 || n.ch === 7);
     if ((isVoiceLead || isRotturaExtra) && n.time < dt * 2 && n.alpha > 0.4) {
       const isEcho = n.ch === 6;
       const isKick = n.ch === 0;
       const hx = clamp(0.15 + n.note * 0.7 + (isKick ? (Math.random() - 0.5) * 0.3 : 0), 0.05, 0.95);
       const hy = clamp(0.15 + (1 - n.note) * 0.7 + (isEcho ? 0.05 : 0), 0.05, 0.95);
-      // Rottura: holes open 5× faster, larger, more overlap
-      const rotturaBoost = isRottura ? 3.0 : 1.0;
+      // Rottura: holes open progressivamente più veloci, grandi, sovrapposti
+      const rotturaBoost = lerp(1.0, 3.0, ruptI);
       _holes.push({
         x: hx,
         y: hy,
-        radius: isRottura ? 0.02 : 0,  // rottura: instant opening
+        radius: ruptI * 0.02,           // omen: piccola apertura istantanea; takeover: 0.02
         maxRadius: _params.holeSize * (isEcho ? 0.6 : 1) * n.vel * rotturaBoost,
         alpha: _params.holeDepth * (isEcho ? 0.5 : 1),
         closing: false,
-        growSpeed: (isEcho ? 0.08 : 0.15) * (isRottura ? 5 : 1),
+        growSpeed: (isEcho ? 0.08 : 0.15) * lerp(1, 5, ruptI),
       });
       // Camera drifts toward latest melody hole
       if (!isEcho) {
@@ -185,7 +186,7 @@ export function render(ctx, W, H, env) {
     }
   }
 
-  const holeCap = isRottura ? 60 : 30;
+  const holeCap = Math.round(lerp(30, 60, ruptI));
   if (_holes.length > holeCap) _holes.splice(0, _holes.length - holeCap);
 
   // Inverted onset waves — brief dark flashes (small holes)

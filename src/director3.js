@@ -104,8 +104,20 @@ export function initDirector3(trackName = 'SOLCO') {
   worldState.root = _track.root;
   worldState.bpm = _track.bpm;
   worldState.rhythmGrid = _track.rhythmGrid;
-  worldState.palette = { ...(_track.palette) };
+  // Source palette from Bible §12 trackPalettes; fallback to _track.palette
+  const tp = CFG.VISUAL?.trackPalettes?.[trackName];
+  worldState.palette.bg          = tp?.bg       ?? _track.palette.bg;
+  worldState.palette.dot         = tp?.dot      ?? _track.palette.dot;
+  worldState.palette.accent      = tp?.event    ?? _track.palette.accent ?? null;
+  worldState.palette.ruptureTint = tp?.rupture  ?? null;
+  worldState.palette.residual    = tp?.residual ?? null;
   worldState.visualRegime = { ...(_track.visualRegime) };
+
+  // Reset rupture — phase starts at germoglio, not rottura
+  worldState.rupture.stage     = null;
+  worldState.rupture.stageT    = 0;
+  worldState.rupture.t         = 0;
+  worldState.rupture.intensity = 0;
 
   _applyPhase();
 
@@ -255,6 +267,8 @@ export function updateDirector3(dt) {
   const phaseName = PHASE_ORDER[_phaseIdx];
   const phaseDurBars = _track.phases[phaseName] || 16;
 
+  _updateRupture(phaseName, _phaseBars, phaseDurBars);
+
   if (_phaseBars >= phaseDurBars) {
     if (_phaseIdx < PHASE_ORDER.length - 1) {
       // Skip phases with duration 0
@@ -396,6 +410,46 @@ function _advanceTrack() {
   console.log(`[DIR3] → Next track: ${nextTrack}`);
   initDirector3(nextTrack);
   _paused = false; // keep playing — don't reset to paused
+}
+
+// ── V3: Rupture 4-stage envelope ──
+// Stage boundaries as fraction of the rottura phase duration.
+// Intensity builds through omen/infiltration, peaks at takeover, decays in residue.
+const _RUPTURE_STAGE_BOUNDS = [
+  { name: 'omen',         start: 0.00, end: 0.20 },
+  { name: 'infiltration', start: 0.20, end: 0.50 },
+  { name: 'takeover',     start: 0.50, end: 0.80 },
+  { name: 'residue',      start: 0.80, end: 1.00 },
+];
+
+function _updateRupture(phaseName, phaseBars, phaseDurBars) {
+  if (phaseName !== 'rottura' || phaseDurBars <= 0) {
+    worldState.rupture.stage     = null;
+    worldState.rupture.stageT    = 0;
+    worldState.rupture.t         = 0;
+    worldState.rupture.intensity = 0;
+    return;
+  }
+  const t = Math.min(1, phaseBars / phaseDurBars);
+  worldState.rupture.t = t;
+
+  // Find current stage (last bound is the fallback)
+  let s = _RUPTURE_STAGE_BOUNDS[_RUPTURE_STAGE_BOUNDS.length - 1];
+  for (const b of _RUPTURE_STAGE_BOUNDS) {
+    if (t < b.end) { s = b; break; }
+  }
+  const stageT = Math.min(1, (t - s.start) / (s.end - s.start));
+  worldState.rupture.stage  = s.name;
+  worldState.rupture.stageT = stageT;
+
+  // Intensity envelope per stage
+  const intensityMap = {
+    omen:         stageT * 0.40,
+    infiltration: 0.40 + stageT * 0.35,
+    takeover:     0.75 + stageT * 0.25,
+    residue:      1.00 - stageT,
+  };
+  worldState.rupture.intensity = intensityMap[s.name] ?? 0;
 }
 
 // ── V3: Tension waves (RESEARCH-V4 §B.1) ──

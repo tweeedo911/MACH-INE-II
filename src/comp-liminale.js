@@ -77,7 +77,8 @@ export function render(ctx, W, H, env) {
   const bgStr = rgbString(bgRgb[0], bgRgb[1], bgRgb[2]);
   const dotStr = rgbString(dotRgb[0], dotRgb[1], dotRgb[2]);
 
-  const isRottura = worldState.phase === 'rottura';
+  const { rupture } = worldState;
+  const ruptI = rupture.intensity;   // 0→1 smooth (omen→infiltration→takeover→residue)
 
   // ── Layer contexts — MG e FG freschi ogni frame ──
   clearLayer(LAYER_MG);
@@ -89,17 +90,17 @@ export function render(ctx, W, H, env) {
 
   // Onset shake — decays fast (more violent in rottura)
   for (const w of onsetWaves) {
-    if (w.strength > 0.5) _onsetShake = Math.max(_onsetShake, w.strength * (isRottura ? 8 : 4));
+    if (w.strength > 0.5) _onsetShake = Math.max(_onsetShake, w.strength * lerp(4, 8, ruptI));
   }
-  _onsetShake *= isRottura ? 0.85 : 0.9;
+  _onsetShake *= lerp(0.9, 0.85, ruptI);
 
-  // Vanishing point drift — in rottura: JUMPS instead of drifting
-  if (isRottura && shouldGlitch(state.intensity + 0.3, true, _time)) {
+  // Vanishing point drift — in rottura: JUMPS invece di derivare (sopra soglia infiltration)
+  if (ruptI > 0.4 && shouldGlitch((state.intensity + 0.3) * ruptI, true, _time)) {
     _vanishX = 0.3 + Math.random() * 0.4;
     _vanishY = 0.25 + Math.random() * 0.3;
   }
-  _vanishDriftX += (((audio.bands.high.L - audio.bands.high.R) * 0.5) * 30 - _vanishDriftX) * (isRottura ? 0.05 : 0.01);
-  _vanishDriftY += ((audio.centroid * 20 - 10) - _vanishDriftY) * (isRottura ? 0.04 : 0.008);
+  _vanishDriftX += (((audio.bands.high.L - audio.bands.high.R) * 0.5) * 30 - _vanishDriftX) * lerp(0.01, 0.05, ruptI);
+  _vanishDriftY += ((audio.centroid * 20 - 10) - _vanishDriftY) * lerp(0.008, 0.04, ruptI);
 
   // ── BG layer: background + optional Bayer scaffold ──
   if (lBg) {
@@ -176,7 +177,7 @@ export function render(ctx, W, H, env) {
           }
         }
         if (d > 0.01) {
-          const glitchAmt = isRottura ? 0.5 + state.intensity * 0.5 : 0;
+          const glitchAmt = ruptI * (0.5 + state.intensity * 0.5);
           const visible = glitchAmt > 0.01
             ? bayerGlitch(c, r, clamp(d, 0, 1), glitchAmt, _time)
             : bayerTest(c, r, clamp(d, 0, 1));
@@ -210,7 +211,7 @@ export function render(ctx, W, H, env) {
         ? lerp(0.15, 0.85, 1 - n.note) + (Math.random() - 0.5) * spread * 0.2
         : _vanishY + (Math.random() - 0.5) * spread * 0.3;
 
-      const rotturaBoost = isRottura ? 1.5 : 1.0;
+      const rotturaBoost = lerp(1.0, 1.5, ruptI);
       const sizeMul = (isVoice ? 2.0 : isChord ? 1.5 : isDrone ? 1.8 : 1.0) * rotturaBoost;
       const depth = _isRitorno
         ? (isVoice ? 0.2 + Math.random() * 0.3 : 0.05 + Math.random() * 0.15)
