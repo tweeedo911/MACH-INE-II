@@ -6,6 +6,43 @@
 
 ---
 
+## 2026-04-07 (notte) — Visual System Bible Fase A.4: comp-negativo → layer stack
+
+**Versione fine sessione:** v3.4.2 (head `b4fa11f`)
+**Branch:** `machine-iii` — 1 nuovo commit
+
+### Obiettivo
+Migrare la prima comp al layer stack 4-canonico come da P0 in STATUS.md.
+Scelta: `comp-negativo` (RESPIRO) — traccia più autocontenuta, sediment privato
+semplice da convertire in LAYER_OVERLAY.
+
+### Fatto
+
+**A.4 — comp-negativo migrato** (`b4fa11f`)
+- Eliminato `_sediment` privato → sostituito da `LAYER_OVERLAY` (gestito da
+  `updateLayers` tramite `setLayerDecay(LAYER_OVERLAY, _params.sedimentRate)`).
+- Sezioni spostate nei layer canonici:
+  * `LAYER_BG` → `fillBackground` + `renderBayerScaffold` (no camera)
+  * `LAYER_MG` → shadow dots audioDensity (fresh ogni frame via `clearLayer`,
+    nessuna camera — differenza ≤1.5% zoom, invisibile)
+  * `LAYER_FG` → buchi MIDI con `applyCameraTransform` sull'offscreen del layer
+  * `LAYER_OVERLAY` → tracce sediment (memoria dei buchi), accumulo persistente
+- `clearLayer(LAYER_MG)` e `clearLayer(LAYER_FG)` all'inizio di ogni render →
+  comportamento identico all'originale (erano fresh su ctx diretto).
+- `init()`: `clearAllLayers()` invece di `new Sediment()`.
+- `destroy()`: `clearAllLayers()`.
+- Fine render: `compositeLayers(ctx)` invece di `_sediment.composite + restoreCamera`.
+- Importata `clearLayer` da `layers.js`.
+
+### File toccati
+- `src/comp-negativo.js` — unico file modificato
+
+### Prossimo
+- Test live su RESPIRO per verificare comportamento identico all'originale
+- Se OK → procedere con seconda comp (candidata: `comp-liminale` / NEBBIA)
+
+---
+
 ## 2026-04-07 (sera) — Visual System Bible Fase A.1→A.3
 
 **Versione fine sessione:** v3.4.2 (head `f6daea8`)
