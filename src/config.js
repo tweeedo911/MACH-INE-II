@@ -957,6 +957,68 @@ export const CFG = {
     lerpSpeed: 0.02,            // lerp rate per parametri render tra layer (per frame a 60fps)
     paletteLerpSpeed: 0.015,    // lerp rate cambio palette (piu lento per evitare tremolio)
 
+    // ── Palette Bible v2 — 5 ruoli cromatici per traccia ──
+    // Ref: docs Visual System Bible §12.
+    // Ruoli:
+    //   bg       → colore ambiente (clima materiale)
+    //   dot      → materia strutturale principale
+    //   event    → eventi MIDI leggibili (foreground)
+    //   rupture  → colore protetto, usato solo in momenti di rottura
+    //   residual → tinta fossile / ghost / invecchiamento (memoria)
+    // Regola: bg sempre presente, dot strutturale, event su ruoli precisi,
+    // rupture raro, residual come stato di invecchiamento — mai come design.
+    trackPalettes: {
+      NEBBIA: {
+        bg:       '#161417', // plum-charcoal
+        dot:      '#E9E1D3', // warm paper
+        event:    '#A7B6FF', // cold mist (voice/lead)
+        rupture:  '#F3F0EA', // ice crack
+        residual: '#6D6675', // ash violet
+      },
+      TESSUTO: {
+        bg:       '#24131F', // aubergine ink
+        dot:      '#C6FF4D', // acid-lime
+        event:    '#FFF1D6', // soft cream
+        rupture:  '#FF7A8A', // hot coral
+        residual: '#6F8A3C', // oxidized green
+      },
+      SOLCO: {
+        bg:       '#1A211C', // smoked olive
+        dot:      '#FF7A1A', // saturated orange
+        event:    '#D5FF57', // electric chartreuse
+        rupture:  '#FFF4E8', // cut light
+        residual: '#6A5E38', // dirty brass
+      },
+      RESPIRO: {
+        bg:       '#A8C3A0', // dusty sage (fondo chiaro — unica traccia bg chiaro)
+        dot:      '#1A1715', // ink-black
+        event:    '#F5E6D3', // paper flash
+        rupture:  '#6E7E8B', // cold freeze
+        residual: '#D7D0C6', // breath dust
+      },
+      MACCHINA: {
+        bg:       '#151B2E', // deep relay blue
+        dot:      '#FFE600', // terminal yellow
+        event:    '#FF4D7A', // hot signal pink
+        rupture:  '#FFFFFF', // alarm white
+        residual: '#57607E', // screen residue
+      },
+      TEMPESTA: {
+        bg:       '#2A0012', // black cherry
+        dot:      '#FFF6F0', // harsh paper-white
+        event:    '#FF2E63', // alarm red
+        rupture:  '#F8FF2B', // toxic peak
+        residual: '#6A2233', // burnt crimson
+      },
+      RITORNO: {
+        bg:       '#DDD6F7', // faded lavender paper
+        dot:      '#17141C', // dusk ink
+        event:    '#F7E8D8', // memory cream
+        rupture:  '#94A6FF', // recall flare
+        residual: '#A99CB9', // faded ghost
+      },
+    },
+
     // ── 5 atti narrativi visivi (D-06) ──
     // Ogni atto: range arcPercent, scena target, palette base, densityCap, camera
     // v5: palette colorate per identità, non solo nero
