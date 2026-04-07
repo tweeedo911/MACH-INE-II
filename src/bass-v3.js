@@ -18,9 +18,10 @@ import { sendMIDINote } from './midi.js';
 import { addMidiNote } from './field.js';
 import { TRACKS } from './tracks.js';
 
+// Reads master clock from worldState.globalTick (written by rhythm.js).
 let _step = 0;
-let _stepAcc = 0;
 let _bar = 0;
+let _lastTick = -1;
 let _lastNote = -1;
 let _velSweep = 0;
 let _lastFollowChord = '';
@@ -35,8 +36,8 @@ const STABLE_BARS_PER_STAGE = 8;
 
 export function initBass() {
   _step = 0;
-  _stepAcc = 0;
   _bar = 0;
+  _lastTick = worldState.globalTick;  // sync to master clock
   _cycleStage = 1;
   _stableBars = 0;
   _variations = [];
@@ -105,14 +106,12 @@ function _advanceCycleStage(basePattern) {
 export function updateBass(dt) {
   if (!worldState.bpm || worldState.density.bass < 0.01) return;
 
-  const stepDur = 60 / worldState.bpm / 4;
-  _stepAcc += dt;
-
-  while (_stepAcc >= stepDur) {
-    _stepAcc -= stepDur;
+  // Catch up to master clock (rhythm.js owns the only stepAcc)
+  while (_lastTick < worldState.globalTick) {
+    _lastTick++;
+    _step = _lastTick % 16;
+    _bar  = Math.floor(_lastTick / 16);
     _tick();
-    _step = (_step + 1) % 16;
-    if (_step === 0) _bar++;
   }
 }
 

@@ -93,10 +93,10 @@ const VOICE_VEL_RANGE = 35;
 const VOICE_HUMANIZE  = 6;
 const VOICE_DUR_RATIO = 0.9;
 
-// ── Step clock state ──
+// ── Step clock state — synced to master clock (worldState.globalTick) ──
 let _step = 0;
-let _stepAcc = 0;
 let _bar = 0;
+let _lastTick = -1;
 
 let _phraseNotes = [];
 let _phraseIdx = 0;
@@ -123,8 +123,8 @@ let _leadLoopCounter  = 0;
 
 export function initMelody() {
   _step = 0;
-  _stepAcc = 0;
   _bar = 0;
+  _lastTick = worldState.globalTick;
   _phraseNotes = [];
   _phraseIdx = 0;
   _phraseRepeat = 0;
@@ -157,16 +157,11 @@ export function updateMelody(dt) {
   }
 
   if (worldState.density.melody < 0.01) return;
-
-  const bpm = worldState.bpm || 60;
-  const stepDur = 60 / bpm / 4;
-  _stepAcc += dt;
-
-  while (_stepAcc >= stepDur) {
-    _stepAcc -= stepDur;
+  while (_lastTick < worldState.globalTick) {
+    _lastTick++;
+    _step = _lastTick % 16;
+    _bar  = Math.floor(_lastTick / 16);
     _tick();
-    _step = (_step + 1) % 16;
-    if (_step === 0) _bar++;
   }
 }
 
