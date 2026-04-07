@@ -2,6 +2,13 @@
 //  MACH:INE III — Composizione: TRENO
 //  Viaggio laterale con parallasse su 3 piani.
 //  TEMPESTA: velocità, densità, hocket visibile, sedimento pesante.
+//
+//  v2 (A.4) — Migrato al layer stack 4-canonico (BG/MG/FG).
+//             MG = breath field (fresh ogni frame).
+//             FG = oggetti/sparkles/ambient camera-trasformati (fresh ogni frame).
+//             Sediment privato mantenuto: pattern frame-capture speciale
+//             (sCtx.drawImage del canvas composito) non replicabile nel layer stack base.
+//             Sediment composito avviene SU ctx dopo compositeLayers.
 // ═══════════════════════════════════════════════════════════
 
 import {
@@ -13,6 +20,11 @@ import {
   RISO_OFFSET_X, RISO_OFFSET_Y,
   lerpKForTrack,
 } from './visual-toolkit.js';
+
+import {
+  getLayerCtx, clearAllLayers, clearLayer, compositeLayers,
+  LAYER_BG, LAYER_MG, LAYER_FG,
+} from './layers.js';
 
 // ── Phase parameters ──
 const PHASE_PARAMS = {
@@ -29,26 +41,22 @@ const PLANE_Y_RANGES = [
   [0.25, 0.75],
   [0.5, 1.0],
 ];
+const PLANE_SAT = [0.30, 0.65, 1.0];
 
-// Depth desaturation: back plane closer to bg, front fully saturated
-const PLANE_SAT = [0.30, 0.65, 1.0];   // lerp weight toward dotRgb vs bgRgb
-
-// Ambient stream: ambient dots per plane scrolling in silence
-const AMBIENT_BASE_RATE = 0.4;   // objects per second per plane at rms=0
-const AMBIENT_RMS_SCALE  = 6.0;  // additional rate multiplier from rms
+const AMBIENT_BASE_RATE = 0.4;
+const AMBIENT_RMS_SCALE  = 6.0;
 
 let _objects   = [];
 let _sparkles  = [];
-let _ambient   = [];             // continuous ambient stream objects
+let _ambient   = [];
 let _scrollX   = [0, 0, 0];
 let _time      = 0;
 let _params    = { ...PHASE_PARAMS.germoglio };
 
-// Sediment buffer — persistent frame trails (TEMPESTA heaviest)
+// Sediment privato — pattern frame-capture speciale
 const _sediment = new Sediment();
 
-// Camera shake state
-let _shakeAmt  = 0;              // current shake magnitude (px)
+let _shakeAmt  = 0;
 let _prevOnset = false;
 
 export function init(env) {
@@ -61,6 +69,7 @@ export function init(env) {
   _shakeAmt  = 0;
   _prevOnset = false;
   _sediment.clear(env.W || 1280, env.H || 720);
+  clearAllLayers();
 }
 
 export function render(ctx, W, H, env) {
@@ -71,8 +80,6 @@ export function render(ctx, W, H, env) {
   const target = PHASE_PARAMS[phase] || PHASE_PARAMS.germoglio;
   const isRottura = phase === 'rottura';
 
-  // ── Smooth param interpolation ──
-  // Per-track tau — Phase 0 task 0.3
   const trackK = lerpKForTrack(worldState.track, dt);
   _params.scrollSpeed += (target.scrollSpeed - _params.scrollSpeed) * trackK;
   _params.planeSep    += (target.planeSep    - _params.planeSep)    * trackK;
@@ -81,57 +88,59 @@ export function render(ctx, W, H, env) {
   _params.density     += (target.density     - _params.density)     * trackK;
   _params.sediment    += (target.sediment    - (_params.sediment || 0.93)) * trackK;
 
-  // ── Color setup ──
   const bgRgb  = hexToRgb(worldState.palette.bg);
   const dotRgb = hexToRgb(worldState.palette.dot);
   const accRgb = worldState.palette.accent ? hexToRgb(worldState.palette.accent) : dotRgb;
 
-  // ── Onset shake detection ──
+  // ── Onset shake ──
   const onsetNow = audio && audio.onset;
   if (onsetNow && !_prevOnset) {
     const strength = state ? clamp(state.intensity, 0.3, 1.0) : 0.6;
     _shakeAmt = Math.max(_shakeAmt, strength * 8);
   }
   _prevOnset = onsetNow;
-  _shakeAmt *= 0.85;  // slower decay than other compositions — TEMPESTA stays violent
+  _shakeAmt *= 0.85;
 
   // ── Scroll advance ──
-  // Rottura: brief reverse direction on onset for parallax glitch
   let scrollDir = 1;
   if (isRottura && shouldGlitch(state ? state.intensity : 0.5, true, _time)) {
-    scrollDir = -1;  // objects move forward briefly — disorienting
+    scrollDir = -1;
   }
   for (let p = 0; p < 3; p++) {
     _scrollX[p] += _params.scrollSpeed * PLANE_SPEEDS[p] * dt * scrollDir;
   }
 
-  // ── Sediment: decay previous frame buffer ──
+  // Sediment privato: decay ogni frame
   const sedRate = _params.sediment || 0.90;
   _sediment.decay(W, H, sedRate);
 
-  // ── Background: solid fill ──
-  fillBackground(ctx, W, H, rgbString(bgRgb[0], bgRgb[1], bgRgb[2]));
+  // ── Layer contexts — MG e FG freschi ogni frame ──
+  clearLayer(LAYER_MG);
+  clearLayer(LAYER_FG);
+  const lBg = getLayerCtx(LAYER_BG);
+  const lMg = getLayerCtx(LAYER_MG);
+  const lFg = getLayerCtx(LAYER_FG);
 
-  // ── Breathing background: subtle audio-reactive dots under everything ──
-  if (audio && state) {
+  // ── BG layer ──
+  if (lBg) fillBackground(lBg, W, H, rgbString(bgRgb[0], bgRgb[1], bgRgb[2]));
+
+  // ── MG layer: breath field ──
+  if (lMg && audio && state) {
     const breathAlpha = clamp(0.05 + state.intensity * 0.07, 0.05, 0.12);
     const breathDotColor = rgbString(dotRgb[0], dotRgb[1], dotRgb[2], breathAlpha);
     const jitter = isRottura ? 0.6 : 0.2;
-    renderBreathingField(ctx, W, H, audio, state, _time, 4, breathDotColor, breathAlpha, jitter);
+    renderBreathingField(lMg, W, H, audio, state, _time, 4, breathDotColor, breathAlpha, jitter);
   }
 
-  // ── Camera transform (shake + rottura zoom) ──
+  // ── FG layer: oggetti, sparkles, ambient con camera ──
   const cameraZoom = isRottura ? lerp(1.0, 1.04, clamp(_params.density - 0.5, 0, 1) * 2) : 1.0;
-  applyCameraTransform(ctx, W, H, {
+  if (lFg) applyCameraTransform(lFg, W, H, {
     zoom:        cameraZoom,
     shakeAmount: _shakeAmt,
     time:        _time,
   });
 
-  // ── Composite sediment over background (but under new objects) ──
-  _sediment.composite(ctx);
-
-  // ── Spawn MIDI-driven objects from midiTrail ──
+  // ── Spawn MIDI-driven objects ──
   for (const n of midiTrail) {
     if (n.time > dt * 2 || n.alpha < 0.4) continue;
     let plane = -1;
@@ -144,13 +153,10 @@ export function render(ctx, W, H, env) {
     const yRange    = PLANE_Y_RANGES[plane];
     const dotSize   = lerp(_params.dotBack, _params.dotFront, plane / 2);
 
-    // ── Hocket: CH5 (voice) left, CH6 (lead) right on front plane ──
     let spawnX;
     if (plane === 2 && n.ch === 5) {
-      // Voice: left corridor 0.1–0.5
       spawnX = W * (0.1 + rng() * 0.4) + W * 0.5;
     } else if (plane === 2 && n.ch === 6) {
-      // Lead: right corridor 0.5–0.9
       spawnX = W * (0.5 + rng() * 0.4) + W * 0.5;
     } else {
       spawnX = W + Math.random() * 50;
@@ -166,18 +172,17 @@ export function render(ctx, W, H, env) {
       ch:       n.ch,
     });
 
-    // Hat sparkles (CH1) — across all three planes, bigger in rottura
     if (n.ch === 1) {
       const sparkCount = isRottura ? 4 : 2;
       for (let si = 0; si < sparkCount; si++) {
-        const sp = Math.floor(rng() * 3);   // random plane
+        const sp = Math.floor(rng() * 3);
         _sparkles.push({
           x:       W + rng() * 20,
           y:       rng() * H,
           alpha:   n.vel * (isRottura ? 1.0 : 0.8),
           plane:   sp,
           size:    isRottura ? 3 : 2,
-          trail:   [],                          // brief trail history
+          trail:   [],
         });
       }
     }
@@ -194,16 +199,15 @@ export function render(ctx, W, H, env) {
           plane: p,
           x:     W + rng() * 30,
           y:     lerp(yRange[0], yRange[1], rng()) * H,
-          alpha: 0.08 + rng() * 0.12,           // faint
+          alpha: 0.08 + rng() * 0.12,
           size:  Math.max(1, Math.round(lerp(_params.dotBack * 0.5, _params.dotFront * 0.5, p / 2))),
         });
       }
     }
   }
 
-  // Onset sparkle explosion in rottura — burst of sparkles across all planes
   if (isRottura) {
-    for (const w of (env.onsetWaves || [])) {
+    for (const w of (onsetWaves || [])) {
       if (w.strength > 0.5) {
         const burstCount = Math.floor(w.strength * 15);
         for (let bi = 0; bi < burstCount; bi++) {
@@ -221,19 +225,18 @@ export function render(ctx, W, H, env) {
   }
 
   if (_objects.length > 400)  _objects.splice(0, _objects.length - 400);
-  if (_sparkles.length > 200) _sparkles.splice(0, _sparkles.length - 200);  // higher cap in rottura
+  if (_sparkles.length > 200) _sparkles.splice(0, _sparkles.length - 200);
   if (_ambient.length > 500)  _ambient.splice(0, _ambient.length - 500);
 
-  // ── Draw objects per plane (back → front) ──
+  // ── Draw objects per plane ──
   for (let p = 0; p < 3; p++) {
     const speed       = _params.scrollSpeed * PLANE_SPEEDS[p];
     const planeDotSz  = Math.max(2, Math.round(lerp(_params.dotBack, _params.dotFront, p / 2)));
-    const saturation  = PLANE_SAT[p];                     // depth desaturation
+    const saturation  = PLANE_SAT[p];
     const planeAlpha  = lerp(0.3, 1.0, p / 2);
-    // Front plane objects slightly larger
     const sizeBoost   = lerp(1.0, 1.25, p / 2);
 
-    // Draw ambient stream for this plane
+    // Ambient stream
     for (let i = _ambient.length - 1; i >= 0; i--) {
       const a = _ambient[i];
       if (a.plane !== p) continue;
@@ -245,11 +248,13 @@ export function render(ctx, W, H, env) {
         continue;
       }
       const ambRgb = lerpColor(bgRgb, dotRgb, saturation * a.alpha * 2);
-      ctx.fillStyle = rgbString(ambRgb[0], ambRgb[1], ambRgb[2], a.alpha);
-      ctx.fillRect(a.x, a.y, a.size, a.size);
+      if (lFg) {
+        lFg.fillStyle = rgbString(ambRgb[0], ambRgb[1], ambRgb[2], a.alpha);
+        lFg.fillRect(a.x, a.y, a.size, a.size);
+      }
     }
 
-    // Draw MIDI objects for this plane
+    // MIDI objects
     for (let i = _objects.length - 1; i >= 0; i--) {
       const o = _objects[i];
       if (o.plane !== p) continue;
@@ -266,38 +271,37 @@ export function render(ctx, W, H, env) {
       const s       = Math.max(2, Math.round(o.size * sizeBoost));
       const density = Math.min(clamp(o.alpha * planeAlpha * _params.density * 2, 0, 1), worldState.visualRegime.maxDensity);
       const baseRgb = o.isAccent ? accRgb : dotRgb;
-      // Depth-based desaturation: back plane fades toward bg
       const fadedRgb = lerpColor(bgRgb, baseRgb, saturation * planeAlpha * o.alpha);
-      ctx.fillStyle  = rgbString(fadedRgb[0], fadedRgb[1], fadedRgb[2]);
-      // Risograph offset: accent plane misregistered by 1 px
       const rdx = o.isAccent ? RISO_OFFSET_X : 0;
       const rdy = o.isAccent ? RISO_OFFSET_Y : 0;
 
-      const clusterSize = Math.ceil(s / planeDotSz);
-      for (let dr = 0; dr < clusterSize; dr++) {
-        for (let dc = 0; dc < clusterSize; dc++) {
-          const px  = o.x  + dc * planeDotSz;
-          const py  = o.y  + dr * planeDotSz;
-          const col = Math.floor(px / planeDotSz);
-          const row = Math.floor(py / planeDotSz);
-          if (bayerTest(col, row, density)) {
-            ctx.fillRect(px + rdx, py + rdy, planeDotSz, planeDotSz);
+      if (lFg) {
+        lFg.fillStyle  = rgbString(fadedRgb[0], fadedRgb[1], fadedRgb[2]);
+        const clusterSize = Math.ceil(s / planeDotSz);
+        for (let dr = 0; dr < clusterSize; dr++) {
+          for (let dc = 0; dc < clusterSize; dc++) {
+            const px  = o.x  + dc * planeDotSz;
+            const py  = o.y  + dr * planeDotSz;
+            const col = Math.floor(px / planeDotSz);
+            const row = Math.floor(py / planeDotSz);
+            if (bayerTest(col, row, density)) {
+              lFg.fillRect(px + rdx, py + rdy, planeDotSz, planeDotSz);
+            }
           }
         }
       }
     }
 
-    // Draw sparkles for this plane
+    // Sparkles
     for (let i = _sparkles.length - 1; i >= 0; i--) {
       const s = _sparkles[i];
       if (s.plane !== p) continue;
 
-      // Store trail position before moving
       s.trail.push({ x: s.x, y: s.y, a: s.alpha * 0.5 });
       if (s.trail.length > 4) s.trail.shift();
 
       s.x    -= speed * dt;
-      s.alpha *= isRottura ? 0.96 : 0.93;  // slower decay in rottura → continuous shimmer
+      s.alpha *= isRottura ? 0.96 : 0.93;
 
       if (s.x < -10 || s.alpha < 0.03) {
         _sparkles[i] = _sparkles[_sparkles.length - 1];
@@ -305,26 +309,25 @@ export function render(ctx, W, H, env) {
         continue;
       }
 
-      // Draw trail
-      for (const tp of s.trail) {
-        ctx.fillStyle = rgbString(dotRgb[0], dotRgb[1], dotRgb[2], tp.a);
-        ctx.fillRect(tp.x, tp.y, s.size, s.size);
+      if (lFg) {
+        for (const tp of s.trail) {
+          lFg.fillStyle = rgbString(dotRgb[0], dotRgb[1], dotRgb[2], tp.a);
+          lFg.fillRect(tp.x, tp.y, s.size, s.size);
+        }
+        lFg.fillStyle = rgbString(dotRgb[0], dotRgb[1], dotRgb[2], s.alpha);
+        lFg.fillRect(s.x, s.y, s.size, s.size);
       }
-      // Draw sparkle itself
-      ctx.fillStyle = rgbString(dotRgb[0], dotRgb[1], dotRgb[2], s.alpha);
-      ctx.fillRect(s.x, s.y, s.size, s.size);
     }
 
-    // In rottura: inject continuous hat shimmer + occasional color glitch
-    if (isRottura) {
+    // Rottura shimmer
+    if (isRottura && lFg) {
       const shimmerCount = Math.floor(4 + rng() * 6);
       const shimmerAlpha = 0.15 + rng() * 0.35;
       let shRgb = lerpColor(bgRgb, dotRgb, saturation);
-      // Occasional shimmer color corruption
       if (shouldGlitch(1, true, _time + p * 0.3)) {
         shRgb = colorFlash(shRgb, 0.8, _time);
       }
-      ctx.fillStyle = rgbString(
+      lFg.fillStyle = rgbString(
         clamp(shRgb[0], 0, 255),
         clamp(shRgb[1], 0, 255),
         clamp(shRgb[2], 0, 255),
@@ -333,22 +336,30 @@ export function render(ctx, W, H, env) {
       for (let si = 0; si < shimmerCount; si++) {
         const sx = rng() * W;
         const sy = rng() * H;
-        const ss = 1 + Math.floor(rng() * 4);  // variable size 1-4px
-        ctx.fillRect(sx, sy, ss, ss);
+        const ss = 1 + Math.floor(rng() * 4);
+        lFg.fillRect(sx, sy, ss, ss);
       }
     }
   }
 
-  // ── Capture current frame into sediment buffer ──
-  // (composite back onto sediment so trails accumulate)
+  if (lFg) restoreCameraTransform(lFg);
+
+  // ── Composite layers: BG → MG(breath) → FG(oggetti) ──
+  compositeLayers(ctx);
+
+  // ── Sediment privato: composite su ctx (sopra oggetti) ──
+  // Pattern frame-capture: il sediment accumula il canvas composito di ogni frame.
+  // Successivo frame: vecchio frame appare sfumato sotto i nuovi oggetti.
+  _sediment.composite(ctx);
+
+  // Cattura il frame composito corrente nel buffer sediment
   const sCtx = _sediment.getCtx();
   sCtx.drawImage(ctx.canvas, 0, 0);
-
-  restoreCameraTransform(ctx);
 }
 
 export function destroy() {
   _objects  = [];
   _sparkles = [];
   _ambient  = [];
+  clearAllLayers();
 }

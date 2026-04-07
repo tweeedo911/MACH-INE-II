@@ -11,18 +11,26 @@
 //  - BPM scroll: velocità agganciata al BPM
 //  - Cell animation: ramp-up veloce, decay esponenziale
 //  - Row scan: linea verticale top→bottom sincronizzata al bar
+//
+//  v2 (A.4) — Migrato al layer stack 4-canonico (BG/MG/FG).
+//             MG = sediment afterglow (z-order: sotto griglia ✓).
+//             FG = celle griglia camera-trasformate.
 // ═══════════════════════════════════════════════════════════
 
 import {
   bayerTest, fillBackground, rgbString, hexToRgb, lerpColor,
   lerp, clamp, mapRange,
   audioFlicker, bayerGlitch, colorFlash, shouldGlitch,
-  Sediment,
   applyCameraTransform, restoreCameraTransform,
   RISO_OFFSET_X, RISO_OFFSET_Y,
   lerpKForTrack,
 } from './visual-toolkit.js';
 import { phaseState } from './world-state.js';
+
+import {
+  getLayerCtx, clearAllLayers, clearLayer, compositeLayers, setLayerDecay,
+  LAYER_BG, LAYER_MG, LAYER_FG,
+} from './layers.js';
 
 // ── Phase parameters ────────────────────────────────────────
 const PHASE_PARAMS = {
@@ -49,9 +57,6 @@ let _kickZoom    = 1.0;
 const KICK_ZOOM_TARGET = 1.02;
 const KICK_ZOOM_DECAY  = 0.85;  // per-frame decay multiplier
 
-// Sediment buffer
-const _sediment = new Sediment();
-
 // ── Grid init ────────────────────────────────────────────────
 function initGrid(cols, rows) {
   _cols = cols;
@@ -62,7 +67,6 @@ function initGrid(cols, rows) {
     for (let c = 0; c < cols; c++) {
       _grid[r][c] = {
         brightness: 0,
-        // true = flash second time (accent double-flash)
         flashCount: 0,
         flashTimer: 0,
         accent:     false,
@@ -81,7 +85,9 @@ export function init(env) {
   const p      = PHASE_PARAMS[phase] || PHASE_PARAMS.germoglio;
   _params      = { ...p };
   initGrid(p.cols, p.rows);
-  _sediment.clear(env.W || 1280, env.H || 720);
+  clearAllLayers();
+  // MG = sediment afterglow — decay rate da fase, NOT cleared ogni frame
+  setLayerDecay(LAYER_MG, _params.sedimentRate);
 }
 
 // ── Render ───────────────────────────────────────────────────
@@ -91,24 +97,34 @@ export function render(ctx, W, H, env) {
 
   // ── Lerp params to target phase ──────────────────────────
   const target = PHASE_PARAMS[worldState.phase] || PHASE_PARAMS.germoglio;
-  // Per-track tau — Phase 0 task 0.3
   const trackK = lerpKForTrack(worldState.track, dt);
   _params.cellActive   += (target.cellActive   - _params.cellActive)   * trackK;
   _params.accentProb   += (target.accentProb   - _params.accentProb)   * trackK;
   _params.sedimentRate  = lerp(_params.sedimentRate || target.sedimentRate,
                                 target.sedimentRate, trackK);
+  setLayerDecay(LAYER_MG, _params.sedimentRate);  // propagate to layer system next frame
 
   if (target.cols !== _cols || target.rows !== _rows) {
     initGrid(target.cols, target.rows);
   }
+
+  // ── Layer contexts ──
+  // FG è fresco ogni frame (celle live si ridisegnano da zero).
+  // MG NON viene azzerato — accumula il sediment afterglow (decay via updateLayers).
+  clearLayer(LAYER_FG);
+  const lBg = getLayerCtx(LAYER_BG);
+  const lMg = getLayerCtx(LAYER_MG);  // sediment afterglow
+  const lFg = getLayerCtx(LAYER_FG);  // celle griglia camera-trasformate
 
   // ── Colors ───────────────────────────────────────────────
   const bgRgb  = hexToRgb(worldState.palette.bg);
   const dotRgb = hexToRgb(worldState.palette.dot);
   const accRgb = worldState.palette.accent ? hexToRgb(worldState.palette.accent) : dotRgb;
 
+  // ── BG layer ─────────────────────────────────────────────
+  if (lBg) fillBackground(lBg, W, H, rgbString(bgRgb[0], bgRgb[1], bgRgb[2]));
+
   // ── BPM-synced scroll ────────────────────────────────────
-  // Locked to groove — zero arbitrary motion
   const bpmScrollSpeed = worldState.bpm ? (worldState.bpm / 600) : 0;
   _scrollOffset += bpmScrollSpeed * dt;
   if (_scrollOffset > 1) _scrollOffset -= 1;
@@ -117,15 +133,13 @@ export function render(ctx, W, H, env) {
   for (let r = 0; r < _rows; r++) {
     for (let c = 0; c < _cols; c++) {
       const cell = _grid[r][c];
-      // Exponential decay rather than linear multiply
       cell.brightness *= Math.pow(cell.decay, dt * 60);
-      // Accent double-flash timer
       if (cell.flashCount > 0) {
         cell.flashTimer -= dt;
         if (cell.flashTimer <= 0 && cell.flashCount > 0) {
           cell.brightness = 1.0;
           cell.flashCount -= 1;
-          cell.flashTimer  = 0.08; // second flash duration
+          cell.flashTimer  = 0.08;
         }
       }
     }
@@ -135,7 +149,6 @@ export function render(ctx, W, H, env) {
   for (const n of midiTrail) {
     if (n.time > dt * 2 || n.alpha < 0.2) continue;
 
-    // CH7 RUPTURE — full column
     if (n.ch === 7 && n.alpha > 0.3) {
       const col = Math.floor(n.note * _cols) % _cols;
       for (let r = 0; r < _rows; r++) {
@@ -143,7 +156,6 @@ export function render(ctx, W, H, env) {
       }
     }
 
-    // CH0 KICK — horizontal bar + camera pulse (double-row in rottura)
     if (n.ch === 0 && n.alpha > 0.3) {
       const row = Math.floor(_rows / 2);
       const rowSpan = isRottura ? 2 : 1;
@@ -153,11 +165,9 @@ export function render(ctx, W, H, env) {
           _grid[tr][c].brightness = clamp(_grid[tr][c].brightness + n.vel * 0.6, 0, 1);
         }
       }
-      // Trigger zoom pulse — MACCHINA mechanical pump (more aggressive in rottura)
       _kickZoom = isRottura ? KICK_ZOOM_TARGET + 0.01 : KICK_ZOOM_TARGET;
     }
 
-    // CH3 BASS — bottom-spread columns
     if (n.ch === 3) {
       const col    = Math.floor(n.note * _cols) % _cols;
       const spread = 2;
@@ -168,29 +178,24 @@ export function render(ctx, W, H, env) {
       }
     }
 
-    // CH5/CH6 VOICE/LEAD — accent cells with double-flash
     if (n.ch === 5 || n.ch === 6) {
       const col = Math.floor(n.note * _cols) % _cols;
       const row = Math.floor((1 - n.note) * _rows) % _rows;
       if (_grid[row] && _grid[row][col]) {
-        // Ramp up fast to 1.0
         _grid[row][col].brightness = 1.0;
         _grid[row][col].accent     = true;
-        // Schedule a second flash
         _grid[row][col].flashCount = 1;
-        _grid[row][col].flashTimer = 0.06; // gap before second flash
+        _grid[row][col].flashTimer = 0.06;
       }
     }
   }
 
   // ── Scan line (densita + rottura only) ───────────────────
-  // Moves top → bottom over barProgress (0→1) — FIX: use worldState.barProgress (now defined)
   const doScan = SCAN_PHASES.has(worldState.phase);
   const isRottura = worldState.phase === 'rottura';
   let scanRow = -1;
   if (doScan && worldState.barProgress !== undefined) {
     scanRow = Math.floor(worldState.barProgress * _rows) % _rows;
-    // Boost cells on current scan row
     for (let c = 0; c < _cols; c++) {
       _grid[scanRow][c].brightness = clamp(_grid[scanRow][c].brightness + 0.25, 0, 1);
     }
@@ -200,67 +205,48 @@ export function render(ctx, W, H, env) {
   let _gridJolt = 0;
   for (const w of (env.onsetWaves || [])) {
     if (w.strength > 0.4) {
-      // Flash a random row on onset
       const flashRow = Math.floor(w.cy / H * _rows) % _rows;
       if (_grid[flashRow]) {
         for (let c = 0; c < _cols; c++) {
           _grid[flashRow][c].brightness = clamp(_grid[flashRow][c].brightness + w.strength * 0.7, 0, 1);
         }
       }
-      // In rottura: grid shifts by 1-2 cells
       if (isRottura) _gridJolt = Math.max(_gridJolt, Math.ceil(w.strength * 2));
     }
   }
 
   // ── Camera pulse decay ───────────────────────────────────
-  // Smooth exponential return to 1.0 — no drift (MACCHINA is rigid)
   _kickZoom = lerp(_kickZoom, 1.0, 1 - Math.pow(KICK_ZOOM_DECAY, dt * 60));
 
-  // ── Background ───────────────────────────────────────────
-  fillBackground(ctx, W, H, rgbString(bgRgb[0], bgRgb[1], bgRgb[2]));
+  // ── FG layer: celle griglia con camera ───────────────────
+  if (lFg) applyCameraTransform(lFg, W, H, { zoom: _kickZoom });
 
-  // ── Sediment composite (behind new frame) ────────────────
-  const sedRate = _params.sedimentRate || 0.90;
-  _sediment.decay(W, H, sedRate);
-  _sediment.composite(ctx);
-
-  // ── Apply camera transform ───────────────────────────────
-  applyCameraTransform(ctx, W, H, { zoom: _kickZoom });
-
-  // ── Draw grid ────────────────────────────────────────────
   const cellW   = W / _cols;
   const cellH   = H / _rows;
   const dotSize = Math.max(2, Math.floor(Math.min(cellW, cellH) * 0.6));
   const padding = Math.floor(Math.min(cellW, cellH) * 0.15);
 
-  // Audio RMS for flicker intensity
   const rms = (audio && audio.rms) ? audio.rms : 0;
 
   for (let r = 0; r < _rows; r++) {
     for (let c = 0; c < _cols; c++) {
       const cell = _grid[r][c];
 
-      // Normalised cell position (0→1) for spatial functions
       const nx = c / _cols;
       const ny = r / _rows;
 
-      // ── Effective brightness ─────────────────────────────
       let effectiveBrightness = cell.brightness;
 
-      // Ghost grid: unlit cells have faint permanent skeleton
-      // Flicker is audio-reactive; ghost baseline is always present
       const flickerMod = (state && state.rhythmicity !== undefined)
         ? audioFlicker(state, _time, nx, ny) * rms
         : 0;
-      const ghostBase = 0.02 + rms * 0.03; // 0.02–0.05 range
+      const ghostBase = 0.02 + rms * 0.03;
       effectiveBrightness = Math.max(effectiveBrightness, ghostBase + flickerMod);
 
-      // Scan line brightness boost (additive on top of cell value)
       if (doScan && r === scanRow) {
         effectiveBrightness = Math.min(1.0, effectiveBrightness + 0.3);
       }
 
-      // Cap to per-track density ceiling (Phase 0 task 0.1)
       effectiveBrightness = Math.min(effectiveBrightness, worldState.visualRegime.maxDensity);
 
       if (effectiveBrightness < 0.01) continue;
@@ -274,24 +260,20 @@ export function render(ctx, W, H, env) {
       const cols2 = Math.ceil(cw / dotSize);
       const rows2 = Math.ceil(ch / dotSize);
 
-      // Ghost cells use muted mid-tone between bg and dot
       let cellRgb;
       if (cell.brightness < 0.03) {
-        // Ghost / flicker-only: interpolate bg→dot at low alpha
         const ghostT = mapRange(effectiveBrightness, 0, 0.08, 0, 1);
         cellRgb = lerpColor(bgRgb, cell.accent ? accRgb : dotRgb, clamp(ghostT, 0, 1));
       } else {
         cellRgb = cell.accent ? accRgb : dotRgb;
       }
 
-      ctx.fillStyle = rgbString(cellRgb[0], cellRgb[1], cellRgb[2]);
-
-      // Risograph offset: accent plane misregistered by 1 px
       const rdx = cell.accent ? RISO_OFFSET_X : 0;
       const rdy = cell.accent ? RISO_OFFSET_Y : 0;
-
-      // In rottura: use glitched Bayer for visual stutter
       const glitchAmt = isRottura ? 0.4 + rms * 0.6 : 0;
+
+      if (lFg) lFg.fillStyle = rgbString(cellRgb[0], cellRgb[1], cellRgb[2]);
+
       for (let dr = 0; dr < rows2; dr++) {
         for (let dc = 0; dc < cols2; dc++) {
           const testCol = dc + c * 3;
@@ -299,20 +281,19 @@ export function render(ctx, W, H, env) {
           const visible = glitchAmt > 0.01
             ? bayerGlitch(testCol, testRow, effectiveBrightness, glitchAmt, _time)
             : bayerTest(testCol, testRow, effectiveBrightness);
-          if (visible) {
-            ctx.fillRect(cx + dc * dotSize + rdx, cy + dr * dotSize + rdy, dotSize, dotSize);
+          if (visible && lFg) {
+            lFg.fillRect(cx + dc * dotSize + rdx, cy + dr * dotSize + rdy, dotSize, dotSize);
           }
         }
       }
 
-      // ── Write bright lit cells into sediment buffer ──────
-      if (cell.brightness > 0.15) {
-        const sCtx = _sediment.getCtx();
-        sCtx.fillStyle = rgbString(cellRgb[0], cellRgb[1], cellRgb[2]);
+      // ── Write bright lit cells into MG sediment afterglow ──
+      if (cell.brightness > 0.15 && lMg) {
+        lMg.fillStyle = rgbString(cellRgb[0], cellRgb[1], cellRgb[2]);
         for (let dr = 0; dr < rows2; dr++) {
           for (let dc = 0; dc < cols2; dc++) {
             if (bayerTest(dc + c * 3, dr + r * 3, cell.brightness * 0.6)) {
-              sCtx.fillRect(cx + dc * dotSize, cy + dr * dotSize, dotSize, dotSize);
+              lMg.fillRect(cx + dc * dotSize, cy + dr * dotSize, dotSize, dotSize);
             }
           }
         }
@@ -322,11 +303,14 @@ export function render(ctx, W, H, env) {
     }
   }
 
-  restoreCameraTransform(ctx);
+  if (lFg) restoreCameraTransform(lFg);
+
+  // ── Composite layers: BG → MG(sediment) → FG(griglia) ──
+  compositeLayers(ctx);
 }
 
 // ── Destroy ───────────────────────────────────────────────────
 export function destroy() {
   _grid = [];
-  _sediment.clear(1, 1);
+  clearAllLayers();
 }
