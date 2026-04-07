@@ -23,9 +23,11 @@ const BARS_PER_CHORD = {
 };
 const BARS_PER_CHORD_DEFAULT = 4;
 
+// Harmony reads the master clock from worldState.globalTick (written by rhythm.js).
+// _step / _bar are local mirrors derived per-tick — kept for readability inside _tick().
 let _step = 0;
-let _stepAcc = 0;
 let _bar = 0;
+let _lastTick = -1;
 let _chordIdx = -1;    // starts at -1 so first increment lands on index 0
 let _lastDroneNote = -1;
 let _lastDroneBar  = -1;
@@ -41,8 +43,8 @@ let _lastPitchBend = -1;
 
 export function initHarmony() {
   _step = 0;
-  _stepAcc = 0;
   _bar = 0;
+  _lastTick = worldState.globalTick;  // sync to current master clock — no catch-up burst
   _chordIdx = -1;
   _lastDroneNote = -1;
   _lastDroneBar  = -1;
@@ -59,16 +61,12 @@ export function initHarmony() {
 export function updateHarmony(dt) {
   if (worldState.density.harmony < 0.01) return;
 
-  // Harmony uses bar-level timing even without BPM (drone in ambient tracks)
-  const bpm = worldState.bpm || 60; // fallback 60 BPM for timing in ambient
-  const stepDur = 60 / bpm / 4;
-  _stepAcc += dt;
-
-  while (_stepAcc >= stepDur) {
-    _stepAcc -= stepDur;
+  // Catch up to master clock — typically advances 0 or 1 tick per frame.
+  while (_lastTick < worldState.globalTick) {
+    _lastTick++;
+    _step = _lastTick % 16;
+    _bar  = Math.floor(_lastTick / 16);
     _tick();
-    _step = (_step + 1) % 16;
-    if (_step === 0) _bar++;
   }
 }
 

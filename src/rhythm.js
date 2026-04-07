@@ -54,28 +54,42 @@ const SNARE_SHIFT_PROB = 0.25;     // 25% chance to shift snare ±1 step
 const SNARE_SKIP_PROB = 0.15;      // 15% chance to skip a snare hit entirely
 const SNARE_FLAM_PROB = 0.10;      // 10% chance of ghost flam 1 step before
 
-let _step = 0;        // 0–15 (16th note position in bar)
-let _stepAcc = 0;     // accumulator for step timing
-let _bar = 0;         // bar counter
+// Rhythm is the MASTER CLOCK. It owns the only `_stepAcc` accumulator and writes
+// `worldState.globalStep / globalBar / globalTick` once per 16th note tick. All
+// other musical modules (harmony, bass, melody) read from globalTick — this
+// prevents drift when M/N toggles or director scrubs phases.
+let _step = 0;        // mirror of worldState.globalStep, used by _tick()
+let _stepAcc = 0;     // accumulator for step timing (master)
+let _bar = 0;         // mirror of worldState.globalBar
 
 export function initRhythm() {
   _step = 0;
   _stepAcc = 0;
   _bar = 0;
-  console.log('[RHYTHM] Initialized');
+  // Reset master clock — sentinels so first advance lands on tick=0/step=0/bar=0
+  worldState.globalStep = -1;
+  worldState.globalBar  = 0;
+  worldState.globalTick = -1;
+  console.log('[RHYTHM] Initialized (master clock reset)');
 }
 
 export function updateRhythm(dt) {
-  if (!worldState.bpm || worldState.density.rhythm < 0.01) return;
-
-  const stepDur = 60 / worldState.bpm / 4; // duration of 1 sixteenth note in seconds
+  // Use track BPM if set, else 60 BPM fallback so harmony drones still advance
+  // logically in ambient tracks (where bpm is null and no kick/hat fires).
+  const bpm = worldState.bpm || 60;
+  const stepDur = 60 / bpm / 4;
   _stepAcc += dt;
 
   while (_stepAcc >= stepDur) {
     _stepAcc -= stepDur;
-    _tick();
-    _step = (_step + 1) % 16;
-    if (_step === 0) _bar++;
+    // Advance master clock — consumers (harmony, bass, melody) will catch up via _lastTick
+    worldState.globalTick++;
+    worldState.globalStep = worldState.globalTick % 16;
+    worldState.globalBar  = Math.floor(worldState.globalTick / 16);
+    _step = worldState.globalStep;
+    _bar  = worldState.globalBar;
+    // Only emit rhythm hits if rhythm density meaningful AND a real BPM exists
+    if (worldState.bpm && worldState.density.rhythm >= 0.01) _tick();
   }
 }
 

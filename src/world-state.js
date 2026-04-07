@@ -42,6 +42,14 @@ export const worldState = {
   barProgress: 0,          // 0.0 → 1.0 position within current bar (for scan lines, sync)
   audioEnergy: 0,          // 0.0 → 1.0 real-time audio energy (RMS + onset + density)
 
+  // ── Master clock (written by rhythm.js, read by all musical modules) ──
+  // Single source of truth for the 16-step grid. Prevents drift between modules
+  // when M/N toggles or director scrubs phases (each module used to keep its own
+  // _step accumulator that diverged on init).
+  globalStep: 0,    // 0..15, 16th note position within bar
+  globalBar:  0,    // bar counter, monotonic
+  globalTick: 0,    // monotonic tick counter (= globalBar*16 + globalStep cumulative). Modules detect changes via this.
+
   // ── Harmony (written by harmony.js — only exception to read-only rule) ──
   currentChord: [],  // MIDI notes of current chord, for arp
 
