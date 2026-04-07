@@ -7,6 +7,7 @@ import { audio, getAudioGain } from './audio.js';
 import { midi, noteName } from './midi.js';
 import { state } from './state.js';
 import { onMidiNote, onAudioOnset, updateEvents, eventCount } from './event-register.js';
+import { initLayers, resizeLayers, updateLayers, clearAllLayers } from './layers.js';
 import { updateColors, getPalette, getBgString } from './colors.js';
 import { getDirector3Status, isDirector3Playing } from './director3.js';
 import { worldState, phaseState } from './world-state.js';
@@ -30,12 +31,14 @@ export function initRender(cvs) {
   canvas = cvs;
   ctx = canvas.getContext('2d');
   resize();
+  initLayers(W, H);
   window.addEventListener('resize', resize);
 }
 
 export function resize() {
   W = canvas.width = window.innerWidth;
   H = canvas.height = window.innerHeight;
+  resizeLayers(W, H);
 }
 
 export function setHUDElements(minimal, debug, seq) {
@@ -101,6 +104,7 @@ export function renderFrame(_now, dt) {
   updateColors(dt);
   updateEvents(dt);
   updateWaves(dt);
+  updateLayers(dt);  // per-frame decay dei 4 layer (BG/MG/FG/Overlay)
 
   // Background — from current interpolated palette
   const bgStr = getBgString();

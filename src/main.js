@@ -11,6 +11,7 @@ import { applyMusicExperimentOverrides } from './tracks.js';
 import { state, updateState } from './state.js';
 import { initRender, renderFrame, resize, setHUDElements, handleKey, setProjectorWindow } from './render.js';
 import { resetEvents } from './event-register.js';
+import { clearAllLayers } from './layers.js';
 import { snapPalette } from './colors.js';
 import { WakeLockManager } from '../.claude/skills/runtime-expert/scripts/perf-utils.js';
 
@@ -214,6 +215,7 @@ document.addEventListener('keydown', (e) => {
   const result = handleKey(e.code);
   if (result === 'REGEN') {
     resetEvents();
+    clearAllLayers();
   }
 });
 
