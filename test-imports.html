@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html><body>
+<pre id="log">Testing imports...</pre>
+<script type="module">
+const log = s => { document.getElementById('log').textContent += '\n' + s; console.log(s); };
+try { await import('./src/session-recorder.js'); log('✓ session-recorder.js'); } catch(e) { log('✗ session-recorder.js: ' + e.message); }
+try { await import('./src/config.js'); log('✓ config.js'); } catch(e) { log('✗ config.js: ' + e.message); }
+try { await import('./src/midi.js'); log('✓ midi.js'); } catch(e) { log('✗ midi.js: ' + e.message); }
+try { await import('./src/sequencer.js'); log('✓ sequencer.js'); } catch(e) { log('✗ sequencer.js: ' + e.message); }
+try { await import('./src/harmony-layer.js'); log('✓ harmony-layer.js'); } catch(e) { log('✗ harmony-layer.js: ' + e.message); }
+try { await import('./src/rhythm-layer.js'); log('✓ rhythm-layer.js'); } catch(e) { log('✗ rhythm-layer.js: ' + e.message); }
+try { await import('./src/melody-texture-layer.js'); log('✓ melody-texture-layer.js'); } catch(e) { log('✗ melody-texture-layer.js: ' + e.message); }
+try { await import('./src/render.js'); log('✓ render.js'); } catch(e) { log('✗ render.js: ' + e.message); }
+try { await import('./src/main.js'); log('✓ main.js — ALL OK'); } catch(e) { log('✗ main.js: ' + e.message); }
+log('\nDone.');
+</script>
+</body></html>

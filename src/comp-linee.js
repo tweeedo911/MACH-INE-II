@@ -19,6 +19,8 @@ import {
   bayerGlitch, colorFlash, shouldGlitch,
   Sediment,
   applyCameraTransform, restoreCameraTransform,
+  RISO_OFFSET_X, RISO_OFFSET_Y,
+  lerpKForTrack,
 } from './visual-toolkit.js';
 
 // ── Phase parameters ──────────────────────────────────────
@@ -71,9 +73,11 @@ export function render(ctx, W, H, env) {
 
   // ── Lerp phase params ─────────────────────────────────
   const target = PHASE_PARAMS[worldState.phase] || PHASE_PARAMS.germoglio;
-  _params.thickness   += (target.thickness   - _params.thickness)   * 0.03;
-  _params.gap         += (target.gap         - _params.gap)         * 0.03;
-  _params.glissSpeed  += (target.glissSpeed  - _params.glissSpeed)  * 0.03;
+  // Per-track tau — Phase 0 task 0.3
+  const trackK = lerpKForTrack(worldState.track, dt);
+  _params.thickness   += (target.thickness   - _params.thickness)   * trackK;
+  _params.gap         += (target.gap         - _params.gap)         * trackK;
+  _params.glissSpeed  += (target.glissSpeed  - _params.glissSpeed)  * trackK;
   _params.sedimentRate = target.sedimentRate;
   _zoom += (target.zoom - _zoom) * 0.015;  // very slow zoom transition
 
@@ -247,7 +251,7 @@ export function render(ctx, W, H, env) {
         }
       }
 
-      const d = clamp(density + waveDensity + noiseAt(c, li, _time) * 0.05, 0, 1);
+      const d = Math.min(clamp(density + waveDensity + noiseAt(c, li, _time) * 0.05, 0, 1), worldState.visualRegime.maxDensity);
 
       // Color: blend toward accent when wave passes through
       let lineRgb = lerpColor(baseLineRgb, accRgb, clamp(waveColorShift, 0, 0.7));
@@ -262,6 +266,9 @@ export function render(ctx, W, H, env) {
       );
       ctx.fillStyle = colorStr;
 
+      // Risograph offset: accent plane (lead lines) misregistered by 1 px
+      const rdx = line.isLead ? RISO_OFFSET_X : 0;
+      const rdy = line.isLead ? RISO_OFFSET_Y : 0;
       for (let t = 0; t < thickness; t++) {
         const baseRowY = py + oscY + t * dotSize - thickness * dotSize / 2;
         const row = Math.floor(baseRowY / dotSize);
@@ -271,7 +278,7 @@ export function render(ctx, W, H, env) {
           ? bayerGlitch(c, row, d, glitchAmt, _time)
           : bayerTest(c, row, d);
         if (visible) {
-          ctx.fillRect(c * dotSize, baseRowY, dotSize, dotSize);
+          ctx.fillRect(c * dotSize + rdx, baseRowY + rdy, dotSize, dotSize);
         }
       }
     }

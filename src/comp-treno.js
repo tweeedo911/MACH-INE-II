@@ -10,6 +10,8 @@ import {
   Sediment, applyCameraTransform, restoreCameraTransform,
   renderBreathingField, audioDensity,
   bayerGlitch, colorFlash, shouldGlitch,
+  RISO_OFFSET_X, RISO_OFFSET_Y,
+  lerpKForTrack,
 } from './visual-toolkit.js';
 
 // ── Phase parameters ──
@@ -70,12 +72,14 @@ export function render(ctx, W, H, env) {
   const isRottura = phase === 'rottura';
 
   // ── Smooth param interpolation ──
-  _params.scrollSpeed += (target.scrollSpeed - _params.scrollSpeed) * 0.02;
-  _params.planeSep    += (target.planeSep    - _params.planeSep)    * 0.02;
-  _params.dotBack     += (target.dotBack     - _params.dotBack)     * 0.02;
-  _params.dotFront    += (target.dotFront    - _params.dotFront)    * 0.02;
-  _params.density     += (target.density     - _params.density)     * 0.02;
-  _params.sediment    += (target.sediment    - (_params.sediment || 0.93)) * 0.02;
+  // Per-track tau — Phase 0 task 0.3
+  const trackK = lerpKForTrack(worldState.track, dt);
+  _params.scrollSpeed += (target.scrollSpeed - _params.scrollSpeed) * trackK;
+  _params.planeSep    += (target.planeSep    - _params.planeSep)    * trackK;
+  _params.dotBack     += (target.dotBack     - _params.dotBack)     * trackK;
+  _params.dotFront    += (target.dotFront    - _params.dotFront)    * trackK;
+  _params.density     += (target.density     - _params.density)     * trackK;
+  _params.sediment    += (target.sediment    - (_params.sediment || 0.93)) * trackK;
 
   // ── Color setup ──
   const bgRgb  = hexToRgb(worldState.palette.bg);
@@ -260,11 +264,14 @@ export function render(ctx, W, H, env) {
       }
 
       const s       = Math.max(2, Math.round(o.size * sizeBoost));
-      const density = clamp(o.alpha * planeAlpha * _params.density * 2, 0, 1);
+      const density = Math.min(clamp(o.alpha * planeAlpha * _params.density * 2, 0, 1), worldState.visualRegime.maxDensity);
       const baseRgb = o.isAccent ? accRgb : dotRgb;
       // Depth-based desaturation: back plane fades toward bg
       const fadedRgb = lerpColor(bgRgb, baseRgb, saturation * planeAlpha * o.alpha);
       ctx.fillStyle  = rgbString(fadedRgb[0], fadedRgb[1], fadedRgb[2]);
+      // Risograph offset: accent plane misregistered by 1 px
+      const rdx = o.isAccent ? RISO_OFFSET_X : 0;
+      const rdy = o.isAccent ? RISO_OFFSET_Y : 0;
 
       const clusterSize = Math.ceil(s / planeDotSz);
       for (let dr = 0; dr < clusterSize; dr++) {
@@ -274,7 +281,7 @@ export function render(ctx, W, H, env) {
           const col = Math.floor(px / planeDotSz);
           const row = Math.floor(py / planeDotSz);
           if (bayerTest(col, row, density)) {
-            ctx.fillRect(px, py, planeDotSz, planeDotSz);
+            ctx.fillRect(px + rdx, py + rdy, planeDotSz, planeDotSz);
           }
         }
       }

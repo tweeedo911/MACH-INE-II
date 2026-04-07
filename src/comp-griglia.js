@@ -19,6 +19,8 @@ import {
   audioFlicker, bayerGlitch, colorFlash, shouldGlitch,
   Sediment,
   applyCameraTransform, restoreCameraTransform,
+  RISO_OFFSET_X, RISO_OFFSET_Y,
+  lerpKForTrack,
 } from './visual-toolkit.js';
 import { phaseState } from './world-state.js';
 
@@ -89,10 +91,12 @@ export function render(ctx, W, H, env) {
 
   // ── Lerp params to target phase ──────────────────────────
   const target = PHASE_PARAMS[worldState.phase] || PHASE_PARAMS.germoglio;
-  _params.cellActive   += (target.cellActive   - _params.cellActive)   * 0.02;
-  _params.accentProb   += (target.accentProb   - _params.accentProb)   * 0.02;
+  // Per-track tau — Phase 0 task 0.3
+  const trackK = lerpKForTrack(worldState.track, dt);
+  _params.cellActive   += (target.cellActive   - _params.cellActive)   * trackK;
+  _params.accentProb   += (target.accentProb   - _params.accentProb)   * trackK;
   _params.sedimentRate  = lerp(_params.sedimentRate || target.sedimentRate,
-                                target.sedimentRate, 0.02);
+                                target.sedimentRate, trackK);
 
   if (target.cols !== _cols || target.rows !== _rows) {
     initGrid(target.cols, target.rows);
@@ -256,6 +260,9 @@ export function render(ctx, W, H, env) {
         effectiveBrightness = Math.min(1.0, effectiveBrightness + 0.3);
       }
 
+      // Cap to per-track density ceiling (Phase 0 task 0.1)
+      effectiveBrightness = Math.min(effectiveBrightness, worldState.visualRegime.maxDensity);
+
       if (effectiveBrightness < 0.01) continue;
 
       const scrollC = (c + Math.floor(_scrollOffset * _cols) + _gridJolt) % _cols;
@@ -279,6 +286,10 @@ export function render(ctx, W, H, env) {
 
       ctx.fillStyle = rgbString(cellRgb[0], cellRgb[1], cellRgb[2]);
 
+      // Risograph offset: accent plane misregistered by 1 px
+      const rdx = cell.accent ? RISO_OFFSET_X : 0;
+      const rdy = cell.accent ? RISO_OFFSET_Y : 0;
+
       // In rottura: use glitched Bayer for visual stutter
       const glitchAmt = isRottura ? 0.4 + rms * 0.6 : 0;
       for (let dr = 0; dr < rows2; dr++) {
@@ -289,7 +300,7 @@ export function render(ctx, W, H, env) {
             ? bayerGlitch(testCol, testRow, effectiveBrightness, glitchAmt, _time)
             : bayerTest(testCol, testRow, effectiveBrightness);
           if (visible) {
-            ctx.fillRect(cx + dc * dotSize, cy + dr * dotSize, dotSize, dotSize);
+            ctx.fillRect(cx + dc * dotSize + rdx, cy + dr * dotSize + rdy, dotSize, dotSize);
           }
         }
       }
