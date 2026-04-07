@@ -88,7 +88,7 @@ layers.js         →  4 layer canonici stackati (BG/MG/FG/Overlay) — Bible §
 
 ### P0 — Visual System Bible Fase A.4 ✅ COMPLETA
 Tutte le 6 comp migrate al layer stack 4-canonico (commit `16abb8e`).
-**Da testare live su tutte le tracce prima di procedere alla Fase B.**
+**✅ Testato live 2026-04-07 — comportamento identico all'originale su tutte le tracce.**
 
 | Comp | BG | MG | FG | OVERLAY | Sediment |
 |---|---|---|---|---|---|
