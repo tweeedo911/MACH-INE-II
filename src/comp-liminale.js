@@ -2,18 +2,27 @@
 //  MACH:INE III — Composizione: LIMINALE
 //  Prospettiva convergente. NEBBIA (avvicinamento) + RITORNO (allontanamento).
 //  Breathing field + sediment trails + onset ripples + vanishing point drift
+//
+//  v2 (A.4) — Migrato al layer stack 4-canonico (BG/MG/FG/OVERLAY).
+//             Il ctx passato non viene più toccato direttamente.
+//             Sediment OVERLAY: alpha pre-baked ×0.6 per replicare
+//             il composite post-camera a globalAlpha=0.6 dell'originale.
 // ═══════════════════════════════════════════════════════════
 
 import {
   bayerTest, fillBackground, rgbString, lerpColor, hexToRgb,
   lerp, clamp, noiseAt, perspectiveScale, rng, seedRng,
   audioDensity, audioFlicker, bayerGlitch, colorFlash, shouldGlitch,
-  Sediment,
   applyCameraTransform, restoreCameraTransform,
   RISO_OFFSET_X, RISO_OFFSET_Y,
   lerpKForTrack,
   renderBayerScaffold,
 } from './visual-toolkit.js';
+
+import {
+  getLayerCtx, clearAllLayers, clearLayer, compositeLayers, setLayerDecay,
+  LAYER_BG, LAYER_MG, LAYER_FG, LAYER_OVERLAY,
+} from './layers.js';
 
 const PHASE_PARAMS = {
   germoglio:    { depthRange: 0.2, dotMin: 14, dotMax: 40, densityMax: 0.10, driftSpeed: 0.02, breathAlpha: 0.20, sedRate: 0.92, zoom: 1.01, midiSpread: 0.3 },
@@ -31,7 +40,6 @@ let _vanishDriftY = 0;
 let _isRitorno = false;
 let _time = 0;
 let _params = { ...PHASE_PARAMS.germoglio };
-let _sediment = new Sediment();
 let _onsetShake = 0;
 
 // ── Audio-reactive zones — Bayer clusters that grow with sound ──
@@ -47,7 +55,7 @@ export function init(env) {
   _vanishDriftX = 0;
   _vanishDriftY = 0;
   _params = { ...(PHASE_PARAMS[env.worldState.phase] || PHASE_PARAMS.germoglio) };
-  _sediment.clear(1, 1);
+  clearAllLayers();
   _zones = [];
 }
 
@@ -61,6 +69,7 @@ export function render(ctx, W, H, env) {
   for (const k of Object.keys(target)) {
     _params[k] += (target[k] - _params[k]) * trackK;
   }
+  setLayerDecay(LAYER_OVERLAY, _params.sedRate);  // propagate to layer system next frame
 
   const bgRgb = hexToRgb(worldState.palette.bg);
   const dotRgb = hexToRgb(worldState.palette.dot);
@@ -70,6 +79,14 @@ export function render(ctx, W, H, env) {
 
   const isRottura = worldState.phase === 'rottura';
 
+  // ── Layer contexts — MG e FG freschi ogni frame ──
+  clearLayer(LAYER_MG);
+  clearLayer(LAYER_FG);
+  const lBg = getLayerCtx(LAYER_BG);
+  const lMg = getLayerCtx(LAYER_MG);
+  const lFg = getLayerCtx(LAYER_FG);
+  const lOv = getLayerCtx(LAYER_OVERLAY);
+
   // Onset shake — decays fast (more violent in rottura)
   for (const w of onsetWaves) {
     if (w.strength > 0.5) _onsetShake = Math.max(_onsetShake, w.strength * (isRottura ? 8 : 4));
@@ -78,39 +95,37 @@ export function render(ctx, W, H, env) {
 
   // Vanishing point drift — in rottura: JUMPS instead of drifting
   if (isRottura && shouldGlitch(state.intensity + 0.3, true, _time)) {
-    // Snap vanishing point to random position
     _vanishX = 0.3 + Math.random() * 0.4;
     _vanishY = 0.25 + Math.random() * 0.3;
   }
   _vanishDriftX += (((audio.bands.high.L - audio.bands.high.R) * 0.5) * 30 - _vanishDriftX) * (isRottura ? 0.05 : 0.01);
   _vanishDriftY += ((audio.centroid * 20 - 10) - _vanishDriftY) * (isRottura ? 0.04 : 0.008);
 
-  // Background
-  fillBackground(ctx, W, H, bgStr);
+  // ── BG layer: background + optional Bayer scaffold ──
+  if (lBg) {
+    fillBackground(lBg, W, H, bgStr);
 
-  // Bayer scaffold — Phase 0 task 0.4 (Nicolai/Raster-Noton)
-  // Visible only in NEBBIA germoglio/dissoluzione: shows the system as scaffold
-  if (worldState.track === 'NEBBIA' &&
-      (worldState.phase === 'germoglio' || worldState.phase === 'dissoluzione')) {
-    renderBayerScaffold(ctx, W, H, dotStr, 0.04);
+    // Bayer scaffold — visible only in NEBBIA germoglio/dissoluzione
+    if (worldState.track === 'NEBBIA' &&
+        (worldState.phase === 'germoglio' || worldState.phase === 'dissoluzione')) {
+      renderBayerScaffold(lBg, W, H, dotStr, 0.04);
+    }
   }
 
-  // Camera — subtle zoom toward vanishing point, onset shake
-  applyCameraTransform(ctx, W, H, {
+  // ── Camera opts — applied to MG and FG layer ctxs ──
+  const camOpts = {
     zoom: _params.zoom,
     driftX: _vanishDriftX,
     driftY: _vanishDriftY,
     shakeAmount: _onsetShake,
     time: _time,
-  });
+  };
 
-  // ── Layer 1: Audio-reactive zones — Bayer clusters that breathe and grow ──
-  // No sound = no matrix. Sound spawns zones at random positions that expand.
+  // ── MG layer: audio-reactive zones — Bayer clusters that breathe and grow ──
   const breathDotSize = Math.max(5, Math.round(lerp(12, 6, state.intensity)));
 
   // Spawn new zones when audio is active
   if (audio.rms > 0.05) {
-    // Spawn rate proportional to intensity
     const spawnChance = state.intensity * 0.15 + audio.flux * 0.3;
     if (Math.random() < spawnChance && _zones.length < 12) {
       _zones.push({
@@ -127,70 +142,60 @@ export function render(ctx, W, H, env) {
   // Update zones: grow, fade, remove dead
   for (let i = _zones.length - 1; i >= 0; i--) {
     const z = _zones[i];
-    // Grow toward target
     z.radius += (z.targetRadius - z.radius) * 0.02;
-    // Density follows audio — alive when sound, fades in silence
     const targetDensity = audioDensity(audio, state, z.x, z.y) * _params.breathAlpha * 1.5
                         + audioFlicker(state, _time, z.x, z.y) * _params.breathAlpha;
     z.density += (targetDensity - z.density) * 0.08;
-    // Shrink when no audio
     if (audio.rms < 0.03) {
       z.targetRadius *= 0.995;
       z.density *= 0.98;
     }
-    // Remove dead zones
     if (z.density < 0.005 && z.radius < 0.02) {
       _zones[i] = _zones[_zones.length - 1];
       _zones.length--;
     }
   }
 
-  // Render zones as circular Bayer clusters
-  const cols = Math.ceil(W / breathDotSize);
-  const rows = Math.ceil(H / breathDotSize);
-  for (let r = 0; r < rows; r++) {
-    const ny = r / rows;
-    for (let c = 0; c < cols; c++) {
-      const nx = c / cols;
-      // Accumulate density from all active zones at this point
-      let d = 0;
-      for (const z of _zones) {
-        const dx = nx - z.x;
-        const dy = ny - z.y;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist < z.radius) {
-          // Soft falloff from center
-          const falloff = 1 - (dist / z.radius);
-          d += z.density * falloff * falloff;
-        }
-      }
-
-      if (d > 0.01) {
-        const glitchAmt = isRottura ? 0.5 + state.intensity * 0.5 : 0;
-        const visible = glitchAmt > 0.01
-          ? bayerGlitch(c, r, clamp(d, 0, 1), glitchAmt, _time)
-          : bayerTest(c, r, clamp(d, 0, 1));
-        if (visible) {
-          const fade = clamp(d * 1.5, 0.04, 0.6);
-          let rgb = lerpColor(bgRgb, dotRgb, fade);
-          // Brief color flash in rottura
-          if (glitchAmt > 0.3 && shouldGlitch(1, true, _time + c * 0.01)) {
-            rgb = colorFlash(rgb, 0.7, _time);
+  // Render zones to MG layer (camera-transformed)
+  if (lMg) {
+    applyCameraTransform(lMg, W, H, camOpts);
+    const cols = Math.ceil(W / breathDotSize);
+    const rows = Math.ceil(H / breathDotSize);
+    for (let r = 0; r < rows; r++) {
+      const ny = r / rows;
+      for (let c = 0; c < cols; c++) {
+        const nx = c / cols;
+        let d = 0;
+        for (const z of _zones) {
+          const dx = nx - z.x;
+          const dy = ny - z.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist < z.radius) {
+            const falloff = 1 - (dist / z.radius);
+            d += z.density * falloff * falloff;
           }
-          ctx.fillStyle = rgbString(rgb[0], rgb[1], rgb[2]);
-          ctx.fillRect(c * breathDotSize, r * breathDotSize, breathDotSize, breathDotSize);
+        }
+        if (d > 0.01) {
+          const glitchAmt = isRottura ? 0.5 + state.intensity * 0.5 : 0;
+          const visible = glitchAmt > 0.01
+            ? bayerGlitch(c, r, clamp(d, 0, 1), glitchAmt, _time)
+            : bayerTest(c, r, clamp(d, 0, 1));
+          if (visible) {
+            const fade = clamp(d * 1.5, 0.04, 0.6);
+            let rgb = lerpColor(bgRgb, dotRgb, fade);
+            if (glitchAmt > 0.3 && shouldGlitch(1, true, _time + c * 0.01)) {
+              rgb = colorFlash(rgb, 0.7, _time);
+            }
+            lMg.fillStyle = rgbString(rgb[0], rgb[1], rgb[2]);
+            lMg.fillRect(c * breathDotSize, r * breathDotSize, breathDotSize, breathDotSize);
+          }
         }
       }
     }
+    restoreCameraTransform(lMg);
   }
 
-  // ── Layer 2: Sediment — trails from previous dots ──
-  _sediment.decay(W, H, _params.sedRate);
-  const sedCtx = _sediment.getCtx();
-
-  // ── Layer 3: Dots — MIDI-driven perspective particles ──
-  // Voice (CH5) and Lead (CH6) get BIG prominent dots that spread across canvas
-  // Other channels get standard perspective dots near vanishing point
+  // ── FG layer: dots — MIDI-driven perspective particles (camera-transformed) ──
   const spread = _params.midiSpread || 0.3;
   for (const n of midiTrail) {
     if (n.time < dt * 2 && n.alpha > 0.3) {
@@ -198,7 +203,6 @@ export function render(ctx, W, H, env) {
       const isDrone = n.ch === 2;
       const isChord = n.ch === 4;
 
-      // Voice/lead: spawn away from vanishing point, fill the canvas
       const spawnX = isVoice
         ? lerp(0.15, 0.85, n.note) + (Math.random() - 0.5) * spread * 0.3
         : _vanishX + (Math.random() - 0.5) * spread * 0.5;
@@ -206,7 +210,6 @@ export function render(ctx, W, H, env) {
         ? lerp(0.15, 0.85, 1 - n.note) + (Math.random() - 0.5) * spread * 0.2
         : _vanishY + (Math.random() - 0.5) * spread * 0.3;
 
-      // Voice/lead get 2x size, chords get 1.5x; rottura: everything bigger
       const rotturaBoost = isRottura ? 1.5 : 1.0;
       const sizeMul = (isVoice ? 2.0 : isChord ? 1.5 : isDrone ? 1.8 : 1.0) * rotturaBoost;
       const depth = _isRitorno
@@ -263,7 +266,9 @@ export function render(ctx, W, H, env) {
 
   if (_dots.length > 300) _dots.splice(0, _dots.length - 300);
 
-  // Update and render dots
+  // Update and render dots to FG layer
+  if (lFg) applyCameraTransform(lFg, W, H, camOpts);
+
   const direction = _isRitorno ? 1 : -1;
   for (let i = _dots.length - 1; i >= 0; i--) {
     const d = _dots[i];
@@ -273,10 +278,10 @@ export function render(ctx, W, H, env) {
     d.y += (d.vy || 0) * dt;
     d.alpha -= 0.006;
 
-    const spread = _isRitorno ? (1 - d.depth) : d.depth;
-    const sx = _vanishX + (d.x - _vanishX) * (1 + spread * 3.5);
-    const sy = _vanishY + (d.y - _vanishY) * (1 + spread * 3.5);
-    const scale = perspectiveScale(1, 1 - spread);
+    const dotSpread = _isRitorno ? (1 - d.depth) : d.depth;
+    const sx = _vanishX + (d.x - _vanishX) * (1 + dotSpread * 3.5);
+    const sy = _vanishY + (d.y - _vanishY) * (1 + dotSpread * 3.5);
+    const scale = perspectiveScale(1, 1 - dotSpread);
 
     if (d.alpha < 0.02 || d.depth < -0.05 || d.depth > 1.05 || sx < -0.15 || sx > 1.15 || sy < -0.15 || sy > 1.15) {
       _dots[i] = _dots[_dots.length - 1];
@@ -292,36 +297,36 @@ export function render(ctx, W, H, env) {
     const row = Math.floor(py / dotSize);
 
     if (bayerTest(col, row, density)) {
-      const depthFade = clamp(spread * 1.2, 0, 1);
+      const depthFade = clamp(dotSpread * 1.2, 0, 1);
       const isVoice = d.ch === 5 || d.ch === 6;
       const rgb = lerpColor(bgRgb, isVoice ? accRgb : dotRgb, depthFade * d.alpha);
       const colorStr = rgbString(rgb[0], rgb[1], rgb[2]);
       // Risograph offset: accent plane (voice/lead) misregistered by 1 px
       const rdx = isVoice ? RISO_OFFSET_X : 0;
       const rdy = isVoice ? RISO_OFFSET_Y : 0;
-      ctx.fillStyle = colorStr;
-      ctx.fillRect(px - dotSize / 2 + rdx, py - dotSize / 2 + rdy, dotSize, dotSize);
+      if (lFg) {
+        lFg.fillStyle = colorStr;
+        lFg.fillRect(px - dotSize / 2 + rdx, py - dotSize / 2 + rdy, dotSize, dotSize);
+      }
 
-      // Draw into sediment too — builds trails
-      if (sedCtx) {
-        sedCtx.fillStyle = colorStr;
-        sedCtx.globalAlpha = d.alpha * 0.4;
-        sedCtx.fillRect(px - dotSize / 2 + rdx, py - dotSize / 2 + rdy, dotSize, dotSize);
-        sedCtx.globalAlpha = 1;
+      // Write into OVERLAY — builds trails
+      // Alpha pre-baked ×0.6 to replicate the original globalAlpha=0.6 composite post-camera
+      if (lOv) {
+        lOv.fillStyle = colorStr;
+        lOv.globalAlpha = d.alpha * 0.24;  // = 0.4 × 0.6 (original write × original composite alpha)
+        lOv.fillRect(px - dotSize / 2 + rdx, py - dotSize / 2 + rdy, dotSize, dotSize);
+        lOv.globalAlpha = 1;
       }
     }
   }
 
-  restoreCameraTransform(ctx);
+  if (lFg) restoreCameraTransform(lFg);
 
-  // Composite sediment under everything? No — over bg, under camera transform already applied
-  // Actually composite it now (post-camera-restore so it's stable)
-  ctx.globalAlpha = 0.6;
-  _sediment.composite(ctx);
-  ctx.globalAlpha = 1;
+  // ── Composite layers onto main canvas ──
+  compositeLayers(ctx);
 }
 
 export function destroy() {
   _dots = [];
-  _sediment.clear(1, 1);
+  clearAllLayers();
 }
