@@ -6,6 +6,11 @@
 //  v2 — Fondo respira con audio, buchi organici con sfumatura,
 //       sedimento trattiene la memoria dei buchi,
 //       camera respira lentamente verso l'ultimo buco.
+//
+//  v3 (A.4) — Migrato al layer stack 4-canonico (BG/MG/FG/OVERLAY).
+//             Non scrive più direttamente su ctx: tutto va nei layer,
+//             compositeLayers(ctx) fonde a fine render.
+//             Il _sediment privato è sostituito da LAYER_OVERLAY.
 // ═══════════════════════════════════════════════════════════
 
 import {
@@ -13,11 +18,15 @@ import {
   lerp, clamp,
   audioDensity, audioFlicker,
   bayerGlitch, colorFlash, shouldGlitch,
-  Sediment,
   applyCameraTransform, restoreCameraTransform,
   lerpKForTrack,
   renderBayerScaffold,
 } from './visual-toolkit.js';
+
+import {
+  getLayerCtx, clearAllLayers, clearLayer, compositeLayers, setLayerDecay,
+  LAYER_BG, LAYER_MG, LAYER_FG, LAYER_OVERLAY,
+} from './layers.js';
 
 // ── Phase parameters ──────────────────────────────────────
 const PHASE_PARAMS = {
@@ -32,7 +41,6 @@ const PHASE_PARAMS = {
 let _holes = [];
 let _time = 0;
 let _params = { ...PHASE_PARAMS.germoglio };
-let _sediment = null;
 
 // Camera state — gentle drift toward last hole
 let _camDriftX = 0;
@@ -50,7 +58,7 @@ export function init(env) {
   _holes = [];
   _time = 0;
   _params = { ...(PHASE_PARAMS[env.worldState.phase] || PHASE_PARAMS.germoglio) };
-  _sediment = new Sediment();
+  clearAllLayers();
   _camDriftX = 0;
   _camDriftY = 0;
   _camTargetX = 0;
@@ -73,6 +81,7 @@ export function render(ctx, W, H, env) {
   _params.holeDepth   += (target.holeDepth   - _params.holeDepth)   * trackK;
   _params.glitch      += ((target.glitch || 0) - (_params.glitch || 0)) * trackK;
   _params.sedimentRate = target.sedimentRate;          // snap — affects decay immediately
+  setLayerDecay(LAYER_OVERLAY, _params.sedimentRate);  // propagate to layer system next frame
 
   const isRottura = worldState.phase === 'rottura';
   const glitchAmt = _params.glitch || 0;
@@ -80,7 +89,21 @@ export function render(ctx, W, H, env) {
   const bgRgb  = hexToRgb(worldState.palette.bg);
   const dotRgb = hexToRgb(worldState.palette.dot);
 
-  // ── 1. Breathing background color ──
+  // ── Layer contexts ──
+  // MG e FG sono freschi ogni frame (come il ctx originale ripulito da fillBackground).
+  // OVERLAY accumula — è il sediment (decayed da updateLayers).
+  clearLayer(LAYER_MG);
+  clearLayer(LAYER_FG);
+  const lBg = getLayerCtx(LAYER_BG);
+  const lMg = getLayerCtx(LAYER_MG);
+  const lFg = getLayerCtx(LAYER_FG);
+  const lOv = getLayerCtx(LAYER_OVERLAY);
+
+  // Grid dims — used by MG shadow loop and FG hole loop
+  const cols = Math.ceil(W / DOT_SIZE);
+  const rows = Math.ceil(H / DOT_SIZE);
+
+  // ── 1. BG layer: breathing background color ──
   // rms slightly brightens the sage green (loud = brighter, silence = base)
   const rms       = (audio && audio.rms  != null) ? audio.rms  : 0;
   const intensity = (state && state.intensity != null) ? state.intensity : 0;
@@ -96,50 +119,44 @@ export function render(ctx, W, H, env) {
     brightBg = colorFlash(brightBg, glitchAmt, _time);
   }
 
-  // ── 2. Textured background — Bayer field at very high density ──
-  // Density 0.90–0.98 baseline, capped to per-track ceiling (Phase 0 task 0.1)
-  // RESPIRO maxDensity 0.10 → background reads as nearly empty
-  const baseDensity = Math.min(0.93 + rmsMod * 0.05, worldState.visualRegime.maxDensity);
-  const cols = Math.ceil(W / DOT_SIZE);
-  const rows = Math.ceil(H / DOT_SIZE);
+  if (lBg) {
+    // Flat bg fills gaps between grid cells at certain sizes
+    fillBackground(lBg, W, H, rgbString(brightBg[0], brightBg[1], brightBg[2]));
 
-  // Flat bg first (fills gaps between grid cells at certain sizes)
-  fillBackground(ctx, W, H, rgbString(brightBg[0], brightBg[1], brightBg[2]));
-
-  // Bayer scaffold — Phase 0 task 0.4 (Nicolai/Raster-Noton)
-  // Visible in RESPIRO germoglio/pulsazione/dissoluzione (skips densita/rottura which are 0 anyway)
-  if (worldState.track === 'RESPIRO' &&
-      (worldState.phase === 'germoglio' || worldState.phase === 'pulsazione' || worldState.phase === 'dissoluzione')) {
-    const dotStr = rgbString(dotRgb[0], dotRgb[1], dotRgb[2]);
-    renderBayerScaffold(ctx, W, H, dotStr, 0.04);
+    // Bayer scaffold — Phase 0 task 0.4 (Nicolai/Raster-Noton)
+    // Visible in RESPIRO germoglio/pulsazione/dissoluzione (skips densita/rottura)
+    if (worldState.track === 'RESPIRO' &&
+        (worldState.phase === 'germoglio' || worldState.phase === 'pulsazione' || worldState.phase === 'dissoluzione')) {
+      const dotStr = rgbString(dotRgb[0], dotRgb[1], dotRgb[2]);
+      renderBayerScaffold(lBg, W, H, dotStr, 0.04);
+    }
   }
 
-  // Camera breathing — apply before all drawing
+  // ── Camera state update ──
   _camZoomTarget = 1.0 + rms * 0.015;
   _camZoom      += (_camZoomTarget - _camZoom) * 0.04;
   _camDriftX    += (_camTargetX - _camDriftX)  * 0.008;
   _camDriftY    += (_camTargetY - _camDriftY)  * 0.008;
-  applyCameraTransform(ctx, W, H, { zoom: _camZoom, driftX: _camDriftX, driftY: _camDriftY, time: _time });
 
-  // ── 3. Continuous audio darkness (audioDensity shadow layer) ──
+  // ── 2. MG layer: continuous audio darkness (audioDensity shadow layer) ──
   // Loud sound creates slight shadow dots on top of bg — silence = pure color
-  if (intensity > 0.05) {
+  if (lMg && intensity > 0.05) {
     const shadowAlpha  = clamp(intensity * 0.22, 0, 0.22);
     const shadowRgb    = lerpColor(brightBg, dotRgb, 0.35);  // bg→dot, not full dark
-    ctx.fillStyle = rgbString(shadowRgb[0] | 0, shadowRgb[1] | 0, shadowRgb[2] | 0);
+    lMg.fillStyle = rgbString(shadowRgb[0] | 0, shadowRgb[1] | 0, shadowRgb[2] | 0);
     for (let r = 0; r < rows; r++) {
       const ny = r / rows;
       for (let c = 0; c < cols; c++) {
         const nx = c / cols;
         const d  = audioDensity(audio, state, nx, ny) * shadowAlpha * 3.5;
         if (d > 0.02 && bayerTest(c, r, clamp(d, 0, 1))) {
-          ctx.fillRect(c * DOT_SIZE, r * DOT_SIZE, DOT_SIZE, DOT_SIZE);
+          lMg.fillRect(c * DOT_SIZE, r * DOT_SIZE, DOT_SIZE, DOT_SIZE);
         }
       }
     }
   }
 
-  // ── 4. Spawn holes from voice (CH5) and lead echo (CH6) ──
+  // ── 3. Spawn holes from voice (CH5) and lead echo (CH6) ──
   // Rottura: also react to kick (CH0), bass (CH3) — everything carves holes
   for (const n of midiTrail) {
     const isVoiceLead = n.ch === 5 || n.ch === 6;
@@ -186,10 +203,8 @@ export function render(ctx, W, H, env) {
     }
   }
 
-  // ── 5. Update holes and write sediment traces ──
-  if (!_sediment) _sediment = new Sediment();
-  _sediment.decay(W, H, _params.sedimentRate);
-  const sedCtx = _sediment.getCtx();
+  // ── 4. FG layer: update holes + draw — camera-transformed ──
+  if (lFg) applyCameraTransform(lFg, W, H, { zoom: _camZoom, driftX: _camDriftX, driftY: _camDriftY, time: _time });
 
   for (let i = _holes.length - 1; i >= 0; i--) {
     const h = _holes[i];
@@ -208,11 +223,10 @@ export function render(ctx, W, H, env) {
       continue;
     }
 
-    // ── 6. Organic circular hole with soft edge and color gradient ──
-    const hcx   = h.x * W;
-    const hcy   = h.y * H;
+    // ── 5. Organic circular hole with soft edge and color gradient ──
+    const hcx    = h.x * W;
+    const hcy    = h.y * H;
     const hradPx = h.radius * Math.min(W, H);
-    const hrGrid = hradPx / DOT_SIZE;
 
     // Bounding box in grid coords
     const cMin = Math.max(0, Math.floor((hcx - hradPx) / DOT_SIZE));
@@ -231,7 +245,6 @@ export function render(ctx, W, H, env) {
         if (dist > 1.0) continue;                          // outside circle
 
         // Soft edge: full dark at center, blend to bg at edge
-        // dist=0 → pure dot color; dist=1 → pure bg (transparent hole)
         const edgeFade  = 1 - dist * dist;                 // quadratic falloff
         const holeDark  = h.alpha * edgeFade;
 
@@ -243,31 +256,34 @@ export function render(ctx, W, H, env) {
 
         if (threshold > bayerVal) {
           // Color: center blends strongly toward dot, edge back toward bg
-          const t     = holeDark * 0.85;
-          const rgb   = lerpColor(brightBg, dotRgb, t);
-          ctx.fillStyle = rgbString(rgb[0] | 0, rgb[1] | 0, rgb[2] | 0);
-          ctx.fillRect(px, py, DOT_SIZE, DOT_SIZE);
+          const t   = holeDark * 0.85;
+          const rgb = lerpColor(brightBg, dotRgb, t);
+          if (lFg) {
+            lFg.fillStyle = rgbString(rgb[0] | 0, rgb[1] | 0, rgb[2] | 0);
+            lFg.fillRect(px, py, DOT_SIZE, DOT_SIZE);
+          }
 
-          // Write darker mark into sediment (memory of the hole)
-          const sRgb = lerpColor(bgRgb, dotRgb, clamp(holeDark * 0.55, 0, 1));
-          sedCtx.fillStyle = rgbString(sRgb[0] | 0, sRgb[1] | 0, sRgb[2] | 0, holeDark * 0.35);
-          sedCtx.fillRect(px, py, DOT_SIZE, DOT_SIZE);
+          // Write darker mark into OVERLAY (memory of the hole)
+          if (lOv) {
+            const sRgb = lerpColor(bgRgb, dotRgb, clamp(holeDark * 0.55, 0, 1));
+            lOv.fillStyle = rgbString(sRgb[0] | 0, sRgb[1] | 0, sRgb[2] | 0, holeDark * 0.35);
+            lOv.fillRect(px, py, DOT_SIZE, DOT_SIZE);
+          }
         }
       }
     }
   }
 
-  // ── 7. Composite sediment traces onto main canvas ──
-  _sediment.composite(ctx);
+  if (lFg) restoreCameraTransform(lFg);
 
-  // ── 8. Restore camera ──
-  restoreCameraTransform(ctx);
+  // ── 6. Composite layers onto main canvas ──
+  compositeLayers(ctx);
 }
 
 // ── Destroy ───────────────────────────────────────────────
 export function destroy() {
   _holes = [];
-  if (_sediment) { _sediment.clear(0, 0); _sediment = null; }
+  clearAllLayers();
   _camDriftX = 0;
   _camDriftY = 0;
 }
