@@ -8,8 +8,8 @@
 
 ## 2026-04-07 (notte) — Visual System Bible Fase A.4: comp-negativo → layer stack
 
-**Versione fine sessione:** v3.4.2 (head `b4fa11f`)
-**Branch:** `machine-iii` — 1 nuovo commit
+**Versione fine sessione:** v3.4.2 (head `16abb8e`)
+**Branch:** `machine-iii` — 4 nuovi commit (layer stack completo)
 
 ### Obiettivo
 Migrare la prima comp al layer stack 4-canonico come da P0 in STATUS.md.
@@ -37,9 +37,41 @@ semplice da convertire in LAYER_OVERLAY.
 ### File toccati
 - `src/comp-negativo.js` — unico file modificato
 
+### Continuazione stessa sessione
+Migrazione completata per tutte e 6 le comp — vedi entry successiva.
+
+---
+
+## 2026-04-07 (notte, continuazione) — Visual Bible Fase A.4 completa: tutte le 6 comp
+
+**Versione fine sessione:** v3.4.2 (head `16abb8e`)
+**Branch:** `machine-iii` — +3 commit (comp-liminale, layers.js, griglia+linee+quadrati+treno)
+
+### Fatto
+
+**comp-liminale** (`aafc8a7`)
+- BG/MG(zones)/FG(dots) a layer. OVERLAY sediment: alpha pre-baked ×0.6 (originale: globalAlpha=0.6 post-camera).
+
+**layers.js + comp-griglia/linee/quadrati/treno** (`16abb8e`)
+- `setLayerCompositeAlpha(name, alpha)` per composite con alpha variabile.
+- `clearAllLayers()` resetta anche decay rates e composite alphas ai default.
+- `compositeLayers()` rispetta per-layer alpha.
+
+Mapping sediment per comp:
+- negativo, liminale, quadrati → OVERLAY (migrato)
+- griglia → MG (z-order: afterglow sotto celle live ✓)
+- linee → privato (screen blend non replicabile nel layer stack)
+- treno → privato (frame-capture speciale: `sCtx.drawImage(ctx.canvas)`)
+
+### File toccati
+- `src/layers.js` (3 nuove funzioni, clearAllLayers estesa)
+- `src/comp-liminale.js`, `src/comp-griglia.js`, `src/comp-linee.js`,
+  `src/comp-quadrati.js`, `src/comp-treno.js`
+
 ### Prossimo
-- Test live su RESPIRO per verificare comportamento identico all'originale
-- Se OK → procedere con seconda comp (candidata: `comp-liminale` / NEBBIA)
+- **Test live** su tutte le 7 tracce (NEBBIA, TESSUTO, SOLCO, RESPIRO, MACCHINA, TEMPESTA, RITORNO)
+- Verificare comportamento visivo identico all'originale
+- Se OK → Fase B (rupture 4 stadi come stato del director3)
 
 ---
 
