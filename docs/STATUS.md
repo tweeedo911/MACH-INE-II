@@ -1,7 +1,7 @@
 # STATUS — MACH:INE III
 
 > Snapshot vivo. Rigenerato a fine sessione. Punto di entrata di ogni nuova sessione.
-> **Last updated:** 2026-04-07 (sessione Visual Bible Fase A.1→A.2)
+> **Last updated:** 2026-04-07 (sessione Visual Bible Fase A.4 — comp-negativo layer stack)
 
 ## ⚠️ Limiti noti (post A.2)
 
@@ -29,7 +29,7 @@
 **v3.4.2** — single source: `src/VERSION.js` (`APP_VERSION`)
 
 Tag git: `v3.4.2` su `ccbbb13`.
-HEAD: `f6daea8` (Visual Bible Fase A.1→A.3 completate).
+HEAD: `b4fa11f` (Visual Bible Fase A.4 — comp-negativo migrato).
 Branch attivo: `machine-iii` (14 commit avanti su `origin/machine-iii`, mai pushato).
 
 ---
@@ -86,12 +86,12 @@ layers.js         →  4 layer canonici stackati (BG/MG/FG/Overlay) — Bible §
 
 ## Prossimo (priorità top→bottom)
 
-### P0 — Visual System Bible Fase A.4 (prossima sessione)
-1. **Migrare la prima comp al layer stack** — scegliere traccia di
-   partenza (raccomandato `comp-negativo`/RESPIRO o `comp-liminale`/NEBBIA).
-   Protocollo: una traccia per sessione, test live in mezzo, commit
-   atomico (Bible §15.2). Ref: `WORKLOG.md` entry 2026-04-07 sera.
-2. Dopo prima comp → estendere a tutte e 7 le tracce, una per sessione.
+### P0 — Visual System Bible Fase A.4 (in corso)
+1. ✅ **`comp-negativo` (RESPIRO) migrato** — layer stack 4-canonico (commit `b4fa11f`).
+   **Da testare live prima di procedere.**
+2. **Seconda comp** — candidata `comp-liminale` (NEBBIA / RITORNO).
+   Stessa procedura: test live → commit atomico (Bible §15.2).
+3. Poi estendere alle 4 comp rimanenti, una per sessione.
 
 ### P1 — Visual System Bible Fase B / C (post A.4)
 3. Implementare **rupture 4 stadi** (Omen→Infiltration→Takeover→Residue)
