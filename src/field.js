@@ -7,6 +7,7 @@
 import { worldState } from './world-state.js';
 import * as toolkit from './visual-toolkit.js';
 import { Sediment, shouldGlitch, hexToRgb, rgbString, colorFlash, clamp } from './visual-toolkit.js';
+import { firma } from './firma.js';
 
 // ── Composition modules ──
 import * as compLiminale from './comp-liminale.js';
@@ -113,7 +114,16 @@ export function addMidiNote(ch, noteNorm, velNorm) {
 }
 
 // ── Update waves and trail decay ──
+// v3.4.3: firma.gelo freeza l'intero flusso visivo, firma.convergenza
+// attira midiTrail + onset waves verso il centro (gesto gravitazionale).
 export function updateWaves(dt) {
+  // GELO — freeze totale del flusso visivo (nessuna evoluzione, nessun decay)
+  if (firma.gelo) return;
+
+  // CONVERGENZA — attrazione verso il centro canvas
+  const conv = firma.convergenza;
+  const convPull = conv ? dt * 0.3 : 0;
+
   for (let i = onsetWaves.length - 1; i >= 0; i--) {
     const w = onsetWaves[i];
     w.radius += 300 * dt;
@@ -127,6 +137,11 @@ export function updateWaves(dt) {
     const n = midiTrail[i];
     n.time += dt;
     n.alpha *= n.decay;
+    if (conv) {
+      // attrazione verso centro in coord normalizzate (0..1)
+      n.x += (0.5 - n.x) * convPull;
+      n.y += (0.5 - n.y) * convPull;
+    }
     if (n.alpha < 0.01) {
       midiTrail[i] = midiTrail[midiTrail.length - 1];
       midiTrail.length--;
