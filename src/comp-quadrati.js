@@ -11,6 +11,8 @@ import {
   lerp, clamp, rng, seedRng, noiseAt,
   renderBreathingField, bayerGlitch, colorFlash, shouldGlitch,
   Sediment, applyCameraTransform, restoreCameraTransform,
+  RISO_OFFSET_X, RISO_OFFSET_Y,
+  lerpKForTrack,
 } from './visual-toolkit.js';
 
 // ── Phase parameters ──
@@ -95,12 +97,17 @@ export function render(ctx, W, H, env) {
   const { worldState, midiTrail, onsetWaves, audio, state, dt } = env;
   _time += dt;
 
+  // Hoist isRottura up — was declared below but used at line ~151 (TDZ crash)
+  const isRottura = worldState.phase === 'rottura';
+
   // ── Interpolazione parametri di fase ──
   const target = PHASE_PARAMS[worldState.phase] || PHASE_PARAMS.germoglio;
-  _params.fillDensity    += (target.fillDensity    - _params.fillDensity)    * 0.03;
-  _params.flashIntensity += (target.flashIntensity - _params.flashIntensity) * 0.03;
-  _params.breathAlpha    += (target.breathAlpha    - _params.breathAlpha)    * 0.03;
-  _params.sedimentRate   += (target.sedimentRate   - _params.sedimentRate)   * 0.03;
+  // Per-track tau — Phase 0 task 0.3
+  const trackK = lerpKForTrack(worldState.track, dt);
+  _params.fillDensity    += (target.fillDensity    - _params.fillDensity)    * trackK;
+  _params.flashIntensity += (target.flashIntensity - _params.flashIntensity) * trackK;
+  _params.breathAlpha    += (target.breathAlpha    - _params.breathAlpha)    * trackK;
+  _params.sedimentRate   += (target.sedimentRate   - _params.sedimentRate)   * trackK;
   _params.arpVisible      = target.arpVisible;
 
   // Rigenera blocchi solo se la differenza di conteggio è significativa
@@ -161,7 +168,6 @@ export function render(ctx, W, H, env) {
   _sediment.decay(W, H, _params.sedimentRate);
   const sedCtx = _sediment.getCtx();
 
-  const isRottura = worldState.phase === 'rottura';
   const rmsBoost  = (audio && audio.rms) ? audio.rms * 0.2 : 0;
 
   // ── 3. Blocchi ──
@@ -207,6 +213,8 @@ export function render(ctx, W, H, env) {
     if (isRottura && shouldGlitch(1, true, _time + i * 0.7)) {
       density = Math.random() > 0.5 ? 1.0 : 0.05;
     }
+    // Cap to per-track density ceiling (Phase 0 task 0.1)
+    density = Math.min(density, worldState.visualRegime.maxDensity);
     const dotSize  = Math.max(3, Math.round(lerp(8, 4, density)));
 
     const sizeMul = breathe + bassEnergy * 0.2;
@@ -319,15 +327,22 @@ export function render(ctx, W, H, env) {
         const tAlpha = p.alpha * (t + 1) / p.trail.length * 0.4;
         if (tAlpha < 0.02) continue;
         ctx.globalAlpha = tAlpha;
-        ctx.fillStyle   = tAlpha > 0.12 ? accStr : dotStr;
+        const useAccent = tAlpha > 0.12;
+        ctx.fillStyle   = useAccent ? accStr : dotStr;
         const tSize = Math.max(1, p.size * 0.45);
-        ctx.fillRect(tp.x, tp.y, tSize, tSize);
+        // Risograph offset: accent plane misregistered by 1 px
+        const rdx = useAccent ? RISO_OFFSET_X : 0;
+        const rdy = useAccent ? RISO_OFFSET_Y : 0;
+        ctx.fillRect(tp.x + rdx, tp.y + rdy, tSize, tSize);
       }
 
       // Disegna testa particella
       ctx.globalAlpha = p.alpha;
-      ctx.fillStyle   = p.alpha > 0.45 ? accStr : dotStr;
-      ctx.fillRect(px, py, p.size, p.size);
+      const headAccent = p.alpha > 0.45;
+      ctx.fillStyle   = headAccent ? accStr : dotStr;
+      const hdx = headAccent ? RISO_OFFSET_X : 0;
+      const hdy = headAccent ? RISO_OFFSET_Y : 0;
+      ctx.fillRect(px + hdx, py + hdy, p.size, p.size);
     }
     ctx.globalAlpha = 1;
   }

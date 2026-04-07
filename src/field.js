@@ -212,15 +212,15 @@ export function renderField(ctx, W, H, envData) {
 
   if (shouldGlitch(audioEnergy + 0.3, isRottura, gt)) {
     // Pick a random glitch type
+    // Glitch grammar: SUBTRACTION, not accumulation. Tear/clear pixels, don't add flashes.
     const mode = Math.floor(gt * 17.3) % 5;
     switch (mode) {
       case 0: {
-        // Brief full-screen white/black flash (1 frame)
-        const flashAlpha = 0.15 + audioEnergy * 0.25;
-        ctx.globalAlpha = flashAlpha;
-        ctx.fillStyle = isRottura ? '#FFFFFF' : '#000000';
-        ctx.fillRect(0, 0, W, H);
-        ctx.globalAlpha = 1;
+        // Strip removal — clear horizontal band of 8-16 rows for 1 frame
+        // Replaces the old additive flash. Subtract, don't add.
+        const stripH = 8 + Math.floor(Math.random() * 8);
+        const stripY = Math.random() * (H - stripH);
+        ctx.clearRect(0, stripY, W, stripH);
         break;
       }
       case 1: {
@@ -250,7 +250,22 @@ export function renderField(ctx, W, H, envData) {
         }
         break;
       }
-      // cases 3,4: no-op — gives glitch breathing room (not every trigger fires)
+      case 3: {
+        // Column removal — clear vertical strip of 4-12 cols for 1 frame
+        const stripW = 4 + Math.floor(Math.random() * 8);
+        const stripX = Math.random() * (W - stripW);
+        ctx.clearRect(stripX, 0, stripW, H);
+        break;
+      }
+      case 4: {
+        // Bayer threshold flip — invert dot pattern for 1 frame via difference op
+        ctx.save();
+        ctx.globalCompositeOperation = 'difference';
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(0, 0, W, H);
+        ctx.restore();
+        break;
+      }
     }
   }
 }

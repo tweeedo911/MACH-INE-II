@@ -30,6 +30,55 @@ export function drawDot(ctx, x, y, size, color) {
   ctx.fillRect(x, y, size, size);
 }
 
+// ── Risograph offset ──
+// Misregistration of accent color plane vs primary plane.
+// Match user's "fondi colorati ricercati" intent (Hara→Yokoo gradient).
+export const RISO_OFFSET_X = 1;
+export const RISO_OFFSET_Y = 0;
+
+export function risoOffset(x, y) {
+  return [x + RISO_OFFSET_X, y + RISO_OFFSET_Y];
+}
+
+// ── Per-track audio EMA tau (seconds) ──
+// Time constant for parameter smoothing: low tau = nervous/reactive,
+// high tau = glacial/contemplative. Each track has its own tempo of change.
+export const VISUAL_TAU = {
+  NEBBIA:   4.0,  // ambient — almost imperceptible drift
+  RESPIRO:  4.0,  // pause — equally slow
+  RITORNO:  3.0,  // melancholic descent
+  TESSUTO:  1.5,  // organic emergence
+  SOLCO:    0.8,  // dub groove — moderate
+  MACCHINA: 0.4,  // mechanical — quick
+  TEMPESTA: 0.2,  // peak — nervous, reactive
+};
+
+// Compute frame-rate-independent lerp coefficient for the active track.
+// k = clamp(dt / tau, 0, 1). At 60fps with tau=0.2 → k≈0.083; with tau=4.0 → k≈0.004.
+export function lerpKForTrack(trackName, dt) {
+  const tau = VISUAL_TAU[trackName] || 1.0;
+  return Math.min(1.0, dt / tau);
+}
+
+// ── Bayer scaffold ──
+// Render the Bayer 8x8 lattice as a faint background — Nicolai/Raster-Noton
+// "show the system as scaffold". Used by NEBBIA and RESPIRO germoglio/dissoluzione.
+// Cost: ~W*H/64 fillRect calls. At 1920x1080 ≈ 32400 calls — keep alpha low.
+export function renderBayerScaffold(ctx, W, H, color, alpha = 0.04) {
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = color;
+  // Sample on the 8-cell grid; draw a stable mid-density pattern.
+  for (let y = 0; y < H; y += 8) {
+    for (let x = 0; x < W; x += 8) {
+      if (bayerTest(x >> 3, y >> 3, 0.5)) {
+        ctx.fillRect(x, y, 1, 1);
+      }
+    }
+  }
+  ctx.restore();
+}
+
 // Fill rectangular area with Bayer-dithered dots
 export function fillBayer(ctx, x, y, w, h, density, dotSize, color) {
   const cols = Math.ceil(w / dotSize);

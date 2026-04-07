@@ -10,6 +10,9 @@ import {
   audioDensity, audioFlicker, bayerGlitch, colorFlash, shouldGlitch,
   Sediment,
   applyCameraTransform, restoreCameraTransform,
+  RISO_OFFSET_X, RISO_OFFSET_Y,
+  lerpKForTrack,
+  renderBayerScaffold,
 } from './visual-toolkit.js';
 
 const PHASE_PARAMS = {
@@ -52,10 +55,11 @@ export function render(ctx, W, H, env) {
   const { worldState, midiTrail, onsetWaves, audio, state, dt } = env;
   _time += dt;
 
-  // Lerp params
+  // Lerp params (per-track tau — Phase 0 task 0.3)
   const target = PHASE_PARAMS[worldState.phase] || PHASE_PARAMS.germoglio;
+  const trackK = lerpKForTrack(worldState.track, dt);
   for (const k of Object.keys(target)) {
-    _params[k] += (target[k] - _params[k]) * 0.03;
+    _params[k] += (target[k] - _params[k]) * trackK;
   }
 
   const bgRgb = hexToRgb(worldState.palette.bg);
@@ -83,6 +87,13 @@ export function render(ctx, W, H, env) {
 
   // Background
   fillBackground(ctx, W, H, bgStr);
+
+  // Bayer scaffold — Phase 0 task 0.4 (Nicolai/Raster-Noton)
+  // Visible only in NEBBIA germoglio/dissoluzione: shows the system as scaffold
+  if (worldState.track === 'NEBBIA' &&
+      (worldState.phase === 'germoglio' || worldState.phase === 'dissoluzione')) {
+    renderBayerScaffold(ctx, W, H, dotStr, 0.04);
+  }
 
   // Camera — subtle zoom toward vanishing point, onset shake
   applyCameraTransform(ctx, W, H, {
@@ -276,7 +287,7 @@ export function render(ctx, W, H, env) {
     const px = sx * W;
     const py = sy * H;
     const dotSize = Math.max(2, Math.round(d.size * scale));
-    const density = clamp(d.alpha * _params.densityMax * 3, 0, 1);
+    const density = Math.min(clamp(d.alpha * _params.densityMax * 3, 0, 1), worldState.visualRegime.maxDensity);
     const col = Math.floor(px / dotSize);
     const row = Math.floor(py / dotSize);
 
@@ -285,14 +296,17 @@ export function render(ctx, W, H, env) {
       const isVoice = d.ch === 5 || d.ch === 6;
       const rgb = lerpColor(bgRgb, isVoice ? accRgb : dotRgb, depthFade * d.alpha);
       const colorStr = rgbString(rgb[0], rgb[1], rgb[2]);
+      // Risograph offset: accent plane (voice/lead) misregistered by 1 px
+      const rdx = isVoice ? RISO_OFFSET_X : 0;
+      const rdy = isVoice ? RISO_OFFSET_Y : 0;
       ctx.fillStyle = colorStr;
-      ctx.fillRect(px - dotSize / 2, py - dotSize / 2, dotSize, dotSize);
+      ctx.fillRect(px - dotSize / 2 + rdx, py - dotSize / 2 + rdy, dotSize, dotSize);
 
       // Draw into sediment too — builds trails
       if (sedCtx) {
         sedCtx.fillStyle = colorStr;
         sedCtx.globalAlpha = d.alpha * 0.4;
-        sedCtx.fillRect(px - dotSize / 2, py - dotSize / 2, dotSize, dotSize);
+        sedCtx.fillRect(px - dotSize / 2 + rdx, py - dotSize / 2 + rdy, dotSize, dotSize);
         sedCtx.globalAlpha = 1;
       }
     }

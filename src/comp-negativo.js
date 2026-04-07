@@ -15,6 +15,8 @@ import {
   bayerGlitch, colorFlash, shouldGlitch,
   Sediment,
   applyCameraTransform, restoreCameraTransform,
+  lerpKForTrack,
+  renderBayerScaffold,
 } from './visual-toolkit.js';
 
 // ── Phase parameters ──────────────────────────────────────
@@ -64,10 +66,12 @@ export function render(ctx, W, H, env) {
 
   // ── Smooth phase transition ──
   const target = PHASE_PARAMS[worldState.phase] || PHASE_PARAMS.germoglio;
-  _params.holeSize    += (target.holeSize    - _params.holeSize)    * 0.03;
-  _params.closeSpeed  += (target.closeSpeed  - _params.closeSpeed)  * 0.03;
-  _params.holeDepth   += (target.holeDepth   - _params.holeDepth)   * 0.03;
-  _params.glitch      += ((target.glitch || 0) - (_params.glitch || 0)) * 0.05;
+  // Per-track tau — Phase 0 task 0.3
+  const trackK = lerpKForTrack(worldState.track, dt);
+  _params.holeSize    += (target.holeSize    - _params.holeSize)    * trackK;
+  _params.closeSpeed  += (target.closeSpeed  - _params.closeSpeed)  * trackK;
+  _params.holeDepth   += (target.holeDepth   - _params.holeDepth)   * trackK;
+  _params.glitch      += ((target.glitch || 0) - (_params.glitch || 0)) * trackK;
   _params.sedimentRate = target.sedimentRate;          // snap — affects decay immediately
 
   const isRottura = worldState.phase === 'rottura';
@@ -93,13 +97,22 @@ export function render(ctx, W, H, env) {
   }
 
   // ── 2. Textured background — Bayer field at very high density ──
-  // Density 0.90–0.98 so it reads as almost-solid but with grain
-  const baseDensity = 0.93 + rmsMod * 0.05;   // 0.93..0.98 range
+  // Density 0.90–0.98 baseline, capped to per-track ceiling (Phase 0 task 0.1)
+  // RESPIRO maxDensity 0.10 → background reads as nearly empty
+  const baseDensity = Math.min(0.93 + rmsMod * 0.05, worldState.visualRegime.maxDensity);
   const cols = Math.ceil(W / DOT_SIZE);
   const rows = Math.ceil(H / DOT_SIZE);
 
   // Flat bg first (fills gaps between grid cells at certain sizes)
   fillBackground(ctx, W, H, rgbString(brightBg[0], brightBg[1], brightBg[2]));
+
+  // Bayer scaffold — Phase 0 task 0.4 (Nicolai/Raster-Noton)
+  // Visible in RESPIRO germoglio/pulsazione/dissoluzione (skips densita/rottura which are 0 anyway)
+  if (worldState.track === 'RESPIRO' &&
+      (worldState.phase === 'germoglio' || worldState.phase === 'pulsazione' || worldState.phase === 'dissoluzione')) {
+    const dotStr = rgbString(dotRgb[0], dotRgb[1], dotRgb[2]);
+    renderBayerScaffold(ctx, W, H, dotStr, 0.04);
+  }
 
   // Camera breathing — apply before all drawing
   _camZoomTarget = 1.0 + rms * 0.015;

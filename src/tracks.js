@@ -114,7 +114,7 @@ export const TRACKS = {
     },
 
     palette: { bg: '#282B26', dot: '#FE6B0D', accent: '#CDD71D' },
-    visualRegime: { maxDensity: 0.65, minDotSize: 4, composition: 'ASIMMETRIA' },
+    visualRegime: { maxDensity: 0.50, minDotSize: 4, composition: 'ASIMMETRIA' },
   },
 
   // ═══════════════════════════════════════════════════════════
@@ -179,7 +179,7 @@ export const TRACKS = {
     },
 
     palette: { bg: '#0A0A0A', dot: '#EFE6DE', accent: null },
-    visualRegime: { maxDensity: 0.15, minDotSize: 10, composition: 'VUOTO' },
+    visualRegime: { maxDensity: 0.25, minDotSize: 10, composition: 'VUOTO' },
   },
 
   // ═══════════════════════════════════════════════════════════
@@ -251,7 +251,7 @@ export const TRACKS = {
     },
 
     palette: { bg: '#20130D', dot: '#CDD71D', accent: '#EFE6DE' },
-    visualRegime: { maxDensity: 0.40, minDotSize: 6, composition: 'GRIGLIA' },
+    visualRegime: { maxDensity: 0.45, minDotSize: 6, composition: 'GRIGLIA' },
   },
 
   // ═══════════════════════════════════════════════════════════
@@ -314,7 +314,7 @@ export const TRACKS = {
     },
 
     palette: { bg: '#7BBA91', dot: '#20130D', accent: null },
-    visualRegime: { maxDensity: 0.20, minDotSize: 8, composition: 'RESPIRO' },
+    visualRegime: { maxDensity: 0.10, minDotSize: 8, composition: 'RESPIRO' },
   },
 
   // ═══════════════════════════════════════════════════════════
@@ -390,7 +390,7 @@ export const TRACKS = {
     },
 
     palette: { bg: '#1A1A2E', dot: '#F8ED00', accent: '#DD3A44' },
-    visualRegime: { maxDensity: 0.80, minDotSize: 2, composition: 'GRIGLIA' },
+    visualRegime: { maxDensity: 0.55, minDotSize: 2, composition: 'GRIGLIA' },
   },
 
   // ═══════════════════════════════════════════════════════════
@@ -466,7 +466,7 @@ export const TRACKS = {
     },
 
     palette: { bg: '#000000', dot: '#FFFFFF', accent: '#91010F' },
-    visualRegime: { maxDensity: 1.0, minDotSize: 1, composition: 'DATA' },
+    visualRegime: { maxDensity: 0.70, minDotSize: 1, composition: 'DATA' },
   },
 
   // ═══════════════════════════════════════════════════════════

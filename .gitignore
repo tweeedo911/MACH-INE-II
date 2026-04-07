@@ -20,3 +20,17 @@ test.html
 # Vecchi launcher
 start.sh
 launch.command
+
+# Media pesanti — mai in Git
+*.mov
+*.als
+*.mp4
+*.wav
+*.aif
+*.aiff
+
+# Frame snapshot (rigenerabili)
+analisi machine ii/FRAME-*.png
+
+# Superpowers/flow metadata locale
+.superpowers/
