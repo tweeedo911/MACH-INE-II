@@ -65,8 +65,13 @@ export function renderFrame(_now, dt) {
     return;  // skip everything: nessuna entità, nessun MIDI render, schermo nero
   }
 
+  // v3.4.3: firma.densityCap gate. Durante gelo nessun evento nuovo entra,
+  // durante opening ramp / closing fade gli eventi passano in modo
+  // probabilistico (rinasce la funzione che era in generations.js birthRate).
+  const acceptEvent = !firma.gelo && (firma.densityCap >= 1 || Math.random() < firma.densityCap);
+
   // Onset detection → LifecycleEvent + onset wave (for comp-* trails)
-  if (audio.onset && !lastOnset) {
+  if (audio.onset && !lastOnset && acceptEvent) {
     const cx = 0.5, cy = 0.5;
     onAudioOnset(cx, cy, globalTime);
     addOnsetWave(cx * W, cy * H, W, H);
@@ -80,6 +85,9 @@ export function renderFrame(_now, dt) {
     notes.length = CFG.maxMidiNotesPerFrame;
   }
   for (const n of notes) {
+    if (!acceptEvent) continue;
+    // per-note probabilistic gate when densityCap < 1
+    if (firma.densityCap < 1 && Math.random() >= firma.densityCap) continue;
     const noteNorm = n.note / 127;
     const velNorm = n.vel / 127;
     // nx/ny neutral per ora — le comp-* mappano via addMidiNote/midiTrail,

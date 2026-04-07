@@ -13,6 +13,7 @@
 // ═══════════════════════════════════════════════════════════
 
 import { CFG } from './config.js';
+import { firma } from './firma.js';
 
 // ── MIDI channel → role map (confermato 2026-04-07) ──
 // CH0 kick · CH1 percussion · CH2 drone · CH3 bass
@@ -121,11 +122,21 @@ export function onAudioOnset(nx, ny, globalTime) {
   _events.push(_makeEvent('onset', { nx, ny, vel: 1, t: globalTime }));
 }
 
-// Tick per-frame: avanza l'età e promuove gli stati
+// Tick per-frame: avanza l'età e promuove gli stati.
+// firma.gelo → freeza completamente il lifecycle (nessun aging).
+// firma.convergenza → attira tutti gli eventi verso il centro (nx/ny → 0.5).
 export function updateEvents(dt) {
+  if (firma.gelo) return;
+
+  const convPull = firma.convergenza ? dt * 0.3 : 0;
+
   for (let i = _events.length - 1; i >= 0; i--) {
     const e = _events[i];
     e.age += dt;
+    if (convPull > 0) {
+      e.nx += (0.5 - e.nx) * convPull;
+      e.ny += (0.5 - e.ny) * convPull;
+    }
     if      (e.age >= e.tDead)   { _events.splice(i, 1); continue; }
     else if (e.age >= e.tGhost)  e.state = STATE_FOSSIL;
     else if (e.age >= e.tStable) e.state = STATE_GHOST;
