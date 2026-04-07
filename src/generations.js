@@ -4,8 +4,10 @@
 
 import { CFG } from './config.js';
 import { dna, primState, isInVuoto, getZone } from './dna.js';
-// v3: firma removed — gelo/convergenza/densityCap no longer used
-const firma = { gelo: false, convergenza: false, densityCap: 1 };
+// v3.4.1: firma reattivata da firma.js (era disattivata con fake locale)
+// gelo + convergenza usano la logica già presente in updateGenerations.
+// densityCap caps birth rate (vedi blocco birth più sotto).
+import { firma } from './firma.js';
 
 export let entities = [];
 export let fossils = [];
@@ -157,8 +159,9 @@ export function updateGenerations(dt, state, evoSpeed, inClimax, climaxProgress,
   const evoDt = dt * evoSpeed * (dna ? dna.evolutionSpeed : 1);
 
   // Birth — threshold prevents spawning at near-silence
-  if (state.intensity > 0.05 && entities.length < CFG.maxEntities) {
-    const rate = CFG.birthRateMin + (CFG.birthRateMax - CFG.birthRateMin) * Math.pow(state.intensity, 1.5);
+  // v3.4.1: birth rate moltiplicato da firma.densityCap (opening ramp / closing fade)
+  if (state.intensity > 0.05 && entities.length < CFG.maxEntities && firma.densityCap > 0.01) {
+    const rate = (CFG.birthRateMin + (CFG.birthRateMax - CFG.birthRateMin) * Math.pow(state.intensity, 1.5)) * firma.densityCap;
     birthAccum += rate * dt;
     let birthColor = null;
     if (chromaticMode === 'all-A' && colorEnabled.A) birthColor = 'A';

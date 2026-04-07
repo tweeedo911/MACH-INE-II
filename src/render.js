@@ -13,6 +13,7 @@ import { getDirector3Status, isDirector3Playing } from './director3.js';
 import { worldState, phaseState } from './world-state.js';
 import { renderField, updateWaves, addOnsetWave, addMidiNote } from './field.js';
 import { recordSnapshot, recordPhaseCheck, isRecording } from './session-recorder.js';
+import { firma, updateFirma } from './firma.js';
 
 let canvas, ctx;
 let W, H;
@@ -56,6 +57,14 @@ export function getSize() { return { W, H }; }
 export function renderFrame(_now, dt) {
   globalTime += dt;
   frameCount++;
+
+  // v3.4.1: firma update + vuotoTotale early-out (silenzio strutturale)
+  updateFirma(globalTime);
+  if (firma.vuotoTotale) {
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(0, 0, W, H);
+    return;  // skip everything: nessuna entità, nessun MIDI render, schermo nero
+  }
 
   // Onset detection → entity spawn + onset wave
   if (audio.onset && !lastOnset) {
@@ -126,6 +135,10 @@ export function handleKey(code) {
     else document.exitFullscreen();
   }
   if (code === 'KeyR') return 'REGEN';
+  // v3.4.1: firma keybindings — gesti narrativi forti durante la live
+  if (code === 'KeyG') { firma.gelo = !firma.gelo; console.log(`[FIRMA] gelo ${firma.gelo}`); }
+  if (code === 'KeyV') { firma.vuotoTotale = !firma.vuotoTotale; console.log(`[FIRMA] vuotoTotale ${firma.vuotoTotale}`); }
+  if (code === 'KeyJ') { firma.convergenza = !firma.convergenza; console.log(`[FIRMA] convergenza ${firma.convergenza}`); }
 }
 
 // ── HUD Minimal ──
