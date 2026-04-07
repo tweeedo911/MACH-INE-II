@@ -50,6 +50,7 @@ export { PHASE_ENERGY };
 export const TRACKS = {
   SOLCO: {
     scale: SCALES.G_dorian,
+    modeHint: 'dorian',
     root: 55,   // G3
     bpm: 129,     // 43×3 — ratio 3:2 with TESSUTO (86)
     kickNote: 38,  // D2
@@ -123,6 +124,7 @@ export const TRACKS = {
   // ═══════════════════════════════════════════════════════════
   NEBBIA: {
     scale: SCALES.C_lydian,
+    modeHint: 'lydian',
     root: 48,   // C3
     bpm: null,  // no rhythmic clock — ambient
     kickNote: null,
@@ -188,6 +190,7 @@ export const TRACKS = {
   // ═══════════════════════════════════════════════════════════
   TESSUTO: {
     scale: SCALES.D_aeolian,
+    modeHint: 'aeolian',
     root: 50,   // D3
     bpm: 86,
     kickNote: 38,  // D2
@@ -260,6 +263,7 @@ export const TRACKS = {
   // ═══════════════════════════════════════════════════════════
   RESPIRO: {
     scale: SCALES.C_ionian,
+    modeHint: 'ionian',
     root: 60,   // C4 — higher, more open
     bpm: null,
     kickNote: null,
@@ -323,6 +327,7 @@ export const TRACKS = {
   // ═══════════════════════════════════════════════════════════
   MACCHINA: {
     scale: SCALES.D_dorian,
+    modeHint: 'dorian',
     root: 50,   // D3
     bpm: 129,     // 43×3 — same tempo as SOLCO, energy from density not speed
     kickNote: 38,  // D2
@@ -399,6 +404,7 @@ export const TRACKS = {
   // ═══════════════════════════════════════════════════════════
   TEMPESTA: {
     scale: SCALES.E_phrygian,
+    modeHint: 'phrygian',
     root: 52,   // E3
     bpm: 129,     // 43×3 — same tempo, peak from density and complexity
     kickNote: 40,  // E2
@@ -475,6 +481,7 @@ export const TRACKS = {
   // ═══════════════════════════════════════════════════════════
   RITORNO: {
     scale: SCALES.A_aeolian,
+    modeHint: 'aeolian',
     root: 57,   // A3 — same root class as NEBBIA opening (circles back)
     bpm: 86,    // 43×2 — mirrors TESSUTO, winding down
     kickNote: 45,  // A2

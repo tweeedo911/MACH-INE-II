@@ -150,6 +150,12 @@ function _tick() {
     chord = chord.slice(0, chordLimit);
   }
 
+  // ── Modal characteristic note boost (salvato da harmony-layer.js) ──
+  // Estrae il modo dal track scale (es. SCALES.G_dorian → 'dorian'),
+  // calcola l'intervallo distintivo del modo, e dà un velocity boost
+  // alle note di accordo che cadono su quell'intervallo.
+  const charBoost = _modeCharacteristicBoost(root);
+
   if (chordGrid) {
     // ── Rhythmic chords: staccato hits on grid pattern ──
     if (chordGrid[_step]) {
@@ -159,7 +165,8 @@ function _tick() {
 
       chord.forEach(note => {
         const humanize = Math.round((Math.random() * 6) - 3);
-        const vel = Math.min(Math.max(baseVel + humanize, 1), velCeil);
+        const boost = (charBoost && (note % 12) === charBoost.pitchClass) ? charBoost.amount : 0;
+        const vel = Math.min(Math.max(baseVel + humanize + boost, 1), velCeil);
         sendMIDINote(CH_CHORDS, note, vel, chordDur);
         addMidiNote(CH_CHORDS, note / 127, vel / 127);
       });
@@ -174,7 +181,8 @@ function _tick() {
 
       chord.forEach(note => {
         const humanize = Math.round((Math.random() * 6) - 3);
-        const vel = Math.min(Math.max(baseVel + humanize, 1), velCeil);
+        const boost = (charBoost && (note % 12) === charBoost.pitchClass) ? charBoost.amount : 0;
+        const vel = Math.min(Math.max(baseVel + humanize + boost, 1), velCeil);
         sendMIDINote(CH_CHORDS, note, vel, chordDur);
         addMidiNote(CH_CHORDS, note / 127, vel / 127);
       });
@@ -182,4 +190,23 @@ function _tick() {
       worldState.currentChord = [...chord];
     }
   }
+}
+
+// ── Modal characteristic note boost helper (salvato da harmony-layer.js) ──
+// Returns { pitchClass, amount } or null if no boost applies for current track.
+// Reads worldState.track + TRACKS[track].scale name to extract mode.
+function _modeCharacteristicBoost(root) {
+  const trackData = TRACKS[worldState.track];
+  if (!trackData) return null;
+  // Track scales are referenced as SCALES.G_dorian — extract scale key from track def
+  // We need the scale's KEY name, not the array. Best heuristic: scan SCALES export.
+  // Simpler: store mode hint on track if available; fallback to scale-array fingerprint.
+  const modeHint = trackData.modeHint;  // optional explicit hint
+  if (!modeHint) return null;
+  const interval = CFG.modeCharacteristicInterval?.[modeHint];
+  if (interval === undefined) return null;
+  return {
+    pitchClass: (root + interval) % 12,
+    amount:     CFG.characteristicVelBoost || 15,
+  };
 }

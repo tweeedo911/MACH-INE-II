@@ -165,13 +165,27 @@ export const CFG = {
   kickDominanceThreshold: 0.6,  // pm below this = kick suppressed (prevents CH0 overlap)
 
   // ── Modal characteristic note boost (voice CH5) ──
-  // Interval in semitones from root that defines each engine's modal identity
+  // Interval in semitones from root that defines the modal identity.
+  // LEGACY: keyed by old 7-engine names (used by archived V3 layer system)
   modalCharacteristicNotes: {
     terreno:   9,  // B natural — Dorian 6th from D
     meccanica: 6,  // F# — Dorian 6th from A
     vortice:   3,  // Eb — b2 (Phrygian identity) from D
     solco:     9,  // E natural — Dorian 6th from G
     abisso:    10, // Bb — b2 (Phrygian identity) from A
+  },
+  // ── Modal characteristic note by MODE NAME (Band con Direttore) ──
+  // Salvato da harmony-layer.js — mappatura generica per scale name
+  // L'intervallo distintivo del modo (in semitoni dalla root) riceve un velocity boost.
+  // Il pattern risuona la "personalità" modale: la 6a maggiore del dorian, la b2 del phrygian, ecc.
+  modeCharacteristicInterval: {
+    ionian:     11,  // 7a maggiore (sensibile)
+    dorian:     9,   // 6a maggiore (distinctive vs aeolian)
+    phrygian:   1,   // b2 (semitono caratteristico)
+    lydian:     6,   // #4 (tritono ascendente)
+    mixolydian: 10,  // b7 (rurale, modale)
+    aeolian:    8,   // b6 (minore naturale)
+    locrian:    6,   // b5 (instabilità)
   },
   characteristicVelBoost: 15,  // velocity bonus when characteristic note plays
 
