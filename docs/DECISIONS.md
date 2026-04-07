@@ -144,3 +144,167 @@ Più protocollo in `CLAUDE.md`:
 - ✅ "Perché?" sempre rispondibile (DECISIONS)
 - ✅ Versionato nel repo, condiviso con qualsiasi futuro collaboratore
 - ⚠️ Disciplina richiesta a fine sessione (~5 min di journaling)
+
+---
+
+## #009 — Visual System Bible come specifica operativa
+
+**Data:** 2026-04-07 (sera)
+**Contesto:** L'utente fornisce un documento "Visual System Bible" finale
+che ridefinisce il linguaggio visivo di MACH:INE III in modo unificato
+(4 layer, color lifecycle, palette per-traccia 5 ruoli, rupture 4 stadi,
+Bayer come unico primitivo).
+
+**Decisione:** Adottare la Bible come specifica vincolante per il redesign
+visivo. Implementazione a fasi:
+- **Fase A** (infrastruttura): `trackPalettes`, event-register unificato,
+  layer stack 4-canonical. Zero impatto visivo, tutto backward compat.
+- **Fase B** (redesign compositivo): una comp-* per sessione, test live
+  in mezzo (Bible §15.2).
+- **Fase C** (rupture + memoria inter-traccia): dopo che tutte le 7 tracce
+  sono state migrate.
+
+**Motivazione:** La Bible è il primo documento coerente che unifica visione,
+struttura, grammatica, palette, lifecycle e regole per traccia. Prima di
+questa sessione il sistema visivo era un vocabolario maturo ma senza score
+unificato ("architetto bravo, orchestra sorda"). La Bible è il principio
+ordinatore che mancava.
+
+**Conseguenze:**
+- Le versioni passate (V1→V5) restano come archeologia in `archive/docs/old/`.
+- I valori cromatici della Bible §12 sono la fonte di verità per i colori,
+  sostituiscono le palette nominali `'cold'/'amber'/'magenta'/'bw'` usate
+  fino a v3.4.2.
+- Le comp-* andranno riscritte una per volta: niente big-bang.
+
+---
+
+## #010 — Doppio sistema entities vs midiTrail: eliminare entities
+
+**Data:** 2026-04-07 (sera, A.2)
+**Contesto:** Inventario tecnico ha rivelato che `generations.js` (299 LOC)
+e `dna.js` (281 LOC) mantengono un sistema entity/fossil completo con
+color lifecycle A/B/C, ma **nessuna comp-* lo legge**. Le comp-* consumano
+solo `midiTrail` + `onsetWaves` da `field.js`. Il sistema entity è morto
+a schermo dalla v3.0.
+
+**Decisione:** Archiviare `generations.js` e `dna.js` in dead-islands.
+Unificare il path eventi in un nuovo `event-register.js` con
+`LifecycleEvent` per ruolo (kick/bass/voice/lead/chord/drone/perc/arp/onset),
+cablato tramite `CH_ROLE` sul canale MIDI.
+
+**Alternative considerate:**
+1. Ricollegare generations.js alle comp-* facendo sì che le comp leggano
+   `entities`/`fossils`. Rigettata: richiederebbe rewrite pesante delle
+   comp e il codice di generations.js è strutturato per il vecchio
+   modello A/B/C che la Bible supera.
+2. Tenere generations.js "congelato" come zombi. Rigettata: aggiunge
+   rumore al path di render, confonde la lettura del codice.
+
+**Conseguenze:**
+- 580 LOC rimosse dal path attivo. `render.js` più pulito.
+- Il lifecycle per ruolo vive in un solo posto (`event-register.js`).
+- Le firma gestures (`gelo`, `convergenza`, `densityCap`) perdono il
+  loro target originale (entities) e vanno ricablate. Fix in `f5139b6`.
+- `densityCap` perde effetto visibile finché le comp-* non consumano
+  `LifecycleEvent` — limite documentato in STATUS.
+
+---
+
+## #011 — MIDI channel → visual role: mappatura canonica
+
+**Data:** 2026-04-07 (sera, A.2)
+**Contesto:** L'event-register ha bisogno di mappare canali MIDI a
+ruoli visivi/lifecycle (Bible §14 mappa colore × ruolo).
+
+**Decisione:** Mappatura confermata dall'utente:
+
+| CH | Ruolo       |
+|----|-------------|
+| 0  | kick        |
+| 1  | percussion  |
+| 2  | drone       |
+| 3  | bass        |
+| 4  | chord       |
+| 5  | voice       |
+| 6  | lead        |
+| 7  | arp         |
+
+Esposta come `CH_ROLE` in `src/event-register.js`. Ogni ruolo ha il suo
+`ROLE_LIFECYCLE` (attack/hold/decay/ghost/fossil) derivato dalla Bible §16.1.
+
+**Conseguenze:**
+- Tutte le future comp-* e i sistemi di rendering lifecycle devono
+  consumare questa mappa, non hard-codare "CH5 = voice" a mano.
+- Modificare la mappa = un solo posto da toccare.
+- L'onset audio (senza canale MIDI) usa ruolo fallback `'onset'`.
+
+---
+
+## #012 — Firma gestures: target ritardato a A.4
+
+**Data:** 2026-04-07 (sera)
+**Contesto:** Dopo A.2, il test live ha mostrato che `G` (gelo) e `J`
+(convergenza) non hanno effetto visibile. Il cablaggio è corretto ma
+le comp-* renderizzano solo trail freschi (< 2 frame), non c'è nulla
+di persistente da freezare/attirare.
+
+**Alternative considerate:**
+1. Workaround frame-capture: catturare canvas su rising edge di gelo
+   e blittarlo al posto del rendering. Rigettata: è un cerotto, non
+   risolve il problema strutturale (non c'è memoria reale nel campo).
+2. Feedback zoom per convergenza via `ctx.drawImage` scalato verso
+   centro. Rigettata: effetto posticcio, non coerente con il dogma
+   Bible "niente effetti decorativi".
+3. **Aspettare A.4 e risolvere naturalmente.** ✅ Scelta.
+
+**Decisione:** Non implementare fix visivi temporanei. Documentare come
+limite noto in STATUS e WORKLOG, con lista esplicita degli elementi
+che devono reagire (LifecycleEvent stable/ghost/fossil, layer stack,
+sediment). A.4 cablando le comp-* al layer stack + event-register
+rende le firma naturalmente visibili: gelo freeza il decay dei layer
+(`updateLayers` skippa quando `firma.gelo`), convergenza attira le
+posizioni degli eventi persistenti.
+
+**Conseguenze:**
+- Tra A.3 e la prima comp migrata in A.4, `G` e `J` restano senza
+  effetto visibile. `V` (vuotoTotale) continua a funzionare.
+- La validazione finale del cablaggio firma è il test A.5: dopo la
+  prima comp migrata, `G` deve congelare quella traccia, `J` deve
+  implodere quella traccia.
+
+---
+
+## #013 — Layer stack 4-canonical come infrastruttura, non scena
+
+**Data:** 2026-04-07 (sera, A.3)
+**Contesto:** La Bible §5 definisce 4 layer canonici (BG/MG/FG/Overlay).
+Due modi di implementare: (a) scena monolitica con hard-coded 4 passaggi
+dentro ogni comp-*, (b) infrastruttura condivisa che le comp-* consumano
+via API.
+
+**Decisione:** Opzione (b). `src/layers.js` come modulo separato con
+4 `Sediment` stackati, API `initLayers/getLayerCtx/updateLayers/
+compositeLayers`. Le comp-* scriveranno in `getLayerCtx('fg')` invece
+di `ctx` diretto.
+
+**Motivazione:**
+- Separa il "dove disegnare" dal "cosa disegnare". Le comp-* si
+  concentrano sul linguaggio, il layer stack gestisce persistenza e
+  stacking.
+- Consente di cablare `firma.gelo` in un solo posto (`updateLayers`
+  skippa quando gelo) invece che in ogni comp.
+- Permette di bilanciare i decay rate dei layer per traccia via
+  `setLayerDecay` — ogni comp può decidere il suo equilibrio BG/MG/FG/Overlay.
+- Bible §5.2: "ogni traccia deve avere uno strato dominante, uno di
+  supporto, uno di evento e uno di residuo". Con l'infrastruttura
+  condivisa questa regola è esplicitamente gestibile.
+
+**Conseguenze:**
+- Le comp-* esistenti continuano a girare senza usare i layer (backward
+  compat). La migrazione è opt-in, una per sessione.
+- Al termine di A.4 ogni comp dovrà chiamare `compositeLayers(ctx)`
+  alla fine del suo render invece di disegnare direttamente.
+- `updateLayers(dt)` viene chiamato sempre nel game loop — le comp che
+  non usano i layer pagano solo il costo del decay su buffer vuoti
+  (trascurabile).
