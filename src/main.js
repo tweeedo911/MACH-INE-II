@@ -1,8 +1,9 @@
 // ═══════════════════════════════════════════════════════════
-//  MACH:INE II — Boot & Module Wiring
-//  v4.0.0: 7 phases, 43min, call-response, degradation, visual feedback+distortion
+//  MACH:INE III — Boot & Module Wiring
+//  Versione: vedi src/VERSION.js (APP_VERSION)
 // ═══════════════════════════════════════════════════════════
 
+import { APP_VERSION, APP_TITLE } from './VERSION.js';
 import { CFG } from './config.js';
 import { initAudio, updateAudio, setAudioGain, getAudioGain } from './audio.js';
 import { initMIDI, updateMIDI, sendMIDIStart, updateMIDIClock, sendMIDIAllNotesOff } from './midi.js';

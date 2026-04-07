@@ -1,6 +1,7 @@
 // ═══════════════════════════════════════════════════════════
-//  MACH:INE II — Centralized Configuration
-//  v5.0.0: gradiente continuo, bass protagonista, 7 palette colorate, silenzi strutturali, regimi visivi
+//  MACH:INE III — Centralized Configuration
+//  Versione: vedi src/VERSION.js (APP_VERSION)
+//  Tutti i parametri numerici vivono qui. Niente magic numbers altrove.
 // ═══════════════════════════════════════════════════════════
 
 export const CFG = {

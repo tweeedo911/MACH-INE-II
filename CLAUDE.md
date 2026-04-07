@@ -1,140 +1,118 @@
-# CLAUDE.md
+# CLAUDE.md — MACH:INE III
 
 ## Progetto
-MACH:INE II — sistema di co-composizione ricorsiva per performance audiovisive dal vivo.
+**MACH:INE III** — sistema generativo live per performance di collaborazione umano-AI.
+L'AI compone in tempo reale una suite continua di 45-60 minuti; il musicista interpreta
+i segnali MIDI generati su synth modulare, hardware e VST.
+
 Non è un visualizer: la musica è l'ambiente, la macchina propone, il performer interpreta.
+
+## Versione
+**v3.4.2** — single source of truth: `src/VERSION.js` (`APP_VERSION`).
 
 ## Stack
 - JavaScript ES modules nativi (zero dipendenze, zero build)
 - Canvas 2D API
-- Web Audio API (stereo via BlackHole)
-- WebMIDI API + Web Worker clock
+- Web Audio API (stereo via BlackHole / getDisplayMedia)
+- WebMIDI API + Web Worker clock 24ppqn
 - Server: `python3 -m http.server 8282`
 
 ## Comandi
 ```bash
-./launch.sh              # avvia server porta 8282
+./launch.sh                  # avvia server porta 8282 e apre browser
 python3 -m http.server 8282  # alternativa manuale
 ```
-Non c'è build step, npm, o bundler. Per testare: apri http://localhost:8282 su Chrome/Edge.
+Niente build step, niente npm, niente bundler. Apri http://localhost:8282 su Chrome/Edge.
 
-## Struttura src/
-- main.js — boot, wiring, game loop
-- config.js — CFG: tutti i parametri numerici centralizzati
-- audio.js — analisi audio stereo realtime
-- midi.js — MIDI I/O + Clock 24ppqn
-- midi-patterns.js — mapping visivo per canale e motore
-- state.js — stato narrativo derivato dall'audio (5 valori)
-- dna.js — DNA sessione, 8 primitivi, zone Voronoi
-- generations.js — entità, ciclo vita, spatial hash grid
-- colors.js — sistema cromatico A/B/C, climax, palette per motore
-- director.js — regista: scene, arco narrativo, mutazioni, camera
-- director-events.js — event bus del regista
-- field.js — campo halftone Bayer 8x8, onset waves, MIDI columns
-- render.js — orchestratore render + HUD
-- presence-multiplier.js — presenza multi-motore (0→1 per engine)
-- sequencer.js — concerto autonomo 5 atti
-- composer.js/2/3/4/5/6/7 — 7 motori compositivi MIDI
+## Struttura repo (post-FASE 2)
+```
+app/
+├── index.html              # entry point
+├── projector.html          # proiezione secondaria
+├── src/                    # solo moduli VIVI (vedi docs/01-ARCHITECTURE.md)
+│   ├── VERSION.js          # APP_VERSION (single source)
+│   ├── main.js             # boot + game loop
+│   ├── config.js           # CFG (tutti i numeri)
+│   ├── director3.js        # regista (track/phase/density)
+│   ├── world-state.js      # stato condiviso
+│   ├── firma.js            # gesti narrativi (gelo/convergenza/vuoto/densityCap)
+│   ├── rhythm/harmony/bass(/v2/v3)/melody(/v2/v3)/texture.js
+│   ├── comp-{griglia,liminale,linee,negativo,quadrati,treno}.js
+│   └── audio, midi, dna, generations, colors, field, render, state, tracks, ...
+├── docs/                   # documentazione viva (00–06)
+├── archive/                # tutto ciò che non gira ma serve come memoria
+│   ├── code/dead-islands/  # 14 moduli morti (sequencer, director, midi-patterns, ...)
+│   ├── code/versions/      # snapshot HTML/JS storici
+│   ├── docs/old/           # 19+ md storici + CHANGELOG-pre-v3.4.2
+│   ├── analysis/           # session JSON dump
+│   ├── midi-exports/       # .mid storici
+│   └── sandbox/            # designer/test/sandbox HTML
+├── .planning-archive/      # GSD phases 00-04 (V3 Layer System mai costruito, fossile)
+└── scripts/                # snapshot.sh, health-check.sh
+```
 
-## Docs di riferimento
-Leggi PRIMA di lavorare su aree specifiche:
-- DESIGN.md — estetica, architettura visiva, routing audio/MIDI
-- ENGINES_SPEC.md — identità musicale/visiva dei 7 motori
-- RULES.md — versioning, commit, flusso di lavoro, aree protette
-- ROADMAP.md — stato attuale e prossimi step
+## Docs di riferimento — leggi PRIMA di lavorare
+- `docs/00-VISION.md` — vision e principi non negoziabili
+- `docs/01-ARCHITECTURE.md` — pattern Band con Direttore, file map, aree protette
+- `docs/02-MUSIC.md` — 7 tracce, 5 fasi, modal characteristic, regola potenze di 2
+- `docs/03-VISUAL.md` — DNA, halftone Bayer, comp-*, firma, camera
+- `docs/04-RULES.md` — versioning, commit, code style, working mode
+- `docs/05-ROADMAP.md` — stato corrente + prossimi step
+- `docs/06-AGENTS.md` — skill mapping, routing subagenti, anti-pattern
 
-## Skill specializzate (.claude/skills/)
-Le skill contengono conoscenza profonda e strumenti. Leggi la SKILL.md appropriata PRIMA di lavorare.
+## Skill specializzate (`.claude/skills/`)
+Le skill contengono conoscenza profonda + script utility. Leggi `SKILL.md` prima di lavorare.
 
-### composition-depth
-Esperto compositivo per musica elettronica sperimentale. Scale, progressioni, tensione armonica,
-voicing, ritmo, variazioni, struttura formale. Contiene:
-- references/structural-form.md — **Regola potenze di 2**: tutte le lunghezze (progressioni, sezioni)
-  devono essere 2/4/8/16/32 battute. Diagnosi dei problemi attuali (TERRENO densità 24 bar, CRISTALLO 24 bar).
-- scripts/composition-utils.js — funzioni importabili: isPowerOf2, validateProgression, phrasedPresence, ecc.
-- **Triggera con:** composizione, armonia, accordi, battute, struttura, form, progressione
+| Skill                | Trigger                                                                  |
+|----------------------|--------------------------------------------------------------------------|
+| `composition-depth`  | composizione, armonia, accordi, battute, struttura, form, progressione   |
+| `visual-directing`   | visuals, rendering, scene, camera, primitivi, colore                     |
+| `runtime-expert`     | performance, fps, frame drop, latenza, memory, GC, Canvas, Audio, MIDI   |
+| `agent-orchestrator` | task >2 file o >3 step                                                   |
+| `production-team`    | tavola rotonda, review, critica, valuta, qualità, pronto per live        |
 
-### visual-directing
-Regista visivo e grafico. Tecniche grafiche (feedback, noise, reaction-diffusion), tecniche
-registiche (composizione, camera emotiva, montaggio), profili visivi per engine. Contiene:
-- references/graphic-techniques.md — halftone modulato, feedback, noise, primitivi come vocabolario
-- references/directing-techniques.md — composizione, camera, montaggio, scene come personaggi
-- references/engine-visual-profiles.md — 7 engine × profilo visivo con gap analysis
-- scripts/visual-utils.js — 25+ funzioni: noise, feedback, camera, color, glitch
-- **Triggera con:** visuals, rendering, scene, composizione visiva, camera, primitivi, colore
-
-### runtime-expert
-Esperto tecnico massimo dell'ambiente runtime. Canvas 2D, Web Audio, WebMIDI, ES modules,
-game loop 60fps. Performance reali, limiti browser, anti-pattern, tecnologie frontier. Contiene:
-- references/canvas2d-performance.md — draw call batching, ImageData, OffscreenCanvas
-- references/webaudio-analysis.md — AnalyserNode, AudioWorklet, costi computazionali
-- references/webmidi-patterns.md — latenza, bandwidth, clock sync, hot-plugging
-- references/es-modules-patterns.md — zero-build patterns, circular deps, cache busting
-- references/gameloop-timing.md — rAF, delta time, frame budget, background throttling
-- references/browser-pitfalls.md — GC, memory leaks, V8 quirks, debugging
-- references/frontier-tech.md — WebGPU, AudioWorklet+SAB, Scheduler API, WASM SIMD, Wake Lock
-- scripts/perf-utils.js — ObjectPool, FrameTimer, ColorCache, SeededRNG, RingBuffer, WakeLockManager
-- **Triggera con:** performance, fps, frame drop, latenza, memory, GC, Canvas, Web Audio, MIDI
-
-### agent-orchestrator
-Sistema di delegazione a subagenti specializzati per task tecnici (Coder, Debugger, Researcher,
-Reviewer, Tester, Documenter, Architect). Per task complessi che toccano piu di 2 file.
-
-### production-team
-Team creativo completo — 7 ruoli specializzati che collaborano per guidare il progetto:
-- **Compositore** — armonia, struttura formale, tensione/rilascio
-- **Producer** — mix, dinamiche, bilanciamento tra motori
-- **Performer** — suonabilita, leggibilita MIDI, spazio per interpretazione
-- **Regista Visivo** — composizione immagine, narrativa visiva, coerenza estetica
-- **Critico** — trova debolezze, ripetitivita, banalita, incoerenza
-- **Tecnico** — performance, latenza, stabilita 60 min
-- **Direttore Artistico** — visione d'insieme, arbitra i conflitti
-Workflow: tavola rotonda, review motore, review sessione, design sprint, pre-flight check.
-- **Triggera con:** team, tavola rotonda, review, critica, valuta, giudizio, qualita, pronto per live
+Routing completo in `docs/06-AGENTS.md`.
 
 ## Regole ferree
 - Piccoli edit sicuri. Mai riscritture monolitiche.
-- No logica duplicata. No magic numbers → tutto in config.js.
-- Codice e commenti tecnici in inglese.
-- Documentazione progetto in italiano.
-- Commit: `vX.Y.Z: descrizione breve` + aggiornare CHANGELOG.md.
-- Snapshot obbligatorio in versions/ prima di modifiche a index.html.
+- No logica duplicata. No magic numbers → tutto in `src/config.js`.
+- **Source code** (variabili, funzioni, commenti tecnici): inglese.
+- **Docs progetto**: italiano.
+- **Commenti compositivi/sonori** dentro source: italiano.
+- Commit: `vX.Y.Z: descrizione` o `categoria: descrizione` + aggiornare `CHANGELOG.md`.
+- Snapshot in `archive/code/versions/` prima di modifiche grosse a `index.html`.
 
 ## Aree protette — chiedere PRIMA di toccare
-- main.js / render.js / director.js (relazioni tra loro)
-- Audio: history buffer, onset detection
-- Narrativa: arco narrativo → arco visivo, rupture (4 stadi obbligatori), climax
+- `main.js` / `render.js` / `director3.js` (relazioni tra loro)
+- Audio: history buffer, onset detection in `audio.js`
+- Narrativa: arco narrativo → arco visivo, **rupture (4 stadi)**, climax
 - Camera: logica legata all'arco narrativo
 
 ## Rupture — sempre 4 stadi
-1. Omen (presagio)
-2. Infiltration (infiltrazione)
-3. Takeover (presa di controllo)
-4. Residue (residuo)
-Mai semplificare, mai saltare stadi.
+1. **Omen** (presagio)
+2. **Infiltration** (infiltrazione)
+3. **Takeover** (presa di controllo)
+4. **Residue** (residuo)
+
+**Mai semplificare. Mai saltare.**
 
 ## Working mode
 Per ogni task non banale:
-1. Identifica file coinvolti
-2. Piano breve → approvazione
-3. Implementa il diff più piccolo possibile
-4. Report: file cambiati, check regole, rischi
+1. Identifica file coinvolti.
+2. Piano breve → approvazione (se non è esplicitamente "vai").
+3. Implementa il diff più piccolo possibile.
+4. Report: file cambiati, regole verificate, rischi.
 
-## Orchestrazione agenti
-Per task complessi (nuova feature, debug cross-file, refactoring), usa la skill agent-orchestrator.
-Regola: se tocca più di 2 file o richiede più di 3 step → delega a subagenti.
-I subagenti DEVONO ricevere le regole del progetto (aree protette, config.js, no magic numbers).
+## GSD workflow
+Prima di Edit/Write fuori da task triviali, entra in un workflow GSD per mantenere
+artefatti di pianificazione e contesto allineati. Vedi `docs/06-AGENTS.md`.
 
-### Skill routing per subagenti
-Quando un subagente lavora su un'area specifica, DEVE leggere la skill corrispondente:
-- **Composizione musicale** → composition-depth/SKILL.md (armonia, struttura, variazioni)
-- **Visuals/rendering** → visual-directing/SKILL.md (grafica, regia, scene, camera)
-- **Performance/runtime** → runtime-expert/SKILL.md (fps, GC, Canvas, Audio, MIDI)
-- **Struttura formale** → composition-depth/references/structural-form.md (potenze di 2)
-- **Problemi "impossibili"** → runtime-expert/references/frontier-tech.md (WebGPU, Workers, WASM)
-
-### Anti-pattern noti (da runtime-expert)
-- `entities.splice(i,1)` in loop → O(n). Usare ObjectPool + swap-and-pop.
-- 3× `map()` + object spread per frame in blend scene → pre-allocare buffer.
-- 164× `Math.random()` non seedable → SeededRNG da perf-utils.js.
+## Anti-pattern noti
+- `entities.splice(i,1)` in loop → O(n). Usare `ObjectPool` + swap-and-pop.
+- 3× `map()` + spread per frame in blend scene → pre-allocare buffer.
+- `Math.random()` non seedabile → `SeededRNG` da `perf-utils.js`.
 - `.filter()` per conteggio → loop con contatore.
+
+## Lingua
+Risposte all'utente in **italiano**, terse e dirette, senza preamboli o riassunti
+di cose appena fatte.

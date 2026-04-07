@@ -1,0 +1,10 @@
+[
+  "COMPOSER_IMPLEMENTATION_README.md",
+  "INTEGRATION_PATCHES.md",
+  "composer-bridge.js",
+  "composer-config.js",
+  "composer-core.js",
+  "composer-v2.js",
+  "director-intent.js",
+  "rupture-director.js"
+]
