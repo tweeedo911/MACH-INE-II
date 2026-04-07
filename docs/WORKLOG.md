@@ -6,6 +6,135 @@
 
 ---
 
+## 2026-04-07 (sera) — Visual System Bible Fase A.1→A.3
+
+**Versione fine sessione:** v3.4.2 (head `f6daea8`)
+**Branch:** `machine-iii` — 4 nuovi commit dal bootstrap workflow (`5a9be85`, `defc315`, `f5139b6`, `cb9d5d0`, `024216c`, `f6daea8`)
+
+### Obiettivo
+Iniziare l'implementazione della "Visual System Bible" (nuovo documento
+ricevuto durante la sessione, salvato da utente). Obiettivo: rifondare
+il sistema visivo attorno a 4 layer canonici (BG/MG/FG/Overlay) + Color
+Lifecycle System (newborn→stable→ghost→fossil) + palette per-track con
+5 ruoli semantici, mantenendo il dot Bayer come unico materiale.
+
+### Metodo
+1. Inventario tecnico completo del sistema visivo attuale via subagent
+   (14 file src/ analizzati: colors, dna, field, firma, generations,
+   render, visual-toolkit, world-state, 6 comp-*).
+2. Sintesi storica dell'evoluzione visiva V1→V5 da 5 doc in `archive/docs/old/`.
+3. Mapping Bible → codice: usabile / da riscrivere / ex novo.
+4. Fase A = solo infrastruttura. Fase B = riscrittura comp-* una per
+   sessione (Bible §15.2). Fase C = rupture 4 stadi + memoria inter-traccia.
+
+### Fatto — Fase A
+
+**A.1 — Palette Bible v2** (`5a9be85`)
+- Aggiunta `CFG.VISUAL.trackPalettes` in `config.js`: 7 tracce × 5 ruoli
+  (bg/dot/event/rupture/residual). Valori presi dalla Bible §12.
+- Zero impatto runtime: la tabella esiste ma nessuno la legge ancora.
+- 62 righe, backward compat al 100%.
+
+**A.2 — Event Register unificato** (`defc315`)
+- Archiviazione `src/dna.js` e `src/generations.js` → `archive/code/dead-islands/`.
+  Motivo: le comp-* non leggevano mai `entities`/`fossils`, tutto il
+  sistema era morto da v3.0 (580 LOC di codice parallelo non
+  renderizzato).
+- Nuovo `src/event-register.js` (~150 LOC):
+  * `CH_ROLE` map confermata: CH0 kick · CH1 perc · CH2 drone ·
+    CH3 bass · CH4 chord · CH5 voice · CH6 lead · CH7 arp.
+  * `ROLE_LIFECYCLE` (Bible §16.1): attack/hold/decay/ghost/fossil
+    durations per ruolo.
+  * `LifecycleEvent` con 4 stati: NEWBORN → STABLE → GHOST → FOSSIL.
+  * API: `onMidiNote`, `onAudioOnset`, `updateEvents`, `resetEvents`,
+    `getEvents`, `eventCount`, `getEventStats`.
+- `render.js` ripulito: rimosse `triggerOnset`/`triggerMIDI`/
+  `updatePrimitives`/`updateGenerations`/`buildEntityGrid`. HUD mostra
+  `ev:N` invece di lista primitive DNA.
+- `main.js`: drop `generateDNA`/`resetGenerations`, `resetEvents()` su REGEN.
+- Runtime verde al primo test live.
+
+**Fix regressione firma** (`f5139b6`)
+- Test live ha rivelato: `G` (gelo) e `J` (convergenza) senza effetto.
+  Root cause: quei flag erano letti solo da `generations.js` archiviata.
+- Cablato `firma.gelo`/`convergenza`/`densityCap` nei nuovi consumer:
+  `field.js updateWaves` (freeze trail + convergenza pull posizioni),
+  `event-register.js updateEvents` (freeze aging + convergenza),
+  `render.js` onset/MIDI intake (gate eventi nuovi + probabilistic
+  densityCap).
+
+**Limite emerso** (`cb9d5d0` + `024216c`)
+- Secondo test live: `G` ancora senza effetto visibile oltre il
+  background. Motivo reale scoperto dall'utente: le comp-* renderizzano
+  solo trail freschi (`n.time < dt*2`) — non c'è niente di persistente
+  da freezare. Il cablaggio firma è corretto ma manca il target.
+- Si risolverà naturalmente in A.4 quando le comp-* consumeranno i
+  `LifecycleEvent` persistenti (newborn/stable/ghost/fossil).
+- Documentato in `STATUS.md` come limite noto con lista dettagliata
+  degli elementi che devono reagire (gelo/convergenza/vuotoTotale/
+  densityCap → target).
+
+**A.3 — Layer Stack 4-canonical** (`f6daea8`)
+- Nuovo `src/layers.js` (~150 LOC): 4 layer stackati come `Sediment`
+  offscreen persistenti.
+  * BG       decay 0.995 — ambient color wash quasi fermo
+  * MG       decay 0.97  — composizione spaziale dominante
+  * FG       decay 0.90  — eventi MIDI diretti
+  * OVERLAY  decay 0.985 — residui, ghost, fossil, memory masks
+- API: `initLayers`, `resizeLayers`, `updateLayers`, `clearAllLayers`,
+  `clearLayer`, `getLayerCtx`, `setLayerDecay`, `resetLayerDecay`,
+  `compositeLayers`. Ordine canonico stacking: BG → MG → FG → OVERLAY.
+- `firma.gelo` integrato: `updateLayers` skippa il decay quando gelo
+  è attivo → i layer si congelano naturalmente. Questo è il primo
+  tassello che renderà gelo visibile una volta che le comp-* scriveranno
+  nei layer (A.4).
+- Cablato in `render.js` (init + resize + updateLayers nel game loop)
+  e `main.js` (`clearAllLayers` su REGEN).
+- Infrastruttura pura: le comp-* non consumano ancora il layer stack,
+  zero impatto visivo. A.4 migrerà ciascuna comp a scrivere nei layer
+  una traccia per sessione.
+
+### File toccati
+- **Nuovi:** `src/event-register.js`, `src/layers.js`
+- **Modificati:** `src/config.js`, `src/render.js`, `src/main.js`,
+  `src/field.js`, `docs/STATUS.md`, `docs/WORKLOG.md` (questa entry)
+- **Archiviati:** `src/dna.js`, `src/generations.js` → `archive/code/dead-islands/`
+
+### Decisioni prese
+1. Eliminare il doppio sistema `generations.js` + `midiTrail` in favore
+   di un unico `event-register` con lifecycle per ruolo (Bible §16.1).
+2. Archiviare dna/generations invece di mantenerli come zombi congelati.
+3. Palette per-traccia dichiarate in `config.js` (single source numeri)
+   ma non consumate finché A.4 non le cabla nelle comp-*.
+4. Firma gestures: manteniamo il cablaggio nell'infrastruttura anche se
+   attualmente invisibile — diventerà visibile naturalmente in A.4.
+5. Fase A (infrastruttura) in questa sessione, Fase B (redesign comp-*)
+   **una traccia per sessione** come da Bible §15.2.
+
+### Prossima sessione — punto di ripartenza
+**Fase A.4 — Prima comp migrata al layer stack.**
+
+Scegliere la traccia da cui partire. Due opzioni:
+- **Opzione facile:** `comp-negativo` (RESPIRO, verbo "sottrarre") —
+  già concettualmente vicina al target Bible, minimo rewrite.
+- **Opzione ad alto impatto:** `comp-liminale` (NEBBIA, verbo "trattenere")
+  — il primo minuto della live, deve funzionare bene. Rewrite più
+  importante (profile stack + rain-lines per lead + densità bassissima).
+
+Per ogni comp migrata, il protocollo è:
+1. Leggere `docs/STATUS.md` + questa entry WORKLOG + Visual Bible §13
+   della traccia target.
+2. Decidere prima in linguaggio naturale (Bible §15.3): verbo, forma
+   dominante, movimento, palette ruoli, lifecycle per canale, regole
+   dure, anti-pattern specifici.
+3. Rewrite della comp per scrivere nei 4 layer invece che su ctx
+   diretto, consumando `event-register.getEvents()` con color lifecycle.
+4. Test live obbligatorio in mezzo.
+5. Commit atomico.
+6. Verificare che firma `G` e `J` diventino visibili su quella traccia.
+
+---
+
 ## 2026-04-07 — FASE 0→5 ristrutturazione totale
 
 **Versione fine sessione:** v3.4.2

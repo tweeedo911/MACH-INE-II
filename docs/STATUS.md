@@ -29,7 +29,8 @@
 **v3.4.2** — single source: `src/VERSION.js` (`APP_VERSION`)
 
 Tag git: `v3.4.2` su `ccbbb13`.
-Branch attivo: `machine-iii` (8 commit avanti su `origin/machine-iii`, mai pushato).
+HEAD: `f6daea8` (Visual Bible Fase A.1→A.3 completate).
+Branch attivo: `machine-iii` (14 commit avanti su `origin/machine-iii`, mai pushato).
 
 ---
 
@@ -38,14 +39,22 @@ Branch attivo: `machine-iii` (8 commit avanti su `origin/machine-iii`, mai pusha
 **Pattern:** Band con Direttore (Path B confermato — vedi `DECISIONS.md #004`)
 
 ```
-director3.js  →  5 moduli (rhythm, harmony, bass, melody, texture)
-              →  6 composizioni visive (comp-griglia/liminale/linee/negativo/quadrati/treno)
-              →  firma.js (gesti narrativi: gelo/convergenza/vuotoTotale/densityCap)
-              →  world-state.js (stato condiviso musica↔visual)
-              →  tracks.js (7 tracce con modeHint)
+director3.js      →  5 moduli musicali (rhythm, harmony, bass, melody, texture)
+                  →  6 composizioni visive (comp-griglia/liminale/linee/negativo/quadrati/treno)
+                  →  firma.js (gesti narrativi: gelo/convergenza/vuotoTotale/densityCap)
+                  →  world-state.js (stato condiviso musica↔visual)
+                  →  tracks.js (7 tracce con modeHint)
+
+event-register.js →  LifecycleEvent store unificato (newborn→stable→ghost→fossil)
+                  →  CH_ROLE map + ROLE_LIFECYCLE per ruolo (kick/perc/drone/bass/
+                     chord/voice/lead/arp) — Bible §16.1
+
+layers.js         →  4 layer canonici stackati (BG/MG/FG/Overlay) — Bible §5
+                  →  infrastruttura pronta, consumata da A.4 comp-* migrate
 ```
 
-**Moduli:** 33 vivi in `src/`, 14 archiviati in `archive/code/dead-islands/`.
+**Moduli:** 32 vivi in `src/` (2 archiviati in A.2: `dna.js`, `generations.js`),
+16 totali in `archive/code/dead-islands/`.
 
 **A/B/C framework:** flag `CFG.MUSIC_EXPERIMENT` / `CFG.MUSIC_STRUCTURAL` in `config.js` selezionano variante hard-switch (no crossfade).
 
@@ -77,14 +86,26 @@ director3.js  →  5 moduli (rhythm, harmony, bass, melody, texture)
 
 ## Prossimo (priorità top→bottom)
 
-### P0 — bloccante / azione immediata
-1. **Push 8 commit + apertura PR** verso `main` (titolo: `v3.4.2: ristrutturazione completa`)
+### P0 — Visual System Bible Fase A.4 (prossima sessione)
+1. **Migrare la prima comp al layer stack** — scegliere traccia di
+   partenza (raccomandato `comp-negativo`/RESPIRO o `comp-liminale`/NEBBIA).
+   Protocollo: una traccia per sessione, test live in mezzo, commit
+   atomico (Bible §15.2). Ref: `WORKLOG.md` entry 2026-04-07 sera.
+2. Dopo prima comp → estendere a tutte e 7 le tracce, una per sessione.
 
-### P1 — alta priorità musicale
-2. **Tuning composizioni** — bilanciare densità tra le 7 tracce (riferimento: `archive/docs/old/SESSION-NEXT.md`)
-3. **Transizioni smooth** — fade tra fase e fase su `worldState.density.*`, no salti bruschi
-4. **Silenzi strutturali** — usare `firma.densityCap` come envelope di apertura/chiusura traccia
-5. **Verifica durata 45min** — far girare la suite intera, misurare se regge il tempo target
+### P1 — Visual System Bible Fase B / C (post A.4)
+3. Implementare **rupture 4 stadi** (Omen→Infiltration→Takeover→Residue)
+   come stato del director3 con envelope temporale, non flag binario.
+4. **Memoria inter-traccia** più esplicita — aumentare durata di
+   `_sharedSediment` in `field.js` a valori minuti invece di secondi.
+5. Integrare `trackPalettes` (Bible §12) nel sistema colori lerp di
+   `colors.js` — oggi solo dichiarate in config, nessuno le legge.
+
+### P2 — debiti tecnici differiti
+6. Push 14 commit + apertura PR verso `main` (dopo A.4 primi checkpoint).
+7. Refactor `director3.js` (521 LOC): split scheduler/density/phases.
+8. Refactor `melody-v3.js` (503 LOC): estrarre logica comune A/B/C.
+9. Profilo CPU su Chrome DevTools: target costante 60fps su 60min.
 
 ### P2 — alta priorità visiva
 6. Ricaricare enrich di `comp-quadrati` e `comp-negativo` (breathing, sediment, holes)
