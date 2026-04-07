@@ -1,27 +1,28 @@
 #!/bin/bash
 # ─────────────────────────────────────────────
-#  MACH:INE II v2.4.0 — Launcher
+#  MACH:INE III — Launcher
+#  Versione: src/VERSION.js (single source)
 #  Server HTTP locale + apertura browser
 # ─────────────────────────────────────────────
 
 PORT=8282
 DIR="$(cd "$(dirname "$0")" && pwd)"
+VER=$(grep -oE "v[0-9]+\.[0-9]+\.[0-9]+[a-z0-9-]*" "$DIR/src/VERSION.js" | head -1)
 
 echo ""
 echo "  ╔══════════════════════════════════════════╗"
-echo "  ║         MACH:INE II  v2.9.0  [V3]       ║"
+echo "  ║      MACH:INE III  $VER                  ║"
 echo "  ║  http://localhost:$PORT                   ║"
 echo "  ╠══════════════════════════════════════════╣"
-echo "  ║  V3_MODE — arco narrativo 45min          ║"
+echo "  ║  Band con Direttore — 45min suite        ║"
 echo "  ║  1 = 0%   2 = 22%  3 = 50%              ║"
 echo "  ║  4 = 75%  5 = 90%  (arc jump)           ║"
-echo "  ║  0 = SEQUENCER AUTO  Shift+0 = STOP      ║"
-echo "  ║  → = skip  ← = prev  Shift+→ = atto     ║"
+echo "  ║  G = gelo   J = convergenza             ║"
+echo "  ║  V = vuotoTotale (blackout)             ║"
 echo "  ╠══════════════════════════════════════════╣"
 echo "  ║  Space = pausa   L = loop                ║"
 echo "  ║  P = proiettore  H = HUD   D = debug     ║"
 echo "  ║  F = fullscreen  R = rigenera DNA        ║"
-echo "  ║  è = gain -      + = gain +              ║"
 echo "  ╚══════════════════════════════════════════╝"
 echo ""
 
