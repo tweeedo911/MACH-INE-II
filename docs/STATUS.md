@@ -1,7 +1,17 @@
 # STATUS — MACH:INE III
 
 > Snapshot vivo. Rigenerato a fine sessione. Punto di entrata di ogni nuova sessione.
-> **Last updated:** 2026-04-07 (fine sessione FASE 0→5)
+> **Last updated:** 2026-04-07 (sessione Visual Bible Fase A.1→A.2)
+
+## ⚠️ Limiti noti (post A.2)
+
+- **Firma `gelo` / `convergenza` non hanno effetto visibile.** Motivo: le
+  comp-* renderizzano solo trail freschi (< 2 frame), non esistono ancora
+  fossil/ghost persistenti su cui la firma possa agire. Il cablaggio è a
+  posto (`field.js`, `event-register.js`) ma non ha target visivi. Si
+  risolve naturalmente in **Fase A.3/A.4** quando le comp-* consumeranno
+  i `LifecycleEvent` persistenti.
+- **Firma `vuotoTotale` (V) funziona** perché ha early-out in `render.js`.
 
 ---
 
