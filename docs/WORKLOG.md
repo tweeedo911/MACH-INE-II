@@ -6,6 +6,103 @@
 
 ---
 
+## 2026-04-07 (notte) — P1 Fase B: isRottura → rupture envelope nelle 6 comp-*
+
+**Versione fine sessione:** v3.4.2 (no bump — infra, nessun comportamento musicale cambiato)
+**Branch:** `machine-iii`
+
+### Obiettivo
+P1 Fase B: sostituire il flag binario `isRottura` con `rupture.intensity` (0→1 smooth)
+in tutte e 6 le composizioni visive.
+
+### Fatto
+
+**Pattern comune applicato a tutte le comp:**
+- Rimosso `const isRottura = worldState.phase === 'rottura'` da ognuna.
+- Aggiunto `const { rupture } = worldState; const ruptI = rupture.intensity;`.
+- Sostituito `isRottura ? X : Y` → `lerp(Y, X, ruptI)` per tutte le gradazioni smooth.
+- Sostituito `if (isRottura)` → soglie su `ruptI` (tipicamente `ruptI > 0.1/0.2/0.3`).
+- Sostituito `shouldGlitch(p, isRottura, t)` → `shouldGlitch(p * ruptI, ruptI > soglia, t)`.
+
+**Stage-specifici (narrativa):**
+- `comp-negativo`: `isRotturaExtra` → solo `rupture.stage === 'takeover'`
+  (kick/bass scavano buchi solo al picco — non in omen o infiltration).
+- `comp-griglia`: `rowSpan = 2` → solo `stage === 'takeover' || 'residue'`
+  (la griglia si allarga solo quando la rottura è piena).
+
+**Bug latente fixato (comp-griglia):**
+- `const isRottura` era dichiarato a linea 195 ma usato a linee 161/168 (TDZ con `const`).
+  Fix: estratto `ruptI` all'inizio di `render()`, prima del loop MIDI.
+
+**Effetti del refactor per stadio:**
+| Stadio | ruptI | Effetto visivo |
+|---|---|---|
+| omen (0–20%) | 0→0.4 | hint sottili: jitter minimo, shake leggero, nessun glitch |
+| infiltration (20–50%) | 0.4→0.75 | effetti visibili: glitch inizia, jitter cresce |
+| takeover (50–80%) | 0.75→1.0 | massimo: buchi veloci, griglia doppia, shimmer pieno |
+| residue (80–100%) | 1.0→0 | dissolvenza: effetti calano, struttura doppia persiste in griglia |
+
+### File toccati
+- `src/comp-negativo.js`
+- `src/comp-griglia.js`
+- `src/comp-liminale.js`
+- `src/comp-linee.js`
+- `src/comp-quadrati.js`
+- `src/comp-treno.js`
+
+### Prossimo
+- Test live: verificare comportamento graduale in rottura (omen sottile, takeover pieno)
+- P1 item 2: Memoria inter-traccia `_sharedSediment` (secondi → minuti in `field.js`)
+
+---
+
+## 2026-04-07 (notte) — P1: Rupture envelope + trackPalettes Bible §12
+
+**Versione fine sessione:** v3.4.2 (no bump — infra, nessun comportamento musicale cambiato)
+**Branch:** `machine-iii`
+
+### Obiettivo
+P1 da STATUS: rupture 4 stadi come stato temporale + wiring trackPalettes Bible §12.
+
+### Fatto
+
+**Rupture envelope (world-state + director3)**
+- `world-state.js`: aggiunto `worldState.rupture { stage, stageT, t, intensity }`.
+- `director3.js`: aggiunto `_RUPTURE_STAGE_BOUNDS` + `_updateRupture()` chiamata ogni
+  frame durante `rottura`. 4 stadi: omen (0–20%), infiltration (20–50%),
+  takeover (50–80%), residue (80–100%). Intensity: 0→0.4→0.75→1.0→0.
+  Reset esplicito in `initDirector3`.
+
+**trackPalettes Bible §12 → worldState**
+- `director3.js`: `initDirector3` ora legge da `CFG.VISUAL.trackPalettes[trackName]`
+  invece di `_track.palette` (tracks.js). Mapping: bg→bg, dot→dot,
+  event→accent, rupture→ruptureTint, residual→residual.
+- `world-state.js`: `palette` esteso con `ruptureTint` e `residual`.
+
+**colors.js (5 canali)**
+- Aggiunto tracking interpolato per `ruptureTint` e `residual`.
+- `_blendedDot`: blend dot→ruptureTint per `worldState.rupture.intensity`.
+  Pre-calcolato in `updateColors` — alloc-free in `getPalette()`.
+- `snapPalette()` aggiornato a 5 canali.
+- Default lerp speed: 0.02 → 0.015 (allineato a `CFG.VISUAL.paletteLerpSpeed`).
+
+### Note
+- comp-* leggono `worldState.palette.*` direttamente (hex istantaneo, no lerp).
+  Il blend ruptureTint→dot è infrastruttura — comp-* lo consumeranno in Fase B.
+- Colori traccia cambiati a valori Bible §12. Testato live: accettati.
+- Health-check verde.
+
+### File toccati
+- `src/world-state.js` — rupture object, palette +2 campi
+- `src/director3.js` — _updateRupture, palette da CFG.VISUAL.trackPalettes
+- `src/colors.js` — 5 canali, blendedDot, snapPalette aggiornato
+
+### Prossimo
+- Cablare `worldState.rupture` nelle comp-* (Fase B) — `isRottura` binario → envelope
+- Memoria inter-traccia: `_sharedSediment` da secondi a minuti (P1 item 2)
+
+---
+
 ## 2026-04-07 (notte) — Visual System Bible Fase A.4: comp-negativo → layer stack
 
 **Versione fine sessione:** v3.4.2 (head `16abb8e`)

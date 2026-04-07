@@ -1,7 +1,7 @@
 # STATUS — MACH:INE III
 
 > Snapshot vivo. Rigenerato a fine sessione. Punto di entrata di ogni nuova sessione.
-> **Last updated:** 2026-04-07 (sessione Visual Bible Fase A.4 — tutte le 6 comp migrate)
+> **Last updated:** 2026-04-07 (sessione P1 Fase B — isRottura → rupture envelope nelle 6 comp-*)
 
 ## ⚠️ Limiti noti (post A.2)
 
@@ -99,13 +99,15 @@ Tutte le 6 comp migrate al layer stack 4-canonico (commit `16abb8e`).
 | quadrati | ✓ | breath (fresh) | blocchi+arp (cam) | sediment α0.5 | OVERLAY |
 | treno | ✓ | breath (fresh) | oggetti (cam) | — | privato (frame-cap) |
 
-### P1 — Visual System Bible Fase B / C (post test live A.4)
-3. Implementare **rupture 4 stadi** (Omen→Infiltration→Takeover→Residue)
-   come stato del director3 con envelope temporale, non flag binario.
-4. **Memoria inter-traccia** più esplicita — aumentare durata di
-   `_sharedSediment` in `field.js` a valori minuti invece di secondi.
-5. Integrare `trackPalettes` (Bible §12) nel sistema colori lerp di
-   `colors.js` — oggi solo dichiarate in config, nessuno le legge.
+### P1 — Visual System Bible Fase B / C
+3. ✅ **Rupture 4 stadi — Fase B completa** — tutte le 6 comp-* migrate da
+   `isRottura` (bool) a `rupture.intensity` (0→1 smooth). Stage-specifici:
+   `comp-negativo` `isRotturaExtra` solo su `takeover`; `comp-griglia` `rowSpan=2`
+   solo su `takeover|residue`. Bug latente TDZ fixato in `comp-griglia`.
+   **Test live necessario** per verificare gradualità visiva in rottura.
+4. **Memoria inter-traccia** — `_sharedSediment` da secondi a minuti in `field.js`.
+5. ✅ **trackPalettes Bible §12** → `worldState.palette` (bg/dot/accent/ruptureTint/residual).
+   `colors.js` ora a 5 canali + blend ruptureTint. Colori live: accettati.
 
 ### P2 — debiti tecnici differiti
 6. Push 14 commit + apertura PR verso `main` (dopo A.4 primi checkpoint).
