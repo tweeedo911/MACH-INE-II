@@ -4,10 +4,23 @@
 //  Reads worldState. Never writes it.
 // ═══════════════════════════════════════════════════════════
 
+import { CFG } from './config.js';
 import { worldState } from './world-state.js';
 import { sendMIDINote } from './midi.js';
 import { addMidiNote } from './field.js';
 import { TRACKS } from './tracks.js';
+
+// V3: helper — return random late delay in ms based on current degradation jitter.
+// Returns 0 (immediate) when degradation is inactive.
+function _jitterMs() {
+  const sigma = worldState.degradation?.timingJitterMs ?? 0;
+  if (sigma <= 0) return 0;
+  // Always late (Gaussian-ish: half-normal, |randn| × sigma)
+  const u1 = Math.random();
+  const u2 = Math.random();
+  const randn = Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
+  return Math.abs(randn) * sigma;
+}
 
 // ── Channels ──
 const CH_KICK = 0;
@@ -82,8 +95,17 @@ function _tick() {
     const rawVel = 80 + density * 30 + (Math.random() * 8 - 4);  // ±4 humanize
     const vel    = Math.min(Math.round(rawVel), ceiling);
     const stepMs = (60 / worldState.bpm / 4) * 1000;
-    sendMIDINote(CH_KICK, kickNote, vel, stepMs * 0.9);
-    addMidiNote(CH_KICK, kickNote / 127, vel / 127);
+    // V3: degradation timing jitter (half-normal late delay)
+    const jit = _jitterMs();
+    if (jit > 0) {
+      setTimeout(() => {
+        sendMIDINote(CH_KICK, kickNote, vel, stepMs * 0.9);
+        addMidiNote(CH_KICK, kickNote / 127, vel / 127);
+      }, jit);
+    } else {
+      sendMIDINote(CH_KICK, kickNote, vel, stepMs * 0.9);
+      addMidiNote(CH_KICK, kickNote / 127, vel / 127);
+    }
   }
 
   // ── CH1 HAT ── (use per-track pattern if defined, else default)
@@ -134,6 +156,26 @@ function _tick() {
         sendMIDINote(CH_PERC, SNARE, flamVel, stepMs * 0.4);
         addMidiNote(CH_PERC, SNARE / 127, flamVel / 127);
       }
+    }
+  }
+
+  // ── V3 STRUCTURAL: Floor-kick offset (CH1 pad 41) + Burial timing scatter ──
+  // Light call-response with main kick. Pad 41 (low floor tom GM) — performer
+  // routes to second kick / sub / floor tom. Active only in dense phases, only
+  // on upbeat ghost positions (step 7 = "and of 2", step 15 = "and of 4"),
+  // only when main kick is silent there. Probability 30%, velocity 75% of ceiling.
+  // Burial-style timing scatter: always late 15-45ms, pulsazione "slurred" fuori pocket.
+  if (CFG.MUSIC_STRUCTURAL && (phase === 'densita' || phase === 'rottura')) {
+    const isUpbeatGhost = (_step === 7 || _step === 15);
+    if (isUpbeatGhost && !hasKick && Math.random() < 0.30) {
+      const stepMs   = (60 / worldState.bpm / 4) * 1000;
+      const rawVel   = 45 + density * 18 + (Math.random() * 6 - 3);
+      const floorVel = Math.min(Math.round(rawVel), Math.round(ceiling * 0.75));
+      const scatterMs = 15 + Math.random() * 30;  // always late, 15-45ms
+      setTimeout(() => {
+        sendMIDINote(CH_PERC, 41, floorVel, stepMs * 0.85);
+        addMidiNote(CH_PERC, 41 / 127, floorVel / 127);
+      }, scatterMs);
     }
   }
 

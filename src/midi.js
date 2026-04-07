@@ -123,11 +123,12 @@ export function updateMIDI() {
     chData.density = chData.timestamps.length / CFG.noteDensityWindowSec;
   }
 
-  // Decay note flashes
+  // Decay note flashes (swap-and-pop: O(1) removal, no array shift)
   for (let i = midi.noteFlashes.length - 1; i >= 0; i--) {
     midi.noteFlashes[i].alpha *= CFG.noteFlashDecay;
     if (midi.noteFlashes[i].alpha < 0.008) {
-      midi.noteFlashes.splice(i, 1);
+      midi.noteFlashes[i] = midi.noteFlashes[midi.noteFlashes.length - 1];
+      midi.noteFlashes.length--;
     }
   }
 
@@ -158,6 +159,14 @@ export function sendMIDIAllNotesOff() {
 export function sendMIDICC(ch, cc, value) {
   if (!midiOut) return;
   midiOut.send([0xB0 | (ch & 0x0F), cc & 0x7F, value & 0x7F]);
+}
+
+// 14-bit pitch bend. value14bit: 0..16383, center = 8192 (no bend).
+// Standard pitch bend range = ±2 semitones, so ±15 cents ≈ ±614 from center.
+export function sendMIDIPitchBend(ch, value14bit) {
+  if (!midiOut) return;
+  const v = Math.max(0, Math.min(16383, value14bit | 0));
+  midiOut.send([0xE0 | (ch & 0x0F), v & 0x7F, (v >> 7) & 0x7F]);
 }
 
 // ── MIDI Clock Output (24 ppqn) ──

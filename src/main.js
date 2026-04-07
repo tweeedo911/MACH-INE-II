@@ -5,7 +5,8 @@
 
 import { CFG } from './config.js';
 import { initAudio, updateAudio, setAudioGain, getAudioGain } from './audio.js';
-import { initMIDI, updateMIDI, sendMIDIStart, updateMIDIClock } from './midi.js';
+import { initMIDI, updateMIDI, sendMIDIStart, updateMIDIClock, sendMIDIAllNotesOff } from './midi.js';
+import { applyMusicExperimentOverrides } from './tracks.js';
 import { state, updateState } from './state.js';
 import { initRender, renderFrame, resize, setHUDElements, handleKey, setProjectorWindow } from './render.js';
 import { generateDNA } from './dna.js';
@@ -18,9 +19,35 @@ import { worldState } from './world-state.js';
 import { initDirector3, updateDirector3, skipPhase, jumpToPhase, jumpToTrack, toggleDirector3, isDirector3Playing, getDirector3Status } from './director3.js';
 import { initRhythm, updateRhythm } from './rhythm.js';
 import { initHarmony, updateHarmony } from './harmony.js';
-import { initBass, updateBass } from './bass.js';
-import { initMelody, updateMelody } from './melody.js';
+import { initBass as initBassV1, updateBass as updateBassV1 } from './bass.js';
+import { initBass as initBassV2, updateBass as updateBassV2 } from './bass-v2.js';
+import { initBass as initBassV3, updateBass as updateBassV3 } from './bass-v3.js';
+import { initMelody as initMelodyV1, updateMelody as updateMelodyV1 } from './melody.js';
+import { initMelody as initMelodyV2, updateMelody as updateMelodyV2 } from './melody-v2.js';
+import { initMelody as initMelodyV3, updateMelody as updateMelodyV3 } from './melody-v3.js';
 import { initTexture, updateTexture } from './texture.js';
+
+// ── A/B/C selector — STRUCTURAL takes priority over EXPERIMENT for bass/melody ──
+const initBass = (...a) => {
+  if (CFG.MUSIC_STRUCTURAL) return initBassV3(...a);
+  if (CFG.MUSIC_EXPERIMENT) return initBassV2(...a);
+  return initBassV1(...a);
+};
+const updateBass = (...a) => {
+  if (CFG.MUSIC_STRUCTURAL) return updateBassV3(...a);
+  if (CFG.MUSIC_EXPERIMENT) return updateBassV2(...a);
+  return updateBassV1(...a);
+};
+const initMelody = (...a) => {
+  if (CFG.MUSIC_STRUCTURAL) return initMelodyV3(...a);
+  if (CFG.MUSIC_EXPERIMENT) return initMelodyV2(...a);
+  return initMelodyV1(...a);
+};
+const updateMelody = (...a) => {
+  if (CFG.MUSIC_STRUCTURAL) return updateMelodyV3(...a);
+  if (CFG.MUSIC_EXPERIMENT) return updateMelodyV2(...a);
+  return updateMelodyV1(...a);
+};
 
 // ── Session recorder ──
 import { initRecorder, startRecording, stopRecording, isRecording, recordSnapshot, recordPhaseCheck, downloadSession, captureScreenshotNow } from './session-recorder.js';
@@ -37,6 +64,31 @@ const hudSeq     = document.getElementById('seq-panel');
 initRender(canvas);
 setHUDElements(hudMinimal, hudDebug, hudSeq);
 initRecorder(canvas);
+
+// ── A/B/C indicator badge (bottom-right, minimal — shows v2 + v3 flags) ──
+const abBadge = document.createElement('div');
+abBadge.id = 'ab-badge';
+abBadge.style.cssText = 'position:fixed;bottom:8px;right:8px;font:10px monospace;padding:3px 6px;border-radius:2px;pointer-events:none;z-index:9999;letter-spacing:0.5px;display:flex;gap:4px;';
+document.body.appendChild(abBadge);
+
+const _badgeM = document.createElement('span');
+const _badgeN = document.createElement('span');
+_badgeM.style.cssText = 'padding:1px 4px;border-radius:2px;';
+_badgeN.style.cssText = 'padding:1px 4px;border-radius:2px;';
+abBadge.appendChild(_badgeM);
+abBadge.appendChild(_badgeN);
+
+function _refreshAbBadge() {
+  // M slot — MUSIC_EXPERIMENT (v2 calibration)
+  _badgeM.textContent = CFG.MUSIC_EXPERIMENT ? 'M·v2' : 'M·v1';
+  _badgeM.style.background = CFG.MUSIC_EXPERIMENT ? '#FE6B0D' : 'rgba(0,0,0,0.6)';
+  _badgeM.style.color      = CFG.MUSIC_EXPERIMENT ? '#000'    : '#9B8FCE';
+  // N slot — MUSIC_STRUCTURAL (v3 structural)
+  _badgeN.textContent = CFG.MUSIC_STRUCTURAL ? 'N·v3' : 'N·off';
+  _badgeN.style.background = CFG.MUSIC_STRUCTURAL ? '#CDD71D' : 'rgba(0,0,0,0.6)';
+  _badgeN.style.color      = CFG.MUSIC_STRUCTURAL ? '#000'    : '#9B8FCE';
+}
+_refreshAbBadge();
 
 // ── Keep layout in sync ──
 window.addEventListener('resize', resize);
@@ -132,6 +184,35 @@ document.addEventListener('keydown', (e) => {
   if (e.code === 'KeyD' && e.shiftKey) { downloadSession(); return; }
   if (e.code === 'KeyK' && e.shiftKey) { captureScreenshotNow(); return; }
   if (e.code === 'KeyP') { toggleProjector(); return; }
+
+  // ── A/B MUSIC EXPERIMENT toggle (M) — v2 calibration ──
+  if (e.code === 'KeyM' && !e.shiftKey) {
+    e.preventDefault();
+    CFG.MUSIC_EXPERIMENT = !CFG.MUSIC_EXPERIMENT;
+    sendMIDIAllNotesOff();
+    applyMusicExperimentOverrides(CFG.MUSIC_EXPERIMENT);
+    initBass();
+    initMelody();
+    _refreshAbBadge();
+    console.log(`%c[A/B] MUSIC_EXPERIMENT = ${CFG.MUSIC_EXPERIMENT ? 'ON  (v2)' : 'OFF (v1)'}`,
+                `color: ${CFG.MUSIC_EXPERIMENT ? '#FE6B0D' : '#9B8FCE'}; font-weight: bold;`);
+    return;
+  }
+
+  // ── A/C MUSIC STRUCTURAL toggle (N) — v3 structural ──
+  // Switches bass+melody to v3 (which takes priority over v2 for these layers).
+  // Combinable with M: M+N enables v2 track overrides + v3 melody/bass.
+  if (e.code === 'KeyN' && !e.shiftKey) {
+    e.preventDefault();
+    CFG.MUSIC_STRUCTURAL = !CFG.MUSIC_STRUCTURAL;
+    sendMIDIAllNotesOff();
+    initBass();
+    initMelody();
+    _refreshAbBadge();
+    console.log(`%c[A/C] MUSIC_STRUCTURAL = ${CFG.MUSIC_STRUCTURAL ? 'ON  (v3)' : 'OFF'}`,
+                `color: ${CFG.MUSIC_STRUCTURAL ? '#CDD71D' : '#9B8FCE'}; font-weight: bold;`);
+    return;
+  }
 
   const result = handleKey(e.code);
   if (result === 'REGEN') {

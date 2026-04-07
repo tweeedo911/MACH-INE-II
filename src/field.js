@@ -243,10 +243,10 @@ export function renderField(ctx, W, H, envData) {
       }
       case 2: {
         // Canvas shift — brief horizontal displacement (2-8px)
+        // GPU-only self-copy: zero allocation, no GPU readback
         const shift = Math.floor((Math.random() - 0.5) * 12);
         if (shift !== 0) {
-          const imgData = ctx.getImageData(0, 0, W, H);
-          ctx.putImageData(imgData, shift, 0);
+          ctx.drawImage(ctx.canvas, shift, 0);
         }
         break;
       }
