@@ -6,6 +6,93 @@
 
 ---
 
+## 2026-04-09 (sessione 5) — comp-solco: integrazione proto v7 + ridisegno scena
+
+**Versione fine sessione:** v3.4.2 (nessun bump)
+**Branch:** `machine-iii`
+
+### Obiettivo
+Integrare il sistema gaussiano+erosione del proto-solco in comp-solco.js. Poi riesaminare la visione della scena.
+
+### Fatto
+
+**Integrazione proto v7 → comp-solco.js**
+Riscritto comp-solco.js (249 LOC → ~300 LOC):
+- Rimosso sistema peg-and-string (ANCHORS, _drift, _drawForm, Lissajous)
+- Portato campo gaussiano (ZOM/ZOS/ZLM/ZLB con jitter), erosione cellulare (`erodMap`+`erosion`), `buildupT`, 4 entità MIDI
+- MIDI wiring: CH0=kick fronts, CH3=bass colonna, CH4=chord bande, CH5=voice banda+blocco, CH6=lead blocco
+
+**Fix architetturale sediment**
+Bug: LAYER_OVERLAY composited sopra MG → i buchi dell'erosione non si vedevano.
+Fix: canvas privato `_sedC` composited dentro `lBg` → sediment sotto il campo, visibile attraverso i buchi.
+
+**Rimosso auto-spawn**
+Elementi si muovevano senza MIDI. Rimossi tutti i timer interni (kickTimer, bassTimer, chordTimer, arpTimer). Solo MIDI reale ora.
+
+**Riflessione visiva: SOLCO ridisegnato da zero**
+La colonna ZOS per il basso è fisica sbagliata (è RESPIRO, non SOLCO).
+Visione ridisegnata:
+- Scena divisa in due zone: vuoto sopra (85% dark) + geologia compressa sotto
+- Bass = monolite arancione che cade dall'alto
+- Kick = frattura sismica alla linea di impatto (non onde ascendenti)
+- Chord = lastre lime a pitch-mapped height che scivolano giù
+- Voice = traccia sismografica sottile (non cade, appare+svanisce)
+- Arp = polvere di impatto, dot piccoli che cadono lenti
+- Scritto prompt Gemini per immagine di riferimento della scena
+
+### File toccati
+- `app/src/comp-solco.js` — riscritto
+
+### Decisioni
+- Sediment privato (non LAYER_OVERLAY) per SOLCO: necessario per mostrare la geologia attraverso i buchi
+- Fisica SOLCO = gravità estrema + impatti, non zone spaziali fisse
+- Prossimo passo: prototipare la nuova scena in HTML standalone prima di toccare comp-solco.js
+
+### Prossimo
+- Prototipo HTML: monolite bass + frattura kick + lastre chord + strati geologici
+- Solo dopo validazione visiva: integrare in comp-solco.js
+
+---
+
+## 2026-04-09 (sessione 4) — Piano visual system + aging curve ghost/fossil
+
+**Versione fine sessione:** v3.4.2 (nessun bump)
+**Branch:** `machine-iii`
+
+### Obiettivo
+Pianificare l'implementazione dell'intero sistema visivo e avviare le prime fasi.
+
+### Fatto
+
+**Ricognizione completa stato visual system**
+Lette tutte le fonti: STATUS.md, VISUAL-VISION.md, 07-ARTISTIC-GAPS.md, WORKLOG, memoria progetto.
+Obsidian vault (`Pointless Audio`) vuoto — nessuna nota rilevante.
+Piano in 7 fasi ordinato per dipendenza.
+
+**Fase 1 (Rupture visibilità) — già implementata al 100%**
+Verificato che tutti e 7 i valori (ruptureTint + ruptI multiplier) erano già nel codice.
+
+**Fase 2 — Aging curve ghost/fossil in `field.js`**
+Sostituito il loop ghost/fossil overlay con:
+- Curva aging quadratica: `dotSz = lerp(2, 14, t²)`, `density = lerp(0.85, 0.08, t²)`
+- Colore: `spawnColor → residual → bg` lungo il lifecycle (GC-3)
+- Performance: `fillRect` → `Uint32Array` su OffscreenCanvas dedicato (da `tech_pixel_manipulation.md`)
+
+### File toccati
+- `app/src/field.js` — ghost/fossil overlay riscritto
+
+### Decisioni
+- `_ghostCanvas` OffscreenCanvas allocato una volta, riusato ogni frame — zero readback GPU
+- Test aging curve rimandato: sarà visibile dopo pitch→Y + identità bioma (annotato P3)
+- MemPalace (repo esterno) valutato e scartato — ridondante con il sistema memoria esistente
+
+### Prossimo
+- Pitch → Y in 5 comp-* (GL-2) — grammatica base persa da v2
+- Rupture BG shift (Sessione 2 STATUS)
+- Proto-solco → comp-solco.js integrazione (P0)
+
+---
+
 ## 2026-04-09 (sessione 3) — proto-solco: erosione cellulare + mappa suscettibilità + geometria random
 
 **Versione fine sessione:** v3.4.2 (nessun bump — solo proto visivo)
