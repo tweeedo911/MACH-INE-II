@@ -6,6 +6,49 @@
 
 ---
 
+## 2026-04-09 (sessione 3) — proto-solco: erosione cellulare + mappa suscettibilità + geometria random
+
+**Versione fine sessione:** v3.4.2 (nessun bump — solo proto visivo)
+**Branch:** `machine-iii`
+
+### Obiettivo
+Portare il sistema di erosione del proto-solco a un risultato visivamente convincente: buchi netti, organici, con zone di cancrena e zone resistenti.
+
+### Fatto
+
+**Rimosso sistema ellissi (v6)**
+Le ellissi che crescevano/svanivano erano il sistema sbagliato — troppo esplicite, troppo leggibili come "evento". Sostituite con erosione cellulare permanente.
+
+**Erosione cellulare con mappa suscettibilità (v7)**
+- Griglia `ECOLS×EROWS` (320×180 celle da 4px) — allineata al dot Bayer
+- `erodMap`: mappa statica calcolata al boot con rumore sinusoidale multi-scala
+- Soglia dura: ogni cella è quasi immune (0.05) o vulnerabile (0.95) — niente gradiente
+- Diffusione: le celle vulnerabili cedono quasi sempre, le resistenti bloccano
+- Buchi netti con bordi definiti — la cancrena si espande solo dentro le patch vulnerabili
+
+**Geometria gaussiana randomizzata**
+Zone ZOM/ZOS/ZLM/ZLB hanno jitter random (cx/cy ±0.08, sx/sy ±30%) — ogni run ha una composizione spaziale diversa.
+
+**Ciclo vita/morte**
+- `buildupT` parte da 0, erosione inizia a 55% del buildup
+- La mappa si ricalcola a ogni reset (tasto 0) → geografia diversa ogni ciclo
+- Sediment rimane visibile attraverso i buchi — storia del passato leggibile
+
+### File toccati
+- `app/proto-solco.html` — iterato v5→v6→v7 (da ellissi a erosione cellulare)
+
+### Decisioni
+- L'erosione deve essere permanente (celle non tornano) — non animazione reversibile
+- La mappa di suscettibilità con soglia dura crea pattern organici più convincenti del gradiente uniforme
+- Geometria gaussiana randomizzata: ogni sessione live ha una scena visivamente diversa
+
+### Prossimo
+- Integrare `comp-solco.js` con la fisica del proto (campo gaussiano + erosione cellulare)
+- Calibrare `seedRate`/`spreadTrials` dopo test live esteso
+- Verificare che l'erosione sia visivamente leggibile anche su proiettore (contrasto basso)
+
+---
+
 ## 2026-04-09 (sessione 2) — Iterazione proto-solco: campo gaussiano + cross-modal + buildup
 
 **Versione fine sessione:** v3.4.2 (nessun bump — solo proto visivo)
