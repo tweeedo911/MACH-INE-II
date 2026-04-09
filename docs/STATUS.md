@@ -1,7 +1,7 @@
 # STATUS — MACH:INE III
 
 > Snapshot vivo. Rigenerato a fine sessione. Punto di entrata di ogni nuova sessione.
-> **Last updated:** 2026-04-09 (proto-solco: campo gaussiano, cross-modal, buildup, elliptic holes)
+> **Last updated:** 2026-04-09 (proto-solco v7: erosione cellulare, mappa suscettibilità, geometria random)
 
 ## ⚠️ Limiti noti (post A.2)
 
@@ -88,22 +88,24 @@ layers.js         →  4 layer canonici stackati (BG/MG/FG/Overlay) — Bible §
 
 ### P0 — proto-solco.html: validazione e calibrazione
 
-**Stato:** "quasi — questa è la direzione giusta" (feedback utente 2026-04-09)
+**Stato:** proto v7 — erosione cellulare funzionante, geometria randomizzata. Prossimo step: integrazione in `comp-solco.js`.
 
-**Da fare (in ordine):**
-1. Aprire `proto-solco.html` nel browser, verificare:
-   - buildup 10s funziona (campo emerge dall'oscurità)
-   - arp walking X funziona (blocchi dx→sx poi reset, scie persistenti nel sediment)
-   - rupture holes (ellissi che crescono + svaniscono, campo si ricrea dopo)
-2. Calibrare se necessario: velocità buildup, rx/ry range buchi, frequenza spawn buchi
-3. Decidere: proto pronto per integrazione in `comp-solco.js`? O serve un'altra iterazione?
-
-**Architettura proto (da preservare nell'integrazione):**
+**Architettura proto v7 (da preservare nell'integrazione):**
 - Campo gaussiano: `renderPass` + zone `gauss(nx,ny,z)` + `voidF(ny)` bottom-heavy
 - ZOS (bass colonna) senza voidF — la parete del canyon è sempre visibile
-- `inHole(nx,ny)` su entrambi i renderPass — buchi rivelano sediment
+- Zone gaussiane ZOM/ZOS/ZLM/ZLB con jitter random al boot → geometria diversa ogni run
+- `erodMap`: mappa suscettibilità 320×180, soglia dura (0.05/0.95), rumore multi-scala
+- Erosione cellulare permanente: celle non tornano, buchi netti con bordi definiti
+- Diffusione condizionata da `erodMap` → cancrena si espande solo nelle zone vulnerabili
+- Sediment visibile attraverso i buchi — storia del passato
+- `buildupMul = smooth(buildupT)` → field emerge gradualmente (14s)
 - Scia arp depositata nel sediment ogni 2 frame (persistenza)
-- `buildupMul = smooth(buildupT)` → field emerge gradualmente
+
+**Da fare per integrazione `comp-solco.js`:**
+1. Portare `erodMap` + `erosion` + `updateErosion()` come stato interno della comp
+2. `renderPass` con check erosione → sostituisce il vecchio peg-and-string
+3. MIDI wiring: CH0→kick fronts, CH3→bassEnv, CH4→chordBands, CH7→arpBlocks
+4. `buildupT` resettato in `init()`, avanza in `render()`
 
 ### P0b — Visual System Bible Fase A.4 ✅ COMPLETA
 Tutte le 6 comp migrate al layer stack 4-canonico (commit `16abb8e`).
