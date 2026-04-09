@@ -1,7 +1,7 @@
 # STATUS — MACH:INE III
 
 > Snapshot vivo. Rigenerato a fine sessione. Punto di entrata di ogni nuova sessione.
-> **Last updated:** 2026-04-09 (proto-solco v7: erosione cellulare, mappa suscettibilità, geometria random)
+> **Last updated:** 2026-04-09 (sessione 5: comp-solco integrazione proto v7 + ridisegno scena)
 
 ## ⚠️ Limiti noti (post A.2)
 
@@ -86,26 +86,20 @@ layers.js         →  4 layer canonici stackati (BG/MG/FG/Overlay) — Bible §
 
 ## Prossimo (priorità top→bottom)
 
-### P0 — proto-solco.html: validazione e calibrazione
+### P0 — comp-solco.js: ridisegno scena (fisica sbagliata identificata)
 
-**Stato:** proto v7 — erosione cellulare funzionante, geometria randomizzata. Prossimo step: integrazione in `comp-solco.js`.
+**Stato:** proto v7 integrato in comp-solco.js (sessione 5). Funziona ma la fisica del basso è sbagliata.
+Il sistema ZOS/ZOM (colonna che respira) è la fisica di RESPIRO, non di SOLCO.
 
-**Architettura proto v7 (da preservare nell'integrazione):**
-- Campo gaussiano: `renderPass` + zone `gauss(nx,ny,z)` + `voidF(ny)` bottom-heavy
-- ZOS (bass colonna) senza voidF — la parete del canyon è sempre visibile
-- Zone gaussiane ZOM/ZOS/ZLM/ZLB con jitter random al boot → geometria diversa ogni run
-- `erodMap`: mappa suscettibilità 320×180, soglia dura (0.05/0.95), rumore multi-scala
-- Erosione cellulare permanente: celle non tornano, buchi netti con bordi definiti
-- Diffusione condizionata da `erodMap` → cancrena si espande solo nelle zone vulnerabili
-- Sediment visibile attraverso i buchi — storia del passato
-- `buildupMul = smooth(buildupT)` → field emerge gradualmente (14s)
-- Scia arp depositata nel sediment ogni 2 frame (persistenza)
+**Visione ridisegnata (da prototipare):**
+- Scena: vuoto sopra (85%) + geologia compressa sotto — Grand Canyon in sezione
+- Bass = monolite arancione che cade dall'alto (non colonna spaziale)
+- Kick = frattura sismica alla linea di impatto (Y≈0.62), non fronti ascendenti
+- Chord = lastre lime a pitch-mapped height, scivolano giù insieme
+- Voice = traccia sismografica (appare+svanisce al pitch, non cade)
+- Arp = polvere di impatto, dot piccoli che cadono lenti
 
-**Da fare per integrazione `comp-solco.js`:**
-1. Portare `erodMap` + `erosion` + `updateErosion()` come stato interno della comp
-2. `renderPass` con check erosione → sostituisce il vecchio peg-and-string
-3. MIDI wiring: CH0→kick fronts, CH3→bassEnv, CH4→chordBands, CH7→arpBlocks
-4. `buildupT` resettato in `init()`, avanza in `render()`
+**Prossimo:** prototipo HTML standalone con nuova fisica → validazione → integrazione in comp-solco.js
 
 ### P0b — Visual System Bible Fase A.4 ✅ COMPLETA
 Tutte le 6 comp migrate al layer stack 4-canonico (commit `16abb8e`).
@@ -142,6 +136,7 @@ Consultare `docs/VISUAL-VISION.md §6` per il processo di integrazione.
 
 ### P3 — debiti tecnici
 1. Test live completo: rupture Fase B gradualità, sediment palimpsesto, crossfade 3s, glitch ritmico, enrich comp-*
+2. **Test ghost/fossil aging curve** (`field.js`) — rimandato: sarà visibile dopo pitch→Y + identità bioma. Verificare: dot crescono 2px→14px, sfumano verso `residual` traccia. Debug: `import('/src/event-register.js').then(m => setInterval(() => console.log(m.getEventStats()), 500))` in console.
 
 **P3 — FIX RUPTURE VISIBILITÀ — valori esatti, pronti per implementazione**
 
