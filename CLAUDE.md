@@ -87,13 +87,14 @@ app/
 ## Skill specializzate (`.claude/skills/`)
 Le skill contengono conoscenza profonda + script utility. Leggi `SKILL.md` prima di lavorare.
 
-| Skill                | Trigger                                                                  |
-|----------------------|--------------------------------------------------------------------------|
-| `composition-depth`  | composizione, armonia, accordi, battute, struttura, form, progressione   |
-| `visual-directing`   | visuals, rendering, scene, camera, primitivi, colore                     |
-| `runtime-expert`     | performance, fps, frame drop, latenza, memory, GC, Canvas, Audio, MIDI   |
-| `agent-orchestrator` | task >2 file o >3 step                                                   |
-| `production-team`    | tavola rotonda, review, critica, valuta, qualità, pronto per live        |
+| Skill                       | Trigger                                                                                     |
+|-----------------------------|---------------------------------------------------------------------------------------------|
+| `composition-depth`         | composizione, armonia, accordi, battute, struttura, form, progressione                      |
+| `visual-directing`          | visuals, rendering, scene, camera, primitivi, colore                                        |
+| `audiovisual-dramaturgy`    | connessione musica-visuale, sinestesia, mapping, coerenza, redesign bioma, risposta visiva, nome traccia + contesto visivo |
+| `runtime-expert`            | performance, fps, frame drop, latenza, memory, GC, Canvas, Audio, MIDI                      |
+| `agent-orchestrator`        | task >2 file o >3 step                                                                      |
+| `production-team`           | tavola rotonda, review, critica, valuta, qualità, pronto per live                           |
 
 Routing completo in `docs/06-AGENTS.md`.
 

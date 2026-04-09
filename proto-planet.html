@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>MACH:INE III — Planet Framework</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;gap:10px;font-family:monospace}
+.ui{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:center}
+button{background:#111;color:#555;border:1px solid #2a2a2a;padding:5px 14px;cursor:pointer;font-size:10px;letter-spacing:1px;text-transform:uppercase}
+button:hover{color:#aaa;border-color:#555}
+button.on{color:#ccc;border-color:#666}
+select{background:#111;color:#555;border:1px solid #2a2a2a;padding:5px 8px;font-size:10px}
+#info{color:#333;font-size:10px;min-width:160px;text-align:center}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div class="ui">
+  <button id="bZoom">RITORNO ↑</button>
+  <select id="sSolo">
+    <option value="">tutti i biomi</option>
+    <option>NEBBIA</option>
+    <option>TESSUTO</option>
+    <option>SOLCO</option>
+    <option>RESPIRO</option>
+    <option>MACCHINA</option>
+    <option>TEMPESTA</option>
+  </select>
+  <button id="bRegen">rigenera sediment</button>
+  <span id="info">superficie — tutti i biomi</span>
+</div>
+<script>
+// ═══════════════════════════════════════════════════════════════════
+//  MACH:INE III — PLANET FRAMEWORK PROTOTYPE
+//
+//  Domanda che testa: i 7 biomi sono coerenti come un mondo unico?
+//  La grammatica pitch→Y genera una geografia verticale leggibile?
+//  Il pianeta ha senso visto dall'orbita (RITORNO)?
+//
+//  Ogni bioma contribuisce "sediment events" posizionati a
+//  Y = 1 - pitch/127  (grave = basso, acuto = alto)
+//  L'immagine è la geologia visiva di 55 minuti di musica.
+// ═══════════════════════════════════════════════════════════════════
+
+const W=1200, H=750;
+const cv=document.getElementById('c');
+cv.width=W; cv.height=H;
+const cx=cv.getContext('2d');
+
+// Offscreen — tutta la scena viene renderizzata qui, poi composited
+const ov=document.createElement('canvas'); ov.width=W; ov.height=H;
+const oc=ov.getContext('2d');
+
+// ─── Bayer 8×8 ───
+const B8=[
+  [ 0,32, 8,40, 2,34,10,42],
+  [48,16,56,24,50,18,58,26],
+  [12,44, 4,36,14,46, 6,38],
+  [60,28,52,20,62,30,54,22],
+  [ 3,35,11,43, 1,33, 9,41],
+  [51,19,59,27,49,17,57,25],
+  [15,47, 7,39,13,45, 5,37],
+  [63,31,55,23,61,29,53,21],
+];
+function bayer(c,x,y,w,h,d,sz,r,g,b){
+  if(d<=0||w<=0||h<=0)return;
+  c.fillStyle=`rgb(${r},${g},${b})`;
+  const x0=Math.floor(x), y0=Math.floor(y), x1=x0+Math.ceil(w), y1=y0+Math.ceil(h);
+  for(let py=y0;py<y1;py+=sz)
+    for(let px=x0;px<x1;px+=sz)
+      if(B8[Math.floor(py/sz)&7][Math.floor(px/sz)&7]<d*64)
+        c.fillRect(px,py,sz,sz);
+}
+function lerp(a,b,t){return a+(b-a)*t}
+function smooth(t){return t*t*(3-2*t)}
+function hr(h){const n=parseInt(h.slice(1),16);return[(n>>16)&255,(n>>8)&255,n&255]}
+
+// ═══ Definizione biomi — derivata dalla partitura ═══
+// pitch range → Y range (1-pitch/127)
+// NEBBIA:   melody  [67-84]  → Y 0.34-0.47  (alto: spazio)
+// TESSUTO:  chords  [50-67]  → Y 0.47-0.61  (medio: fibre)
+// SOLCO:    bass    [24-43]  → Y 0.66-0.81  (basso: terrain)
+// RESPIRO:  chords  [60-77]  → Y 0.39-0.53  (medio: membrana)
+// MACCHINA: arp     [62-81]  → Y 0.36-0.51  (medio-alto: griglia)
+// TEMPESTA: all     [40-93]  → Y 0.27-0.69  (ampio: caos)
+
+const BM=[
+  {
+    name:'NEBBIA',
+    dot: hr('#EFE6DE'), acc: null,
+    pl:67, ph:84,
+    dens:0.22, sz:2,
+    cnt:200, sp:0.22,
+    type:'nebula',
+    // Fisica: dispersione radiale, zero gravità — nebulae che si espandono
+  },
+  {
+    name:'TESSUTO',
+    dot: hr('#CDD71D'), acc: hr('#EFE6DE'),
+    pl:50, ph:67,
+    dens:0.55, sz:2,
+    cnt:280, sp:0.07,
+    type:'band',
+  },
+  {
+    name:'SOLCO',
+    dot: hr('#FE6B0D'), acc: hr('#CDD71D'),
+    pl:24, ph:43,
+    dens:0.72, sz:2,
+    cnt:420, sp:0.09,
+    type:'block',
+  },
+  {
+    name:'RESPIRO',
+    dot: hr('#1A1A1A'), bgDot: hr('#7BBA91'),
+    pl:60, ph:77,
+    dens:0.06, sz:3,
+    cnt:130, sp:0.13,
+    type:'pore',
+  },
+  {
+    name:'MACCHINA',
+    dot: hr('#F8ED00'), acc: hr('#DD3A44'),
+    pl:62, ph:81,
+    dens:0.62, sz:1,
+    cnt:520, sp:0.14,
+    type:'grid',
+  },
+  {
+    name:'TEMPESTA',
+    dot: hr('#FFFFFF'), acc: hr('#91010F'),
+    pl:40, ph:93,
+    dens:0.75, sz:1,
+    cnt:600, sp:0.28,
+    type:'vector',
+  },
+];
+
+// RITORNO — non è un bioma, è la camera in orbita
+const RDOT=hr('#9B8FCE'); // lavanda — scintille sull'intera superficie
+
+// ═══ Background geografico ═══
+// Gradiente verticale che mostra le "zone" del pianeta.
+// Il sage di RESPIRO (Y 0.42-0.55) è la feature più riconoscibile — la "fascia vitale".
+function drawBg(c){
+  const g=c.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,    '#050505'); // polo nord — spazio
+  g.addColorStop(0.25, '#0A0A0A'); // NEBBIA — cosmo
+  g.addColorStop(0.36, '#152318'); // transizione verso RESPIRO
+  g.addColorStop(0.42, '#4a8560'); // RESPIRO sage — inizio
+  g.addColorStop(0.48, '#7BBA91'); // RESPIRO picco — la fascia vitale
+  g.addColorStop(0.56, '#2f4d3a'); // RESPIRO sfuma
+  g.addColorStop(0.63, '#161625'); // MACCHINA navy
+  g.addColorStop(0.72, '#1c1e19'); // SOLCO dark verde-grigio
+  g.addColorStop(1.0,  '#0d0d0d'); // polo sud — terrain compresso
+  c.fillStyle=g;
+  c.fillRect(0,0,W,H);
+}
+
+// ═══ Generazione sediment ═══
+let evs=[];
+function genSed(){
+  evs=[];
+  for(const b of BM){
+    for(let i=0;i<b.cnt;i++){
+      const pitch = b.pl + Math.random()*(b.ph-b.pl);
+      const ny0   = 1 - pitch/127;
+      // scatter gaussiano attorno alla Y teorica
+      const ny    = Math.max(0.01, Math.min(0.99, ny0 + (Math.random()-.5)*b.sp));
+      const nx    = Math.random();
+      evs.push({
+        nm: b.name, type: b.type,
+        dot: b.dot, acc: b.acc||null, bgDot: b.bgDot||null,
+        nx, ny, ny0,
+        age:  Math.random(),            // 0..1: posizione nel lifecycle
+        d:    b.dens*(0.5+Math.random()*0.5),
+        sz:   b.sz,
+        w:    b.type==='block' ? (0.028+Math.random()*0.038) : 0.025,
+        h:    b.type==='block' ? (0.016+Math.random()*0.022) : 0.013,
+        ang:  (Math.random()-.5)*1.4,  // per vector
+      });
+    }
+  }
+  // Sort per Y — i più bassi si disegnano per ultimi (sopra il sediment)
+  evs.sort((a,b)=>a.ny-b.ny);
+}
+
+// ═══ Render eventi ═══
+function drawEvs(c, solo){
+  for(const e of evs){
+    if(solo && e.nm!==solo) continue;
+    const x  = Math.round(e.nx*W);
+    const y  = Math.round(e.ny*H);
+    const ew = Math.round(e.w*W);
+    const eh = Math.max(3, Math.round(e.h*H));
+    const[r,g2,b]=e.dot;
+
+    if(e.type==='nebula'){
+      // Nebulosa: cloud circolare espansa — più sottile, più nebulosa
+      const rad=8+Math.round(e.age*38);
+      // Core denso
+      bayer(c, x-rad*.4, y-rad*.4, rad*.8, rad*.8, e.d, e.sz, r,g2,b);
+      // Alone rarefatto
+      bayer(c, x-rad, y-rad, rad*2, rad*2, e.d*.28, e.sz, r,g2,b);
+    }
+    else if(e.type==='band'){
+      // Banda orizzontale — fibra tesa su tutto il canvas
+      // Linea principale
+      bayer(c, 0, y-1, W, 2, e.d, e.sz, r,g2,b);
+      // Alone sottile sopra/sotto (il respiro della fibra)
+      bayer(c, 0, y-4, W, 2, e.d*.18, e.sz, r,g2,b);
+      bayer(c, 0, y+3, W, 2, e.d*.12, e.sz, r,g2,b);
+    }
+    else if(e.type==='block'){
+      // Blocco rettangolare — geologia compressa sul terrain
+      bayer(c, x-ew/2, y-eh/2, ew, eh, e.d, e.sz, r,g2,b);
+      // Strato sediment sotto (l'accumulo storico)
+      bayer(c, x-ew*.7, y+eh*.4, Math.round(ew*1.4), Math.round(eh*.5), e.d*.35, e.sz, r,g2,b);
+      // Accent lime sopra (chord secondari)
+      if(e.acc && e.age>0.35 && Math.random()<0.28){
+        const[ar,ag,ab]=e.acc;
+        bayer(c, x-ew*.4, y-eh*1.8, Math.round(ew*.8), Math.round(eh*.7), e.d*.42, e.sz, ar,ag,ab);
+      }
+    }
+    else if(e.type==='pore'){
+      // Campo sage pieno (la membrana — presenza di default)
+      if(e.bgDot){
+        const[br,bg3,bb]=e.bgDot;
+        bayer(c, x-ew*1.2, y-eh*1.2, ew*2.4, eh*2.4, 0.92, e.sz, br,bg3,bb);
+      }
+      // Poro scuro al centro (la nota = buco nella membrana)
+      bayer(c, x-ew*.4, y-eh*.4, Math.round(ew*.8), Math.round(eh*.8), 0.82, e.sz, r,g2,b);
+    }
+    else if(e.type==='grid'){
+      // Snap a griglia 4px — il pattern è leggibile come dati
+      const cs=4;
+      const gx=Math.round(x/cs)*cs;
+      const gy=Math.round(y/cs)*cs;
+      // Run di celle (come caratteri su terminale)
+      const run=2+Math.floor(Math.random()*4);
+      bayer(c, gx, gy, cs*run, cs, e.d, e.sz, r,g2,b);
+      if(e.acc && Math.random()<0.08){
+        const[ar,ag,ab]=e.acc;
+        bayer(c, gx, gy, cs, cs, e.d*.7, e.sz, ar,ag,ab);
+      }
+    }
+    else if(e.type==='vector'){
+      // Scia diagonale — tre livelli di velocità/suscettibilità
+      const len=12+e.d*80;
+      const ca=Math.cos(e.ang), sa=Math.sin(e.ang+0.5);
+      // Scia principale — densità che decade
+      for(let s=0; s<1; s+=0.07){
+        bayer(c,
+          Math.round(x+ca*len*s)-1,
+          Math.round(y+sa*len*s),
+          3, 1, e.d*(1-s*.7), e.sz, r,g2,b);
+      }
+      // Carmine accent — scintilla di collisione
+      if(e.acc && Math.random()<0.12){
+        const[ar,ag,ab]=e.acc;
+        bayer(c, x-2, y, 4, 1, e.d*.55, e.sz, ar,ag,ab);
+      }
+    }
+  }
+}
+
+// ═══ Scintille RITORNO (lavanda — visibili solo in orbita) ═══
+let dust=[];
+function spawnDust(){ dust.push({nx:Math.random(), ny:Math.random(), age:0, max:1.2+Math.random()*2.5}) }
+function drawDust(c){
+  const[r,g,b]=RDOT;
+  for(const d of dust){
+    const ta=d.age/d.max;
+    bayer(c, Math.round(d.nx*W)-1, Math.round(d.ny*H)-1, 2, 2, .92*(1-ta*ta), 1, r,g,b);
+  }
+}
+
+// ═══ Stato zoom ═══
+let zAnim=0, zDir=0, isRit=false;
+document.getElementById('bZoom').addEventListener('click',function(){
+  isRit=!isRit; zDir=isRit?1:-1;
+  this.textContent=isRit?'RITORNO ↓':'RITORNO ↑';
+  this.classList.toggle('on',isRit);
+  document.getElementById('info').textContent=
+    isRit ? 'orbita — RITORNO' : ('superficie — '+(solo||'tutti i biomi'));
+});
+
+let solo='';
+document.getElementById('sSolo').addEventListener('change',function(){
+  solo=this.value;
+  if(!isRit) document.getElementById('info').textContent='superficie — '+(solo||'tutti i biomi');
+});
+
+document.getElementById('bRegen').addEventListener('click',()=>{ genSed(); });
+
+// ═══ Loop ═══
+let lt=0, dTimer=0;
+function frame(now){
+  requestAnimationFrame(frame);
+  const dt=Math.min((now-lt)/1000, .05); lt=now;
+
+  // Zoom animation
+  if(zDir!==0){
+    zAnim=Math.max(0, Math.min(1, zAnim+zDir*dt*.85));
+    if(zAnim<=0||zAnim>=1) zDir=0;
+  }
+
+  // Dust (visibile da z > 0.3)
+  if(zAnim>.28){
+    dTimer+=dt;
+    if(dTimer>.055){ spawnDust(); dTimer=0; }
+    for(const d of dust) d.age+=dt;
+    dust=dust.filter(d=>d.age<d.max);
+  }
+
+  // ── Render su offscreen ──
+  drawBg(oc);
+  drawEvs(oc, solo);
+  if(zAnim>.28) drawDust(oc);
+
+  // ── Composite su main canvas ──
+  const z=smooth(zAnim);
+
+  if(z<.01){
+    // Vista superficiale — full canvas
+    cx.drawImage(ov, 0, 0);
+
+    // Labels biomi (solo senza solo mode)
+    if(!solo){
+      cx.font='9px monospace';
+      cx.fillStyle='rgba(255,255,255,0.18)';
+      for(const b of BM){
+        const yMid=(1-(b.pl+b.ph)/2/127)*H;
+        cx.fillText(b.name, 8, yMid+4);
+      }
+    }
+  } else {
+    // Vista orbita — scale + circle clip + atmosphere
+    cx.fillStyle='#000';
+    cx.fillRect(0,0,W,H);
+
+    const scale   = lerp(1.0, 0.175, z);
+    const pr      = Math.round(Math.min(W,H)*0.5*scale*1.08);
+    const pcx=W/2, pcy=H/2;
+
+    // Alone atmosferico (verde-sage — l'atmosfera del pianeta)
+    const atm=cx.createRadialGradient(pcx,pcy, pr*.85, pcx,pcy, pr*1.35);
+    atm.addColorStop(0,   'rgba(80,160,100,.14)');
+    atm.addColorStop(0.5, 'rgba(50,110,70,.05)');
+    atm.addColorStop(1,   'rgba(0,0,0,0)');
+    cx.fillStyle=atm;
+    cx.fillRect(0,0,W,H);
+
+    // Pianeta
+    cx.save();
+    cx.beginPath();
+    cx.arc(pcx, pcy, pr, 0, Math.PI*2);
+    cx.clip();
+
+    const sw=Math.round(W*scale), sh=Math.round(H*scale);
+    cx.drawImage(ov, pcx-sw/2, pcy-sh/2, sw, sh);
+
+    // Terminatore (ombra — luce da nord-ovest)
+    const term=cx.createRadialGradient(pcx-pr*.3, pcy-pr*.3, pr*.15, pcx, pcy, pr);
+    term.addColorStop(0.55, 'rgba(0,0,0,0)');
+    term.addColorStop(1.0,  'rgba(0,0,0,.72)');
+    cx.fillStyle=term;
+    cx.fillRect(0,0,W,H);
+
+    cx.restore();
+
+    // Label orbita
+    cx.font='10px monospace';
+    cx.fillStyle='rgba(155,143,206,.5)'; // lavanda
+    cx.fillText('RITORNO', pcx-28, pcy+pr+20);
+  }
+}
+
+genSed();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

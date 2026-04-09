@@ -6,6 +6,81 @@
 
 ---
 
+## 2026-04-09 (sessione 6) — Skill audiovisual-dramaturgy + framework pianeta
+
+**Versione fine sessione:** v3.4.2 (nessun bump)
+**Branch:** `machine-iii`
+
+### Obiettivo
+Creare la competenza mancante: connessione audiovisiva — derivare risposte visive
+dalla fisica musicale, con mandato radicale se la coerenza è insufficiente.
+
+### Fatto
+
+**Brainstorming e design della skill**
+Analizzato il gap tra `composition-depth` (sa la musica) e `visual-directing`
+(sa la scena) — non esiste nulla che stia in mezzo e legga entrambi insieme.
+Design iterativo della skill `audiovisual-dramaturgy` con metodologia di ascolto
+e derivazione (non dizionario di mapping fissi).
+
+**Analisi audiovisiva completa dei 7 biomi**
+Letto tutto il codice musicale (tracks.js, bass-v3.js, rhythm.js, harmony.js,
+melody-v3.js) e derivato il profilo caratteriale di ogni traccia.
+Prodotta diagnosi SOLCO: 3/4 domande falliscono → redesign radicale confermato.
+Fisica corretta identificata: gravità estrema, blocchi che cadono, terrain a Y≈0.75.
+
+**Visione del pianeta come sistema unico**
+La grammatica pitch→Y crea una topografia geografica coerente:
+- Y 0.00-0.35: spazio aperto (NEBBIA, RITORNO)
+- Y 0.35-0.65: fascia vitale (TESSUTO, RESPIRO sage, MACCHINA)
+- Y 0.65-1.00: terrain (SOLCO, sediment di tutti i bassi)
+RESPIRO (bg #7BBA91) è la feature geografica più riconoscibile da orbita.
+RITORNO non è un bioma — è la camera che sale.
+
+**Analisi palette sistema**
+Confermata coerenza cromatica: il lime è il filo tra TESSUTO e SOLCO.
+RESPIRO è il colpo di teatro cromatico (unico fondo chiaro). L'arco cream→lime→orange→
+sage→yellow→white→lavanda è un arco emotivo completo. Il bg #0A0A0A di RITORNO
+chiude il cerchio con NEBBIA.
+
+**Prototipo proto-planet.html**
+Framework geografico: 6 biomi come sediment statico, grammatica pitch→Y,
+zoom-out RITORNO con barrel distortion, terminatore, alone atmosferico sage.
+Validato: la fascia sage di RESPIRO è visibile e la geografia verticale regge.
+
+**Skill scritta e deployata**
+`app/.claude/skills/audiovisual-dramaturgy/` con 7 file:
+- SKILL.md — tesi, grammatica, 4 domande, autorità radicale, protocollo
+- references/listening-framework.md — come leggere la partitura (5 step)
+- references/visual-derivation.md — dalla musica alla fisica visiva
+- references/artistic-research.md — vocabolario per dominio (Malevich, Hara, Ikeda...)
+- references/current-biomes.md — stato attuale + diagnosi dei 7 biomi
+- references/technical-stack.md — primitivi, layer API, curva aging, anti-pattern
+- references/project-history.md — archivio, errori ricorrenti, dinamica sessioni
+- references/user-preferences.md — preferenze forti dell'autore
+
+**CLAUDE.md aggiornato** con la nuova skill nella tabella.
+
+### File toccati
+- `app/.claude/skills/audiovisual-dramaturgy/SKILL.md` — nuovo
+- `app/.claude/skills/audiovisual-dramaturgy/references/` — 7 file nuovi
+- `app/proto-planet.html` — nuovo prototipo framework geografico
+- `app/CLAUDE.md` — aggiunta skill nella tabella
+- `app/docs/superpowers/specs/2026-04-09-audiovisual-dramaturgy-design.md` — spec
+
+### Decisioni
+- La skill non prescrive mapping fissi (DECISIONE chiave): deriva dalla partitura
+- Le preferenze utente sono default forti: metterle in discussione solo se richiesto esplicitamente
+- RITORNO non è un bioma: è la posizione della camera (confermato da analisi partitura)
+- La fisica di SOLCO richiede redesign radicale (3/4 domande di coerenza falliscono)
+
+### Prossimo
+- Iterare `proto-solco.html` con nuova fisica (gravità + terrain): blocchi bass che cadono,
+  shockwave kick su linea di impatto, lastre chord pitch-mapped
+- Validare visivamente → integrare in comp-solco.js con piano preciso
+
+---
+
 ## 2026-04-09 (sessione 5) — comp-solco: integrazione proto v7 + ridisegno scena
 
 **Versione fine sessione:** v3.4.2 (nessun bump)

@@ -1,7 +1,7 @@
 # STATUS — MACH:INE III
 
 > Snapshot vivo. Rigenerato a fine sessione. Punto di entrata di ogni nuova sessione.
-> **Last updated:** 2026-04-09 (sessione 5: comp-solco integrazione proto v7 + ridisegno scena)
+> **Last updated:** 2026-04-09 (sessione 6: skill audiovisual-dramaturgy + framework pianeta)
 
 ## ⚠️ Limiti noti (post A.2)
 
@@ -86,20 +86,65 @@ layers.js         →  4 layer canonici stackati (BG/MG/FG/Overlay) — Bible §
 
 ## Prossimo (priorità top→bottom)
 
-### P0 — comp-solco.js: ridisegno scena (fisica sbagliata identificata)
+### P0 — comp-solco.js: redesign radicale con nuova fisica
 
-**Stato:** proto v7 integrato in comp-solco.js (sessione 5). Funziona ma la fisica del basso è sbagliata.
-Il sistema ZOS/ZOM (colonna che respira) è la fisica di RESPIRO, non di SOLCO.
+**Stato:** diagnosi completata (sessione 6). 3/4 domande di coerenza falliscono.
+Skill `audiovisual-dramaturgy` disponibile per guidare il lavoro.
 
-**Visione ridisegnata (da prototipare):**
-- Scena: vuoto sopra (85%) + geologia compressa sotto — Grand Canyon in sezione
-- Bass = monolite arancione che cade dall'alto (non colonna spaziale)
-- Kick = frattura sismica alla linea di impatto (Y≈0.62), non fronti ascendenti
-- Chord = lastre lime a pitch-mapped height, scivolano giù insieme
-- Voice = traccia sismografica (appare+svanisce al pitch, non cade)
-- Arp = polvere di impatto, dot piccoli che cadono lenti
+**Diagnosi:**
+- Fisica ZOS/ZOM = RESPIRO applicata a SOLCO. Una colonna che respira è una membrana, non geologia.
+- Pitch→Y non implementato. ANCHORS fissi = nessun peso compositivo.
+- Il basso non ha massa visiva — è una forma decorativa.
 
-**Prossimo:** prototipo HTML standalone con nuova fisica → validazione → integrazione in comp-solco.js
+**Fisica corretta (derivata dalla partitura):**
+- Legge unica: gravità estrema. Tutto cade. Terrain a Y≈0.75.
+- Bass (MIDI 24-43, density 0.8): blocco rettangolare con massa ∝ velocity.
+  Nasce a Y 0.20-0.40, cade al terrain. Lifecycle 80-120 frame. Colore orange.
+- Kick (step ritmici): shockwave orizzontale a Y≈0.70. Lifecycle 3-4 frame. Colore lime.
+- Chord (MIDI 55-72): lastra sottile a Y = 1-pitch/127 ≈ 0.43-0.57. Scende lenta. 60-90 frame.
+- Voice (rara, una frase ogni 4 bar): traccia sismografica orizzontale, non cade. 15-25 frame.
+- Arp: particelle 2px, orbitano nel vuoto, cadono lente. 12-20 frame.
+- Composizione: vuoto sopra (85%), geologia compressa sotto. Immagine: Grand Canyon in sezione.
+
+**Prossimo — brief sessione 7:**
+
+> ⚠️ `proto-solco.html` attuale (v7) usa ancora la fisica ZOS/ZOM sbagliata.
+> Va sostituito con un prototipo nuovo da zero — non iterato.
+
+**Step 1 — Nuovo `proto-solco-v2.html` (non toccare il vecchio)**
+Struttura base: fake MIDI a 129 BPM, rhythmGrid SOLCO, bassPattern SOLCO.
+Fisica da implementare in ordine:
+1. **Canvas diviso**: `ctx.fillRect(0, 0, W, H*0.75)` bg scuro → vuoto sopra
+   `ctx.fillRect(0, H*0.75, W, H*0.25)` terrain più denso → geologia sotto
+2. **Bass**: rettangolo con `w = lerp(40,160, vel/127)`, `h = lerp(20,60, vel/127)`.
+   Nasce a `y = H * (1 - pitch/127)` tra 0.15 e 0.45.
+   Velocità caduta: `vy += 0.8 * dt * H` (gravità).
+   Si "spiaccica" quando `y > H*0.73`: `vy=0`, `h *= 0.3`, `w *= 1.8`.
+   Lifecycle: 100 frame con curva aging t² (dotSz 3→8, density 0.85→0.20).
+3. **Kick**: shockwave orizzontale a `y = H*0.70`.
+   Linea che si espande: `w` va da 0 a W in 4 frame, `density` da 0.9 a 0.
+4. **Chord**: lastra `h=8`, `w = lerp(60,200, vel/127)`.
+   Spawn a `y = H * (1 - pitch/127)` (range MIDI 55-72 → Y 0.43-0.57).
+   Cade a `vy = 40 px/s`. Lifecycle 80 frame.
+5. **Voice**: linea orizzontale sottile `h=2`, `w = W*0.35`.
+   Spawn a `y = H * (1 - pitch/127)`. Non cade — appare e sfuma. Lifecycle 25 frame.
+6. **Arp**: particella 3px. Spawn nel gap Y 0.20-0.55, orbita random ±20px,
+   poi cade a `vy = 25 px/s`. Lifecycle 18 frame.
+
+**Step 2 — Test visivo (30 secondi)**
+- Il vuoto sopra è dominante?
+- Un bass che arriva si sente pesante?
+- Il kick crea una frattura orizzontale leggibile?
+- Le lastre chord si distinguono dal bass per forma e velocità?
+
+**Step 3 — Iterazione sul prototipo** (non sul sistema)
+Parametri calibrabili: velocità caduta, dimensioni, posizione terrain (H*0.75).
+
+**Step 4 — Solo dopo validazione orale**: integrare in `comp-solco.js`.
+Piano preciso: file + riga + valore. Approvazione prima del codice.
+
+Usare skill `audiovisual-dramaturgy` per ogni decisione visiva — triggera automaticamente
+su "SOLCO" + contesto visivo.
 
 ### P0b — Visual System Bible Fase A.4 ✅ COMPLETA
 Tutte le 6 comp migrate al layer stack 4-canonico (commit `16abb8e`).
@@ -410,6 +455,8 @@ File: tutte le `comp-*.js`, `config.js`
 | Routing skill / agenti | `docs/06-AGENTS.md` |
 | Gap artistici + strategia prossima milestone | `docs/07-ARTISTIC-GAPS.md` |
 | Comportamenti morti riusabili | `SALVAGE.md` (in root) |
+| Derivare risposta visiva dalla musica | skill `audiovisual-dramaturgy` |
+| Visione pianeta + fisica biomi | `docs/VISUAL-VISION.md` |
 
 ---
 <!-- knowledge-graph links -->
