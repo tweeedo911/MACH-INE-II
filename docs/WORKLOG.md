@@ -6,6 +6,238 @@
 
 ---
 
+## 2026-04-09 (sessione 2) — Iterazione proto-solco: campo gaussiano + cross-modal + buildup
+
+**Versione fine sessione:** v3.4.2 (nessun bump — solo proto visivo)
+**Branch:** `machine-iii`
+
+### Obiettivo
+Iterare `proto-solco.html` finché composizione è soddisfacente. Passare da "non ci siamo"
+a "quasi — questa è la direzione giusta".
+
+### Fatto
+
+**Cambio architetturale: da forme MIDI-reactive a campo gaussiano**
+Letto `archive/code/versions/v2.9.3-field.js` per capire come v2 calcolava il campo.
+Il punto chiave: v2 usava densità per-pixel da zone gaussiane sovrapposte + forme MIDI come
+shape nel campo — non rettangoli predefiniti che reagivano al MIDI.
+Ricostruito lo stesso approccio nel proto: `renderPass(ctx, css, dFn)` + zone gaussiane
+`ZOM/ZOS/ZLM/ZLB` con `gauss(nx,ny,zone)` + `voidF(ny)` bottom-heavy.
+
+**Cross-modal instrument identity (v4→v5)**
+Ogni strumento ha zona spaziale propria + forma distinta:
+- KICK → FRONTE: 3 onde orizzontali ascendenti dal terrain, staggered (delay 0/7/14 frame)
+- BASS → COLONNA: zona ZOS full-height (no voidF), respira con bassEnv
+- CHORD → BANDA: 3 strisce pitch-mapped Y 0.12→0.88 (voicing presets), range completo
+- ARP → BLOCCO: piccoli rettangoli verticali che cadono, X camminante dx→sx
+
+**ZOS senza voidF**
+La colonna bass è la parete del canyon — visibile dall'alto al basso, diversa dal materiale
+geologico che si accumula per gravità. Soluzione: ZOS moltiplicata per il suo moltiplicatore
+di densità ma NON per voidF nel renderPass orange.
+
+**Buildup iniziale**
+`buildupT` parte da 0, raggiunge 1 in 10 secondi. I renderPass moltiplicano per `smooth(buildupT)`.
+Il campo emerge gradualmente dall'oscurità — non appare già formato.
+
+**Rupture holes: ellissi**
+Cambiate da rettangoli a ellissi con cx/cy/rx/ry variabili. Crescono da un punto (20% vita),
+bordo morbido (70% centro pieno, 30% fade spaziale), poi svaniscono (22% fade out).
+`inHole(nx,ny)` restituisce [0,1] → entrambi i renderPass moltiplicano per `(1-inHole)`.
+Il sediment rimane visibile attraverso i buchi → il campo si ricrea dopo naturalmente.
+
+**Arp walking X + scia persistente**
+Spawn X cammina da dx (0.82-0.92) verso sx con passi `ARP_X_STRIDE=0.09`, poi resetta.
+Cade verticalmente (no vx). Scia verticale dal punto di spawn. La scia viene depositata
+nel sediment ogni 2 frame (`fillB(sed, ...)`) → persistenza visiva dopo la morte del blocco.
+
+### File toccati
+- `app/proto-solco.html` — iterato v1→v6 (5 versioni questa sessione)
+
+### Decisioni
+- Il processo giusto: campo gaussiano per background + forme evento per MIDI-triggered shapes.
+  Non il contrario (non forme che reagiscono al MIDI come first-class).
+- Arp verticale con X camminante è più leggibile e sintetico rispetto a arp orizzontale.
+- Buchi in rottura = ellissi (più organico di rettangoli).
+- Trail nel sediment = persistenza senza inquinare il campo corrente.
+
+### Prossimo
+1. Aprire `proto-solco.html` su browser e verificare che buildup + arp walking + holes funzionino
+2. Calibrare velocità buildup (attuale 10s — potrebbe servire più tempo)
+3. Calibrare frequenza buchi in rottura (attuale ogni 1.6s) + rx/ry range
+4. Decidere se il prototipo è pronto per integrazione in `comp-solco.js` o serve ancora iterazione
+
+---
+
+## 2026-04-09 — Analisi visiva + visione pianeta + processo prototipazione
+
+**Versione fine sessione:** v3.4.2 (nessun bump — solo doc + proto visivo)
+**Branch:** `machine-iii`
+
+### Obiettivo
+Capire perché le sessioni visual continuano a fallire. Trovare la visione giusta e un processo che funzioni.
+
+### Fatto
+
+**Diagnosi gap v2→v3**
+Analisi approfondita delle differenze tra v2 (DESIGN.md) e v3 attuale.
+Gap critici identificati: dot-size fisso (v2 aveva lifecycle 2px→14px), scaffold uniforme,
+forme agli angoli extremi (ANCHORS sui bordi), MIDI non protagonista visivo diretto,
+camera infrastruttura esiste ma mai guidata da director3.
+Infrastruttura v3 (layer stack, rupture, event-register, palettes) è solida — non toccare.
+
+**Visione "Il Pianeta"**
+7 biomi con fisica radicalmente diversa. Ogni bioma ha legge propria:
+NEBBIA=centrifuga/nebulosa, TESSUTO=tensione orizzontale/fibra, SOLCO=gravità estrema/geologia,
+RESPIRO=pressione membrana/pori, MACCHINA=nessuna fisica/griglia, TEMPESTA=impulsi magnetici/caos,
+RITORNO=visione orbitale del pianeta intero.
+Momento chiave: RITORNO zooma out e il pubblico vede la mappa geografica di 55 minuti di musica.
+
+**Primitivi v2 mappati sui biomi v3**
+NEBBIA=SCIAME+VUOTO, TESSUTO=STRISCIA+FRONTE, SOLCO=BLOCCO+FRONTE,
+RESPIRO=VUOTO(invertito), MACCHINA=MATRICE+BANDA, TEMPESTA=VETTORE+STRISCIA.
+
+**Processo prototipazione**
+Identificato il failure mode: si pianifica astratto → si implementa nel sistema principale → delusione.
+Fix: prototipo HTML standalone per ogni bioma prima di toccare il sistema principale.
+Costruito `app/proto-solco.html` come primo tentativo (composizione ancora non soddisfacente,
+feedback utente: "non mi piace praticamente nulla").
+
+**Documento di riferimento creato**
+`docs/VISUAL-VISION.md` — sintesi completa: tesi, gap v2→v3, 7 biomi con fisica+primitivi+MIDI,
+curva aging universale, processo di lavoro, prossimi passi.
+
+### File toccati
+- `docs/VISUAL-VISION.md` — nuovo, documento di riferimento visivo definitivo
+- `app/proto-solco.html` — nuovo, prototipo standalone (da iterare)
+
+### Decisioni
+- Il prototipo visivo viene PRIMA dell'integrazione nel sistema principale — sempre.
+- La curva lifecycle `dotSize = lerp(2, 14, t²)` è la priorità implementativa #1.
+- Ogni bioma ha fisica radicalmente diversa — non variazioni dello stesso tema.
+
+### Prossimo
+1. Iterare `proto-solco.html` finché composizione è soddisfacente (utente deve valutare)
+2. Capire cosa non piace del proto attuale: forma, colore, movimento, carattere?
+3. Usare `docs/VISUAL-VISION.md` come guida per ogni bioma
+
+---
+
+## 2026-04-08 — Sessioni 1-3 + tentativi visual grammar (esito parziale)
+
+**Versione fine sessione:** v3.4.2 (nessun bump — modifiche visive, nessun cambio musicale)
+**Branch:** `machine-iii`
+
+### Fatto
+
+**Sessione 1 — Rupture visibilità (7 edit, 5 file) ✅**
+- `config.js`: ruptureTint NEBBIA→#00BFFF, RESPIRO→#CCFF00, TEMPESTA→#FF0040
+- `comp-griglia.js:171`: ruptI * 0.01 → 0.08
+- `comp-quadrati.js:206`: ruptI * 0.08 → 0.30
+- `comp-treno.js:137`: lerp(1.0,1.04) → lerp(1.0,1.18)
+- `comp-liminale.js:214`: lerp(1.0,1.5) → lerp(1.0,3.0)
+
+**Sessione 2 — Rupture BG shift (4 file) ✅**
+- `config.js`: ruptureBg per tutte e 7 le tracce (inversione bg)
+- `world-state.js`: ruptureBg: null in palette default
+- `director3.js`: worldState.palette.ruptureBg = tp?.ruptureBg ?? null
+- `colors.js`: lerp _target.bg → ruptureBg quando ri > 0.6
+
+**Sessione 3 — Color per canale (2 file) ✅**
+- `config.js`: CFG.VISUAL.roleColors (kick/perc: dot, drone/bass/voice/lead/arp: accent)
+- `event-register.js`: import getPalette, _pickSpawnColor, spawnColor nel factory
+
+**Sessione 4 — Pitch→Y (2 fix) ✅**
+- `comp-treno.js:169`: fix bug n.note/127 → 1-n.note
+- `comp-quadrati.js`: arp particles cy da block center → H*(1-n.note)
+
+**Ghost/fossil fix ✅**
+- `field.js`: patch Bayer attorno all'evento invece di singolo dot con Bayer gate
+- `config.js`: ghostRadius/fossilRadius, blend ridotti
+- `render.js`: nx=noteNorm invece di 0.5 fisso
+
+**Tentativo visual grammar — SOLCO ⚠️**
+- `comp-solco.js`: nuovo da zero (due forme Bayer orange/lime, peg-and-string, 8 ancore, sediment)
+- `field.js`: SOLCO→compSolco nel COMP_MAP
+- `comp-linee.js`: zoom fisso 1.00 (rimosso camera vertigine)
+- Risultato: direzione tecnicamente corretta (Bayer, no solid fill) ma composizione non soddisfacente
+
+### Diagnosi sessione
+
+La sessione ha risolto i debiti tecnici (rupture, ghost, pitch→Y) ma non ha risolto il problema artistico fondamentale: il sistema visivo v3 non produce la qualità compositiva di v2. Le comp-* attuali (tranne comp-solco nuovo) usano solid fill o geometrie non integrate con il campo Bayer. L'utente ha dato una regia dettagliata per traccia (Mondrian, accumulazione, sottrazione) ma l'implementazione non ha raggiunto la visione. Sessione conclusa per stanchezza.
+
+### File toccati
+`config.js`, `world-state.js`, `director3.js`, `colors.js`, `event-register.js`,
+`comp-griglia.js`, `comp-quadrati.js`, `comp-treno.js`, `comp-liminale.js`,
+`comp-linee.js`, `comp-solco.js` (nuovo), `field.js`, `render.js`
+
+### Prossimo (quando si riprende)
+- Decidere se continuare con comp-solco come base e estendere alle altre tracce
+- O riconsiderare l'architettura comp-* in favore di un sistema più vicino al v2 (shapes MIDI attraverso campo Bayer globale)
+- La regia per traccia esiste ed è completa — manca solo l'implementazione corretta
+
+---
+
+## 2026-04-07 (notte, pianificazione strategica) — piano completo pre-implementazione
+
+**Versione fine sessione:** v3.4.2 (nessun codice toccato — sessione solo pianificazione)
+**Branch:** `machine-iii`
+
+### Obiettivo
+Costruire un piano implementativo completo e preciso per le prossime sessioni,
+partendo dall'analisi di screenshot delle versioni precedenti e da un piano
+esterno (MACH:INE II) portato come riferimento.
+
+### Fatto
+
+**Analisi versioni precedenti (screenshot)**
+Identificati 3 concetti visivi persi nella transizione v2→v3:
+terrain/ambienti abitabili, multi-scale halftone depth, ASCII depth zones.
+
+**Production team review (Regista + Critico + Compositore)**
+Diagnosi: sistema mappa solo densità, non geometria/timbrica/registro.
+Convergenza: pitch non mappa Y (5/6 comp), lifecycle omogeneo, halftone piatto.
+RESPIRO unica comp con metafora precisa. CH0 kick in comp-quadrati unico mapping ritmico reale.
+
+**Piano MACH:INE II analizzato**
+Piano per v2.9.x non applicabile (architettura diversa) ma insight riusabile:
+"il sistema visivo c'è già, è spento — rimuovere il velo."
+In v3: il velo = lifecycle omogeneo + pitch ignorato + no vocabolario geometrico.
+
+**Aggiunte a ARTISTIC-GAPS.md**
+GL-1/2/3/4 (geometric language), GC-1/2/3 (color grammar), WG-1/2/3 (world grammar).
+Sprint E (geometric language) e Sprint D (world grammar) aggiunti.
+
+**Diagnosi rupture invisibile — valori esatti:**
+3 tracce ruptureTint quasi identico al dot (NEBBIA '#F3F0EA'≈'#E9E1D3', TEMPESTA, RESPIRO).
+4 multiplier ruptI troppo piccoli (comp-griglia 0.01, comp-quadrati 0.08, ecc.).
+BG non reagisce a rupture.intensity.
+Tutti i valori di fix specificati in STATUS.md P3.
+
+**Camera per traccia (P4e)**
+Infrastruttura esiste ma director3.js non pilota worldState.camera.
+Aggiunto piano preciso come P4e.
+
+**Sequenza sessioni precisa definita in STATUS.md:**
+Sessioni 1-5 con file + riga + valore esatto. Nessuna esplorazione necessaria.
+
+**Feedback salvato in memoria:** pianificare prima di codificare.
+
+### File toccati
+- `docs/STATUS.md` — P3 rupture fix preciso, P4c/d/e, sequenza sessioni 1-5
+- `docs/07-ARTISTIC-GAPS.md` — GL/GC/WG items, Sprint D/E
+- `~/.claude/projects/.../memory/feedback_planning_before_coding.md` — nuova memoria
+
+### Decisioni
+- #005 (da appendere a DECISIONS.md): piano implementativo pre-sessione obbligatorio.
+  Ogni item = file + riga/valore prima di toccare qualsiasi file.
+
+### Prossimo
+Sessione 1: implementare rupture fix (7 righe, nessuna esplorazione necessaria).
+Appendere decisione #005 a DECISIONS.md.
+
+---
+
 ## 2026-04-07 (sera, debiti tecnici) — doc fix + CH6/CH7 + ghost/fossil overlay
 
 **Versione fine sessione:** v3.4.2 (no bump — fix tecnici, nessun comportamento musicale)
@@ -509,3 +741,7 @@ Vedi `DECISIONS.md` #001 → #008.
 1. Decidere se pushare gli 8 commit + tag `v3.4.2` su `origin/machine-iii` e aprire PR
 2. Iniziare P1: tuning composizioni (vedi `STATUS.md` Prossimo → P1)
 3. Verificare al primo problema che il workflow STATUS/WORKLOG/DECISIONS regga davvero
+
+---
+<!-- knowledge-graph links -->
+[[STATUS]] [[DECISIONS]]

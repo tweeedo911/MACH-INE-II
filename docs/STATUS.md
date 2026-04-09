@@ -1,7 +1,7 @@
 # STATUS — MACH:INE III
 
 > Snapshot vivo. Rigenerato a fine sessione. Punto di entrata di ogni nuova sessione.
-> **Last updated:** 2026-04-07 (debiti tecnici — doc fix, CH7 arp, ghost/fossil overlay)
+> **Last updated:** 2026-04-09 (proto-solco: campo gaussiano, cross-modal, buildup, elliptic holes)
 
 ## ⚠️ Limiti noti (post A.2)
 
@@ -86,7 +86,26 @@ layers.js         →  4 layer canonici stackati (BG/MG/FG/Overlay) — Bible §
 
 ## Prossimo (priorità top→bottom)
 
-### P0 — Visual System Bible Fase A.4 ✅ COMPLETA
+### P0 — proto-solco.html: validazione e calibrazione
+
+**Stato:** "quasi — questa è la direzione giusta" (feedback utente 2026-04-09)
+
+**Da fare (in ordine):**
+1. Aprire `proto-solco.html` nel browser, verificare:
+   - buildup 10s funziona (campo emerge dall'oscurità)
+   - arp walking X funziona (blocchi dx→sx poi reset, scie persistenti nel sediment)
+   - rupture holes (ellissi che crescono + svaniscono, campo si ricrea dopo)
+2. Calibrare se necessario: velocità buildup, rx/ry range buchi, frequenza spawn buchi
+3. Decidere: proto pronto per integrazione in `comp-solco.js`? O serve un'altra iterazione?
+
+**Architettura proto (da preservare nell'integrazione):**
+- Campo gaussiano: `renderPass` + zone `gauss(nx,ny,z)` + `voidF(ny)` bottom-heavy
+- ZOS (bass colonna) senza voidF — la parete del canyon è sempre visibile
+- `inHole(nx,ny)` su entrambi i renderPass — buchi rivelano sediment
+- Scia arp depositata nel sediment ogni 2 frame (persistenza)
+- `buildupMul = smooth(buildupT)` → field emerge gradualmente
+
+### P0b — Visual System Bible Fase A.4 ✅ COMPLETA
 Tutte le 6 comp migrate al layer stack 4-canonico (commit `16abb8e`).
 **✅ Testato live 2026-04-07 — comportamento identico all'originale su tutte le tracce.**
 
@@ -99,7 +118,12 @@ Tutte le 6 comp migrate al layer stack 4-canonico (commit `16abb8e`).
 | quadrati | ✓ | breath (fresh) | blocchi+arp (cam) | sediment α0.5 | OVERLAY |
 | treno | ✓ | breath (fresh) | oggetti (cam) | — | privato (frame-cap) |
 
-### P1 — Visual System Bible Fase B / C
+### P1 — Integrazione comp-solco.js (dopo validazione proto)
+Quando il proto è validato: portare la fisica gaussiana in `comp-solco.js`.
+Richiede piano preciso — `comp-solco.js` usa ancora peg-and-string con ANCHORS.
+Consultare `docs/VISUAL-VISION.md §6` per il processo di integrazione.
+
+### P2 — Visual System Bible Fase B / C
 3. ✅ **Rupture 4 stadi — Fase B completa** — tutte le 6 comp-* migrate da
    `isRottura` (bool) a `rupture.intensity` (0→1 smooth). **Test live necessario.**
 4. ✅ **Memoria inter-traccia** — `_sharedSediment` decay 0.9997/frame (half-life ~38s),
@@ -108,7 +132,7 @@ Tutte le 6 comp migrate al layer stack 4-canonico (commit `16abb8e`).
 6. ✅ **Crossfade transizioni** — 3s ease-in-out cubico (era hard cut). `CFG.VISUAL.trackFadeDuration`.
 7. ✅ **Micro-glitch ritmo-gated** — solo quando `rhythmicity > 0.4`, raro. `CFG.VISUAL.glitch`.
 
-### P2 — ✅ COMPLETATO
+### P3 — ✅ COMPLETATO (era P2)
 8. ✅ **Enrich comp-quadrati** — breathing 3×, rhythm density boost, arp sediment.
 9. ✅ **Enrich comp-negativo** — breathing Bayer MG, bass holes in densita, closeSpeed per-buco.
 10. ✅ **Zone Bayer coerenti con density** — `density.X` come floor dinamico in tutte le 6 comp.
@@ -116,6 +140,29 @@ Tutte le 6 comp migrate al layer stack 4-canonico (commit `16abb8e`).
 
 ### P3 — debiti tecnici
 1. Test live completo: rupture Fase B gradualità, sediment palimpsesto, crossfade 3s, glitch ritmico, enrich comp-*
+
+**P3 — FIX RUPTURE VISIBILITÀ — valori esatti, pronti per implementazione**
+
+**a. ruptureTint (config.js ~975-1018) — 3 righe, zero rischio:**
+   | Traccia | Riga | Valore attuale | → Nuovo valore | Motivazione |
+   |---|---|---|---|---|
+   | NEBBIA | ~975 | `'#F3F0EA'` | `'#00BFFF'` | deep sky blue — taglia la nebbia calda |
+   | RESPIRO | ~996 | `'#6E7E8B'` | `'#CCFF00'` | chartreuse acido — shock su ink-black/sage |
+   | TEMPESTA | ~1010 | `'#F8FF2B'` | `'#FF0040'` | rosso allarme puro — massimo contro paper-white |
+
+**b. Multiplier ruptI (comp-*.js) — 4 righe, zero rischio:**
+   | File | Riga | Attuale | → Nuovo |
+   |---|---|---|---|
+   | `comp-griglia.js` | 171 | `ruptI * 0.01` | `ruptI * 0.08` |
+   | `comp-quadrati.js` | 206 | `ruptI * 0.08` | `ruptI * 0.30` |
+   | `comp-treno.js` | 137 | `lerp(1.0, 1.04, ...)` | `lerp(1.0, 1.18, ...)` |
+   | `comp-liminale.js` | 214 | `lerp(1.0, 1.5, ruptI)` | `lerp(1.0, 3.0, ruptI)` |
+
+**c. BG shift su takeover (P4d — richiede codice, non config-only):**
+   - `config.js`: aggiungere `ruptureBg` per traccia (hex del BG al takeover)
+   - `director3.js:113`: `worldState.palette.ruptureBg = tp?.ruptureBg ?? null`
+   - `colors.js:updateColors()`: quando `ri > 0.6`, lerp `_target.bg` → `hexToRgb(p.ruptureBg)`
+   → Rimandato a P4d (Color Grammar), non blocca P3a/b
 2. ✅ **Fix doc** — `03-VISUAL.md` mapping comp↔traccia corretto
 3. ✅ **Fix CH7=arp** — `comp-quadrati.js` (era CH6 primario, ora CH7)
 4. ✅ **Ghost/fossil overlay** — `field.js` consuma event-register, sblocca firma gelo/convergenza
@@ -128,6 +175,217 @@ Tutte le 6 comp migrate al layer stack 4-canonico (commit `16abb8e`).
 ### P4 — esperimenti / esplorazione
 13. RITM-05 break ciclico kick+basso (130 LOC in `archive/.../rhythm-layer.js`) — solo se servono respiri ritmici
 14. Crossfade smooth A→B→C via `presence-multiplier` (in `archive/.../presence-multiplier.js`) — solo se hard-switch dà fastidio in live
+
+### P4c — Geometric Language per traccia (pianificare DOPO Sprint B visivo)
+> Sistema geometrico per traccia: ogni traccia ha un vocabolario di forme, movimenti e
+> regole di composizione coerenti con l'energia musicale e le parti MIDI suonate.
+> Ispirato all'arte astratta (Suprematismo, Bauhaus, Costruttivismo, Arte Concreta).
+> Non toccare prima di Sprint B. Richiedono piano dedicato.
+
+18. **Vocabolario forme per traccia** — ogni track ha forma primaria + movimento proprio:
+    - NEBBIA: cerchi/archi concentrici (Kandinsky Komposition) — deriva radiale lenta
+    - TESSUTO: bande orizzontali per pitch (Mondrian/Agnes Martin) — scorrimento laterale
+    - SOLCO: rettangoli floating beat-locked (Malevich Suprematismo) — pulsazione griglia
+    - RESPIRO: campo vuoto + buchi (Malevich Black Square + Kenya Hara) — sottrazione
+    - MACCHINA: colonne caratteri/celle + scan line (El Lissitzky/Bauhaus) — clock-synced
+    - TEMPESTA: vettori diagonali sovrapposti (Moholy-Nagy/Costruttivismo) — collisione piani
+    - RITORNO: strati traslucidi sovrapposti (Klee/Schwitters) — riemersione dal sediment
+    File: `comp-*.js`, `config.js` (CFG.VISUAL.trackGeometry)
+
+19. **Energia → trasformazione geometrica** — non solo densità ma morfologia:
+    - Velocity bassa: forma pura, rada, leggibile (Malevich essenziale)
+    - Velocity alta: forma moltiplicata, pressione compositiva
+    - Rupture: deformazione della grammatica stabilita (UVA rule→violation)
+    File: tutte le `comp-*.js`
+
+20. **Lifecycle per canale MIDI** — ogni ruolo ha durata vita propria:
+    - kick/pulse (CH0): 3-4 frame (lampo)
+    - bass (CH3): 80-120 frame (peso che rimane)
+    - drone (CH2): 400-600 frame (presenza continua)
+    - arp (CH7): 12-20 frame (scintilla veloce)
+    - chord (CH4): 60-90 frame (campo che respira)
+    File: `event-register.js`, `config.js`
+
+21. **Pitch → posizione Y in tutte le comp-*** — grammatica fondamentale:
+    grave = basso, acuto = alto. Attualmente solo in comp-linee.
+    File: tutte le `comp-*.js`
+
+### P4d — Color Grammar (pianificare insieme a P4c — interdipendenti)
+> Il sistema colore v3 ha le fondamenta giuste (5 ruoli, lerp, trackPalettes)
+> ma manca di tre cose: identità cromatica per canale MIDI, trasformazione
+> attiva alla rupture, e residual usato per ghost/fossil.
+> NON toccare prima di P4c (lifecycle per canale dipende da questi colori).
+
+22. **Colore per canale MIDI nel LifecycleEvent** — ogni evento porta al momento
+    dello spawn il colore del suo ruolo (CH0=pulse, CH3=bass, CH7=arp, ecc.)
+    derivato dalla palette della traccia corrente. Il colore persiste e decade
+    verso bg lungo il lifecycle — non segue i cambi di palette successivi.
+    Prerequisito di P4c item 20 (lifecycle durations per canale).
+    File: `event-register.js`, `colors.js`, `config.js` (CFG.VISUAL.roleColors)
+
+23. **Rupture takeover = flood cromatico attivo** — `rupture.intensity` al
+    takeover non solo lerpa dot→ruptureTint, ma amplifica saturation/luminosità
+    di `accent` e `ruptureTint`. Al rilascio: collasso rapido (rate configurabile).
+    Analogia: il climax del vecchio piano (amplificazione positiva, non sola desaturazione).
+    File: `colors.js` (updateColors), `config.js` (CFG.VISUAL.rupture.floodAmount)
+
+24. **palette.residual → ghost/fossil overlay** — i dot ghost/fossil in `field.js`
+    usano attualmente `lerp(dot→bg)`. Devono usare `palette.residual` (colore
+    dedicato per memoria visiva). Permette ghost di una traccia di rimanere
+    cromaticamente distinti dal dot della traccia successiva.
+    File: `field.js` (ghost overlay pass), `director3.js` (set residual per traccia)
+
+25. **Saturazione trackPalettes** — confronto screenshot v2: le palette attuali
+    sono probabilmente troppo desaturate. Rivedere i valori hex in `config.js`
+    (trackPalettes per le 7 tracce) aumentando saturazione vivida mantenendo
+    coerenza estetica. Da fare DOPO aver visto live l'effetto di GC-22/23.
+    File: `config.js` (CFG.VISUAL.trackPalettes)
+
+### P4e — Camera per traccia
+> L'infrastruttura esiste: `worldState.camera`, `applyCameraTransform` in visual-toolkit.js,
+> `acts[N].camera` in config.js (WIDE/DRIFT/MEDIUM per atto). Ma director3.js non pilota
+> mai worldState.camera — ogni comp-* gestisce la propria camera locale.
+> Il collegamento è piccolo ma director3.js è protetto → richiede pianificazione precisa.
+
+26. **Collegamento acts.camera → worldState.camera.mode** (director3.js protetto):
+    - `director3.js`: al cambio di atto, leggere `CFG.VISUAL.acts[newAct].camera`
+      e scrivere `worldState.camera.mode = ...`
+    - Ogni `comp-*.js`: leggere `worldState.camera.mode` come parametro di profilo
+      (WIDE = zoom 1.0 drift lento, DRIFT = zoom 0.98 oscillazione media, MEDIUM = zoom 1.03 stabile)
+    - I profili per comp-* vanno in `config.js` (CFG.VISUAL.cameraModes)
+      così comp-* leggono parametri, non hard-code logica di modo
+    - Variazione per traccia (oltre che per atto): director3.js può sovrascrivere
+      il modo dell'atto con il modo della traccia corrente se diverso
+    File: `director3.js` (protetto), `visual-toolkit.js`, `config.js`, tutte le `comp-*.js`
+    Nota: pianificare diff preciso su director3.js PRIMA di toccare
+
+### P4b — World Grammar (pianificare DOPO Sprint A+B visivo)
+> Recupero concetti v2: spazi abitabili con fisica propria, profondità di scala, ASCII depth.
+> Non toccare prima di Sprint B completato. Richiedono piano dedicato.
+
+15. **World Physics per traccia** — `worldState.physics` (gravityDir, terrainZone, fossilStyle)
+    Terrain = `_sharedSediment` con Y-gradient decay (suolo accumula più a lungo, alto decade veloce).
+    Fossili cristallizzano in zona terrain invece di svanire.
+    File: `field.js`, `world-state.js`, `director3.js`
+
+16. **Multi-scale halftone** — Bayer cell size variabile per zona Y del canvas:
+    bottom (terrain) → 8×8+ (blocchi grandi), mid → 4×4, top/sparse → 2×2 (puntini fini).
+    Dot size come proxy di distanza/peso visivo.
+    File: `field.js`
+
+17. **ASCII depth zones** — a densità bassa, caratteri `. , : ; + # @` sostituiscono i dot Bayer.
+    Collega ARTISTIC-GAPS WG-3 (Henke text-mode comp-griglia, esteso a tutte le comp-*).
+    File: `field.js` (base), poi comp-griglia.js (implementazione Henke completa)
+
+---
+
+## Sequenza sessioni — piano implementazione
+
+> Ogni sessione è autonoma. Implementazione meccanica: file + riga + valore.
+> Nessuna esplorazione durante il codice — tutto già specificato qui.
+
+### Sessione 1 — Rupture visibilità (7 righe, 5 file, zero rischio)
+**File: `config.js` — 3 sostituzioni:**
+- riga ~975: `rupture: '#F3F0EA'` → `rupture: '#00BFFF'` (NEBBIA)
+- riga ~996: `rupture: '#6E7E8B'` → `rupture: '#CCFF00'` (RESPIRO)
+- riga ~1010: `rupture: '#F8FF2B'` → `rupture: '#FF0040'` (TEMPESTA)
+
+**File: `comp-griglia.js:171`** — `ruptI * 0.01` → `ruptI * 0.08`
+**File: `comp-quadrati.js:206`** — `ruptI * 0.08` → `ruptI * 0.30`
+**File: `comp-treno.js:137`** — `lerp(1.0, 1.04,` → `lerp(1.0, 1.18,`
+**File: `comp-liminale.js:214`** — `lerp(1.0, 1.5, ruptI)` → `lerp(1.0, 3.0, ruptI)`
+
+Test live dopo. Calibrare se valori sembrano troppo aggressivi.
+
+---
+
+### Sessione 2 — Rupture BG shift (P3c / P4d prerequisite)
+**`config.js`** — aggiungere `ruptureBg` a ogni trackPalette (valori da definire session 2):
+suggerimenti base: versione desaturata/invertita del bg corrente per traccia
+**`director3.js:113`** — aggiungere riga: `worldState.palette.ruptureBg = tp?.ruptureBg ?? null;`
+**`colors.js:updateColors()`** — aggiungere dopo riga 61:
+```js
+if (p.ruptureBg) {
+  const ri = worldState.rupture?.intensity ?? 0;
+  if (ri > 0.6) {
+    const rbg = hexToRgb(p.ruptureBg);
+    const t = (ri - 0.6) / 0.4;
+    for (let i = 0; i < 3; i++) _target.bg[i] = _target.bg[i] + (rbg[i] - _target.bg[i]) * t;
+  }
+}
+```
+**`world-state.js:75`** — aggiungere `ruptureBg: null` alla palette default
+
+---
+
+### Sessione 3 — Lifecycle + Color per canale (GL-1 + GC-1)
+> Modificano entrambi event-register.js — fare in un'unica sessione.
+
+**`config.js`** — aggiungere in CFG.VISUAL:
+```js
+roleLifecycle: { pulse:4, grain:300, drone:500, bass:100, chord:75, voice:40, lead:35, arp:16 },
+roleColors: {
+  pulse: null,   // usa dot traccia
+  grain: null,
+  drone: 'accent',    // usa accent traccia
+  bass:  'accent',
+  chord: 'dot',
+  voice: 'event',
+  lead:  'event',
+  arp:   'event',
+}
+```
+**`event-register.js`** — alla creazione evento: legge `CFG.VISUAL.roleLifecycle[role]` per maxAge,
+legge `CFG.VISUAL.roleColors[role]` per scegliere quale campo di palette usare come color spawn.
+Aggiungere campo `spawnColor: [r,g,b]` all'evento, calcolato al momento spawn da getPalette().
+
+---
+
+### Sessione 4 — Pitch → Y in tutte le comp-* (GL-2)
+> Stesso pattern in 5 file: usare `(1 - note.pitch/127)` come fattore Y (0=top, 1=bottom).
+> Ogni comp ha già un punto di spawn — aggiungere `const spawnY = H * (1 - n.pitch/127)`.
+> Solo per gli elementi "vivi" (FG layer), non per il campo Bayer globale.
+**File:** `comp-liminale.js`, `comp-quadrati.js`, `comp-negativo.js`, `comp-griglia.js`, `comp-treno.js`
+(comp-linee già lo fa — skippa)
+
+---
+
+### Sessione 5 — Sprint B visivo core
+
+**5a. Density cap per traccia** — aggiungere `densityCap` in `CFG.VISUAL.trackGeometry` (config.js)
+e leggere in ogni `comp-*.js` come moltiplicatore max su `_params.density`:
+| Traccia | Cap | Fonte |
+|---|---|---|
+| RESPIRO | 0.10 | Kenya Hara — Ma |
+| RITORNO | 0.12 | (simile a RESPIRO — memoria quieta) |
+| NEBBIA | 0.25 | Hara gradiente |
+| TESSUTO | 0.45 | Hara gradiente |
+| SOLCO | 0.50 | Hara gradiente |
+| MACCHINA | 0.55 | Hara gradiente |
+| TEMPESTA | 0.70 | Hara gradiente (100% solo rupture takeover) |
+File: `config.js` (nuova sezione CFG.VISUAL.densityCap), tutte le `comp-*.js` (1 riga di guard)
+
+**5b. Hard cut selettivo** — in `field.js` nella logica crossfade:
+Condizione: se `nextTrack === 'TESSUTO' && prevTrack === 'NEBBIA'` → skip crossfade, hard cut
+Condizione: se `nextTrack === 'RITORNO' && prevTrack === 'TEMPESTA'` → skip crossfade, hard cut
+Le altre transizioni mantengono crossfade 3s.
+File: `field.js` (funzione crossfade/transizione traccia — identificare la riga esatta in sessione)
+
+**5c. Black frame** — in `field.js` alla transizione traccia, prima del crossfade:
+2 frame consecutivi di `ctx.fillStyle = '#000000'; ctx.fillRect(0,0,W,H)` + `ctx.clearRect`
+Poi parte il crossfade (o hard cut per 5b).
+File: `field.js`
+
+**5d. Risograph misregistration** — in ogni `comp-*.js`, al render dell'accent color:
+offset spawn di +1 o +2 celle Bayer rispetto al primary dot.
+Parametro: `CFG.VISUAL.risographOffset: 2` (in pixel)
+Pattern: `x + CFG.VISUAL.risographOffset` per il layer accent nei render calls.
+File: tutte le `comp-*.js`, `config.js`
+
+---
+
+### Sessione 6+ — Sprint A musica, Sprint E geometria, World Grammar
+> Pianificare in dettaglio DOPO sessioni 1-5 completate e testate live.
 
 ---
 
@@ -155,3 +413,7 @@ Tutte le 6 comp migrate al layer stack 4-canonico (commit `16abb8e`).
 | Routing skill / agenti | `docs/06-AGENTS.md` |
 | Gap artistici + strategia prossima milestone | `docs/07-ARTISTIC-GAPS.md` |
 | Comportamenti morti riusabili | `SALVAGE.md` (in root) |
+
+---
+<!-- knowledge-graph links -->
+[[DECISIONS]] [[WORKLOG]] [[01-ARCHITECTURE]] [[VISUAL-VISION]] [[05-ROADMAP]] [[06-AGENTS]]

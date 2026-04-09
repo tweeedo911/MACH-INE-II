@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>SOLCO — campo v5</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #000; display: flex; flex-direction: column; align-items: center;
+           justify-content: center; min-height: 100vh; font-family: monospace; }
+    canvas { display: block; }
+    #hud { color: #444; font-size: 10px; margin-top: 6px; text-align: center; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud">
+  SPACE=kick | B=bass | C=chord | A=arp | 1/2/3=fase | fase: <span id="pl">germoglio</span>
+</div>
+<script>
+// ═══════════════════════════════════════════════════════════════════
+//  SOLCO — campo v5  (cross-modal, full frame)
+//
+//  Ogni strumento occupa una ZONA SPAZIALE e una FORMA DISTINTA.
+//  L'associazione deve essere immediata, senza leggere le label.
+//
+//  KICK  → FRONTE: 3 onde orizzontali che salgono dal terrain in alto
+//          Sinistra-destra piena. Massima estensione verticale.
+//
+//  BASS  → COLONNA: parete sinistra del canyon (ZOS, altezza piena).
+//          Nessun voidFactor: la colonna è visibile dalla cima al fondo.
+//          Respira lentamente (bass è calore e peso, non impatto).
+//
+//  CHORD → BANDA: strisce orizzontali pitch-mapped da Y=0.12 a Y=0.88.
+//          3 bande simultanée (accordo = stack di note). Range completo.
+//
+//  ARP   → BLOCCO: piccoli rettangoli lime che cadono al X della nota.
+//          Appaiono in alto nel gap, cadono veloce, si spiaccicano.
+//          Meccanici, precisi, sequenziali.
+//
+//  Spazio: il frame è usato tutto.
+//          Top → fronti kick + bande chord acute + colonna bass
+//          Mid → gap con blocchi arp che cadono
+//          Bottom → geologia accumulata (sediment)
+// ═══════════════════════════════════════════════════════════════════
+
+const canvas = document.getElementById('c');
+const W = 1280, H = 720;
+canvas.width = W; canvas.height = H;
+const ctx = canvas.getContext('2d');
+
+const sedC = document.createElement('canvas');
+sedC.width = W; sedC.height = H;
+const sed = sedC.getContext('2d');
+
+const BG     = '#282B26';
+const ORANGE = '#FE6B0D';
+const LIME   = '#CDD71D';
+const PAPER  = '#EFE6DE';
+
+const B8 = [
+  [ 0,32, 8,40, 2,34,10,42],
+  [48,16,56,24,50,18,58,26],
+  [12,44, 4,36,14,46, 6,38],
+  [60,28,52,20,62,30,54,22],
+  [ 3,35,11,43, 1,33, 9,41],
+  [51,19,59,27,49,17,57,25],
+  [15,47, 7,39,13,45, 5,37],
+  [63,31,55,23,61,29,53,21],
+];
+
+function lerp(a,b,t) { return a+(b-a)*t; }
+function clamp(v,lo,hi) { return Math.max(lo,Math.min(hi,v)); }
+function smooth(t) { return t*t*(3-2*t); }
+
+// ── Zone gaussiane ─────────────────────────────────────────────────
+//
+//  ZOM: PIANO ORIZZONTALE — pavimento orange (kick+bass, basso)
+//  ZOS: COLONNA VERTICALE — parete sinistra canyon (BASS)
+//       sy=0.46 → occupa TUTTA l'altezza del canvas (da top a bottom)
+//       NON segue il voidFactor → visibile anche in alto
+//  ZLM: FORMAZIONE LIME — destra (chord+arp, basso)
+//  ZLB: PONTE GAP — centro del canyon (connessione)
+
+const ZOM = { cx: 0.27, cy: 0.86, sx: 0.28, sy: 0.16 };
+const ZOS = { cx: 0.11, cy: 0.50, sx: 0.09, sy: 0.46 };  // full height
+const ZLM = { cx: 0.82, cy: 0.88, sx: 0.16, sy: 0.12 };
+const ZLB = { cx: 0.55, cy: 0.72, sx: 0.10, sy: 0.09 };
+
+function gauss(nx, ny, z) {
+  const dx=(nx-z.cx)/z.sx, dy=(ny-z.cy)/z.sy;
+  return Math.exp(-(dx*dx+dy*dy)*0.5);
+}
+
+// voidF: bottom-heavy, ma con un minimo in alto (non completamente vuoto)
+// ny=0 → 0.10   ny=0.48 → 0.20   ny=0.75 → 0.80   ny=1.0 → 1.0
+function voidF(ny) {
+  if (ny < 0.48) return lerp(0.10, 0.22, ny/0.48);
+  return lerp(0.22, 1.0, smooth(clamp((ny-0.48)/0.42, 0, 1)));
+}
+
+// Bande geologiche (compressione dotSz)
+const BANDS = [
+  { y0:0.00, y1:0.52, dSz:11 },
+  { y0:0.52, y1:0.65, dSz: 7 },
+  { y0:0.65, y1:0.76, dSz: 5 },
+  { y0:0.76, y1:0.87, dSz: 3 },
+  { y0:0.87, y1:1.00, dSz: 2 },
+];
+
+// inHole: ellisse che cresce dal nulla → piena → svanisce.
+// Ritorna il fattore di cancellazione [0,1].
+function inHole(nx, ny) {
+  let maxA=0;
+  for (const h of ruptureHoles) {
+    const t=h.life/h.maxLife;
+    // L'ellisse cresce nei primi 20% della vita
+    const grow=t<0.20?t/0.20:1;
+    const dx=(nx-h.cx)/(h.rx*grow+0.001);
+    const dy=(ny-h.cy)/(h.ry*grow+0.001);
+    const dist=Math.sqrt(dx*dx+dy*dy);
+    if (dist>1) continue;
+    // bordo morbido (inner 70% = pieno, outer 30% = fade)
+    const spatial=dist<0.70?1:(1-dist)/0.30;
+    // fade out negli ultimi 22%
+    const fadeOut=t>0.78?(1-t)/0.22:1;
+    const a=grow*fadeOut*spatial;
+    if (a>maxA) maxA=a;
+  }
+  return maxA;
+}
+
+function dSzAt(ny) {
+  if (ny<0.52) return 11;
+  if (ny<0.65) return 7;
+  if (ny<0.76) return 5;
+  if (ny<0.87) return 3;
+  return 2;
+}
+
+function renderPass(c, css, dFn) {
+  c.fillStyle = css;
+  for (const {y0,y1,dSz} of BANDS) {
+    const r0=(y0*H)|0, r1=(y1*H)|0;
+    for (let py=r0; py<r1; py+=dSz) {
+      const ny=py/H;
+      for (let px=0; px<W; px+=dSz) {
+        const d=dFn(px/W, ny);
+        if (d<0.005) continue;
+        if (d*64 > B8[(py/dSz|0)&7][(px/dSz|0)&7]) c.fillRect(px,py,dSz,dSz);
+      }
+    }
+  }
+}
+
+function fillB(c, x, y, w, h, density, dSz, css) {
+  if (density<0.005||w<=0||h<=0) return;
+  c.fillStyle=css;
+  const ds=Math.max(1,dSz|0), d=Math.min(density,1);
+  const x0=x|0, y0=y|0, x1=Math.ceil(x+w), y1=Math.ceil(y+h);
+  for (let py=y0; py<y1; py+=ds)
+    for (let px=x0; px<x1; px+=ds)
+      if (d*64 > B8[(py/ds|0)&7][(px/ds|0)&7]) c.fillRect(px,py,ds,ds);
+}
+
+// ── Stato ──────────────────────────────────────────────────────────
+let time=0, frameN=0;
+let phase='germoglio';
+
+// KICK → FRONTE (3 onde orizzontali ascendenti)
+let kickFronts=[]; // { oy, r, maxR, age, maxAge, delay }
+let kickTimer=0;
+
+// BASS → COLONNA (ZOS con respiro)
+let bassEnv=0, bassTimer=0;
+let bassSin=0;
+
+// CHORD → BANDA (stack di 3 bande simultanée, range Y pieno)
+let chordBands=[];
+let chordTimer=0;
+// Voicing presets: ogni set = 3 pitch normalizzati (simula accordo a 3 note)
+const VOICINGS = [
+  [0.82, 0.60, 0.70],  // stack basso
+  [0.55, 0.68, 0.78],  // stack medio
+  [0.40, 0.55, 0.65],  // stack acuto
+  [0.72, 0.50, 0.85],  // spread
+  [0.35, 0.62, 0.75],  // aperto
+];
+let voicingStep=0;
+
+// ARP → BLOCCO (cadono verticali, X cammina da dx a sx)
+let arpBlocks=[];
+let arpTimer=0;
+const ARP_NOTES=[55,58,62,65,67,60,63,57,62,65,58,67];
+let arpStep=0;
+let arpSpawnX=0.90;          // X corrente di spawn, cammina da dx a sx
+const ARP_X_STRIDE=0.09;     // quanto si sposta a sinistra ogni spawn
+
+let sedDecay=0.9978;
+
+// BUILDUP — il campo si crea gradualmente dall'inizio
+let buildupT=0;
+const BUILDUP_DUR=10.0; // secondi per raggiungere densità piena
+
+// RUPTURE HOLES — ellissi casuali che crescono/cancellano il campo
+let ruptureHoles=[]; // { cx,cy,rx,ry,life,maxLife }
+let holeTimer=0;
+
+const PHASES = {
+  germoglio: { kickInt:0.62, bassInt:2.0, chordInt:3.8, arpActive:false,
+               bO:0.48, bL:0.22, bOS:0.35, sedDecay:0.9978, ruptI:0 },
+  densita:   { kickInt:0.50, bassInt:1.1, chordInt:1.8, arpActive:true,
+               bO:0.68, bL:0.42, bOS:0.55, sedDecay:0.9990, ruptI:0 },
+  rottura:   { kickInt:0.26, bassInt:0.55, chordInt:1.2, arpActive:true,
+               bO:0.84, bL:0.58, bOS:0.72, sedDecay:0.9994, ruptI:0.80 },
+};
+let P=PHASES[phase];
+
+function setPhase(p) {
+  phase=p; P=PHASES[p]; sedDecay=P.sedDecay;
+  document.getElementById('pl').textContent=p;
+}
+
+// ── Spawn ──────────────────────────────────────────────────────────
+
+function spawnKickFronts() {
+  const oy = 0.625 * H;
+  // 3 fronti con ritardo scalare e ampiezza crescente
+  for (let i=0; i<3; i++) {
+    kickFronts.push({
+      oy,
+      maxR: 360 + i*90,   // il terzo fronte sale fino a Y≈0
+      age: -(i*7),        // ritardo: il secondo parte dopo 7 frame, il terzo dopo 14
+      maxAge: 50 + i*5,
+    });
+  }
+}
+
+function spawnChordVoicing() {
+  const pitches = VOICINGS[voicingStep++ % VOICINGS.length];
+  for (const p of pitches) {
+    // pitch → Y: 1.0=acuto→Y alto(0.12), 0.0=grave→Y basso(0.88)
+    const ny = lerp(0.12, 0.88, 1-p);
+    chordBands.push({
+      ny,
+      dens: 0.55 + p*0.30,
+      life: 0,
+      maxLife: 100 + Math.floor(p*60),
+    });
+  }
+}
+
+function spawnArpBlock(note) {
+  // X cammina da destra verso sinistra, con piccolo jitter
+  const nx = clamp(arpSpawnX + (Math.random()-0.5)*0.04, 0.06, 0.94);
+  arpSpawnX -= ARP_X_STRIDE + Math.random()*0.04;
+  if (arpSpawnX < 0.10) arpSpawnX = 0.82 + Math.random()*0.10; // reset a dx
+  const spawnY = (0.03 + Math.random()*0.22)*H;
+  arpBlocks.push({
+    x: nx*W,
+    y: spawnY,
+    spawnY,
+    w: 5 + (note%5)*2,   // sottile
+    h: 4 + (note%3)*2,
+    vy: 0.55 + Math.random()*0.45,  // cade verticale
+    ay: 0.020,
+    life: 0,
+    maxLife: 220,
+    splatY: (0.56 + (note%7)*0.038)*H,
+    splatted: false,
+    splatAge: 0,
+  });
+}
+
+// ── Input ──────────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.code==='Space')          { spawnKickFronts(); e.preventDefault(); }
+  if (e.key==='b'||e.key==='B') { bassEnv=clamp(bassEnv+0.5,0,1); }
+  if (e.key==='c'||e.key==='C') { spawnChordVoicing(); }
+  if (e.key==='a'||e.key==='A') { for(let i=0;i<4;i++) spawnArpBlock(ARP_NOTES[(arpStep+i)%ARP_NOTES.length]); arpStep+=4; }
+  if (e.key==='1') setPhase('germoglio');
+  if (e.key==='2') setPhase('densita');
+  if (e.key==='3') setPhase('rottura');
+});
+
+// ── Main loop ──────────────────────────────────────────────────────
+let lastTs=0;
+function frame(ts) {
+  const dt=Math.min((ts-lastTs)/1000,0.033);
+  lastTs=ts; time+=dt; frameN++;
+
+  // Timers MIDI fake
+  kickTimer+=dt;
+  if (kickTimer>=P.kickInt) { kickTimer-=P.kickInt; spawnKickFronts(); }
+
+  bassTimer+=dt;
+  if (bassTimer>=P.bassInt) { bassTimer-=P.bassInt; bassEnv=clamp(bassEnv+0.38+Math.random()*0.28,0,1); }
+
+  chordTimer+=dt;
+  if (chordTimer>=P.chordInt) { chordTimer-=P.chordInt; if(P.arpActive||phase!=='germoglio') spawnChordVoicing(); }
+
+  arpTimer+=dt;
+  if (P.arpActive&&arpTimer>=0.18) {  // più spazio tra un blocco e l'altro
+    arpTimer-=0.18;
+    if (Math.random()<0.70) { spawnArpBlock(ARP_NOTES[arpStep++%ARP_NOTES.length]); }
+  }
+
+  // Buildup: campo cresce dai primi secondi
+  buildupT = Math.min(1, buildupT + dt/BUILDUP_DUR);
+
+  // Rupture holes: ellissi che crescono e cancellano il campo
+  if (phase==='rottura') {
+    holeTimer+=dt;
+    if (holeTimer>=1.6) {
+      holeTimer-=1.6;
+      ruptureHoles.push({
+        cx: 0.12+Math.random()*0.76,
+        cy: 0.10+Math.random()*0.78,
+        rx: 0.08+Math.random()*0.20,  // varia molto: da buco piccolo a grande
+        ry: 0.05+Math.random()*0.14,
+        life:0,
+        maxLife:280+Math.floor(Math.random()*200),
+      });
+    }
+  } else {
+    holeTimer=0;
+    if (ruptureHoles.length>0) ruptureHoles=[];
+  }
+  for (let i=ruptureHoles.length-1;i>=0;i--) {
+    ruptureHoles[i].life++;
+    if (ruptureHoles[i].life>=ruptureHoles[i].maxLife) ruptureHoles.splice(i,1);
+  }
+
+  // Decay
+  bassEnv  = Math.max(0, bassEnv-dt*0.55);
+  bassSin  = 0.28 + Math.sin(time*0.78)*0.17 + Math.sin(time*1.88)*0.07;
+  const bassT = clamp(bassEnv+bassSin, 0, 1);
+
+  // Update chord bands
+  for (let i=chordBands.length-1; i>=0; i--) {
+    chordBands[i].life++;
+    if (chordBands[i].life>=chordBands[i].maxLife) chordBands.splice(i,1);
+  }
+
+  // Update kick fronts
+  for (let i=kickFronts.length-1; i>=0; i--) {
+    kickFronts[i].age++;
+    if (kickFronts[i].age>=kickFronts[i].maxAge) kickFronts.splice(i,1);
+  }
+
+  // Update arp blocks
+  for (let i=arpBlocks.length-1; i>=0; i--) {
+    const b=arpBlocks[i];
+    b.life++;
+    if (!b.splatted) {
+      b.vy += b.ay;
+      b.y  += b.vy;
+      // Deposita scia nel sediment ogni 2 frame → persistenza
+      if (frameN%2===0) fillB(sed, b.x+b.w*0.28, b.y, b.w*0.44, 5, 0.08, 3, LIME);
+      if (b.y+b.h >= b.splatY) {
+        b.splatted=true;
+        b.y=b.splatY-b.h;
+        // Splat nel sediment: lascia traccia permanente
+        fillB(sed, b.x-b.w*0.20, b.y, b.w*1.4, b.h*0.55, 0.32, 3, LIME);
+      }
+    } else {
+      b.splatAge++;
+    }
+    if (b.life>=b.maxLife) arpBlocks.splice(i,1);
+  }
+
+  // Sediment decay
+  sed.globalCompositeOperation='destination-out';
+  sed.globalAlpha=1-sedDecay;
+  sed.fillStyle='black';
+  sed.fillRect(0,0,W,H);
+  sed.globalAlpha=1;
+  sed.globalCompositeOperation='source-over';
+
+  // ── RENDER ──────────────────────────────────────────────────────
+
+  ctx.fillStyle=BG;
+  ctx.fillRect(0,0,W,H);
+
+  ctx.globalAlpha=0.46;
+  ctx.drawImage(sedC,0,0);
+  ctx.globalAlpha=1;
+
+  // ── BASS → COLONNA (ZOS, full height, no voidF) ──
+  // Il bass fa respirare la colonna: più alta, più larga, più densa
+  const ZOS_live = { cx: ZOS.cx, cy: ZOS.cy, sx: ZOS.sx+bassT*0.025, sy: ZOS.sy+bassT*0.05 };
+  const ZOM_live = { cx: ZOM.cx-bassT*0.02, cy: ZOM.cy, sx: ZOM.sx+bassT*0.06, sy: ZOM.sy+bassT*0.03 };
+
+  const buildupMul = smooth(buildupT);  // 0 all'inizio → 1 a regime
+
+  renderPass(ctx, ORANGE, (nx,ny) => {
+    const vf = voidF(ny);
+    const oM = gauss(nx,ny,ZOM_live) * (P.bO + bassT*0.12) * vf;
+    const oS = gauss(nx,ny,ZOS_live) * (P.bOS + bassT*0.20);
+    const grav = Math.pow(Math.max(0,ny-0.60)/0.40, 2.8)*0.18*vf;
+    const d = clamp(oM+oS+grav, 0, 1) * buildupMul;
+    return d * (1 - inHole(nx, ny));
+  });
+
+  // Campo lime
+  renderPass(ctx, LIME, (nx,ny) => {
+    const vf=voidF(ny);
+    const lM=gauss(nx,ny,ZLM)*(P.bL);
+    const lB=gauss(nx,ny,ZLB)*(P.bL*0.42);
+    const grav=Math.pow(Math.max(0,ny-0.66)/0.34,3.0)*0.12*vf;
+    const d = clamp((lM+lB+grav)*vf, 0, 1) * buildupMul;
+    return d * (1 - inHole(nx, ny));
+  });
+
+  // ── CHORD → BANDA (3 strisce pitch-mapped, Y range pieno) ──
+  for (const b of chordBands) {
+    const t=b.life/b.maxLife;
+    // Attacco secco, decay graduale (accordo: inizia subito, muore lentamente)
+    const env = t<0.08 ? t/0.08 : 1 - smooth((t-0.08)/0.92);
+    const dens=b.dens*env;
+    if (dens<0.01) continue;
+    const dSz=dSzAt(b.ny);
+    const py=b.ny*H;
+    fillB(ctx, 0, py-dSz, W, dSz*2, dens, dSz, LIME);
+  }
+
+  // ── ARP → BLOCCO (cadono verticali, scia verticale dal punto di spawn) ──
+  for (const b of arpBlocks) {
+    if (b.splatted) {
+      const sp=Math.min(1, b.splatAge/12);
+      const spreadX=sp*b.w*0.8;
+      const squishY=b.h*(1-sp*0.80);
+      fillB(ctx, b.x-spreadX, b.y, b.w+spreadX*2, squishY, 0.85*(1-sp*0.50), 3, LIME);
+    } else {
+      // Scia VERTICALE: dal punto di spawn fino alla posizione attuale
+      const trailH = b.y - b.spawnY;
+      if (trailH > 4) {
+        fillB(ctx, b.x+b.w*0.28, b.spawnY, b.w*0.44, trailH, 0.14, 4, LIME);
+      }
+      // Blocco preciso
+      fillB(ctx, b.x, b.y, b.w, b.h, 0.88, 2, LIME);
+    }
+  }
+
+  // ── KICK → FRONTE (3 onde orizzontali che salgono) ──
+  for (const f of kickFronts) {
+    if (f.age < 0) continue;  // ritardo
+    const t = clamp(f.age/f.maxAge, 0, 1);
+    const r = smooth(t) * f.maxR;     // distanza dal terrain (sale in su)
+    const dens = lerp(0.78, 0, t*t);  // decade
+    const dSz = Math.round(lerp(2, 5, t));
+    // Fronte principale (linea orizzontale che sale)
+    fillB(ctx, 0, f.oy-r, W, dSz*1.5, dens, dSz, ORANGE);
+  }
+
+  // ── RUPTURE — il campo si intensifica, le bande chord invadono ──
+  // (nessun elemento aggiunto: la rottura emerge dall'aumento di densità
+  //  delle zone esistenti tramite P.bO/bOS/bL in PHASES.rottura)
+
+  // Sediment accumulation ogni 3 frame
+  if (frameN%3===0) { sed.globalAlpha=0.016; sed.drawImage(canvas,0,0); sed.globalAlpha=1; }
+
+  // HUD
+  ctx.fillStyle='rgba(0,0,0,0.35)';
+  ctx.fillRect(8,H-26,480,18);
+  ctx.fillStyle='#444';
+  ctx.font='10px monospace';
+  ctx.fillText(
+    `${phase}  fronts:${kickFronts.length}  b:${bassT.toFixed(2)}  bands:${chordBands.length}  arp:${arpBlocks.length}  t:${time.toFixed(0)}s`,
+    14, H-12
+  );
+
+  requestAnimationFrame(frame);
+}
+
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
