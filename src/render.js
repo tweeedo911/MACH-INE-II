@@ -93,9 +93,8 @@ export function renderFrame(_now, dt) {
     if (firma.densityCap < 1 && Math.random() >= firma.densityCap) continue;
     const noteNorm = n.note / 127;
     const velNorm = n.vel / 127;
-    // nx/ny neutral per ora — le comp-* mappano via addMidiNote/midiTrail,
-    // il mapping spaziale nel LifecycleEvent sarà cablato in A.3/A.4.
-    onMidiNote(n.ch, noteNorm, velNorm, globalTime, 0.5, 1 - noteNorm);
+    // nx = nota → X (grave sinistra, acuto destra), ny = nota → Y invertita (acuto = alto)
+    onMidiNote(n.ch, noteNorm, velNorm, globalTime, noteNorm, 1 - noteNorm);
     addMidiNote(n.ch, noteNorm, velNorm);
   }
   midi.newNotes.length = 0;
@@ -151,6 +150,8 @@ export function handleKey(code) {
   if (code === 'KeyG') { firma.gelo = !firma.gelo; console.log(`[FIRMA] gelo ${firma.gelo}`); }
   if (code === 'KeyV') { firma.vuotoTotale = !firma.vuotoTotale; console.log(`[FIRMA] vuotoTotale ${firma.vuotoTotale}`); }
   if (code === 'KeyJ') { firma.convergenza = !firma.convergenza; console.log(`[FIRMA] convergenza ${firma.convergenza}`); }
+  // Campo Materiale — toggle paradigma sperimentale (Shift+C)
+  // Gestito in main.js dove abbiamo accesso all'evento con shiftKey
 }
 
 // ── HUD Minimal ──

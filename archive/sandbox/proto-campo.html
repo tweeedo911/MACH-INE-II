@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<title>proto-campo — campo materiale 32×32</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #111; display: flex; gap: 24px; padding: 24px; font-family: monospace; color: #aaa; }
+canvas { display: block; image-rendering: pixelated; }
+#controls { display: flex; flex-direction: column; gap: 10px; min-width: 220px; }
+button {
+  background: #222; border: 1px solid #444; color: #ccc;
+  padding: 8px 12px; cursor: pointer; font-family: monospace; font-size: 13px;
+  text-align: left;
+}
+button:hover { background: #333; }
+button.active { background: #3a2a10; border-color: #a06020; color: #ffaa44; }
+button.playing { background: #1a3010; border-color: #40a020; color: #88ff44; }
+label { font-size: 12px; color: #888; }
+input[type=range] { width: 100%; }
+.section { border-top: 1px solid #333; padding-top: 8px; margin-top: 4px; }
+.stat { font-size: 11px; color: #555; }
+#bioma-label { font-size: 14px; font-weight: bold; color: #888; }
+</style>
+</head>
+<body>
+
+<canvas id="c"></canvas>
+
+<div id="controls">
+  <div id="bioma-label">GENERIC</div>
+
+  <!-- Preset bioma -->
+  <div class="section">
+    <button id="btnGeneric" class="active">GENERIC</button>
+    <button id="btnSolco">SOLCO — G dorian 129bpm</button>
+  </div>
+
+  <!-- Sequencer -->
+  <div class="section">
+    <button id="btnPlay">► play sequencer</button>
+    <div class="stat" id="seqInfo">step: — bpm: —</div>
+  </div>
+
+  <!-- Sliders -->
+  <div class="section">
+    <label>shimmer: <span id="shimmerVal">0.050</span></label>
+    <input type="range" id="shimmerSlider" min="0" max="0.15" step="0.005" value="0.05">
+  </div>
+
+  <div class="section">
+    <label>pitch: <span id="pitchVal">64</span></label>
+    <input type="range" id="pitchSlider" min="0" max="127" step="1" value="64">
+    <label>vel: <span id="velVal">100</span></label>
+    <input type="range" id="velSlider" min="10" max="127" step="1" value="100">
+  </div>
+
+  <!-- Input manuale -->
+  <div class="section">
+    <button id="btnVoice">V — voice</button>
+    <button id="btnLead">L — lead</button>
+    <button id="btnChord">C — chord</button>
+    <button id="btnKick">K — kick</button>
+    <button id="btnBass">B — bass</button>
+    <button id="btnDrone">D — drone</button>
+    <button id="btnArp">A — arp</button>
+  </div>
+
+  <div class="section">
+    <button id="btnClear">X — clear</button>
+  </div>
+
+  <div class="section stat" id="stats">—</div>
+
+  <div class="section" style="font-size:11px; color:#444; line-height:1.7;">
+    tasti: V L C K B D A X<br>
+    spazio: play/stop sequencer<br>
+    click canvas: voice a quel Y<br>
+    Y=0 acuto (top) · Y=1 grave (bot)
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════
+//  CAMPO MATERIALE — proto v2
+//  Float32Array(32×32) per ruolo, screen blend Bayer
+// ══════════════════════════════════════════════════
+
+const canvas = document.getElementById('c');
+const ctx    = canvas.getContext('2d');
+const CELLS  = 32;
+const CELL_PX = 20;
+const W = CELLS * CELL_PX;
+const H = CELLS * CELL_PX;
+canvas.width  = W;
+canvas.height = H;
+
+// ── Bayer 4×4 ──
+const BAYER4 = [0,8,2,10, 12,4,14,6, 3,11,1,9, 15,7,13,5];
+function bayer(px, py) { return BAYER4[(py % 4) * 4 + (px % 4)] / 16; }
+
+// ── Presets per bioma ──
+const PRESETS = {
+  GENERIC: {
+    bg:     [18, 16, 14],
+    colors: {
+      drone: [30,  28,  22],
+      bass:  [180, 100,  20],
+      chord: [200, 190, 170],
+      kick:  [255, 255, 240],
+      arp:   [200, 220, 255],
+      voice: [240, 230, 210],
+      lead:  [180, 200, 240],
+    },
+    decay: {
+      drone: 0.9999, bass: 0.985, chord: 0.990,
+      kick:  0.600,  arp:  0.930, voice: 0.993, lead: 0.990,
+    },
+    force: {
+      drone: 0.004, bass: 0.75, chord: 0.40,
+      kick:  0.85,  arp:  0.30, voice: 0.55, lead: 0.35,
+    },
+  },
+
+  // ── SOLCO — G dorian 129 BPM ──
+  // Legge: kick e bass NON si sovrappongono — dub.
+  // Kick: riga orizzontale a Y=0.70, lampo 4-5 frame.
+  // Bass: blob w×3, MIDI [24-43] → Y [0.66-0.81], X varia per nota.
+  // Arp:  punto 1×1, Y=pitch [60-84], cade 0.05 cella/frame. 18 frame vita.
+  // Chord: banda h=1, scende 0.1 cella/frame. Sedimento.
+  // Voice: rarissima (ogni 4 bar). Banda h=1, metà canvas, non cade.
+  // Drone/Lead: assenti.
+  SOLCO: {
+    bg:     [26, 33, 28],   // smoked olive
+    colors: {
+      drone: [0,   0,   0],    // assente
+      bass:  [255, 122,  26],  // orange saturo
+      chord: [106,  94,  56],  // dirty brass — sedimento
+      kick:  [220,  80,  10],  // terra bruciata
+      arp:   [213, 255,  87],  // chartreuse
+      voice: [213, 255,  87],  // uguale all'arp — rarissima
+      lead:  [0,   0,   0],    // assente
+    },
+    decay: {
+      drone: 1.000,   // assente — decay 1 = nessuna riduzione
+      bass:  0.988,
+      chord: 0.997,   // chord decade lento — il movimento è fisico (gravità)
+      kick:  0.600,   // lampo: decade in ~4 frame
+      arp:   0.879,   // vita ~18 frame: 0.879^18 ≈ 0.1
+      voice: 0.992,
+      lead:  1.000,   // assente
+    },
+    force: {
+      drone: 0,
+      bass:  0.75,
+      chord: 0.40,
+      kick:  0.80,
+      arp:   0.25,
+      voice: 0.50,
+      lead:  0,
+    },
+  },
+};
+
+// ── Stato attivo ──
+let _bioma = 'GENERIC';
+let _preset = PRESETS.GENERIC;
+
+const ROLES = ['drone', 'bass', 'chord', 'kick', 'arp', 'voice', 'lead'];
+const fields = {};
+for (const r of ROLES) fields[r] = new Float32Array(CELLS * CELLS);
+
+let shimmerAmt = 0.050;
+let pitch = 64;
+let vel   = 100;
+
+// ── Particelle con fisica propria ──
+const _arpParticles   = [];   // { cx, cy, vy, f }
+const _chordParticles = [];   // { cx, width, cy, vy, f } — banda orizzontale che cade
+
+function idx(cx, cy) { return cy * CELLS + cx; }
+function clamp(v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }
+
+// ── Deposit ──
+function depositPoint(field, cx, cy, force) {
+  if (cx < 0 || cx >= CELLS || cy < 0 || cy >= CELLS) return;
+  field[idx(cx, cy)] = clamp(field[idx(cx, cy)] + force, 0, 1);
+}
+
+function depositRow(field, cy, force) {
+  if (cy < 0 || cy >= CELLS) return;
+  for (let cx = 0; cx < CELLS; cx++)
+    field[idx(cx, cy)] = clamp(field[idx(cx, cy)] + force, 0, 1);
+}
+
+function depositBand(field, cx0, cx1, cy, force) {
+  // banda orizzontale da cx0 a cx1 a row cy
+  const c0 = clamp(cx0, 0, CELLS - 1);
+  const c1 = clamp(cx1, 0, CELLS - 1);
+  if (cy < 0 || cy >= CELLS) return;
+  for (let cx = c0; cx <= c1; cx++)
+    field[idx(cx, cy)] = clamp(field[idx(cx, cy)] + force, 0, 1);
+}
+
+function depositBlob(field, cx, cy, w, h, force) {
+  for (let dy = 0; dy < h; dy++) {
+    const falloff = 1 - dy / (h + 1);
+    for (let dx = -w; dx <= w; dx++) {
+      const f = force * falloff * (1 - Math.abs(dx) / (w + 1));
+      depositPoint(field, cx + dx, cy + dy, f);
+    }
+  }
+}
+
+// ── Fire generici (usati dal input manuale) ──
+function fireVoice() {
+  const cy = pitchToCell(pitch);
+  depositPoint(fields.voice, Math.floor(CELLS / 2), cy, (vel/127) * _preset.force.voice);
+}
+
+function fireLead() {
+  const cy = clamp(pitchToCell(pitch) + (Math.random() > 0.5 ? 1 : -1), 0, CELLS-1);
+  const cx = Math.floor(CELLS/2) + Math.round((Math.random()-0.5)*3);
+  depositPoint(fields.lead, cx, cy, (vel/127) * _preset.force.lead);
+}
+
+function fireChord() {
+  if (_bioma === 'SOLCO') {
+    // Banda h=1 che scende (particella con gravità)
+    // 3 zone X distanziate nel canvas — ogni nota occupa la sua zona, con variazione casuale dentro
+    // Le zone non si sovrappongono mai indipendentemente dal pitch
+    const ZONES = [[0.12, 0.28], [0.38, 0.55], [0.62, 0.78]];
+    const intervals = [-7, 0, 4];
+    for (let i = 0; i < intervals.length; i++) {
+      const noteP = clamp(pitch + intervals[i], 24, 84);
+      const z     = ZONES[i];
+      const cx    = Math.floor(CELLS * (z[0] + Math.random() * (z[1] - z[0])));
+      const cy    = CELLS * 0.50;          // partenza fissa a metà canvas
+      _chordParticles.push({ cx, halfW: 2, cy, vy: 0.07, f: (vel/127) * 0.11, headF: (vel/127) * 0.55 });
+    }
+  } else {
+    for (let i = -1; i <= 1; i++) {
+      const cy = pitchToCell(clamp(pitch + i*5, 0, 127));
+      const f  = (vel/127) * _preset.force.chord * 0.6;
+      depositPoint(fields.chord, Math.floor(CELLS/2) + i*3, cy, f);
+    }
+  }
+}
+
+function fireKick() {
+  const cy = Math.round(CELLS * 0.70);
+  depositRow(fields.kick, cy, _preset.force.kick);
+}
+
+function fireBass() {
+  if (_bioma === 'SOLCO') {
+    // MIDI [24-43] → Y [0.81-0.66], X varia per nota
+    const noteN = clamp(pitch, 24, 43);
+    const cy = Math.round((1 - noteN/127) * (CELLS-1));
+    const cx = Math.round((noteN - 24) / (43 - 24) * (CELLS - 1));
+    const velN = vel / 127;
+    const w = Math.round(3 + velN * 2);
+    depositBlob(fields.bass, cx, cy, w, 3, velN * _preset.force.bass);
+  } else {
+    const cy = pitchToCell(pitch);
+    const velN = vel/127;
+    const w = Math.round(3 + velN*4);
+    const h = Math.round(2 + velN*2);
+    depositBlob(fields.bass, Math.floor(CELLS/2), cy, w, h, velN * _preset.force.bass);
+  }
+}
+
+function fireDrone() {
+  const f = _preset.force.drone;
+  if (f === 0) return;
+  for (let i = 0; i < CELLS * CELLS; i++)
+    fields.drone[i] = clamp(fields.drone[i] + f, 0, 1);
+}
+
+function fireArp() {
+  if (_bioma === 'SOLCO') {
+    // [60-84] → Y [0.34-0.53], cade verso terrain
+    const noteN = clamp(pitch, 60, 84);
+    const cy = (1 - noteN/127) * (CELLS-1);
+    const cx = Math.floor(Math.random() * CELLS);
+    _arpParticles.push({ cx, cy, vy: 0.05, f: (vel/127) * _preset.force.arp });
+  } else {
+    const cy = pitchToCell(pitch);
+    const cx = Math.floor(Math.random() * CELLS);
+    _arpParticles.push({ cx, cy: cy - 2, vy: 0.05, f: (vel/127) * _preset.force.arp });
+  }
+}
+
+function pitchToCell(p) {
+  return Math.round((1 - p/127) * (CELLS-1));
+}
+
+function clearAll() {
+  for (const r of ROLES) fields[r].fill(0);
+  _arpParticles.length = 0;
+  _chordParticles.length = 0;
+}
+
+// ── Preset apply ──
+function applyPreset(name) {
+  _bioma   = name;
+  _preset  = PRESETS[name];
+  clearAll();
+  document.getElementById('bioma-label').textContent = name;
+  document.querySelectorAll('#btnGeneric,#btnSolco').forEach(b => b.classList.remove('active'));
+  document.getElementById(name === 'SOLCO' ? 'btnSolco' : 'btnGeneric').classList.add('active');
+}
+
+// ══════════════════════════════════════════════════
+//  SEQUENCER SOLCO — pattern dub 129 BPM
+// ══════════════════════════════════════════════════
+// kickGrid: step  0  3  7  13  (colpi groovati)
+// bassGrid: step  2  5  9  11  (nelle pause del kick — dub)
+// arpGrid:  ogni 2 step
+// chordGrid: step 0, 8  (ogni 2 bar = 32 step — ridotto a 8 step per proto)
+
+const SEQ_BPM    = 129;
+const SEQ_STEPS  = 16;
+const SEQ_STEP_S = 60 / SEQ_BPM / 4;   // durata 16th note in secondi ≈ 0.116s
+
+const KICK_GRID  = [1,0,0,1,0,0,0,1,0,0,0,0,0,1,0,0];
+const BASS_GRID  = [0,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0];
+const ARP_GRID   = [1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0];
+const CHORD_GRID = [1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0];  // ogni 8 step
+
+// Note pools per bioma SOLCO
+const BASS_NOTES = [30,33,30,36,30,33,38,30,  30,35,30,36,33,30,38,33];
+const ARP_NOTES  = [60,65,67,72,67,65,62,60,  65,69,72,74,72,69,65,62];
+let _bassIdx = 0;
+let _arpIdx  = 0;
+
+let _seqPlaying = false;
+let _seqStep    = 0;
+let _seqTimer   = 0;
+
+function seqTick() {
+  if (_bioma !== 'SOLCO') return;
+
+  if (KICK_GRID[_seqStep]) {
+    fireKick();
+  }
+
+  if (BASS_GRID[_seqStep]) {
+    pitch = BASS_NOTES[_bassIdx % BASS_NOTES.length];
+    vel   = 80 + Math.floor(Math.random() * 40);
+    _bassIdx++;
+    fireBass();
+  }
+
+  if (ARP_GRID[_seqStep]) {
+    pitch = ARP_NOTES[_arpIdx % ARP_NOTES.length];
+    vel   = 50 + Math.floor(Math.random() * 60);
+    _arpIdx++;
+    fireArp();
+  }
+
+  if (CHORD_GRID[_seqStep]) {
+    pitch = 62 + Math.floor(Math.random() * 6);   // root dell'accordo
+    vel   = 55 + Math.floor(Math.random() * 25);
+    fireChord();
+  }
+
+  _seqStep = (_seqStep + 1) % SEQ_STEPS;
+  document.getElementById('seqInfo').textContent =
+    `step: ${_seqStep.toString().padStart(2,'0')}/${SEQ_STEPS}  bpm: ${SEQ_BPM}`;
+}
+
+// ══════════════════════════════════════════════════
+//  UPDATE
+// ══════════════════════════════════════════════════
+function update(dt) {
+  // Sequencer
+  if (_seqPlaying) {
+    _seqTimer += dt;
+    if (_seqTimer >= SEQ_STEP_S) {
+      _seqTimer -= SEQ_STEP_S;
+      seqTick();
+    }
+  }
+
+  // Arp particles: cadono verso terrain
+  for (let i = _arpParticles.length - 1; i >= 0; i--) {
+    const p = _arpParticles[i];
+    p.cy += p.vy;
+    if (p.cy >= CELLS) { _arpParticles.splice(i, 1); continue; }
+    depositPoint(fields.arp, p.cx, Math.floor(p.cy), p.f * 0.4);
+  }
+
+  // Chord particles: colonnine verticali che scendono (SOLCO)
+  // Depositano la riga corrente — la scia si accumula nel campo per effetto del decay lento
+  for (let i = _chordParticles.length - 1; i >= 0; i--) {
+    const p = _chordParticles[i];
+    p.cy += p.vy;
+    if (p.cy >= CELLS) { _chordParticles.splice(i, 1); continue; }
+    const cy = Math.floor(p.cy);
+    for (let dx = -p.halfW; dx <= p.halfW; dx++) {
+      const falloff = 1 - Math.abs(dx) / (p.halfW + 1);
+      // testa: forza alta (chiara) — scia: forza bassa, decade naturalmente
+      depositPoint(fields.chord, p.cx + dx, cy,     p.headF * falloff);
+      depositPoint(fields.chord, p.cx + dx, cy - 1, p.f     * falloff);
+    }
+  }
+
+  // Decay + shimmer moltiplicativo
+  for (const r of ROLES) {
+    const dr = _preset.decay[r];
+    if (dr >= 1.0) continue;   // ruolo assente in questo bioma
+    const f  = fields[r];
+    for (let i = 0; i < f.length; i++) {
+      f[i] *= dr;
+      if (f[i] > 0.01) f[i] += (Math.random()*2-1) * shimmerAmt * f[i];
+      if (f[i] < 0) f[i] = 0;
+      if (f[i] > 1) f[i] = 1;
+    }
+  }
+}
+
+// ══════════════════════════════════════════════════
+//  RENDER — campo → Bayer halftone, screen blend
+// ══════════════════════════════════════════════════
+function renderCampo() {
+  const imgData = ctx.createImageData(W, H);
+  const data    = imgData.data;
+  const [bgR, bgG, bgB] = _preset.bg;
+
+  for (let i = 0; i < data.length; i += 4) {
+    data[i]   = bgR;
+    data[i+1] = bgG;
+    data[i+2] = bgB;
+    data[i+3] = 255;
+  }
+
+  // Z-order: grave (basso) → acuto (alto) — drone < bass < chord < arp < kick < voice < lead
+  const ZORDER = ['drone','bass','chord','arp','kick','voice','lead'];
+
+  for (const role of ZORDER) {
+    const field = fields[role];
+    const [rC, gC, bC] = _preset.colors[role];
+    if (rC === 0 && gC === 0 && bC === 0) continue;  // ruolo assente
+
+    const srcR = rC / 255;
+    const srcG = gC / 255;
+    const srcB = bC / 255;
+
+    for (let cy = 0; cy < CELLS; cy++) {
+      for (let cx = 0; cx < CELLS; cx++) {
+        const density = field[idx(cx, cy)];
+        if (density < 0.003) continue;
+
+        for (let py = 0; py < CELL_PX; py++) {
+          const globalY = cy * CELL_PX + py;
+          for (let px = 0; px < CELL_PX; px++) {
+            if (density < bayer(cx * CELL_PX + px, globalY)) continue;
+            const pi = (globalY * W + cx * CELL_PX + px) * 4;
+            // screen blend
+            data[pi]   = Math.round((1-(1-srcR)*(1-data[pi]  /255))*255);
+            data[pi+1] = Math.round((1-(1-srcG)*(1-data[pi+1]/255))*255);
+            data[pi+2] = Math.round((1-(1-srcB)*(1-data[pi+2]/255))*255);
+          }
+        }
+      }
+    }
+  }
+
+  ctx.putImageData(imgData, 0, 0);
+}
+
+// ══════════════════════════════════════════════════
+//  LOOP
+// ══════════════════════════════════════════════════
+let _lastTime  = performance.now();
+let _frameCount = 0;
+let _fps = 0;
+let _fpsTimer = 0;
+
+function loop(now) {
+  const dt = Math.min((now - _lastTime) / 1000, 0.05);
+  _lastTime = now;
+  _frameCount++;
+  _fpsTimer += dt;
+  if (_fpsTimer >= 1) { _fps = _frameCount; _frameCount = 0; _fpsTimer = 0; }
+
+  update(dt);
+  renderCampo();
+
+  if (_frameCount % 30 === 0) {
+    let total = 0;
+    for (const r of ROLES) { for (let i = 0; i < fields[r].length; i++) total += fields[r][i]; }
+    const avg = total / (ROLES.length * CELLS * CELLS);
+    document.getElementById('stats').textContent =
+      `fps:${_fps}  e:${avg.toFixed(3)}  arp:${_arpParticles.length}  crd:${_chordParticles.length}`;
+  }
+
+  requestAnimationFrame(loop);
+}
+
+// ══════════════════════════════════════════════════
+//  UI
+// ══════════════════════════════════════════════════
+canvas.addEventListener('click', e => {
+  const rect = canvas.getBoundingClientRect();
+  const fy = (e.clientY - rect.top) / rect.height;
+  pitch = Math.round((1 - fy) * 127);
+  document.getElementById('pitchSlider').value = pitch;
+  document.getElementById('pitchVal').textContent = pitch;
+  depositPoint(fields.voice, Math.floor(CELLS/2), Math.round(fy*(CELLS-1)), _preset.force.voice);
+});
+
+document.getElementById('shimmerSlider').addEventListener('input', e => {
+  shimmerAmt = parseFloat(e.target.value);
+  document.getElementById('shimmerVal').textContent = shimmerAmt.toFixed(3);
+});
+
+document.getElementById('pitchSlider').addEventListener('input', e => {
+  pitch = parseInt(e.target.value);
+  document.getElementById('pitchVal').textContent = pitch;
+});
+
+document.getElementById('velSlider').addEventListener('input', e => {
+  vel = parseInt(e.target.value);
+  document.getElementById('velVal').textContent = vel;
+});
+
+document.getElementById('btnGeneric').addEventListener('click', () => applyPreset('GENERIC'));
+document.getElementById('btnSolco').addEventListener('click', () => applyPreset('SOLCO'));
+
+document.getElementById('btnPlay').addEventListener('click', () => {
+  if (_bioma !== 'SOLCO') { applyPreset('SOLCO'); }
+  _seqPlaying = !_seqPlaying;
+  _seqStep = 0; _seqTimer = 0; _bassIdx = 0; _arpIdx = 0;
+  document.getElementById('btnPlay').classList.toggle('playing', _seqPlaying);
+  document.getElementById('btnPlay').textContent = _seqPlaying ? '■ stop sequencer' : '► play sequencer';
+  if (!_seqPlaying) document.getElementById('seqInfo').textContent = 'step: — bpm: —';
+});
+
+document.getElementById('btnVoice').addEventListener('click', fireVoice);
+document.getElementById('btnLead').addEventListener('click', fireLead);
+document.getElementById('btnChord').addEventListener('click', fireChord);
+document.getElementById('btnKick').addEventListener('click', fireKick);
+document.getElementById('btnBass').addEventListener('click', fireBass);
+document.getElementById('btnDrone').addEventListener('click', fireDrone);
+document.getElementById('btnArp').addEventListener('click', fireArp);
+document.getElementById('btnClear').addEventListener('click', clearAll);
+
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT') return;
+  switch(e.key.toLowerCase()) {
+    case 'v': fireVoice(); break;
+    case 'l': fireLead();  break;
+    case 'c': fireChord(); break;
+    case 'k': fireKick();  break;
+    case 'b': fireBass();  break;
+    case 'd': fireDrone(); break;
+    case 'a': fireArp();   break;
+    case 'x': clearAll();  break;
+    case ' ':
+      e.preventDefault();
+      document.getElementById('btnPlay').click();
+      break;
+  }
+});
+
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

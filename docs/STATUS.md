@@ -1,7 +1,7 @@
 # STATUS — MACH:INE III
 
 > Snapshot vivo. Rigenerato a fine sessione. Punto di entrata di ogni nuova sessione.
-> **Last updated:** 2026-04-09 (sessione 6: skill audiovisual-dramaturgy + framework pianeta)
+> **Last updated:** 2026-04-11 (sessione 7: Campo Materiale paradigma + infrastruttura)
 
 ## ⚠️ Limiti noti (post A.2)
 
@@ -29,8 +29,9 @@
 **v3.4.2** — single source: `src/VERSION.js` (`APP_VERSION`)
 
 Tag git: `v3.4.2` su `ccbbb13`.
-HEAD: `16abb8e` (Visual Bible Fase A.4 — tutte le 6 comp migrate).
-Branch attivo: `machine-iii` (14 commit avanti su `origin/machine-iii`, mai pushato).
+Branch attivo: `machine-iii`.
+Sessione 7 (2026-04-11) non committata — Campo Materiale introdotto come paradigma
+alternativo alle comp-*. Vedi `DECISIONS.md #014` e `WORKLOG.md` sessione 7.
 
 ---
 
@@ -40,20 +41,26 @@ Branch attivo: `machine-iii` (14 commit avanti su `origin/machine-iii`, mai push
 
 ```
 director3.js      →  5 moduli musicali (rhythm, harmony, bass, melody, texture)
-                  →  6 composizioni visive (comp-griglia/liminale/linee/negativo/quadrati/treno)
+                  →  2 paradigmi visivi COESISTENTI (toggle Shift+C):
+                     • comp-* (event-spawn classico, 6 composizioni) — default
+                     • Campo Materiale (campo.js + biomi.js) — sperimentale
                   →  firma.js (gesti narrativi: gelo/convergenza/vuotoTotale/densityCap)
                   →  world-state.js (stato condiviso musica↔visual)
                   →  tracks.js (7 tracce con modeHint)
+
+campo.js + biomi.js → Float32Array(32*32) per ruolo, decay + shimmer moltiplicativo,
+                      Bayer halftone screen blend Z-order grave→acuto, preset per bioma
+                      con depositFn custom. SOLCO calibrato. Vedi DECISIONS #014.
 
 event-register.js →  LifecycleEvent store unificato (newborn→stable→ghost→fossil)
                   →  CH_ROLE map + ROLE_LIFECYCLE per ruolo (kick/perc/drone/bass/
                      chord/voice/lead/arp) — Bible §16.1
 
 layers.js         →  4 layer canonici stackati (BG/MG/FG/Overlay) — Bible §5
-                  →  infrastruttura pronta, consumata da A.4 comp-* migrate
+                  →  consumato dalle comp-* classiche (non dal campo)
 ```
 
-**Moduli:** 32 vivi in `src/` (2 archiviati in A.2: `dna.js`, `generations.js`),
+**Moduli:** 34 vivi in `src/` (+ campo.js + biomi.js aggiunti in sessione 7),
 16 totali in `archive/code/dead-islands/`.
 
 **A/B/C framework:** flag `CFG.MUSIC_EXPERIMENT` / `CFG.MUSIC_STRUCTURAL` in `config.js` selezionano variante hard-switch (no crossfade).
@@ -86,7 +93,95 @@ layers.js         →  4 layer canonici stackati (BG/MG/FG/Overlay) — Bible §
 
 ## Prossimo (priorità top→bottom)
 
-### P0 — comp-solco.js: redesign radicale con nuova fisica
+### P0 — Calibrazione biomi nel Campo Materiale
+
+**Contesto:** Dalla sessione 7 il sistema ha due paradigmi di rendering coesistenti:
+- **comp-*** (event-spawn classico, default)
+- **Campo Materiale** (`campo.js` + `biomi.js`, toggle runtime **Shift+C**)
+
+Vedi `DECISIONS.md #014`. Il Campo Materiale è il nuovo target estetico. Le comp-*
+restano attive come backup e per non perdere nulla durante la migrazione.
+
+**Stato biomi nel campo:**
+
+| Bioma | Stato | Note |
+|---|---|---|
+| SOLCO | ✅ calibrato | fisica dub, chord colonnine, bass pitch→X, kick riga, arp cadente |
+| NEBBIA | ⚠️ placeholder GENERIC | da calibrare — 4 ruoli (voice/lead/chord/drone) |
+| TESSUTO | ⚠️ placeholder GENERIC | da calibrare — motore chord staccato, kick sottrattivo |
+| RESPIRO | ⚠️ placeholder GENERIC | da calibrare — inversione fondo chiaro (sage) |
+| MACCHINA | ⚠️ placeholder GENERIC | da calibrare — arp 16th protagonista, colonne bass |
+| TEMPESTA | ⚠️ placeholder GENERIC | da calibrare — hocket voice/lead, bass aggressivo |
+| RITORNO | ⚠️ placeholder GENERIC | da calibrare — camera zoom-out, palimpsesto memoria |
+
+**Brief sessione 8:** Partire da **NEBBIA** — è il bioma più semplice (no kick, no
+bass, no arp; solo voice+lead+chord+drone). Leggere `2026-04-10-sistema-visivo-design.md`
+sezione NEBBIA per la fisica prevista. Definire in `biomi.js`:
+- `colors` per ruolo (warm/cool whites per voice/lead, chord velatura, drone carta)
+- `decay` (voice ~0.993 lungo, lead ~0.990, chord ~0.995, drone ~0.9999 quasi permanente)
+- `force` per ruolo
+- `depositFn` custom: voice = punto a pitch→Y con forza alta, lead = eco ±1 cella
+  200-500ms dopo (con silenzio 40% intenzionale), chord = 3 blob r=2 quasi invisibili,
+  drone = campo uniforme 0.02
+
+Test live: Shift+3 + Shift+C. Iterare sul bioma fino a validazione orale prima di
+passare al successivo.
+
+### P0b — Sedimento inter-traccia nel Campo
+
+Ora il decay è implicito per ruolo, ma non esiste una "memoria" tra tracce.
+Definire strategia:
+- **opzione A:** decay ruoli rallentato (es. chord 0.997 → 0.9995) — palimpsesto implicito
+- **opzione B:** `_sharedResidual: Float32Array(32*32)` separato che accumula tutto
+  e decade lentissimo (half-life ~38s come `_sharedSediment` esistente), renderizzato
+  come strato di fondo prima di ogni ruolo
+
+Da decidere durante sessione RITORNO (bioma che dipende direttamente dal residuo).
+
+### P1 — Cablaggio firma al Campo Materiale
+
+Il path `renderField` early-return bypassa tutto: ghost overlay, sediment condiviso,
+firma, crossfade. Firma deve agire sul campo:
+- **gelo:** freeze delle particelle + freeze decay + freeze shimmer
+- **convergenza:** attrazione celle verso centro (reidratazione del Float32Array
+  verso (0.5, 0.5) ad ogni update)
+- **vuotoTotale:** clear del campo + blackout (il clear è già gestito in render.js
+  come early-out a livello alto — ok)
+- **densityCap:** gate probabilistico su `campo.feedNote` — già possibile perché
+  feedNote è chiamato da `addMidiNote` che a sua volta è già sotto `acceptEvent`
+  in render.js per le note IN. Per le note interne (sendMIDINote) verificare che
+  il gate sia attivo anche lì.
+
+### P2 — Camera narrativa nel Campo
+
+Implementare `worldState.camera.focusZone { x, y, w, h }` + drift lento verso
+il punto di massima densità del campo dentro la zona. RITORNO: zoom-out progressivo
+1.0→0.6. Vedi `2026-04-10-sistema-visivo-design.md` Componente 2.
+
+### P3 — Rupture 4-stadi nel Campo
+
+I 4 stadi (omen/infiltration/takeover/residue) vanno tradotti in trasformazioni
+del campo: alterazione dei `force`, shift colori verso `ruptureTint`, eventuale
+bg lerp verso `ruptureBg`. Non ri-cablare i sistemi delle comp-* — il campo è
+un paradigma diverso.
+
+### P4 — Archive delle comp-* quando tutti i 7 biomi sono validati
+
+Quando tutti i biomi sul Campo Materiale sono calibrati e il sistema gira 60min
+senza regressioni, archiviare le comp-* in `archive/code/dead-islands/` e
+rimuovere il flag `CFG.VISUAL.campo.useCampo` (campo diventa il default unico).
+Scadenza stimata: sessione 14-16.
+
+---
+
+### P_vecchio — comp-solco.js: redesign radicale con nuova fisica (SOSPESO)
+
+**Nota sessione 7:** questo P0 è stato superato dall'introduzione del Campo
+Materiale. La fisica prevista per proto-solco-v2 (gravità, terrain Y=0.75, bass
+pesante, kick shockwave) è stata reinterpretata come bioma SOLCO nel campo —
+già calibrata e funzionante. Il lavoro su `comp-solco.js` resta valido solo
+se si vuole calibrare il bioma SOLCO *dentro le comp-* classiche* come fallback.
+Non è prioritario.
 
 **Stato:** diagnosi completata (sessione 6). 3/4 domande di coerenza falliscono.
 Skill `audiovisual-dramaturgy` disponibile per guidare il lavoro.
