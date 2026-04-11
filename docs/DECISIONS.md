@@ -147,6 +147,27 @@ Più protocollo in `CLAUDE.md`:
 
 ---
 
+## #010 — Piano implementativo pre-sessione obbligatorio
+
+**Data:** 2026-04-07 (notte)
+**Contesto:** Pattern osservato: quando si inizia a implementare senza piano preciso,
+Claude esplora troppo durante la sessione (legge file, cerca pattern, ragiona in contesto),
+sovraccarica il context window e produce derive o errori.
+
+**Decisione:** Ogni sessione di implementazione inizia solo se ogni item ha:
+- file esatto (path relativo)
+- riga o sezione esatta (numero riga o nome funzione)
+- valore vecchio → valore nuovo (o struttura precisa del codice da aggiungere)
+- nessuna dipendenza ambigua non risolta
+
+**Conseguenze:**
+- Le sessioni di pianificazione (come questa) producono item pronti in STATUS.md.
+- Le sessioni di implementazione sono meccaniche: aprire file, fare la sostituzione, chiudere.
+- Se durante l'implementazione emerge ambiguità non prevista → fermarsi, tornare in pianificazione.
+- Questa regola vale anche per refactor e fix tecnici, non solo per nuove feature.
+
+---
+
 ## #009 — Visual System Bible come specifica operativa
 
 **Data:** 2026-04-07 (sera)
@@ -308,3 +329,38 @@ di `ctx` diretto.
 - `updateLayers(dt)` viene chiamato sempre nel game loop — le comp che
   non usano i layer pagano solo il costo del decay su buffer vuoti
   (trascurabile).
+
+---
+
+## #014 — Campo Materiale come paradigma alternativo alle comp-*
+
+**Data:** 2026-04-11 (sessione 7)
+**Contesto:** Il sistema comp-* è un event-spawn renderer: ogni nota MIDI spawna un oggetto che nasce, decade, muore. Il risultato è un "visualizer" — non produce l'estetica del "sogno febbrile mai fermo, in sottile movimento perpetuo" descritta nella visione del progetto. Serve un paradigma diverso: materiale persistente su cui la musica applica forze, non eventi discreti.
+
+**Decisione:** Implementare un secondo paradigma di rendering ("Campo Materiale") **in parallelo** al sistema comp-* esistente, mutuamente esclusivo via flag runtime.
+
+**Architettura:**
+- `src/campo.js` — Float32Array(32×32) per ruolo (drone/bass/chord/kick/percussion/arp/voice/lead), decay + shimmer moltiplicativo + rendering Bayer halftone con screen blend Z-order grave→acuto. Offscreen 640×640 poi upscalato pixel-perfect al canvas full-screen.
+- `src/biomi.js` — preset per bioma: colori, decay, forze + `depositFn` custom per ruolo (logiche speciali tipo chord-a-colonnine in SOLCO). Solo SOLCO calibrato; gli altri 6 sono placeholder GENERIC.
+- `CFG.VISUAL.campo.useCampo` — flag runtime, toggle con **Shift+C**.
+- `field.js` — early-return al render: `if (useCampo) { campo.update + campo.render; return; }`. Al cambio traccia chiama `campo.setBiome(track)`.
+- Feed MIDI centralizzato in `addMidiNote` (field.js): quando useCampo=true, forward a `campo.feedNote(ch, note, vel)`. Coglie tutte le note interne (director3 → rhythm/bass/harmony/melody → addMidiNote).
+
+**Alternative scartate:**
+- **Sostituire le comp-***: troppo rischioso, troppo codice da buttare prima di sapere se il paradigma regge su tutti i biomi. Coesistenza permette validazione progressiva.
+- **Campo dentro ogni comp-***: avrebbe mescolato due paradigmi rendendo entrambi confusi.
+- **Sistema separato senza feed MIDI centralizzato**: inizialmente feed in render.js sul `midi.newNotes`, ma quelle note arrivano solo da MIDI IN (input esterno). Le note prodotte internamente da rhythm/bass/harmony/melody/director3 passano da `sendMIDINote` → mai viste. Centralizzare in `addMidiNote` cattura entrambi i flussi.
+
+**Conseguenze:**
+- ✅ Comp-* classiche restano intatte e funzionanti (flag default = false).
+- ✅ Campo validabile un bioma alla volta. SOLCO è calibrato, altri 6 sono placeholder da definire uno per uno in sessioni future.
+- ✅ Paradigma validato prima in sandbox (`archive/sandbox/proto-campo.html`) e solo dopo portato nel sistema live.
+- ⚠️ Il campo bypassa ghost overlay, sediment condiviso, firma, camera — il cablaggio verrà aggiunto dopo che i biomi saranno validati.
+- ⚠️ L'area protetta `render.js` è toccata in modo minimo (solo un import rimosso in un secondo momento).
+- ⚠️ Il paradigma Campo richiederà nelle prossime sessioni: calibrazione 6 biomi, cablaggio firma (gelo/convergenza/vuoto), camera narrativa, sedimento inter-traccia.
+
+**Ispirazioni sandbox:** `archive/sandbox/proto-campo.html` (validazione paradigma), `ispirazioni-machne/solco/JPG/*.jpg` (riferimento visivo chord SOLCO).
+
+---
+<!-- knowledge-graph links -->
+[[STATUS]] [[01-ARCHITECTURE]] [[WORKLOG]]

@@ -6,6 +6,113 @@
 
 ---
 
+## 2026-04-10/11 (sessione 7) — Campo Materiale: paradigma + infrastruttura
+
+**Versione fine sessione:** v3.4.2 (nessun bump — codice nuovo, comp-* invariate)
+**Branch:** `machine-iii`
+
+### Obiettivo
+Introdurre un paradigma di rendering alternativo a quello event-spawn delle comp-*:
+il "Campo Materiale". Validarlo in sandbox e portarlo nel sistema live in parallelo
+alle comp-* esistenti, senza rompere nulla.
+
+### Fatto
+
+**Audit sessioni 1-4 di Sprint B**
+Riletta la lista pianificata in STATUS.md (sessioni 1-5) e verificato il codice:
+sessioni 1-4 **già implementate** (rupture visibility, rupture bg shift, lifecycle
+per canale, pitch→Y). Solo sessione 5 (Sprint B visivo) era ancora pendente.
+
+**Decisione: abbandonare sessione 5 come scritta**
+Analizzato item per item di sessione 5 contro il nuovo paradigma campo materiale:
+- **5b (hard cut selettivo)** — obsoleto. Nel campo persistente non esiste
+  discontinuità visiva da compensare con hard cut. L'infrastruttura resta aperta
+  per un futuro `forceCut` opt-in quando la narrativa lo richieda.
+- **5c (black frame)** — obsoleto per la stessa ragione.
+- **5a (densityCap per traccia)** — si reinterpreta come `decayRate` per bioma nel
+  campo. Non implementato come item separato.
+- **5d (risograph misregistration)** — rimane coerente, da riprendere dopo biomi.
+
+**Prototipo sandbox — `archive/sandbox/proto-campo.html`**
+Validato il paradigma campo materiale standalone prima di toccare il sistema:
+- `Float32Array(32×32)` per ruolo, decay + shimmer moltiplicativo (non additivo —
+  primo bug: il shimmer additivo saturava celle vuote)
+- Bayer 4×4 halftone, screen blend, Z-order grave→acuto, 20px/cella = 640×640
+- Preset GENERIC + SOLCO con sequencer dub integrato (129 BPM, kickGrid/bassGrid
+  complementari)
+- Calibrazione SOLCO con fisica derivata dalla partitura reale
+- Iterazione live su chord SOLCO: da cascata orizzontale → 3 colonnine verticali
+  in zone X fisse, parte da metà canvas, testa più luminosa + scia che decade
+  (feedback visivo con immagini di riferimento da `ispirazioni-machne/solco/JPG/`)
+- Validata qualità della materia: "sembra funzionare" (utente)
+
+**Implementazione nel sistema live**
+File nuovi:
+- `src/campo.js` — infrastruttura completa (state + API + render Bayer)
+- `src/biomi.js` — preset per 7 biomi. GENERIC fallback + SOLCO calibrato. Gli
+  altri 5 (NEBBIA, TESSUTO, RESPIRO, MACCHINA, TEMPESTA, RITORNO) sono alias di
+  GENERIC — placeholder da calibrare in sessioni future.
+
+File modificati:
+- `src/config.js` — sezione `CFG.VISUAL.campo { useCampo, cells, cellPx, shimmer }`.
+- `src/field.js` — import campo + early-return nel render quando useCampo=true,
+  `campo.setBiome(track)` al cambio traccia. Feed MIDI centralizzato dentro
+  `addMidiNote` (quando useCampo=true, forward a `campo.feedNote`).
+- `src/render.js` — inizialmente aggiunto feed diretto da `midi.newNotes`, poi
+  rimosso. Motivo: `midi.newNotes` contiene solo MIDI IN esterno; le note
+  prodotte internamente dai moduli musicali passano solo da `sendMIDINote` →
+  `addMidiNote`. Centralizzare in addMidiNote cattura entrambi i flussi. Era
+  il bug della prima implementazione ("vedo solo zone di colore al centro" =
+  solo note IN esterno, tutto il flusso interno era invisibile).
+- `src/main.js` — toggle **Shift+C** (non M, che è occupato da MUSIC_EXPERIMENT)
+  per attivare/disattivare il paradigma campo runtime.
+
+**Test live**
+Sistema completo testato:
+- Toggle Shift+C funzionante
+- SOLCO mostra la fisica corretta (kick/bass alternati, chord colonnine, arp
+  cadente)
+- Gli altri 6 biomi girano col placeholder GENERIC — un punto per nota, non
+  esteticamente valido ma non bloccante
+- Nessuna regressione sulle comp-* (default useCampo=false)
+
+### File toccati
+**Nuovi:**
+- `src/campo.js`
+- `src/biomi.js`
+- `archive/sandbox/proto-campo.html` (sandbox)
+
+**Modificati:**
+- `src/config.js` (nuova sezione CFG.VISUAL.campo)
+- `src/field.js` (import campo, early-return, feed in addMidiNote)
+- `src/render.js` (nessuna modifica persistente — inizialmente toccato poi rollback)
+- `src/main.js` (toggle Shift+C)
+- `docs/STATUS.md` (riprioritizzazione post-campo)
+- `docs/DECISIONS.md` (#014)
+
+### Decisioni
+- **#014** — Campo Materiale come paradigma alternativo alle comp-*, coesistenza
+  via flag runtime, calibrazione progressiva bioma per bioma.
+
+### Prossimo
+- **P0 — Calibrare bioma per bioma la fisica nel campo** — ogni sessione può
+  affrontare 1-2 biomi: definire colori, decay, forze, depositFn custom in
+  `biomi.js`. Validare live con Shift+C. Ordine suggerito: NEBBIA (semplice,
+  fa da banco di prova con 4 ruoli) → TESSUTO → RESPIRO → MACCHINA → TEMPESTA →
+  RITORNO.
+- **P0b — Residuo / sedimento inter-traccia nel campo** — ora il decay è
+  implicito per ruolo. Aggiungere una visione esplicita di come accumulare
+  memoria tra tracce (palimpsesto). Leve: decay più lento nei ruoli, o
+  `_sharedResidual` separato.
+- **P1 — Cablare firma.gelo / firma.convergenza / firma.densityCap al campo**
+  (attualmente bypassate dall'early-return).
+- **P2 — Camera narrativa nel campo** — `focusZone` + drift, eventuale zoom-out
+  in RITORNO.
+- **P3 — Rupture nel campo** — 4 stadi come nelle comp-*, interpretati come
+  trasformazione delle forze/colori/decay piuttosto che overlay.
+
+---
+
 ## 2026-04-09 (sessione 6) — Skill audiovisual-dramaturgy + framework pianeta
 
 **Versione fine sessione:** v3.4.2 (nessun bump)

@@ -972,7 +972,8 @@ export const CFG = {
         bg:       '#161417', // plum-charcoal
         dot:      '#E9E1D3', // warm paper
         event:    '#A7B6FF', // cold mist (voice/lead)
-        rupture:  '#F3F0EA', // ice crack
+        rupture:  '#00BFFF', // deep sky blue — taglia nebbia calda
+        ruptureBg:'#E9EBE8', // inversione bg — flash freddo al takeover
         residual: '#6D6675', // ash violet
       },
       TESSUTO: {
@@ -980,6 +981,7 @@ export const CFG = {
         dot:      '#C6FF4D', // acid-lime
         event:    '#FFF1D6', // soft cream
         rupture:  '#FF7A8A', // hot coral
+        ruptureBg:'#DBECE0', // inversione bg — flash mint al takeover
         residual: '#6F8A3C', // oxidized green
       },
       SOLCO: {
@@ -987,13 +989,15 @@ export const CFG = {
         dot:      '#FF7A1A', // saturated orange
         event:    '#D5FF57', // electric chartreuse
         rupture:  '#FFF4E8', // cut light
+        ruptureBg:'#E5DEE3', // inversione bg — lavender-grey al takeover
         residual: '#6A5E38', // dirty brass
       },
       RESPIRO: {
         bg:       '#A8C3A0', // dusty sage (fondo chiaro — unica traccia bg chiaro)
         dot:      '#1A1715', // ink-black
         event:    '#F5E6D3', // paper flash
-        rupture:  '#6E7E8B', // cold freeze
+        rupture:  '#CCFF00', // chartreuse acido — shock su ink-black/sage
+        ruptureBg:'#573C5F', // inversione bg — dark purple su fondo chiaro
         residual: '#D7D0C6', // breath dust
       },
       MACCHINA: {
@@ -1001,13 +1005,15 @@ export const CFG = {
         dot:      '#FFE600', // terminal yellow
         event:    '#FF4D7A', // hot signal pink
         rupture:  '#FFFFFF', // alarm white
+        ruptureBg:'#EAE4D1', // inversione bg — warm cream al takeover
         residual: '#57607E', // screen residue
       },
       TEMPESTA: {
         bg:       '#2A0012', // black cherry
         dot:      '#FFF6F0', // harsh paper-white
         event:    '#FF2E63', // alarm red
-        rupture:  '#F8FF2B', // toxic peak
+        rupture:  '#FF0040', // rosso allarme puro — massimo contro paper-white
+        ruptureBg:'#D5FFED', // inversione bg — mint su black cherry
         residual: '#6A2233', // burnt crimson
       },
       RITORNO: {
@@ -1015,6 +1021,7 @@ export const CFG = {
         dot:      '#17141C', // dusk ink
         event:    '#F7E8D8', // memory cream
         rupture:  '#94A6FF', // recall flare
+        ruptureBg:'#222908', // inversione bg — dark olive su lavender
         residual: '#A99CB9', // faded ghost
       },
     },
@@ -1150,6 +1157,15 @@ export const CFG = {
     // Durata in secondi — ease-in-out cubico. 0 = hard cut.
     trackFadeDuration: 3.0,
 
+    // ── Campo Materiale (paradigma sperimentale, vedi campo.js + biomi.js) ──
+    // Toggle runtime con tasto M. Coesiste con comp-* (mutuamente esclusivo).
+    campo: {
+      useCampo: false,      // false = comp-* classiche, true = campo materiale
+      cells:    32,         // risoluzione griglia (Float32Array cells*cells per ruolo)
+      cellPx:   20,         // pixel per cella offscreen — 32*20 = 640px quadrato
+      shimmer:  0.05,       // ampiezza vibrazione moltiplicativa per cella
+    },
+
     // ── Micro-glitch globale (field.js) ──
     // rhythmThreshold: rhythmicity minima per attivare (0 = sempre, 1 = solo piena pulsazione)
     // intensityMul:    scala audioEnergy × rhythmicity → prob glitch (era floor +0.3 fisso)
@@ -1163,11 +1179,29 @@ export const CFG = {
     // Sblocca firma.gelo (elementi cristallizzati visibili) e firma.convergenza (posizioni reali).
     // ghostBlend / fossilBlend: 0 = colore dot pieno, 1 = invisibile (fonde con bg).
     ghostOverlay: {
-      dotSize:       2,     // px — punto minimo, discreto
-      ghostDensity:  0.35,  // Bayer threshold per STATE_GHOST
-      fossilDensity: 0.18,  // Bayer threshold per STATE_FOSSIL
-      ghostBlend:    0.52,  // lerp dot→bg per ghost (muted ma visibile)
-      fossilBlend:   0.78,  // lerp dot→bg per fossil (quasi scomparso)
+      dotSize:       3,     // px — dimensione cella Bayer nel patch
+      ghostDensity:  0.45,  // Bayer fill% nel patch ghost
+      fossilDensity: 0.25,  // Bayer fill% nel patch fossil
+      ghostBlend:    0.25,  // lerp dot→bg ghost (0=colore pieno, 1=invisibile)
+      fossilBlend:   0.55,  // lerp dot→bg fossil
+      ghostRadius:   28,    // px — raggio del patch halftone per ghost
+      fossilRadius:  16,    // px — raggio del patch halftone per fossil
+    },
+
+    // ── Colore spawn per ruolo (Bible §16.1 / Sessione 3) ──
+    // Quale campo della palette corrente usare al momento dello spawn.
+    // null = usa dot traccia. 'accent' = colore event/voice della traccia.
+    // Snapshot copiato nell'evento al birth — non segue i cambi palette successivi.
+    roleColors: {
+      kick:       null,      // lampo: usa dot
+      percussion: null,      // colpo: usa dot
+      drone:      'accent',  // presenza continua: usa accent
+      bass:       'accent',  // peso armonico: usa accent
+      chord:      'dot',     // campo: usa dot
+      voice:      'accent',  // voce melodica: usa accent (= event traccia)
+      lead:       'accent',  // lead: usa accent
+      arp:        'accent',  // scintilla: usa accent
+      onset:      null,      // onset audio generico: usa dot
     },
   },
 };

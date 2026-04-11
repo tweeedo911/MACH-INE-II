@@ -183,6 +183,15 @@ document.addEventListener('keydown', (e) => {
   if (e.code === 'KeyK' && e.shiftKey) { captureScreenshotNow(); return; }
   if (e.code === 'KeyP') { toggleProjector(); return; }
 
+  // ── Campo Materiale toggle (Shift+C) — paradigma sperimentale ──
+  if (e.code === 'KeyC' && e.shiftKey) {
+    e.preventDefault();
+    CFG.VISUAL.campo.useCampo = !CFG.VISUAL.campo.useCampo;
+    console.log(`%c[CAMPO] useCampo = ${CFG.VISUAL.campo.useCampo ? 'ON' : 'OFF'}`,
+                `color: ${CFG.VISUAL.campo.useCampo ? '#D5FF57' : '#888'}; font-weight: bold;`);
+    return;
+  }
+
   // ── A/B MUSIC EXPERIMENT toggle (M) — v2 calibration ──
   if (e.code === 'KeyM' && !e.shiftKey) {
     e.preventDefault();

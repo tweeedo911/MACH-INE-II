@@ -10,11 +10,12 @@ import * as toolkit from './visual-toolkit.js';
 import { Sediment, shouldGlitch, clamp } from './visual-toolkit.js';
 import { firma } from './firma.js';
 import { getEvents, STATE_GHOST, STATE_FOSSIL } from './event-register.js';
+import * as campo from './campo.js';
 
 // ── Composition modules ──
 import * as compLiminale from './comp-liminale.js';
 import * as compLinee from './comp-linee.js';
-import * as compQuadrati from './comp-quadrati.js';
+import * as compSolco from './comp-solco.js';
 import * as compNegativo from './comp-negativo.js';
 import * as compGriglia from './comp-griglia.js';
 import * as compTreno from './comp-treno.js';
@@ -22,7 +23,7 @@ import * as compTreno from './comp-treno.js';
 const COMP_MAP = {
   NEBBIA:   compLiminale,
   TESSUTO:  compLinee,
-  SOLCO:    compQuadrati,
+  SOLCO:    compSolco,
   RESPIRO:  compNegativo,
   MACCHINA: compGriglia,
   TEMPESTA: compTreno,
@@ -42,6 +43,19 @@ let _sharedSediment = new Sediment();
 // ── Offscreen buffer for crossfade ──
 let _offCanvas = null;
 let _offCtx = null;
+
+// ── Offscreen buffer for ghost/fossil overlay (Uint32Array pixel manipulation) ──
+let _ghostCanvas = null;
+let _ghostCtx    = null;
+
+function _ensureGhostBuffer(W, H) {
+  if (!_ghostCanvas || _ghostCanvas.width !== W || _ghostCanvas.height !== H) {
+    _ghostCanvas = document.createElement('canvas');
+    _ghostCanvas.width = W;
+    _ghostCanvas.height = H;
+    _ghostCtx = _ghostCanvas.getContext('2d');
+  }
+}
 
 function ensureOffscreen(W, H) {
   if (!_offCanvas || _offCanvas.width !== W || _offCanvas.height !== H) {
@@ -71,6 +85,7 @@ function buildEnv(extra) {
 // ── Init: called when system boots ──
 export function initField() {
   // Will be initialized on first renderField call
+  campo.initCampo();
 }
 
 // ── Onset waves (kept here for render.js compatibility) ──
@@ -85,6 +100,11 @@ const MAX_TRAIL = 80;
 const CH_MAX = [4, 2, 3, 7, 9, 14, 10, 5];
 
 export function addMidiNote(ch, noteNorm, velNorm) {
+  // Campo materiale — forward note raw quando attivo (centralizza tutte le note interne)
+  if (CFG.VISUAL?.campo?.useCampo) {
+    campo.feedNote(ch, Math.round(noteNorm * 127), Math.round(velNorm * 127));
+  }
+
   // Floor for voice/lead visibility
   const visVel = (ch === 5 || ch === 6) ? Math.max(velNorm, 0.75)
               : (ch >= 2 && ch <= 4)   ? Math.max(velNorm, 0.3)
@@ -154,13 +174,26 @@ export function updateWaves(dt) {
 
 // ── Main render entry point ──
 export function renderField(ctx, W, H, envData) {
+  const track = worldState.track;
+
+  // ── Campo Materiale path (paradigma sperimentale) ──
+  // Mutuamente esclusivo con comp-* classiche: se attivo, bypassa tutto il resto.
+  // Toggle runtime con tasto M in render.js.
+  if (CFG.VISUAL?.campo?.useCampo) {
+    if (track !== _activeTrack) {
+      campo.setBiome(track);
+      _activeTrack = track;
+    }
+    campo.updateCampo(envData.dt || 0.016);
+    campo.renderCampo(ctx, W, H);
+    return;
+  }
+
   const env = buildEnv({
     ...envData,
     midiTrail,
     onsetWaves,
   });
-
-  const track = worldState.track;
 
   // Detect track change → switch composition
   if (track !== _activeTrack) {
@@ -224,29 +257,62 @@ export function renderField(ctx, W, H, envData) {
   if (_activeComp && W > 0 && H > 0) {
     const events = getEvents();
     if (events.length > 0) {
-      const gcfg   = CFG.VISUAL.ghostOverlay;
-      const dotSz  = gcfg.dotSize;
-      const bgRgb  = toolkit.hexToRgb(worldState.palette.bg);
-      const dotRgb = toolkit.hexToRgb(worldState.palette.dot);
+      const bgRgb       = toolkit.hexToRgb(worldState.palette.bg);
+      const resHex      = worldState.palette.residual;
+      const residualRgb = resHex ? toolkit.hexToRgb(resHex)
+                                 : toolkit.hexToRgb(worldState.palette.dot);
+
+      // Pixel manipulation diretta — zero fillRect, una sola drawImage finale
+      _ensureGhostBuffer(W, H);
+      _ghostCtx.clearRect(0, 0, W, H);
+      const imgData = _ghostCtx.createImageData(W, H);  // cheap malloc, no GPU readback
+      const buf32   = new Uint32Array(imgData.data.buffer);
 
       for (const e of events) {
         if (e.state < STATE_GHOST) continue;  // skip newborn + stable
 
-        const isGhost = e.state === STATE_GHOST;
-        const density = isGhost ? gcfg.ghostDensity  : gcfg.fossilDensity;
-        const blend   = isGhost ? gcfg.ghostBlend    : gcfg.fossilBlend;
+        // Curva aging quadratica — t²: ghost≈0.25-0.64, fossil≈0.64-0.90, dead=1.0
+        const t       = Math.min(e.age / e.tDead, 1);
+        const t2      = t * t;
+        const dotSz   = Math.max(2, Math.round(toolkit.lerp(2, 14, t2)));
+        const density = toolkit.lerp(0.85, 0.08, t2);
+        const radius  = dotSz * 8;
 
-        const px  = e.nx * W;
-        const py  = e.ny * H;
-        const col = Math.floor(px / dotSz);
-        const row = Math.floor(py / dotSz);
+        const px = e.nx * W;
+        const py = e.ny * H;
 
-        if (!toolkit.bayerTest(col, row, density)) continue;
+        // spawnColor → residual lungo lifecycle; fossil → blend addizionale verso bg
+        const spawnRgb    = e.spawnColor || [255, 255, 255];
+        const baseRgb     = toolkit.lerpColor(spawnRgb, residualRgb, toolkit.lerp(0, 0.75, t2));
+        const fossilBlend = e.state === STATE_FOSSIL ? 0.35 : 0;
+        const rgb         = toolkit.lerpColor(baseRgb, bgRgb, fossilBlend);
+        const rr = rgb[0] | 0, gg = rgb[1] | 0, bb = rgb[2] | 0;
+        // little-endian RGBA → Uint32: 0xFF_BB_GG_RR
+        const pixel32 = (0xFF << 24) | (bb << 16) | (gg << 8) | rr;
 
-        const rgb = toolkit.lerpColor(dotRgb, bgRgb, blend);
-        ctx.fillStyle = toolkit.rgbString(rgb[0] | 0, rgb[1] | 0, rgb[2] | 0);
-        ctx.fillRect(px - dotSz * 0.5, py - dotSz * 0.5, dotSz, dotSz);
+        const c0 = Math.max(0, Math.floor((px - radius) / dotSz));
+        const c1 = Math.min(Math.floor(W / dotSz), Math.floor((px + radius) / dotSz));
+        const r0 = Math.max(0, Math.floor((py - radius) / dotSz));
+        const r1 = Math.min(Math.floor(H / dotSz), Math.floor((py + radius) / dotSz));
+
+        for (let c = c0; c <= c1; c++) {
+          for (let r = r0; r <= r1; r++) {
+            if (!toolkit.bayerTest(c, r, density)) continue;
+            const x0 = c * dotSz, y0 = r * dotSz;
+            const x1 = Math.min(x0 + dotSz, W);
+            const y1 = Math.min(y0 + dotSz, H);
+            for (let py2 = y0; py2 < y1; py2++) {
+              const rowOff = py2 * W;
+              for (let px2 = x0; px2 < x1; px2++) {
+                buf32[rowOff + px2] = pixel32;
+              }
+            }
+          }
+        }
       }
+
+      _ghostCtx.putImageData(imgData, 0, 0);
+      ctx.drawImage(_ghostCanvas, 0, 0);
     }
   }
 
