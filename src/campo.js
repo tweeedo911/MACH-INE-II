@@ -51,6 +51,16 @@ function clamp(v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }
 function idx(cx, cy) { return cy * _cells + cx; }
 function pitchToCell(p) { return Math.round((1 - p / 127) * (_cells - 1)); }
 
+// Mapping locale: [lo,hi] → 80% centrale del campo Y
+// High pitch = low Y (top), low pitch = high Y (bottom)
+function localPitchToCell(note, lo, hi) {
+  if (lo >= hi) return Math.floor(_cells / 2);
+  const margin = Math.floor(_cells * 0.10);    // 3 celle su 32
+  const usable = _cells - 1 - 2 * margin;      // 25 su 32
+  const t = clamp((note - lo) / (hi - lo), 0, 1);
+  return Math.round(margin + (1 - t) * usable); // t=1 (acuto) → top
+}
+
 function depositPoint(field, cx, cy, force) {
   if (cx < 0 || cx >= _cells || cy < 0 || cy >= _cells) return;
   const i = idx(cx, cy);
@@ -75,7 +85,7 @@ function depositBlob(field, cx, cy, w, h, force) {
 
 const HELPERS = {
   get CELLS() { return _cells; },
-  clamp, pitchToCell,
+  clamp, pitchToCell, localPitchToCell,
   depositPoint, depositRow, depositBlob,
 };
 
@@ -103,7 +113,7 @@ function _ensureOffscreen() {
 // ── API pubblica ──
 
 export function initCampo() {
-  _cells  = CFG.VISUAL?.campo?.cells  ?? 32;
+  _cells  = CFG.VISUAL?.campo?.cellsX ?? 96;  // TODO: refactor → _cellsX/_cellsY separati
   _cellPx = CFG.VISUAL?.campo?.cellPx ?? 20;
   _ensureBuffers();
   _ensureOffscreen();
@@ -147,9 +157,14 @@ export function feedNote(ch, note127, vel127) {
 }
 
 // Chiamata ogni frame dopo feedNote
-export function updateCampo(dt) {
+export function updateCampo(dt, audioEnergy = 0) {
   _ensureBuffers();
   if (!_bioma) _bioma = getBiome('GENERIC');
+
+  // Audio-reactive per-frame update (bioma-specifico)
+  if (_bioma.audioReact) {
+    _bioma.audioReact(_fields, audioEnergy, HELPERS);
+  }
 
   const shimmer = CFG.VISUAL?.campo?.shimmer ?? 0.05;
 
@@ -243,12 +258,6 @@ export function renderCampo(ctx, W, H) {
   // Upscale al canvas full-screen, pixel-perfect (no smoothing)
   const prevSmoothing = ctx.imageSmoothingEnabled;
   ctx.imageSmoothingEnabled = false;
-  // Fit quadrato centrato + bg fill
-  ctx.fillStyle = `rgb(${bgR},${bgG},${bgB})`;
-  ctx.fillRect(0, 0, W, H);
-  const side = Math.min(W, H);
-  const dx   = (W - side) / 2;
-  const dy   = (H - side) / 2;
-  ctx.drawImage(_off, 0, 0, _W, _H, dx, dy, side, side);
+  ctx.drawImage(_off, 0, 0, _W, _H, 0, 0, W, H);
   ctx.imageSmoothingEnabled = prevSmoothing;
 }
