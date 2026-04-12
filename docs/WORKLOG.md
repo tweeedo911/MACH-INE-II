@@ -63,7 +63,9 @@ La materia migra al centro come transizione visiva naturale prima del cambio tra
 - Nessuna nuova decisione formale. Scelte documentate nella spec.
 
 ### Prossimo
-- **P0 — Camera nel campo** — zoom macro/orbita, barrel distortion, pilotaggio da director3
+- **P0 — Camera nel campo** — spec approvata in `docs/superpowers/specs/2026-04-12-camera-campo-design.md`.
+  Design raffinato: barrel via LUT precalcolata, macro condizionale (densità>0.05),
+  drift circolare in densità. Pronto per writing-plans → implementazione in sessione 11.
 - **P1 — Calibrazione visiva live** — testare bioma per bioma con musica reale
 - **P2 — Rupture nel campo** — cablare worldState.rupture in biomi.js
 - **P3 — Density cap TEMPESTA**

@@ -81,13 +81,16 @@ director3.js      →  5 moduli musicali (rhythm, harmony, bass, melody, texture
 
 ## Prossimo (priorità top→bottom)
 
-### P0 — Camera nel campo (sessione B)
+### P0 — Camera nel campo (sessione 11)
 
-Implementare il sistema camera in campo.js:
-- Zoom in (macro 2-4×): crop + scale sull'offscreen
-- Zoom out (orbita 0.2-0.5×): scale down + nero + barrel distortion
+Spec approvata: `docs/superpowers/specs/2026-04-12-camera-campo-design.md`
+- 3 regimi: normale (1.0), macro (1.5-2.0×), orbita (0.3-0.5×)
+- Barrel distortion via LUT precalcolata (solo RITORNO)
 - Pilotaggio automatico da director3 per fase
-- RITORNO override: zoom progressivo 1.0→0.3
+- Drift circolare in densità (r=0.1, periodo 30s)
+- Macro condizionale: solo dopo densità media >0.05
+- RITORNO: zoom 1.0→0.3 + barrel 0→0.6 progressivo
+- File: world-state.js, campo.js, director3.js, (config.js opzionale)
 
 ### P1 — Calibrazione visiva live
 
