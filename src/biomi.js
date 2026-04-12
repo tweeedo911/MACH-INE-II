@@ -214,6 +214,10 @@ const NEBBIA = {
       h.depositRow(fields.chord, cy, (vel127 / 127) * 0.20);
     },
   },
+  // NEBBIA: massimo contrasto di grana — drone grosso, voice fine
+  cellPx: {
+    drone: 20, voice: 6, lead: 7, chord: 12,
+  },
 };
 
 // ══════════════════════════════════════════════════════════════
@@ -396,6 +400,10 @@ const RESPIRO = {
       }
     },
   },
+  // RESPIRO: membrana elastica, solo altissime si solidificano
+  freeze: {
+    densityThreshold: 0.9,
+  },
 };
 
 // ══════════════════════════════════════════════════════════════
@@ -500,6 +508,15 @@ const MACCHINA = {
       h.depositPoint(fields.chord, cx + 1, cy + 1, f);
     },
   },
+  // MACCHINA: griglia uniforme, niente stratigrafia, niente aging
+  cellPx: {
+    drone: 10, bass: 10, chord: 10,
+    kick: 10, percussion: 10,
+    arp: 10, voice: 10, lead: 10,
+  },
+  freeze: {
+    spatial: false,      // niente stratigrafia — la griglia è uniforme
+  },
 };
 
 // ══════════════════════════════════════════════════════════════
@@ -600,6 +617,10 @@ const TEMPESTA = {
       h.depositBlob(fields.drone, cx, cy, 5, 4, 0.010);
     },
   },
+  // TEMPESTA: turbolenza, nulla cristallizza
+  freeze: {
+    roleEnabled: false,  // nulla cristallizza per silenzio
+  },
 };
 
 // ══════════════════════════════════════════════════════════════
@@ -684,6 +705,10 @@ const RITORNO = {
       const cx = Math.floor(Math.random() * h.CELLS_X);
       h.depositBlob(fields.drone, cx, cy, 5, 4, (vel127 / 127) * 0.008);
     },
+  },
+  // RITORNO: tutto diventa geologico progressivamente
+  freeze: {
+    globalFactor: 0.5,
   },
 };
 
