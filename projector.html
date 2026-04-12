@@ -30,6 +30,23 @@
   ch.onmessage = (e) => { if (e.data.type === 'close') window.close(); };
   window.addEventListener('beforeunload', () => ch.postMessage({ type: 'projector-closed' }));
 
+  // Enter native fullscreen on first click (removes address bar completely)
+  // Browsers require a user gesture for requestFullscreen — auto-request on any click
+  function goFullscreen() {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(() => {});
+    }
+  }
+  document.addEventListener('click', goFullscreen, { once: true });
+  // Also listen for 'F' key to toggle fullscreen manually
+  document.addEventListener('keydown', (e) => {
+    if (e.code === 'KeyF') {
+      if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(() => {});
+      else document.exitFullscreen();
+    }
+    // ESC is handled natively by the browser to exit fullscreen
+  });
+
   // Draw loop — pulls directly from main canvas (same-origin, zero-copy)
   function draw() {
     if (!window.opener || window.opener.closed) { window.close(); return; }

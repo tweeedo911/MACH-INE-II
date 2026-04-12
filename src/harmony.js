@@ -34,11 +34,11 @@ let _lastDroneBar  = -1;
 let _lastChordBar  = -1;
 
 // V3: pitch drift state — slow LFO over CH2 drone (Sakamoto §A.5)
-// Period 24 bars ≈ 60s @ 96 BPM. Amplitude ±614 ≈ ±15 cents.
+// V3.5: period and amplitude now per-track via droneDrift in tracks.js
 let _pitchDriftStep = 0;
-const PITCH_DRIFT_PERIOD_BARS = 24;
-const PITCH_DRIFT_AMPLITUDE   = 614;
-const PITCH_BEND_CENTER       = 8192;
+const PITCH_DRIFT_PERIOD_DEFAULT = 24;   // bar
+const PITCH_DRIFT_AMP_DEFAULT    = 614;  // ±15 cents
+const PITCH_BEND_CENTER          = 8192;
 let _lastPitchBend = -1;
 
 export function initHarmony() {
@@ -77,6 +77,7 @@ function _tick() {
   const phase    = worldState.phase;
   const root     = worldState.root;
   const [regLo, regHi] = worldState.register.chords; // e.g. [55, 72]
+  const trackData = TRACKS[worldState.track];
 
   // ── Velocity ceiling guard ──
   const velCeil  = worldState.velocityCeiling.harmony || 127;
@@ -87,10 +88,13 @@ function _tick() {
   //  Sent every quarter note to keep bandwidth low (~6Hz at 96 BPM).
   // ──────────────────────────────────────────────
   if (CFG.MUSIC_STRUCTURAL && _step % 4 === 0) {
-    const periodSteps = PITCH_DRIFT_PERIOD_BARS * 16;
+    const drift = trackData?.droneDrift;
+    const driftPeriod = drift?.periodBars ?? PITCH_DRIFT_PERIOD_DEFAULT;
+    const driftAmp    = drift?.amplitude  ?? PITCH_DRIFT_AMP_DEFAULT;
+    const periodSteps = driftPeriod * 16;
     _pitchDriftStep = (_pitchDriftStep + 4) % periodSteps;
     const phaseRad = (_pitchDriftStep / periodSteps) * Math.PI * 2;
-    const bendValue = PITCH_BEND_CENTER + Math.round(Math.sin(phaseRad) * PITCH_DRIFT_AMPLITUDE);
+    const bendValue = PITCH_BEND_CENTER + Math.round(Math.sin(phaseRad) * driftAmp);
     if (bendValue !== _lastPitchBend) {
       sendMIDIPitchBend(CH_DRONE, bendValue);
       _lastPitchBend = bendValue;
@@ -122,10 +126,12 @@ function _tick() {
   // ──────────────────────────────────────────────
   //  CH4 CHORDS — sustained or rhythmic (chordGrid)
   // ──────────────────────────────────────────────
-  const trackData = TRACKS[worldState.track];
   if (!trackData || !trackData.chords || trackData.chords.length === 0) return;
 
-  const barsPerChord = BARS_PER_CHORD[phase] ?? BARS_PER_CHORD_DEFAULT;
+  // V3.5: track can override barsPerChord (e.g. SOLCO wants 4-bar cycle always)
+  const barsPerChord = trackData.barsPerChord?.[phase]
+    ?? BARS_PER_CHORD[phase]
+    ?? BARS_PER_CHORD_DEFAULT;
   const chordGrid = trackData.chordGrid || null;
 
   // Advance chord on bar boundary
@@ -146,6 +152,16 @@ function _tick() {
   if (chordLimit < chord.length) {
     // Keep root + lowest notes (drop the top, "the chord crumbles inward")
     chord = chord.slice(0, chordLimit);
+  }
+
+  // ── V3.5: Ponte modale — nelle ultime 4 bar della dissoluzione,
+  // filtra le note dell'accordo tenendo solo quelle comuni alla scala entrante.
+  // Se il filtro elimina tutto, mantiene la nota più grave (root) come ancoraggio.
+  const tr = worldState.transition;
+  if (tr && tr.nextTrack && tr.nextTrack.scale) {
+    const nextPCs = new Set(tr.nextTrack.scale.map(n => n % 12));
+    const filtered = chord.filter(n => nextPCs.has(n % 12));
+    chord = filtered.length > 0 ? filtered : [chord[0]];
   }
 
   // ── Modal characteristic note boost (salvato da harmony-layer.js) ──
@@ -174,7 +190,8 @@ function _tick() {
   } else {
     // ── Sustained chords: one hit per chord change ──
     if (_step === 0 && _bar === _lastChordBar) {
-      const chordDur = Math.round(beatMs * 4 * barsPerChord * 0.87);
+      const overlapMs = trackData?.chordOverlapMs ?? 500;  // V3.5: per-track overlap (Burial warmth)
+      const chordDur = Math.round(beatMs * 4 * barsPerChord + overlapMs);
       const baseVel = Math.round(35 + density * 30);
 
       chord.forEach(note => {

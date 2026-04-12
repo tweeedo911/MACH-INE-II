@@ -25,6 +25,7 @@ let _lastTick = -1;
 let _lastNote = -1;
 let _velSweep = 0;
 let _lastFollowChord = '';
+let _lastFollowBar   = -1;
 
 // V3: cycle extension state
 let _cycleStage = 1;          // 1, 2, or 4 — current cycle length in bars
@@ -43,6 +44,8 @@ export function initBass() {
   _variations = [];
   _lastTrackName = '';
   _lastBasePattern = null;
+  _lastFollowChord = '';
+  _lastFollowBar   = -1;
   console.log('[BASS-V3] Initialized (cycle extension)');
 }
 
@@ -104,7 +107,7 @@ function _advanceCycleStage(basePattern) {
 }
 
 export function updateBass(dt) {
-  if (!worldState.bpm || worldState.density.bass < 0.01) return;
+  if (worldState.density.bass < 0.01) return;  // bpm null ok — ambient uses 60 BPM fallback
 
   // Catch up to master clock (rhythm.js owns the only stepAcc)
   while (_lastTick < worldState.globalTick) {
@@ -124,18 +127,68 @@ function _tick() {
   const density = worldState.density.bass;
   const ceiling = worldState.velocityCeiling.bass;
   const [regLo, regHi] = worldState.register.bass;
-  const bpm = worldState.bpm;
-  if (!bpm) return;
+  const bpm = worldState.bpm || 60;  // 60 BPM fallback per tracce ambient (come rhythm.js)
 
-  _velSweep = 0.85 + 0.15 * Math.sin((_bar % 8) / 8 * Math.PI * 2);
+  // V3.5: velocity sweep per traccia — period e depth configurabili
+  const sweep = track?.bassSweep;
+  const sweepPeriod = sweep?.periodBars ?? 8;
+  const sweepDepth  = sweep?.depth ?? 0.15;
+  _velSweep = (1 - sweepDepth) + sweepDepth * Math.sin((_bar % sweepPeriod) / sweepPeriod * Math.PI * 2);
 
   const stepMs = (60 / bpm / 4) * 1000;
   const beatMs = (60 / bpm) * 1000;
 
-  // ═══ Mode A: Follow harmony — long notes on chord changes ═══
+  // ═══ Mode A: Follow harmony ═══
   if (!pattern) {
-    const chordStr = worldState.currentChord ? worldState.currentChord.join(',') : '';
-    if (chordStr && chordStr !== _lastFollowChord && _step === 0) {
+    if (!worldState.currentChord || worldState.currentChord.length === 0) return;
+
+    if (CFG.MUSIC_STRUCTURAL) {
+      // V3 (N attivo): anchor sul cambio accordo (root, sempre) +
+      // movimento interno ogni 2 bar con prob density-aware (raro a bassa density).
+      // Durata 0.75 bar — articolato, non drone.
+      if (_step !== 0) return;
+      if (_bar === _lastFollowBar) return;
+
+      const chordStr = worldState.currentChord.join(',');
+      const chordChanged = chordStr !== _lastFollowChord;
+      const barsSince   = _bar - _lastFollowBar;
+      let isMovement = false;
+
+      if (!chordChanged) {
+        // Nessun cambio accordo: movimento interno ogni 2 bar, solo se density lo giustifica
+        if (barsSince < 2 || barsSince % 2 !== 0) return;
+        if (Math.random() > density * 0.7) return;
+        isMovement = true;
+      }
+
+      if (chordChanged) _lastFollowChord = chordStr;
+      _lastFollowBar = _bar;
+
+      const sorted = [...worldState.currentChord].sort((a, b) => a - b);
+      let noteIdx = 0;  // root (anchor)
+      if (isMovement) {
+        const roll = Math.random();
+        if (roll > 0.55 && sorted.length > 1) noteIdx = 1;  // terza
+        if (roll > 0.80 && sorted.length > 2) noteIdx = 2;  // quinta
+      }
+      const velMul = isMovement ? 0.75 : 1.0;
+
+      let bassNote = sorted[noteIdx];
+      while (bassNote > regHi) bassNote -= 12;
+      while (bassNote < regLo) bassNote += 12;
+      if (bassNote < regLo || bassNote > regHi) bassNote = root;
+
+      const baseVel = (42 + density * 28) * _velSweep * velMul;
+      const humanize = (Math.random() * 6) - 3;
+      const vel = Math.round(Math.max(1, Math.min(ceiling, baseVel + humanize)));
+      const dur = Math.round(beatMs * 4 * 0.75);  // 0.75 bar — articolato
+      sendMIDINote(3, bassNote, vel, dur);
+      addMidiNote(3, bassNote / 127, vel / 127);
+
+    } else {
+      // V1 (N spento): una nota sostenuta per cambio accordo
+      const chordStr = worldState.currentChord.join(',');
+      if (chordStr === _lastFollowChord || _step !== 0) return;
       _lastFollowChord = chordStr;
 
       let bassNote = Math.min(...worldState.currentChord);
@@ -147,7 +200,6 @@ function _tick() {
       const humanize = (Math.random() * 6) - 3;
       const vel = Math.round(Math.max(1, Math.min(ceiling, baseVel + humanize)));
       const dur = Math.round(beatMs * 14);
-
       sendMIDINote(3, bassNote, vel, dur);
       addMidiNote(3, bassNote / 127, vel / 127);
     }
@@ -156,8 +208,10 @@ function _tick() {
 
   // ═══ Mode B: Pattern-based — independent loop ═══
   // V3: cycle extension — select active pattern based on _bar % _cycleStage
+  // V3.5: skip cycle extension for locked patterns (hand-crafted complementarity)
   let activePattern = pattern;
-  if (CFG.MUSIC_STRUCTURAL) {
+  const locked = track.bassPatternLocked;
+  if (CFG.MUSIC_STRUCTURAL && !locked) {
     // Reset cycle on track or pattern change
     if (worldState.track !== _lastTrackName || pattern !== _lastBasePattern) {
       _resetCycle(pattern, worldState.track);
@@ -179,8 +233,10 @@ function _tick() {
   const offset = activePattern[_step];
 
   if (offset > 0) {
-    const raw  = root + offset;
-    const note = Math.max(regLo, Math.min(regHi, raw));
+    let note = root + offset;
+    while (note > regHi) note -= 12;
+    while (note < regLo) note += 12;
+    if (note < regLo || note > regHi) note = regLo;
 
     const baseVel = (50 + density * 40) * _velSweep;
     const humanize = (Math.random() * 8) - 4;
@@ -208,7 +264,10 @@ function _tick() {
 
     if (adjacentToPlayed) {
       const ghostVel = Math.round(20 + Math.random() * 10);
-      const ghostNote = Math.max(regLo, Math.min(regHi, root));
+      let ghostNote = root;
+      while (ghostNote > regHi) ghostNote -= 12;
+      while (ghostNote < regLo) ghostNote += 12;
+      if (ghostNote < regLo || ghostNote > regHi) ghostNote = regLo;
       const ghostDur  = stepMs * 1.5;
 
       sendMIDINote(3, ghostNote, ghostVel, ghostDur);
