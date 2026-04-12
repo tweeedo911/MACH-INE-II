@@ -17,6 +17,7 @@
 
 import { CFG } from './config.js';
 import { getBiome } from './biomi.js';
+import { firma } from './firma.js';
 
 // ── Bayer 4×4 ──
 const BAYER4 = [0,8,2,10, 12,4,14,6, 3,11,1,9, 15,7,13,5];
@@ -43,6 +44,10 @@ let _H      = _cellsY * _cellPx;
 
 // particles con fisica propria
 const _particles = { chord: [], arp: [] };
+
+// Solidification layer A: silence frames per role
+const _silenceFrames = {};
+for (const r of ROLES) _silenceFrames[r] = 0;
 
 // Offscreen canvas — Bayer renderizza qui, poi drawImage upscalato
 let _off = null, _offCtx = null;
@@ -83,6 +88,11 @@ function depositBlob(field, cx, cy, w, h, force) {
       depositPoint(field, cx + dx, cy + dy, f);
     }
   }
+}
+
+function smoothstep(lo, hi, x) {
+  const t = clamp((x - lo) / (hi - lo), 0, 1);
+  return t * t * (3 - 2 * t);
 }
 
 const HELPERS = {
@@ -133,7 +143,10 @@ export function setBiome(trackName) {
 
 export function clearAll() {
   if (!_fields) return;
-  for (const r of ROLES) _fields[r].fill(0);
+  for (const r of ROLES) {
+    _fields[r].fill(0);
+    _silenceFrames[r] = 0;
+  }
   _particles.chord.length = 0;
   _particles.arp.length = 0;
 }
@@ -143,10 +156,19 @@ export function clearAll() {
 export function feedNote(ch, note127, vel127) {
   _ensureBuffers();
   if (!_bioma) _bioma = getBiome('GENERIC');
+
+  // Firma: gelo blocks all new deposits
+  if (firma.gelo) return;
+
+  // Firma: densityCap probabilistic gate
+  if (firma.densityCap < 1 && Math.random() >= firma.densityCap) return;
+
   const role = CH_ROLE[ch];
   if (!role) return;
-  // skip se il bioma corrente non usa questo ruolo
   if (_bioma.force[role] === 0) return;
+
+  // Reset silence counter — this role is playing
+  _silenceFrames[role] = 0;
 
   const custom = _bioma.depositFn && _bioma.depositFn[role];
   if (custom) {
@@ -154,7 +176,7 @@ export function feedNote(ch, note127, vel127) {
     return;
   }
 
-  // Default depositors — semplici, punto a pitch→Y centro canvas
+  // Default depositors
   const cy = pitchToCell(note127);
   const cx = Math.floor(_cellsX / 2);
   const f  = (vel127 / 127) * _bioma.force[role];
@@ -166,14 +188,38 @@ export function updateCampo(dt, audioEnergy = 0) {
   _ensureBuffers();
   if (!_bioma) _bioma = getBiome('GENERIC');
 
-  // Audio-reactive per-frame update (bioma-specifico)
+  // ── Firma: gelo — total freeze, no evolution ──
+  if (firma.gelo) return;
+
+  // ── Audio-reactive (biome-specific) ──
   if (_bioma.audioReact) {
     _bioma.audioReact(_fields, audioEnergy, HELPERS);
   }
 
   const shimmer = CFG.VISUAL?.campo?.shimmer ?? 0.05;
+  const cfg = CFG.VISUAL?.campo ?? {};
+  const freezeCfg = _bioma.freeze || {};
 
-  // Chord particles: colonnine verticali che scendono
+  // Layer A config (silence crystallization)
+  const silenceThresholds = cfg.silenceThreshold ?? {};
+  const freezeRoleEnabled = freezeCfg.roleEnabled !== false;
+
+  // Layer B config (density stabilization)
+  const fdLo = freezeCfg.densityThreshold ?? cfg.freezeDensityLo ?? 0.4;
+  const fdHi = freezeCfg.densityThreshold != null
+    ? freezeCfg.densityThreshold + 0.2
+    : (cfg.freezeDensityHi ?? 0.8);
+  const freezeDensityEnabled = freezeCfg.densityEnabled !== false;
+
+  // Layer C config (spatial sedimentation)
+  const fsLo = cfg.freezeSpatialLo ?? 0.5;
+  const fsHi = cfg.freezeSpatialHi ?? 0.9;
+  const freezeSpatialEnabled = freezeCfg.spatial !== false;
+
+  // Global override (e.g. RITORNO freeze 50%)
+  const globalFreeze = freezeCfg.globalFactor ?? 0;
+
+  // ── Chord particles ──
   for (let i = _particles.chord.length - 1; i >= 0; i--) {
     const p = _particles.chord[i];
     p.cy += p.vy;
@@ -186,7 +232,7 @@ export function updateCampo(dt, audioEnergy = 0) {
     }
   }
 
-  // Arp particles: cadono verso il basso
+  // ── Arp particles ──
   for (let i = _particles.arp.length - 1; i >= 0; i--) {
     const p = _particles.arp[i];
     p.cy += p.vy;
@@ -194,13 +240,69 @@ export function updateCampo(dt, audioEnergy = 0) {
     depositPoint(_fields.arp, p.cx, Math.floor(p.cy), p.f * 0.4);
   }
 
-  // Decay + shimmer moltiplicativo per ogni ruolo
+  // ── Convergenza: matter migrates toward center ──
+  if (firma.convergenza) {
+    const centerX = Math.floor(_cellsX / 2);
+    const centerY = Math.floor(_cellsY / 2);
+    const pull = 0.3 * dt;
+    for (const r of ROLES) {
+      const f = _fields[r];
+      for (let cy = 0; cy < _cellsY; cy++) {
+        for (let cx = 0; cx < _cellsX; cx++) {
+          const i = cy * _cellsX + cx;
+          if (f[i] < 0.01) continue;
+          const dx = cx < centerX ? 1 : cx > centerX ? -1 : 0;
+          const dy = cy < centerY ? 1 : cy > centerY ? -1 : 0;
+          if (dx === 0 && dy === 0) continue;
+          const nx = cx + dx, ny = cy + dy;
+          if (nx < 0 || nx >= _cellsX || ny < 0 || ny >= _cellsY) continue;
+          const ni = ny * _cellsX + nx;
+          const transfer = f[i] * pull;
+          f[i]  -= transfer;
+          f[ni] += transfer;
+          if (f[ni] > 1) f[ni] = 1;
+        }
+      }
+    }
+  }
+
+  // ── Decay + shimmer + 3-layer solidification ──
   for (const r of ROLES) {
-    const dr = _bioma.decay[r];
-    if (dr >= 1.0) continue;
+    const baseDr = _bioma.decay[r];
+    if (baseDr >= 1.0) continue;
     const f = _fields[r];
+
+    // Layer A: increment silence for this role
+    _silenceFrames[r]++;
+    const silThresh = (silenceThresholds[r] ?? 3) * 60; // seconds → frames @60fps
+    const freezeA = freezeRoleEnabled
+      ? smoothstep(0, silThresh, _silenceFrames[r])
+      : 0;
+
     for (let i = 0; i < f.length; i++) {
+      const density = f[i];
+      if (density < 0.001) { f[i] = 0; continue; }
+
+      // Layer B: high density stabilizes
+      const freezeB = freezeDensityEnabled
+        ? smoothstep(fdLo, fdHi, density)
+        : 0;
+
+      // Layer C: lower part sediments
+      const cy = (i / _cellsX) | 0;
+      const freezeC = freezeSpatialEnabled
+        ? smoothstep(fsLo, fsHi, cy / _cellsY)
+        : 0;
+
+      // Compose: max of 3 layers + global
+      const freezeTotal = Math.max(freezeA, freezeB, freezeC, globalFreeze);
+
+      // effectiveDecay: 1.0 = permanent, baseDr = biome decay
+      const dr = baseDr + (1.0 - baseDr) * freezeTotal;
+
       f[i] *= dr;
+
+      // Shimmer
       if (f[i] > 0.01) f[i] += (Math.random() * 2 - 1) * shimmer * f[i];
       if (f[i] < 0) f[i] = 0;
       if (f[i] > 1) f[i] = 1;
