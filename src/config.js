@@ -1161,9 +1161,32 @@ export const CFG = {
     // Toggle runtime con tasto M. Coesiste con comp-* (mutuamente esclusivo).
     campo: {
       useCampo: false,      // false = comp-* classiche, true = campo materiale
-      cells:    32,         // risoluzione griglia (Float32Array cells*cells per ruolo)
-      cellPx:   20,         // pixel per cella offscreen — 32*20 = 640px quadrato
+      cellsX:   96,         // celle orizzontali (16:9 con cellsY=54)
+      cellsY:   54,         // celle verticali
+      cellPx:   10,         // pixel per cella offscreen fallback (96*10=960, 54*10=540)
       shimmer:  0.05,       // ampiezza vibrazione moltiplicativa per cella
+
+      // cellPx per ruolo — grana diversa rompe tappezzeria Bayer
+      roleCellPx: {
+        drone: 16, bass: 14, chord: 10,
+        kick: 8, percussion: 8,
+        arp: 6, voice: 8, lead: 7,
+      },
+
+      // Soglie solidificazione (strato A: silenzio, in secondi)
+      silenceThreshold: {
+        drone: 8, bass: 4, chord: 3,
+        kick: 1, percussion: 1,
+        arp: 2, voice: 3, lead: 3,
+      },
+
+      // Soglia solidificazione (strato B: densità)
+      freezeDensityLo: 0.4,   // sotto = decay normale
+      freezeDensityHi: 0.8,   // sopra = quasi permanente
+
+      // Soglia solidificazione (strato C: spaziale Y)
+      freezeSpatialLo: 0.5,   // cy/cellsY sotto = volatile
+      freezeSpatialHi: 0.9,   // cy/cellsY sopra = sedimentario
     },
 
     // ── Sistema Geometrico (paradigma sperimentale, vedi geo.js + docs/VISUAL-SPEC.md) ──
