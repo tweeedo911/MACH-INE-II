@@ -9,19 +9,12 @@ export const CFG = {
   bpmLerpBeats: 2,      // BPM transition lerp duration in beats (tempo-relative smoothing)
   debug: false,         // false per performance live — true solo per diagnostica
 
-  // ── A/B MUSIC EXPERIMENT (post-tavola-rotonda 2026-04-06) ──
-  // v2 — calibrazione tattica (leggera coerenza armonica, ceiling alzati, silenzi)
-  // false = v1 originale (default)
-  // Toggle live: tasto 'M'
-  MUSIC_EXPERIMENT: false,
-
-  // ── A/C MUSIC STRUCTURAL (post-RESEARCH-V4 2026-04-07) ──
-  // v3 — trasformazioni strutturali (call-response, tension waves, walls of sound,
-  //      bass cycle extension, Burial stumble, degradation arc)
-  // false = nessuna trasformazione strutturale (default)
-  // Toggle live: tasto 'N' — combinabile con MUSIC_EXPERIMENT (M)
-  // Combinazioni: A=off+off, B=on+off, C=off+on, D=on+on
-  MUSIC_STRUCTURAL: false,
+  // ── V3.5: M+N consolidati — sempre attivi (post-sessione 2026-04-12) ──
+  // Ex-EXPERIMENT (v2): velocity ceiling calibrati, phase velocity scaling
+  // Ex-STRUCTURAL (v3): tension waves, call-response, walls of sound,
+  //   bass cycle extension, Burial stumble, degradation arc, pitch drift
+  MUSIC_EXPERIMENT: true,
+  MUSIC_STRUCTURAL: true,
   // ── Audio analyser ──
   fftSize: 2048,
   smoothing: 0.82,
@@ -1160,7 +1153,7 @@ export const CFG = {
     // ── Campo Materiale (paradigma sperimentale, vedi campo.js + biomi.js) ──
     // Toggle runtime con tasto M. Coesiste con comp-* (mutuamente esclusivo).
     campo: {
-      useCampo: false,      // false = comp-* classiche, true = campo materiale
+      useCampo: true,       // campo materiale ON di default
       cellsX:   96,         // celle orizzontali (16:9 con cellsY=54)
       cellsY:   54,         // celle verticali
       cellPx:   10,         // pixel per cella offscreen fallback (96*10=960, 54*10=540)
@@ -1187,6 +1180,23 @@ export const CFG = {
       // Soglia solidificazione (strato C: spaziale Y)
       freezeSpatialLo: 0.5,   // cy/cellsY sotto = volatile
       freezeSpatialHi: 0.9,   // cy/cellsY sopra = sedimentario
+
+      // ── Camera Osservatore ──
+      camera: {
+        poiScanInterval: 15,     // frame tra scansioni POI
+        poiBlockSize: 8,         // celle per lato blocco
+        poiMaxCount: 5,          // POI massimi restituiti dalla scansione
+        macroMinDensity: 0.05,   // densità media minima per consentire micro zoom
+        biomes: {
+          NEBBIA:   { zoomRange: [6, 8], holdRange: [8, 12], speed: 0.3, easing: 'smooth', preferScan: null },
+          TESSUTO:  { zoomRange: [3, 5], holdRange: [4, 6],  speed: 0.5, easing: 'smooth', preferScan: 'H' },
+          SOLCO:    { zoomRange: [3, 4], holdRange: [3, 5],  speed: 0.6, easing: 'smooth', preferScan: null },
+          RESPIRO:  { zoomRange: [2, 4], holdRange: [3, 5],  speed: 0.4, easing: 'smooth', preferScan: null },
+          MACCHINA: { zoomRange: [4, 6], holdRange: [2, 4],  speed: 0.8, easing: 'snap',   preferScan: null },
+          TEMPESTA: { zoomRange: [2, 3], holdRange: [2, 3],  speed: 0.9, easing: 'smooth', preferScan: null },
+          RITORNO:  { zoomRange: [1, 6], holdRange: [3, 8],  speed: 0.4, easing: 'smooth', preferScan: null },
+        },
+      },
     },
 
     // ── Sistema Geometrico (paradigma sperimentale, vedi geo.js + docs/VISUAL-SPEC.md) ──

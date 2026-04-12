@@ -7,7 +7,7 @@ import { CFG } from './config.js';
 import { recordMIDI } from './session-recorder.js';
 
 // ── MIDI role channels (0-indexed internally) ──
-// Ch 0=PULSE, Ch 1=GRAIN, Ch 2=DRONE, Ch 3=BASS, Ch 4=CHORDS, Ch 5=VOICE, Ch 6=LEAD, Ch 7=RUPTURE
+// Ch 0=PULSE, Ch 1=GRAIN, Ch 2=DRONE, Ch 3=BASS, Ch 4=CHORDS, Ch 5=VOICE, Ch 6=LEAD, Ch 7=ARP
 export const MIDI_ROLES = ['KICK', 'PERC', 'DRONE', 'BASS', 'CHORDS', 'VOICE', 'LEAD', 'ARP'];
 
 // ── Public state ──

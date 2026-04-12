@@ -168,7 +168,7 @@ export function render(ctx, W, H, env) {
           _grid[tr][c].brightness = clamp(_grid[tr][c].brightness + n.vel * 0.6, 0, 1);
         }
       }
-      _kickZoom = KICK_ZOOM_TARGET + ruptI * 0.01;
+      _kickZoom = KICK_ZOOM_TARGET + ruptI * 0.08;
     }
 
     if (n.ch === 3) {

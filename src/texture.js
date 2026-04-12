@@ -6,12 +6,20 @@
 
 import { worldState } from './world-state.js';
 import { audio } from './audio.js';
-import { sendMIDICC } from './midi.js';
+import { sendMIDICC, sendMIDINote } from './midi.js';
 
 const CC_INTERVAL = 0.1; // 10Hz — smooth but not spammy
 
-let _timeAcc   = 0;
-let _lastCCTime = 0;
+// Room tone CH8: campioni ambientali su sampler (start random) — solo tracce "spazio"
+// NEBBIA / RESPIRO / RITORNO — dove il silenzio è narrativo
+const ROOM_TONE_TRACKS   = new Set(['NEBBIA', 'RESPIRO', 'RITORNO']);
+const ROOM_TONE_NOTES    = [36, 38, 40, 42, 43];  // cluster — ogni nota = campione diverso
+const ROOM_TONE_INTERVAL = 0.7;  // s — murmur rado, non invadente
+const ROOM_TONE_DUR      = 30;   // ms — trigger brevissimo, il sampler fa il resto
+
+let _timeAcc      = 0;
+let _lastCCTime   = 0;
+let _roomToneAcc  = 0;
 
 // EMA smoothing state for CC values (avoid jitter)
 let _ccBassFilter = 20;
@@ -21,8 +29,9 @@ let _ccDroneMod   = 0;
 let _ccLeadVib    = 0;
 
 export function initTexture() {
-  _timeAcc    = 0;
-  _lastCCTime = 0;
+  _timeAcc     = 0;
+  _lastCCTime  = 0;
+  _roomToneAcc = 0;
   _ccBassFilter = 20;
   _ccVoiceExpr  = 0;
   _ccChordWidth = 0;
@@ -33,7 +42,16 @@ export function initTexture() {
 
 export function updateTexture(dt) {
   if (worldState.density.texture < 0.01) return;
-  _timeAcc += dt;
+  _timeAcc     += dt;
+  _roomToneAcc += dt;
+
+  // Room tone CH8 — solo NEBBIA / RESPIRO / RITORNO
+  if (ROOM_TONE_TRACKS.has(worldState.track) && _roomToneAcc >= ROOM_TONE_INTERVAL) {
+    _roomToneAcc -= ROOM_TONE_INTERVAL;
+    const note = ROOM_TONE_NOTES[Math.floor(Math.random() * ROOM_TONE_NOTES.length)];
+    const vel  = 15 + Math.floor(Math.random() * 11);  // 15–25
+    sendMIDINote(8, note, vel, ROOM_TONE_DUR);
+  }
 
   if (_timeAcc - _lastCCTime >= CC_INTERVAL) {
     const { arc, density, phase, audioEnergy } = worldState;

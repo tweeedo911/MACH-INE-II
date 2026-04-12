@@ -73,3 +73,7 @@ Quando un subagente lavora su un'area, **deve leggere la skill corrispondente**:
 
 Dopo decisioni significative o feature nuove: aggiornare i file di memoria direttamente,
 non attendere il consolidate cron.
+
+---
+<!-- knowledge-graph links -->
+[[01-ARCHITECTURE]] [[04-RULES]] [[STATUS]] [[DECISIONS]]

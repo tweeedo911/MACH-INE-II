@@ -39,10 +39,10 @@ const _frameTimes = new Float32Array(FRAME_CAPACITY);
 let _frameIdx = 0;
 let _frameTotal = 0;
 
-// Screenshots: stored as blob URLs (captured async, off hot path)
-const _screenshots = [];  // { t, blobUrl, trigger }
+// Screenshots: stored as dataURL strings (single-file export)
+const _screenshots = [];  // { t, dataUrl, trigger }
 let _lastScreenshotTime = -Infinity;
-const SCREENSHOT_INTERVAL_SEC = 60;  // auto-capture every 60s
+const SCREENSHOT_INTERVAL_SEC = 30;  // auto-capture every 30s (review mode)
 const SCREENSHOT_ON_PHASE_CHANGE = true;
 
 // Session metadata
@@ -113,19 +113,31 @@ export function recordSnapshot(macroState, entities, frameMs) {
 
   _snapshots[_snapshotCount++] = {
     t: Math.round(t * 10) / 10,  // 0.1s precision
-    rD: _r2(macroState.rhythmicDensity),
-    hC: _r2(macroState.harmonicColor),
-    mA: _r2(macroState.melodicActivity),
-    tD: _r2(macroState.textureDepth),
-    mode: macroState.currentMode,
-    bpm: Math.round(macroState.currentBpm),
-    arc: _r3(macroState.arcPercent),
-    ent: entities.length,
-    brk: macroState.breakActive ? 1 : 0,
+    // Musical state
+    track: macroState.track || null,
+    phase: macroState.phase || null,
+    phaseProgress: _r2(macroState.phaseProgress || 0),
+    bpm: Math.round(macroState.bpm || 0),
+    arc: _r3(macroState.arc || 0),
+    energy: macroState.energy || 'SILENCE',
+    // Density per ruolo
+    dR: _r2(macroState.densityRhythm || 0),
+    dH: _r2(macroState.densityHarmony || 0),
+    dB: _r2(macroState.densityBass || 0),
+    dM: _r2(macroState.densityMelody || 0),
+    dT: _r2(macroState.densityTexture || 0),
+    // Audio energy (real-time)
+    audioE: _r2(macroState.audioEnergy || 0),
+    // Rupture
+    ruptStage: macroState.ruptureStage || null,
+    ruptT: _r2(macroState.ruptureT || 0),
+    // Firma
+    firma: macroState.firma || null,
+    // Frame performance
     frameMs: _r1(frameMs),
   };
 
-  // Auto-screenshot every 60s or on phase change
+  // Auto-screenshot every 30s or on phase change
   if (t - _lastScreenshotTime >= SCREENSHOT_INTERVAL_SEC) {
     _captureScreenshot(t, 'auto');
   }
@@ -134,7 +146,7 @@ export function recordSnapshot(macroState, entities, frameMs) {
 // ── Phase change detection — called from render loop ──
 export function recordPhaseCheck(macroState) {
   if (!_recording) return;
-  const mode = macroState.currentMode;
+  const mode = `${macroState.track || '?'}:${macroState.phase || '?'}`;
   if (mode === _lastMode) return;
 
   const t = _elapsed();
@@ -143,8 +155,11 @@ export function recordPhaseCheck(macroState) {
       t: _r1(t),
       from: _lastMode || '(start)',
       to: mode,
-      bpm: Math.round(macroState.currentBpm),
-      arc: _r3(macroState.arcPercent),
+      track: macroState.track || null,
+      phase: macroState.phase || null,
+      bpm: Math.round(macroState.bpm || 0),
+      arc: _r3(macroState.arc || 0),
+      energy: macroState.energy || 'SILENCE',
     };
   }
   _lastMode = mode;
@@ -199,8 +214,8 @@ export function exportSession() {
     // Frame timing stats
     frameTiming: _exportFrameStats(),
 
-    // Screenshot references
-    screenshots: _screenshots.map(s => ({ t: s.t, trigger: s.trigger })),
+    // Screenshots with embedded image data (JPEG dataURL)
+    screenshots: _screenshots.map(s => ({ t: s.t, trigger: s.trigger, dataUrl: s.dataUrl })),
   };
 
   return session;
@@ -220,19 +235,7 @@ export function downloadSession() {
   a.click();
   URL.revokeObjectURL(url);
 
-  // Download screenshots separately
-  _screenshots.forEach((s, i) => {
-    if (s.blobUrl) {
-      const sa = document.createElement('a');
-      sa.href = s.blobUrl;
-      const min = Math.floor(s.t / 60);
-      const sec = Math.floor(s.t % 60);
-      sa.download = `FRAME-${String(min).padStart(2, '0')}m${String(sec).padStart(2, '0')}s-${s.trigger}.png`;
-      sa.click();
-    }
-  });
-
-  console.log(`[RECORDER] Downloaded session (${(json.length / 1024).toFixed(0)}KB) + ${_screenshots.length} screenshots`);
+  console.log(`[RECORDER] Downloaded single session file (${(json.length / 1024 / 1024).toFixed(1)}MB) — ${_midiCount} MIDI, ${_snapshotCount} snapshots, ${_screenshots.length} screenshots embedded`);
 }
 
 // ── Internal helpers ──
@@ -249,12 +252,11 @@ function _captureScreenshot(t, trigger) {
   if (!_canvas) return;
   _lastScreenshotTime = t;
 
-  // Async capture — no impact on frame budget
-  _canvas.toBlob((blob) => {
-    if (!blob) return;
-    const blobUrl = URL.createObjectURL(blob);
-    _screenshots.push({ t: _r1(t), trigger, blobUrl });
-  }, 'image/png');
+  // Sync capture as JPEG dataURL (quality 0.7 — ~3-5× smaller than PNG)
+  try {
+    const dataUrl = _canvas.toDataURL('image/jpeg', 0.7);
+    _screenshots.push({ t: _r1(t), trigger, dataUrl });
+  } catch (_) { /* security error on tainted canvas — skip */ }
 }
 
 function _exportMIDI() {

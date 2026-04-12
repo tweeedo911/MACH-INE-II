@@ -85,3 +85,7 @@ app/
 ## Rupture — sempre 4 stadi
 
 `omen → infiltrazione → takeover → residuo`. Mai semplificare. Mai saltare.
+
+---
+<!-- knowledge-graph links -->
+[[STATUS]] [[VISUAL-VISION]] [[02-MUSIC]] [[03-VISUAL]] [[DECISIONS]]

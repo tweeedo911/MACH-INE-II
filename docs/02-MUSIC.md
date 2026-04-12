@@ -68,3 +68,7 @@ e `CFG.MUSIC_STRUCTURAL` (strutturale, sempre on).
 
 Storia compositiva approfondita: `archive/docs/old/RESEARCH-V4-COMPOSITIONAL-DIRECTION.md`,
 `archive/docs/old/PARTITURA-NARRATIVA.md`.
+
+---
+<!-- knowledge-graph links -->
+[[01-ARCHITECTURE]] [[00-VISION]] [[03-VISUAL]] [[STATUS]]

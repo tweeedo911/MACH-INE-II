@@ -7,13 +7,15 @@ import { APP_VERSION, APP_TITLE } from './VERSION.js';
 import { CFG } from './config.js';
 import { initAudio, updateAudio, setAudioGain, getAudioGain } from './audio.js';
 import { initMIDI, updateMIDI, sendMIDIStart, updateMIDIClock, sendMIDIAllNotesOff } from './midi.js';
-import { applyMusicExperimentOverrides } from './tracks.js';
 import { state, updateState } from './state.js';
 import { initRender, renderFrame, resize, setHUDElements, handleKey, setProjectorWindow } from './render.js';
 import { resetEvents } from './event-register.js';
 import { clearAllLayers } from './layers.js';
 import { snapPalette } from './colors.js';
 import { WakeLockManager } from '../.claude/skills/runtime-expert/scripts/perf-utils.js';
+import { setPaletteMode, getPaletteMode } from './biomi.js';
+import { setBiome } from './campo.js';
+import { initCamera, updateCamera } from './camera.js';
 
 // ── MACH:INE III modules ──
 import { worldState } from './world-state.js';
@@ -129,6 +131,7 @@ startScreen.addEventListener('click', async () => {
 
   // ── MACH:INE III composition system ──
   initDirector3('NEBBIA');
+  initCamera();
   snapPalette();
   initRhythm();
   initHarmony();
@@ -161,6 +164,7 @@ document.addEventListener('keydown', (e) => {
   const _trackMap = { Digit1: 'NEBBIA', Digit2: 'TESSUTO', Digit3: 'SOLCO', Digit4: 'RESPIRO', Digit5: 'MACCHINA', Digit6: 'TEMPESTA', Digit7: 'RITORNO' };
   if (_trackMap[e.code] && e.shiftKey) {
     jumpToTrack(_trackMap[e.code]);
+    initCamera();
     return;
   }
   // 1-5 without shift: jump to phase within current track
@@ -203,6 +207,24 @@ document.addEventListener('keydown', (e) => {
   }
 
   // M/N toggle rimossi — V3.5: M+N consolidati come default permanente
+
+  // ── Palette A/B toggle ──
+  if (e.code === 'KeyA' && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+    if (getPaletteMode() !== 'A') {
+      setPaletteMode('A');
+      setBiome(worldState.track || 'GENERIC');  // morph transizione
+      console.log('%c[PALETTE] A (originale)', 'color: #EFE6DE; font-weight: bold;');
+    }
+    return;
+  }
+  if (e.code === 'KeyB' && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+    if (getPaletteMode() !== 'B') {
+      setPaletteMode('B');
+      setBiome(worldState.track || 'GENERIC');  // morph transizione
+      console.log('%c[PALETTE] B (alternativa)', 'color: #FFD296; font-weight: bold;');
+    }
+    return;
+  }
 
   // Toggle version badge with HUD (H key)
   if (e.code === 'KeyH') {
@@ -258,5 +280,6 @@ function loop(now) {
   updateAudio();
   updateMIDI();
   updateState();
+  updateCamera(dt);
   renderFrame(now, dt);
 }

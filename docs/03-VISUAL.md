@@ -74,3 +74,7 @@ Per la storia visiva (gap analysis, scelte abbandonate):
 `archive/docs/old/DESIGN.md`, `archive/docs/old/RESEARCH-V4-VISUAL-DIRECTION.md`,
 `archive/docs/old/ROADMAP-VISUAL.md`,
 `.claude/skills/visual-directing/references/engine-visual-profiles.md`.
+
+---
+<!-- knowledge-graph links -->
+[[01-ARCHITECTURE]] [[VISUAL-VISION]] [[02-MUSIC]] [[STATUS]]

@@ -1,11 +1,11 @@
 # STATUS — MACH:INE III
 
 > Snapshot vivo. Rigenerato a fine sessione. Punto di entrata di ogni nuova sessione.
-> **Last updated:** 2026-04-12 (sessione 10: cablaggio infrastrutturale campo)
+> **Last updated:** 2026-04-13 (sessione 14: camera osservatore narrativo)
 
 ## Versione
 
-**v3.4.3-wip** — single source: `src/VERSION.js` (`APP_VERSION`)
+**v3.8.0** — single source: `src/VERSION.js` (`APP_VERSION`)
 
 Tag git: `v3.4.2` su `ccbbb13` (ultimo tag stabile).
 Branch attivo: `machine-iii`.
@@ -23,8 +23,13 @@ director3.js      →  5 moduli musicali (rhythm, harmony, bass, melody, texture
                      cellPx variabile per ruolo (6-20px), decay + shimmer + audioReact.
                      Firma cablata: gelo/convergenza/densityCap.
                      Solidificazione 3 strati: silenzio/densità/spaziale.
+                     **v3.7: density cap per ruolo, phase-aware force/decay.**
+                     **v3.8: camera osservatore narrativo (camera.js).**
                      Fullscreen 16:9 senza stretch.
-                     **7/7 biomi implementati.** Calibrazione live da fare.
+                     **7/7 biomi con identità radicale (v3.7.0).**
+                     Phase-aware: HELPERS espone phase/rupture/energy/audioEnergy.
+                     Particle pools: voice (nebulose), lead (scie), chord, arp.
+                  →  camera.js — osservatore autonomo: POI detection + 5 gesti + personalità bioma
                   →  [reference] geo.js — Sistema Geometrico (Shift+G, non sviluppato)
                   →  [fallback] comp-* classiche (default, nessun toggle)
                   →  firma.js (gesti narrativi: gelo/convergenza/vuotoTotale/densityCap)
@@ -34,114 +39,101 @@ director3.js      →  5 moduli musicali (rhythm, harmony, bass, melody, texture
 
 ---
 
-## Stato biomi nel Campo Materiale
+## Camera osservatore (v3.8.0)
 
-| Bioma | Stato | Firma | cellPx override | Prossimo |
+| Feature | Stato |
+|---|---|
+| POI detection (blocchi 8×8, top 5 per densità) | ✅ |
+| 5 gesti: STARE / VIAGGIARE / TUFFO / SOLLEVARE / SCANSIONE | ✅ |
+| Personalità per bioma (7 config in CFG) | ✅ base — da calibrare |
+| RITORNO: fullscreen → tuffo intimo → allontanamento → puntino | ✅ |
+| Barrel distortion | ❌ rimosso (inutile in crop) |
+| Zoom range effettivo | 0.15× – 8× |
+| Interpolazione smoothstep (+ snap per MACCHINA) | ✅ |
+| Esplorazione vuoto (biomi sparsi) | ✅ — fix gate densità |
+
+---
+
+## Stato biomi nel Campo Materiale (v3.7.0)
+
+| Bioma | Fisica | Gesto unico | Forma dominante | Stato |
 |---|---|---|---|---|
-| NEBBIA | implementato | default | drone=20, voice=6, lead=7, chord=12 | calibrazione live |
-| TESSUTO | implementato | default | default | calibrazione live |
-| SOLCO | calibrato, palette riscaldata | default | default | calibrazione fine |
-| RESPIRO | implementato (invertito) | densityThreshold=0.9 | default | calibrazione live |
-| MACCHINA | implementato | spatial=false | uniforme 10px | calibrazione live |
-| TEMPESTA | implementato | roleEnabled=false | default | density cap + calibrazione |
-| RITORNO | implementato | globalFactor=0.5 | default | camera orbitale + calibrazione |
+| NEBBIA | centrifuga fredda | gocce rare nel vuoto cosmico | nebulose blu effimere + stelle indaco isolate | **v3.7** — da testare |
+| TESSUTO | fibra orizzontale | fibre che pulsano staccato | bande lime con varietà (continue/tratteggiate/doppie) | **v3.7** — da testare |
+| SOLCO | impatto verticale + eco dub | colonne che sbattono + echi delay a destra | colonne arancio verticali + faglie kick | **v3.7** — da testare |
+| RESPIRO | pressione invertita | note = buchi nella membrana | pori irregolari in membrana sage variabile | **v3.7** — da testare |
+| MACCHINA | snap griglia/terminale | scansione raster + tracce circuito | tracce a L, cursore arp, colonne kick binarie | **v3.7** — da testare |
+| TEMPESTA | aurora boreale + campo forza | tende di luce curve + onde pressione | archi sin bianco/carmine, anelli kick, erosione | **v3.7** — da testare |
+| RITORNO | pianeta orbita | pianeta che si spegne | scintille/comete polari, archi variati | **v3.7** — da testare |
 
 ---
 
-## Funzionalità sessione 10 (cablaggio infrastrutturale)
+## Infrastruttura campo.js (v3.8.0)
 
-- **Grid rettangolare 96×54** — true 16:9, offscreen 960×540, zero stretch
-- **cellPx per ruolo** — grana variabile (drone=16 grosso → arp=6 fine), override per bioma
-- **Firma nel campo** — gelo (freeze totale), convergenza (attrazione centro), densityCap (gate probabilistico)
-- **Solidificazione 3 strati** — silenzio cristallizza, densità alta stabilizza, parte bassa sedimenta
-- **Convergenza automatica** — director3 attiva convergenza nell'ultimo 15% della dissoluzione
-- **freeze override per bioma** — MACCHINA no stratigrafia, TEMPESTA nulla cristallizza, RESPIRO solo altissime, RITORNO tutto solidifica 50%
-
----
-
-## Funzionalità sessione 9
-
-- **localPitchToCell(note, lo, hi)** — mapping registro locale, 25 celle per ruolo (era 4)
-- **audioReact** — callback per-bioma ogni frame, modulato da worldState.audioEnergy
-- **Campo fullscreen** — stretch su tutto il canvas (ora rettangolare senza stretch)
-- **_campoActiveTrack** — fix bug: tracker separato per setBiome nel campo
+| Feature | Stato |
+|---|---|
+| Density cap per ruolo (`bioma.maxDensity`) | ✅ penalità progressiva sulle celle sopra il tetto |
+| Phase-aware force multiplier | ✅ germoglio ×0.35, rottura ×1.2, dissoluzione ×0.40 |
+| Phase-aware decay offset | ✅ germoglio +0.002 (effimero), dissoluzione -0.008 (cristallizza) |
+| Grid rettangolare 96×54 | ✅ |
+| Camera osservatore narrativo | ✅ camera.js autonomo (v3.8.0) |
+| Firma nel campo | ✅ gelo/convergenza/densityCap |
+| Solidificazione 3 strati | ✅ silenzio/densità/spaziale |
+| Morph colori tra biomi | ✅ 3s ease-in-out |
+| getCampoDensityBlocks() | ✅ espone densità per blocco al camera system |
 
 ---
 
 ## Limiti noti
 
-1. **TEMPESTA saturazione** — densità 0.95 su tutti i ruoli → rischio grigio uniforme (mitigato da freeze.roleEnabled=false)
-2. **RESPIRO monocromatico** — solo drone renderizza, potrebbe sembrare piatto
-3. **Non prototipato** — resa visiva da validare live traccia per traccia
-4. **Camera assente** — il campo è sempre a zoom 1.0, nessun macro/orbita
-5. **RITORNO non è orbita** — implementato come bioma, non come zoom-out del pianeta
-6. **Rupture non cablata nel campo** — director3 calcola i 4 stadi ma biomi.js non li consuma
+1. **Non prototipato** — resa visiva di tutti e 7 i biomi da validare live
+2. **Rupture non cablata** — director3 calcola i 4 stadi ma biomi.js non li consuma ancora
+3. **TEMPESTA: da verificare** — l'erosione direzionale + density cap dovrebbero risolvere il muro grigio, ma serve test live
+4. **Camera personalità simili** — i movimenti camera sono funzionanti ma troppo uniformi tra biomi, da calibrare
 
 ---
 
 ## Prossimo (priorità top→bottom)
 
-### P0 — Camera nel campo (sessione 11)
+### P0 — Calibrazione camera per bioma (sessione 15)
 
-Spec approvata: `docs/superpowers/specs/2026-04-12-camera-campo-design.md`
-- 3 regimi: normale (1.0), macro (1.5-2.0×), orbita (0.3-0.5×)
-- Barrel distortion via LUT precalcolata (solo RITORNO)
-- Pilotaggio automatico da director3 per fase
-- Drift circolare in densità (r=0.1, periodo 30s)
-- Macro condizionale: solo dopo densità media >0.05
-- RITORNO: zoom 1.0→0.3 + barrel 0→0.6 progressivo
-- File: world-state.js, campo.js, director3.js, (config.js opzionale)
+I movimenti camera funzionano ma sono troppo simili tra biomi. Differenziare:
+- NEBBIA: più lenta, hold più lunghi, zoom più profondo
+- MACCHINA: snap meccanici più marcati, tempi più corti
+- SOLCO: inseguimento eco dub (pan orizzontale dopo bass deposit)
+- TEMPESTA: movimenti più rapidi, meno hold
+- RITORNO: verificare arco completo (fullscreen → puntino) su durata reale
+Test live con musica reale obbligatorio.
 
-### P1 — Calibrazione visiva live
+### P1 — Rupture nel campo
 
-Testare ogni bioma con musica reale (Shift+C, scorrere tracce 1→7).
-Per ogni bioma annotare: cosa funziona, cosa no, candidato per redesign.
-Ora con firma + grana variabile il test è significativo.
+Cablare h.rupture nelle depositFn — ora che le forme sono definite, le rotture possono violarle:
+- TESSUTO: fibre rompono orizzontalità (Y jitterata ±5*intensity)
+- SOLCO: echo trail si moltiplica (2→6 fantasmi), massa si frammenta
+- MACCHINA: snap a griglia 2 invece di 4 (binario corrotto)
+- TEMPESTA: suscettibilità converge a 1.0, filamento voice enorme (30+ celle)
 
-### P2 — Rupture nel campo
+### P2 — Transizioni e polish
 
-Cablare worldState.rupture.intensity in biomi.js:
-- Modulare decay, force, colori durante i 4 stadi di rottura
-- Effetti per-bioma (nebulose si moltiplicano, binario si corrompe, etc.)
-
-### P3 — Density cap TEMPESTA
-
-Impedire saturazione uniforme al picco.
-Gate probabilistico su feedNote e/o cap per ruolo.
-
-### P4 — Lato musicale
-
-- Tuning densità tra le 7 tracce
-- Transizioni smooth (fade tra fasi)
-- Silenzi strutturali via firma.densityCap
-- Durata 45-60 min da verificare
+- Transizioni musicali più morbide (release naturale, ghost entrance estesa)
+- Verifica hocket voice/lead TEMPESTA (mutua esclusione)
+- Calibrazione proiettore (gamma, contrasto)
+- Controlli live (hotkey override, density override)
 
 ---
 
-## Documenti di riferimento
-
-- `docs/MOOD.md` — ritratto musicale 7 tracce (essenza + strumenti + arco + narrativa)
-- `docs/VISUAL-VISION.md` — visione visiva definitiva (pianeta, biomi, fisica)
-- `docs/superpowers/specs/2026-04-12-campo-infrastruttura-design.md` — spec cablaggio campo
-- `docs/superpowers/plans/2026-04-12-campo-infrastruttura.md` — piano implementativo
-- `ispirazioni-machne/` — moodboard Pinterest, visioni poetiche
-
----
-
-## Stato runtime (ultimo check: 2026-04-12)
+## Stato runtime (ultimo check: 2026-04-13)
 
 | Verifica | Stato |
 |---|---|
-| Campo Materiale (campo.js) | ✅ 96×54 rettangolare, firma cablata, cellPx per ruolo |
-| 7 biomi con CELLS_X/CELLS_Y | ✅ tutte le depositFn aggiornate |
+| Campo Materiale (campo.js) | ✅ 96×54, firma, density cap, phase-aware |
+| Camera osservatore (camera.js) | ✅ POI + 5 gesti + 7 personalità + RITORNO |
+| 7 biomi con identità radicale | ✅ redesign v3.7.0, nessuna sovrapposizione |
+| RITORNO (pianeta) | ✅ planetMask, depositFn polari, camera allontanamento |
 | Firma nel campo | ✅ gelo + convergenza + densityCap + solidificazione 3 strati |
-| freeze override per bioma | ✅ NEBBIA/RESPIRO/MACCHINA/TEMPESTA/RITORNO |
-| Convergenza auto dissoluzione | ✅ ultimo 15% fase dissoluzione |
+| Pannello debug | ✅ riscritto: audioEnergy, bande, rupture, firma compatta |
 | Sistema Geometrico (geo.js) | ✅ funzionante — non sviluppato |
 | Comp-* classiche | ✅ funzionanti (default, fallback) |
-| Pannello debug (D) | ✅ aggiornato |
-| HUD barra stato | ✅ mostra [GEO]/[CAMPO]/[COMP] |
-| Toggle Shift+C / Shift+G | ✅ mutuamente esclusivi |
 
 ---
 
@@ -150,10 +142,11 @@ Gate probabilistico su feedNote e/o cap per ruolo.
 ```
 1077  src/config.js     ← OK, single source dei numeri
  618  src/tracks.js     ← OK, 7 tracce × multi-fase
- 521  src/director3.js  ← valutare split
+~520  src/director3.js  ← alleggerito (camera spostata)
  503  src/melody-v3.js  ← valutare split
-~730  src/biomi.js      ← cresciuto con 7 biomi + freeze/cellPx — OK, è il catalogo
-~310  src/campo.js      ← cresciuto con firma/solidificazione — monitorare
+~1200 src/biomi.js      ← cresciuto con 7 biomi radicali — OK, è il catalogo
+~500  src/campo.js      ← alleggerito (barrel rimosso), aggiunto density blocks
+~230  src/camera.js     ← nuovo, dimensione OK
  ~380 src/geo.js        ← reference only
 ```
 

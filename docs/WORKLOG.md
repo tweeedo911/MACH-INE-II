@@ -6,6 +6,196 @@
 
 ---
 
+## 2026-04-13 (sessione 14) — Camera osservatore narrativo
+
+**Obiettivo:** Sostituire la camera passiva con un sistema autonomo che osserva il campo con intenzione narrativa.
+
+**Fatto:**
+- Progettato sistema camera con POI detection + 5 gesti cinematografici + personalità per bioma
+- Rimosso barrel distortion da campo.js (~80 LOC, 2MB/frame in meno)
+- Creato `src/camera.js` (~230 LOC): POI scanner, shot sequencer, interpolazione smoothstep
+- Svuotato `_updateCamera` in director3.js (da ~50 LOC a 2 righe: scrive solo personality/phase)
+- Aggiornato world-state.js: camera ha personality/phase invece di barrel
+- Aggiunto getCampoDensityBlocks() a campo.js per il POI scanner
+- Config per bioma: zoomRange, holdRange, speed, easing, preferScan
+- Fix gate densità: la camera esplora anche biomi sparsi (NEBBIA), non solo quelli densi
+- RITORNO: parte fullscreen → tuffo intimo → allontanamento progressivo → puntino 0.15×
+
+**File toccati:**
+- `src/camera.js` — NUOVO
+- `src/campo.js` — rimosso barrel, aggiunto getCampoDensityBlocks
+- `src/director3.js` — svuotato _updateCamera, rimosso import getCampoAvgDensity
+- `src/world-state.js` — camera: personality/phase, rimosso barrel
+- `src/config.js` — camera parametri per bioma (7 personalità)
+- `src/main.js` — import + init + update camera nel loop
+- `src/VERSION.js` — v3.8.0
+
+**Decisioni:** #017 (camera osservatore narrativo)
+
+**Prossimo:** Calibrare personalità camera per bioma — ora i movimenti sono troppo simili.
+Differenziare velocità, profondità zoom, e comportamento per traccia.
+Test live con musica reale per validare narrativa camera + depositi.
+
+---
+
+## 2026-04-12 (sessione 13) — Redesign radicale tutti i biomi + infrastruttura campo
+
+**Obiettivo:** Analisi completa della performance (~40 min), diagnosi visiva da screenshot, piano generale su tutti gli aspetti della composizione, implementazione radicale.
+
+**Analisi:**
+1. Analisi performance completa scritta in `session-2026-04-12/ANALISI-PERFORMANCE.md` (macro-struttura, armonica, ritmica, melodica, dinamica, fasi, transizioni, dramaturgia)
+2. Diagnosi visiva da 6 screenshot: TESSUTO e SOLCO funzionano (7/10), RESPIRO concetto ok (6/10), MACCHINA arp illeggibile (4/10), NEBBIA troppo piena (3/10), TEMPESTA muro grigio (2/10)
+3. Piano generale in `session-2026-04-12/PIANO-GENERALE.md` (7 sezioni: visivo, musicale, drammaturgico, tecnico, live, composizione spaziale, ordine esecuzione)
+
+**Fatto — Infrastruttura campo.js:**
+1. Phase-aware force multiplier — velocity scalata per fase (germoglio ×0.35, rottura ×1.2)
+2. Phase-aware decay offset — decay rallenta in dissoluzione (cristallizzazione), accelera in germoglio
+3. Density cap per ruolo — `bioma.maxDensity` con penalità progressiva sulle celle sopra il tetto
+
+**Fatto — Redesign radicale 7/7 biomi:**
+4. **NEBBIA** riscritto — palette tutta fredda (blu-indaco, zero lavanda), voice effimere (decay 0.9955, nebulose 3-5 celle per 50-90f), drone con zona esclusione, density cap 0.12
+5. **TESSUTO** riscritto — bg freddo viola `[18,14,24]` (distinto da SOLCO caldo), fasce verticali dedicate (lead Y 3-22%, chord Y 15-55%, bass Y 78-95%), fibre con varietà (continue/tratteggiate/doppie)
+6. **SOLCO** riscritto da zero — impatto verticale + eco delay dub. Bass = colonne verticali che sbattono giù + 2-3 echi spostati a destra. Chord = pioggia di punti. Kick = faglie verticali con aftershock. Voice = fulmini con ramificazioni. Bg nero-terra caldo `[14,10,8]`
+7. **RESPIRO** migliorato — membrana con spessore variabile (target sin patterns), pori irregolari (ellissi deformate + noise raggio), alone con variazione angolare (iridescenza)
+8. **MACCHINA** riscritto — terminale/circuito. Arp = raster scan con trail orizzontale. Bass = tracce di circuito a L (percorsi tra 2 nodi). Kick = colonna verticale intera (binario on/off). Voice/lead = mirini HUD con croce. Chord = chip PCB con pin
+9. **TEMPESTA** riscritto — aurora boreale. Voice = tende di luce curve sin (25-44 celle, attraversano campo). Lead = contro-tende carmine con angolo diverso. Bass = onde di pressione circolari (archi parziali). Kick = esplosione radiale (anello). Erosione direzionale. Force voice/lead raddoppiata, bass/chord dimezzata. Density cap
+10. **RITORNO** migliorato — voice: 60% stelle, 30% costellazioni, 10% comete radiali. Lead: eco doppie. Kick: 60% archi equatoriali, 40% archi meridiani. Chord: 50% archi sottili, 30% spessi, 20% anelli
+
+**File toccati:**
+- `src/campo.js` — phase multipliers, density cap, decay offset
+- `src/biomi.js` — 7/7 biomi riscritti (depositFn, colors, decay, force, maxDensity)
+- `src/VERSION.js` — v3.6.1 → v3.7.0
+- `session-2026-04-12/ANALISI-PERFORMANCE.md` — analisi completa suite
+- `session-2026-04-12/PIANO-GENERALE.md` — piano 22 punti su 4 priorità
+- `docs/STATUS.md` — rigenerato
+- `docs/WORKLOG.md` — questa entry
+
+**Decisioni:**
+- Ogni bioma ha ora un GESTO UNICO e una FORMA DOMINANTE che nessun altro bioma condivide
+- NEBBIA/TESSUTO/SOLCO separati per temperatura colore (freddo/freddo-viola/caldo) oltre che per forma
+- MACCHINA è l'unico bioma deterministico (snap a griglia, posizioni da nota, zero random)
+- TEMPESTA è l'unico bioma con forme curve (archi sin, onde circolari)
+- Phase multiplier si applica globalmente ma NEBBIA usa force fisse nelle depositFn (resistente al germoglio ×0.35)
+
+**Prossimo:**
+- P0: test visivo live di tutti i biomi ridisegnati (il blocco originale resta)
+- P1: rupture nelle depositFn (ora che le forme sono definite, le rotture possono violarle)
+- P2: transizioni musicali morbide + hocket verification
+
+---
+
+## 2026-04-12 (sessione 12b) — RITORNO come pianeta irregolare
+
+**Obiettivo:** Implementare RITORNO come ultimo bioma — pianeta irregolare visto dall'orbita con maschera circolare + noise contour.
+
+**Fatto:**
+1. **biomi.js RITORNO ridisegnato** — bg nero puro (spazio), flag `planetMask: true`, tutte le depositFn riscrittte in coordinate polari (depositi entro il raggio pianeta ~65%). Kick = archi sull'equatore. Chord = archi a raggio variabile pitch→distanza. Drone = nebbia nel nucleo. Voice/lead/arp/bass = scintille distribuite uniformemente nell'area circolare (√random per distribuzione uniforme).
+2. **campo.js maschera pianeta** — dopo il rendering Bayer e prima del barrel, se `bioma.planetMask`, applica maschera circolare irregolare. Contorno generato da 3 ottave di sin sovrapposti (freq 5/11/23 — prime, no periodicità visibile), 256 campioni angolari, ricalcolato ogni 120 frame per variazione lenta. Raggio pilotato da fase: germoglio 0→70%, stabile in pulsazione/densità, dissoluzione 70%→0 (il pianeta si spegne). Bordo sfumato 2px per antialiasing naturale.
+3. **Versione** — v3.6.0 → v3.6.1
+
+**File toccati:**
+- `src/biomi.js` — RITORNO riscritto: depositFn polari, planetMask flag
+- `src/campo.js` — _buildPlanetNoise, _planetRadiusAt, maschera in renderCampo
+- `src/VERSION.js` — v3.6.1
+- `docs/STATUS.md` — rigenerato (7/7 biomi, RITORNO completato)
+- `docs/WORKLOG.md` — questa entry
+
+**Decisioni:**
+- Maschera applicata a livello pixel (post-Bayer, pre-barrel): rivela il sedimento accumulato dai biomi precedenti dentro la forma pianeta. Il nero fuori è lo spazio.
+- Noise contour con sin sovrapposti invece di Perlin: più leggero, sufficiente per l'estetica, ricalcolo ogni 2 secondi per micro-animazione.
+- depositFn in polari con √random per distribuzione uniforme nell'area (evita addensamento al centro).
+
+**Prossimo:**
+- P0: test visivo live di tutti e 7 i biomi + camera (Shift+C)
+- P1: cablare rupture nelle depositFn
+- P2: evoluzione per fase (force/decay modulati da h.phase)
+
+---
+
+## 2026-04-12 (sessione 12) — Camera nel campo + fix audit codebase
+
+**Obiettivo:** Implementare il sistema camera nel Campo Materiale (spec approvata) e sistemare i problemi emersi dall'audit completo del codebase.
+
+**Audit codebase (pre-implementazione):**
+- Scansione completa su 4 fronti paralleli: campo+biomi, director+world-state+firma, render+main+config, MIDI+moduli musicali
+- Nessun bug critico a runtime trovato
+- TEMPESTA: l'audit aveva segnalato percussion mancante ma era falso positivo (presente a biomi.js:885)
+- Fix reali: import morto in main.js, commento errato in midi.js, comp-quadrati.js modulo morto
+
+**Fatto:**
+1. **Fix audit** — rimosso import morto `applyMusicExperimentOverrides` da main.js, corretto commento midi.js (Ch7=RUPTURE → Ch7=ARP), archiviato comp-quadrati.js in dead-islands/
+2. **Camera: stato** — world-state.js: nuovo oggetto camera con zoom/focusX/focusY/barrel (sostituisce vecchio mode/drift/focusPoint inutilizzato)
+3. **Camera: config** — config.js: nuova sezione `campo.camera` con lerpSpeed, driftR, driftPeriod, macroMinDensity, barrelRecalcEvery
+4. **Camera: rendering** — campo.js: 3 regimi in renderCampo (macro=crop+scale, orbita=scale+nero, barrel=LUT precalcolata). LUT ricalcolata ogni 30 frame quando barrel cambia. Export `getCampoAvgDensity()` per gate macro.
+5. **Camera: pilotaggio** — director3.js: `_updateCamera(dt)` chiamata ogni frame. Pilotaggio tabellare per fase: germoglio→macro (con gate densità>0.05), pulsazione→1.0, densità→drift circolare, rottura→0.85, dissoluzione→1.3, RITORNO→orbita progressiva+barrel. Camera reset a ogni cambio traccia.
+6. **Versione bumped** — v3.5.1 → v3.6.0
+
+**File toccati:**
+- `src/main.js` — rimosso import morto
+- `src/midi.js` — fix commento Ch7
+- `src/comp-quadrati.js` → `archive/code/dead-islands/`
+- `src/world-state.js` — nuovo oggetto camera
+- `src/config.js` — sezione campo.camera
+- `src/campo.js` — barrel LUT, macro/orbita rendering, getCampoAvgDensity
+- `src/director3.js` — import getCampoAvgDensity, _updateCamera(), camera reset in initDirector3
+- `src/VERSION.js` — v3.6.0
+- `docs/STATUS.md` — rigenerato
+- `docs/WORKLOG.md` — questa entry
+
+**Decisioni:**
+- Barrel LUT: copia pixel-per-pixel con snapshot Uint8ClampedArray. Se troppo pesante su hardware lento, fallback radiale alfa da implementare (non in questa sessione).
+- Camera reset a zoom 1.0 a ogni cambio traccia: RITORNO ricalcola progressivamente, gli altri partono neutri.
+
+**Prossimo:**
+- P0: test visivo live dei biomi + camera (Shift+C, scorrere tracce, verificare macro/drift/orbita)
+- P1: RITORNO come pianeta irregolare (la camera orbita + barrel è pronta)
+- P2: cablare rupture nelle depositFn
+
+---
+
+## 2026-04-12 (sessione 11) — Ridisegno biomi: fisica distintiva per traccia
+
+**Obiettivo:** Analisi critica dello stato visivo di tutti i biomi e ridisegno delle depositFn per dare a ogni bioma una fisica unica e riconoscibile. Ogni strumento deve avere un primitivo visivo distinto.
+
+**Analisi critica (pre-implementazione):**
+- Tutti i biomi usavano depositPoint/depositRow/depositBlob → stesso tipo di immagine
+- TEMPESTA (1/4 nel framework) il peggiore: nessuna fisica direzionale, nessun hocket visivo
+- RESPIRO: bg sage [123,186,145] con drone quasi-nero → zero contrasto su proiettore (screen blend non scurisce)
+- NEBBIA: voice = punto singolo invece di nebulosa espandente
+- MACCHINA: arp = punto random invece di scansione sequenziale
+- SOLCO: bass senza echo trail dub
+- SOLCO drone assente (bug vs MOOD.md)
+- MACCHINA bass usava Y-mapping per posizione X (bug)
+
+**Fatto:**
+1. **Infrastruttura phase-aware** — campo.js importa worldState/phaseState, HELPERS espone `h.phase`, `h.rupture`, `h.energy`, `h.phaseProgress`, `h.audioEnergy`. Le depositFn possono ora leggere la fase corrente.
+2. **Particle pools voice/lead** — campo.js: pool per nebulose espandenti (voice) e scie orizzontali (lead). Physics nel loop updateCampo.
+3. **NEBBIA ridisegnata** — voice = nebulosa espandente (particle r=1→7, ~2s), drone = cluster quasi permanente (decay 0.9998), audioReact solo dove c'è materia, chord = velatura parziale. cellPx: drone=20, voice=6.
+4. **TESSUTO ridisegnato** — chord = fibra full-width spessa 2 celle con decay 0.965 (pulsa visibilmente), kick = onda che fa tremare tutte le fibre attive di chord, bass = fascia orizzontale 3 celle spessa.
+5. **SOLCO ridisegnato** — bass con echo trail dub (deposito + 2 fantasmi spostati e degradati), kick shockwave con forza inversamente proporzionale alla presenza del bass (alternanza spaziale dub), arp 2-3 particelle per nota, voice banda con fade ai bordi. Fix: drone aggiunto (era assente, bug vs MOOD.md).
+6. **RESPIRO fix contrasto** — bg da sage [123,186,145] a nero-verde [12,20,15], drone (membrana) da quasi-nero a sage luminoso [110,185,140]. Alto contrasto. Pori con alone luminoso ai bordi (voice/lead hanno colori propri). Chord = ondulazione (micro-pori spaziati). Target membrana alzato a 0.85.
+7. **MACCHINA ridisegnata** — arp = scansione sequenziale con trail di 3 celle, bass = colonna larga 3 con gradiente (fix: pitch→X corretto), chord = blocco 3×2, percussion = accenti equidistanti su riga, voice/lead = LED deterministici specchiati.
+8. **TEMPESTA ridisegnata** — impulsi direzionali ogni 3-15 frame, 3 livelli suscettibilità (drone 0.02 → arp/voice 0.50-0.60), voice+lead = scie nella direzione dell'impulso (hocket bianco/carmine), percussion = scintille sparse su tutto il canvas, drone = linee di forza orizzontali stabili.
+9. **Pannello debug pulito** — da ~50 righe a ~20. Aggiunto: audioEnergy con barra, flux+onset, bande frequenza (SUB/LOW/MID/HI), rupture con stadio e intensità, firma compatta. Rimosso: reference card 25 righe (compressa in 4), sezione tracce/fasi ridondanti, sezione musica inutile.
+
+**File toccati:**
+- `src/campo.js` — import worldState, HELPERS arricchito, particle pools voice/lead, loop updateCampo
+- `src/biomi.js` — 6 biomi ridisegnati (NEBBIA, TESSUTO, SOLCO, RESPIRO, MACCHINA, TEMPESTA), 2 bug fix (SOLCO drone, MACCHINA bass cx)
+- `src/render.js` — pannello debug riscritto
+- `src/VERSION.js` — v3.4.2 → v3.5.0
+
+**Decisioni:**
+- RESPIRO: bg scuro obbligatorio perché screen blend non può scurire su bg chiaro. La "luminosità" viene dalla membrana sage, non dal bg.
+- RITORNO rimandato: deve essere l'ultimo (composto dai sedimenti di tutti i biomi visti da lontano come pianeta irregolare su nero).
+
+**Prossimo:**
+- P0: test visivo live dei 6 biomi ridisegnati (Shift+C, scorrere tracce)
+- P1: RITORNO come pianeta irregolare (maschera circolare con contorni noise)
+- P2: cablare rupture nelle depositFn (i 4 stadi modificano la fisica)
+- P3: evoluzione per fase (force/decay modulati da h.phase e h.phaseProgress)
+
+---
+
 ## 2026-04-12 (sessione 10) — Cablaggio infrastrutturale campo
 
 **Versione fine sessione:** v3.4.3-wip

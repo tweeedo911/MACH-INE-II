@@ -8,7 +8,7 @@ i segnali MIDI generati su synth modulare, hardware e VST.
 Non è un visualizer: la musica è l'ambiente, la macchina propone, il performer interpreta.
 
 ## Versione
-**v3.4.2** — single source of truth: `src/VERSION.js` (`APP_VERSION`).
+**v3.8.0** — single source of truth: `src/VERSION.js` (`APP_VERSION`).
 
 ## Stack
 - JavaScript ES modules nativi (zero dipendenze, zero build)
