@@ -1166,6 +1166,13 @@ export const CFG = {
       shimmer:  0.05,       // ampiezza vibrazione moltiplicativa per cella
     },
 
+    // ── Sistema Geometrico (paradigma sperimentale, vedi geo.js + docs/VISUAL-SPEC.md) ──
+    // Toggle runtime Shift+G. Mutuamente esclusivo con comp-* e campo.
+    // Particelle geometriche su layers.js (FG/MG/OVERLAY) con rendering Bayer.
+    geo: {
+      useGeo: false,  // false = non usato, true = Sistema Geometrico attivo
+    },
+
     // ── Micro-glitch globale (field.js) ──
     // rhythmThreshold: rhythmicity minima per attivare (0 = sempre, 1 = solo piena pulsazione)
     // intensityMul:    scala audioEnergy × rhythmicity → prob glitch (era floor +0.3 fisso)
