@@ -2,12 +2,13 @@
 //  MACH:INE III — Campo Materiale
 //
 //  Paradigma: il campo non è un visualizer.
-//  È un campo fisico persistente (Float32Array 32×32 per ruolo).
+//  È un campo fisico persistente (Float32Array 96×54 per ruolo).
 //  La musica applica forze, il decay e lo shimmer danno vita
 //  continua. Quello che vedi è lo STATO del campo, non eventi.
 //
-//  Rendering: Bayer halftone su offscreen 32*cellPx (640px
-//  default), screen blend per ruolo in Z-order grave→acuto,
+//  Rendering: Bayer halftone su offscreen 960×540 (cellsX*cellPx),
+//  multi-cellPx per ruolo (drone=16 coarse, voice=8 fine, etc.),
+//  screen blend in Z-order grave→acuto,
 //  upscale al canvas full-screen con smoothing disabilitato.
 //
 //  Validato in proto-campo.html (2026-04-10/11).
@@ -34,10 +35,11 @@ const CH_ROLE = ['kick','percussion','drone','bass','chord','voice','lead','arp'
 // ── Stato ──
 let _fields = null;
 let _bioma  = null;
-let _cells  = 32;
-let _cellPx = 20;
-let _W      = _cells * _cellPx;
-let _H      = _cells * _cellPx;
+let _cellsX = 96;
+let _cellsY = 54;
+let _cellPx = 10;
+let _W      = _cellsX * _cellPx;
+let _H      = _cellsY * _cellPx;
 
 // particles con fisica propria
 const _particles = { chord: [], arp: [] };
@@ -48,29 +50,29 @@ let _imgData = null, _imgBuf = null;
 
 // ── Helpers esposti alle depositFn ──
 function clamp(v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }
-function idx(cx, cy) { return cy * _cells + cx; }
-function pitchToCell(p) { return Math.round((1 - p / 127) * (_cells - 1)); }
+function idx(cx, cy) { return cy * _cellsX + cx; }
+function pitchToCell(p) { return Math.round((1 - p / 127) * (_cellsY - 1)); }
 
 // Mapping locale: [lo,hi] → 80% centrale del campo Y
 // High pitch = low Y (top), low pitch = high Y (bottom)
 function localPitchToCell(note, lo, hi) {
-  if (lo >= hi) return Math.floor(_cells / 2);
-  const margin = Math.floor(_cells * 0.10);    // 3 celle su 32
-  const usable = _cells - 1 - 2 * margin;      // 25 su 32
+  if (lo >= hi) return Math.floor(_cellsY / 2);
+  const margin = Math.floor(_cellsY * 0.10);
+  const usable = _cellsY - 1 - 2 * margin;
   const t = clamp((note - lo) / (hi - lo), 0, 1);
   return Math.round(margin + (1 - t) * usable); // t=1 (acuto) → top
 }
 
 function depositPoint(field, cx, cy, force) {
-  if (cx < 0 || cx >= _cells || cy < 0 || cy >= _cells) return;
+  if (cx < 0 || cx >= _cellsX || cy < 0 || cy >= _cellsY) return;
   const i = idx(cx, cy);
   const v = field[i] + force;
   field[i] = v > 1 ? 1 : v < 0 ? 0 : v;
 }
 
 function depositRow(field, cy, force) {
-  if (cy < 0 || cy >= _cells) return;
-  for (let cx = 0; cx < _cells; cx++) depositPoint(field, cx, cy, force);
+  if (cy < 0 || cy >= _cellsY) return;
+  for (let cx = 0; cx < _cellsX; cx++) depositPoint(field, cx, cy, force);
 }
 
 function depositBlob(field, cx, cy, w, h, force) {
@@ -84,7 +86,9 @@ function depositBlob(field, cx, cy, w, h, force) {
 }
 
 const HELPERS = {
-  get CELLS() { return _cells; },
+  get CELLS_X() { return _cellsX; },
+  get CELLS_Y() { return _cellsY; },
+  get CELLS() { return _cellsX; },  // backward compat for horizontal depositFn
   clamp, pitchToCell, localPitchToCell,
   depositPoint, depositRow, depositBlob,
 };
@@ -93,12 +97,12 @@ const HELPERS = {
 function _ensureBuffers() {
   if (_fields) return;
   _fields = {};
-  for (const r of ROLES) _fields[r] = new Float32Array(_cells * _cells);
+  for (const r of ROLES) _fields[r] = new Float32Array(_cellsX * _cellsY);
 }
 
 function _ensureOffscreen() {
-  const targetW = _cells * _cellPx;
-  const targetH = _cells * _cellPx;
+  const targetW = _cellsX * _cellPx;
+  const targetH = _cellsY * _cellPx;
   if (_off && _W === targetW && _H === targetH) return;
   _W = targetW;
   _H = targetH;
@@ -113,8 +117,9 @@ function _ensureOffscreen() {
 // ── API pubblica ──
 
 export function initCampo() {
-  _cells  = CFG.VISUAL?.campo?.cellsX ?? 96;  // TODO: refactor → _cellsX/_cellsY separati
-  _cellPx = CFG.VISUAL?.campo?.cellPx ?? 20;
+  _cellsX = CFG.VISUAL?.campo?.cellsX ?? 96;
+  _cellsY = CFG.VISUAL?.campo?.cellsY ?? 54;
+  _cellPx = CFG.VISUAL?.campo?.cellPx ?? 10;
   _ensureBuffers();
   _ensureOffscreen();
   _bioma = getBiome('GENERIC');
@@ -151,7 +156,7 @@ export function feedNote(ch, note127, vel127) {
 
   // Default depositors — semplici, punto a pitch→Y centro canvas
   const cy = pitchToCell(note127);
-  const cx = Math.floor(_cells / 2);
+  const cx = Math.floor(_cellsX / 2);
   const f  = (vel127 / 127) * _bioma.force[role];
   depositPoint(_fields[role], cx, cy, f);
 }
@@ -172,7 +177,7 @@ export function updateCampo(dt, audioEnergy = 0) {
   for (let i = _particles.chord.length - 1; i >= 0; i--) {
     const p = _particles.chord[i];
     p.cy += p.vy;
-    if (p.cy >= _cells) { _particles.chord.splice(i, 1); continue; }
+    if (p.cy >= _cellsY) { _particles.chord.splice(i, 1); continue; }
     const cy = Math.floor(p.cy);
     for (let dx = -p.halfW; dx <= p.halfW; dx++) {
       const falloff = 1 - Math.abs(dx) / (p.halfW + 1);
@@ -185,7 +190,7 @@ export function updateCampo(dt, audioEnergy = 0) {
   for (let i = _particles.arp.length - 1; i >= 0; i--) {
     const p = _particles.arp[i];
     p.cy += p.vy;
-    if (p.cy >= _cells) { _particles.arp.splice(i, 1); continue; }
+    if (p.cy >= _cellsY) { _particles.arp.splice(i, 1); continue; }
     depositPoint(_fields.arp, p.cx, Math.floor(p.cy), p.f * 0.4);
   }
 
@@ -220,7 +225,9 @@ export function renderCampo(ctx, W, H) {
     data[i+3] = 255;
   }
 
-  // Z-order rendering
+  const defaultRoleCpx = CFG.VISUAL?.campo?.roleCellPx ?? {};
+
+  // Z-order rendering — one pass per role with its own cellPx
   for (const role of ZORDER) {
     const field = _fields[role];
     const [rC, gC, bC] = _bioma.colors[role];
@@ -229,20 +236,32 @@ export function renderCampo(ctx, W, H) {
     const srcR = rC / 255;
     const srcG = gC / 255;
     const srcB = bC / 255;
-    const cp   = _cellPx;
 
-    for (let cy = 0; cy < _cells; cy++) {
-      for (let cx = 0; cx < _cells; cx++) {
-        const density = field[idx(cx, cy)];
+    // cellPx per role: biome override > config default > fallback
+    const cpx = (_bioma.cellPx && _bioma.cellPx[role])
+             ?? defaultRoleCpx[role]
+             ?? _cellPx;
+    const halfCpx = Math.floor(cpx / 2);
+
+    for (let cy = 0; cy < _cellsY; cy++) {
+      for (let cx = 0; cx < _cellsX; cx++) {
+        const density = field[cy * _cellsX + cx];
         if (density < 0.003) continue;
-        const baseX = cx * cp;
-        const baseY = cy * cp;
-        for (let py = 0; py < cp; py++) {
-          const gy = baseY + py;
-          for (let px = 0; px < cp; px++) {
-            const gx = baseX + px;
-            if (density < bayer(gx, gy)) continue;
-            const pi = (gy * _W + gx) * 4;
+
+        // Proportional position on offscreen
+        const centerX = Math.floor((cx + 0.5) * _W / _cellsX);
+        const centerY = Math.floor((cy + 0.5) * _H / _cellsY);
+
+        // Pixel area cpx × cpx centered on position
+        const x0 = Math.max(0, centerX - halfCpx);
+        const y0 = Math.max(0, centerY - halfCpx);
+        const x1 = Math.min(_W, centerX - halfCpx + cpx);
+        const y1 = Math.min(_H, centerY - halfCpx + cpx);
+
+        for (let py = y0; py < y1; py++) {
+          for (let px = x0; px < x1; px++) {
+            if (density < bayer(px, py)) continue;
+            const pi = (py * _W + px) * 4;
             // screen blend
             data[pi]   = ((1 - (1 - srcR) * (1 - data[pi]   / 255)) * 255) | 0;
             data[pi+1] = ((1 - (1 - srcG) * (1 - data[pi+1] / 255)) * 255) | 0;
@@ -255,7 +274,7 @@ export function renderCampo(ctx, W, H) {
 
   _offCtx.putImageData(_imgData, 0, 0);
 
-  // Upscale al canvas full-screen, pixel-perfect (no smoothing)
+  // Upscale to canvas — same aspect ratio, zero stretch
   const prevSmoothing = ctx.imageSmoothingEnabled;
   ctx.imageSmoothingEnabled = false;
   ctx.drawImage(_off, 0, 0, _W, _H, 0, 0, W, H);
