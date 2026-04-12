@@ -6,6 +6,156 @@
 
 ---
 
+## 2026-04-12 (sessione 10) — Cablaggio infrastrutturale campo
+
+**Versione fine sessione:** v3.4.3-wip
+**Branch:** `machine-iii`
+
+### Obiettivo
+Portare il Campo Materiale al massimo espressivo cablando: grid rettangolare
+(no stretch), cellPx variabile per ruolo, firma (gelo/convergenza/densityCap),
+solidificazione a 3 strati.
+
+### Fatto
+
+**Grid rettangolare 96×54**
+Sostituito `_cells` (32×32 quadrato) con `_cellsX=96` / `_cellsY=54` (16:9 esatto).
+Offscreen 960×540px. Zero stretch su canvas 16:9. Tutte le depositFn in biomi.js
+aggiornate: `h.CELLS` → `h.CELLS_X` / `h.CELLS_Y` (59 sostituzioni nei 7 biomi).
+
+**cellPx variabile per ruolo**
+Ogni ruolo renderizza con la sua grana Bayer: drone=16px (grosso, geologico),
+voice=8px (fine, preciso), arp=6px (finissimo). Override per bioma: NEBBIA ha
+drone=20px e voice=6px (massimo contrasto), MACCHINA tutto 10px (griglia uniforme).
+
+**Firma nel campo**
+campo.js ora importa firma.js e reagisce a:
+- gelo: freeze totale (no decay, no deposit, no audioReact)
+- convergenza: materia migra verso il centro (transfer 0.3*dt)
+- densityCap: gate probabilistico su feedNote
+
+**Solidificazione 3 strati**
+Decay modulato automaticamente da 3 fattori (composti via max):
+- Strato A (silenzio): ruoli che non suonano cristallizzano (soglie 1-8s per ruolo)
+- Strato B (densità): celle >0.8 quasi permanenti (smoothstep 0.4→0.8)
+- Strato C (spaziale): parte bassa del campo sedimenta (smoothstep 0.5→0.9)
+Override per bioma: MACCHINA no stratigrafia, TEMPESTA nulla cristallizza,
+RESPIRO solo densità >0.9, RITORNO tutto solidifica al 50%.
+
+**Convergenza automatica**
+director3.js attiva firma.convergenza nell'ultimo 15% della fase dissoluzione.
+La materia migra al centro come transizione visiva naturale prima del cambio traccia.
+
+### File toccati
+**Modificati:**
+- `src/config.js` (campo: cellsX/cellsY, roleCellPx, silenceThreshold, freeze params)
+- `src/campo.js` (grid rettangolare, render multi-cellPx, firma, solidificazione)
+- `src/biomi.js` (CELLS_X/CELLS_Y in 7 biomi, freeze/cellPx per 5 biomi)
+- `src/director3.js` (import firma, convergenza auto in dissoluzione)
+- `docs/STATUS.md` (rigenerato)
+- `docs/WORKLOG.md` (questa entry)
+
+**Nuovi:**
+- `docs/superpowers/specs/2026-04-12-campo-infrastruttura-design.md`
+- `docs/superpowers/plans/2026-04-12-campo-infrastruttura.md`
+
+### Decisioni
+- Nessuna nuova decisione formale. Scelte documentate nella spec.
+
+### Prossimo
+- **P0 — Camera nel campo** — zoom macro/orbita, barrel distortion, pilotaggio da director3
+- **P1 — Calibrazione visiva live** — testare bioma per bioma con musica reale
+- **P2 — Rupture nel campo** — cablare worldState.rupture in biomi.js
+- **P3 — Density cap TEMPESTA**
+- **P4 — Lato musicale** (tuning densità, transizioni, silenzi)
+
+---
+
+## 2026-04-12 (sessione 9) — 7 biomi implementati nel Campo Materiale
+
+**Versione fine sessione:** v3.4.2 (nessun bump — codice nuovo in campo.js + biomi.js)
+**Branch:** `machine-iii`
+
+### Obiettivo
+Implementare meccanicamente tutti i 7 biomi nel Campo Materiale, partendo
+dalle bozze della sessione 8 e dal documento MOOD.md.
+
+### Fatto
+
+**localPitchToCell(note, lo, hi) in campo.js**
+Mapping registro locale: [lo,hi] → 80% del campo Y con margine 10%.
+Da 4 celle (pitchToCell globale) a 25 celle per ruolo. Aggiunto a HELPERS
+per uso nelle depositFn. SOLCO bass depositFn aggiornato per usarlo.
+
+**Fix palette SOLCO**
+Riscaldato da verde-oliva a terracotta: bg [26,33,28]→[30,24,18],
+arp [213,255,87]→[255,200,80] (ambra), voice [213,255,87]→[240,210,130]
+(crema dorata).
+
+**NEBBIA bioma completo**
+Bg quasi nero, drone lavanda come nebulosa (blob locale + wash audio-reactive),
+voice punti isolati cream, lead scie brevi con fade, chord velature orizzontali.
+audioReact: drone respira con audioEnergy dal worldState.
+
+**Campo fullscreen**
+drawImage da quadrato centrato a stretch su tutto il canvas.
+Eliminato il fillRect bg + calcolo side/dx/dy.
+
+**Bug fix: _campoActiveTrack**
+Il campo condivideva _activeTrack con le comp-* classiche → al toggle Shift+C
+il bioma non veniva settato. Aggiunto tracker separato _campoActiveTrack
+(stesso pattern di _geoActiveTrack).
+
+**audioReact in updateCampo**
+Nuovo parametro audioEnergy passato da field.js. I biomi possono definire
+audioReact(fields, energy, helpers) per modulazione continua ogni frame.
+Usato da: NEBBIA (drone wash), RESPIRO (self-heal membrana), MACCHINA
+(griglia base 0.05).
+
+**5 biomi rimanenti implementati**
+- TESSUTO: tensione orizzontale, chord lime a tutta larghezza (telaio staccato),
+  lead cream punti alti, bass segmento spesso, kick impulso riga.
+- RESPIRO: INVERTITO — campo pieno (drone 0.75), note creano pori circolari
+  nella membrana che si richiude per tensione superficiale. Monocromatico
+  (quasi-nero su sage). Voice/lead/bass/chord scrivono tutti su fields.drone.
+- MACCHINA: snap griglia, base 0.05 sempre visibile, arp giallo (cx=note%32,
+  deterministico → pattern leggibile), kick riga, bass colonna, pink accent.
+- TEMPESTA: densità massima, voice bianco + lead carmine (hocket alternato),
+  blob bass, kick flash, percussion carmine sparsa, arp texture grigia.
+- RITORNO: preserva sedimento (default campo.js), voice cream come NEBBIA,
+  arp morente (decay 0.950 + force 0.15), drone blob diffuso lavanda.
+
+**Calibrazioni iterative NEBBIA**
+- Drone da carpet uniforme → blob locale → compromesso (blob 6×5 + wash 0.001)
+- Chord/voice/lead colori alzati verso bianco puro (luminosità)
+- Decay chord/voice rallentato (da 0.996/0.990 → 0.9992/0.9988)
+
+### File toccati
+**Modificati:**
+- `src/campo.js` (localPitchToCell, audioReact, fullscreen drawImage)
+- `src/biomi.js` (SOLCO palette, NEBBIA completo, TESSUTO/RESPIRO/MACCHINA/
+  TEMPESTA/RITORNO completi — nessun placeholder rimasto)
+- `src/field.js` (_campoActiveTrack, audioEnergy passato a updateCampo)
+- `docs/DECISIONS.md` (#016)
+- `docs/STATUS.md` (rigenerato)
+- `docs/WORKLOG.md` (questa entry)
+
+### Decisioni
+- **#016** — 7 biomi implementati, 5 limiti noti identificati e concordati.
+
+### Prossimo
+- **P0 — Calibrazione visiva live** — testare ogni bioma con musica reale,
+  uno per uno. Annotare: cosa funziona, cosa no, quale bioma è il primo
+  candidato per prototipo HTML standalone di redesign.
+- **P1 — Variazione grana Bayer** — rompere la monotonia: cellPx variabile
+  per ruolo, o Bayer 8×8 alternativo, o dithering diverso per layer.
+- **P2 — Density cap TEMPESTA** — impedire saturazione uniforme al picco.
+- **P3 — Lifecycle dotSize** — valutare se possibile nel paradigma campo
+  (potrebbe richiedere cellPx variabile per cella o render multi-pass).
+- **P4 — Firma nel campo** — gelo (freeze decay), convergenza, densityCap.
+
+---
+
 ## 2026-04-12 (sessione 8) — Sistema Geometrico v1, decisione campo definitivo, bozze 7 biomi
 
 **Versione fine sessione:** v3.4.2 (nessun bump — codice nuovo aggiunto, comp-* invariate)
