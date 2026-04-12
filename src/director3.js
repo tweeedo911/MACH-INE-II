@@ -5,6 +5,7 @@
 // ═══════════════════════════════════════════════════════════
 
 import { CFG } from './config.js';
+import { firma } from './firma.js';
 import { worldState, phaseState } from './world-state.js';
 import { TRACKS, PHASE_DENSITY, PHASE_ENERGY, TRACK_ORDER } from './tracks.js';
 import { audio } from './audio.js';
@@ -109,8 +110,9 @@ export function initDirector3(trackName = 'SOLCO') {
   worldState.palette.bg          = tp?.bg       ?? _track.palette.bg;
   worldState.palette.dot         = tp?.dot      ?? _track.palette.dot;
   worldState.palette.accent      = tp?.event    ?? _track.palette.accent ?? null;
-  worldState.palette.ruptureTint = tp?.rupture  ?? null;
-  worldState.palette.residual    = tp?.residual ?? null;
+  worldState.palette.ruptureTint = tp?.rupture   ?? null;
+  worldState.palette.ruptureBg   = tp?.ruptureBg ?? null;
+  worldState.palette.residual    = tp?.residual  ?? null;
   worldState.visualRegime = { ...(_track.visualRegime) };
 
   // Reset rupture — phase starts at germoglio, not rottura
@@ -257,10 +259,19 @@ export function updateDirector3(dt) {
       worldState.degradation.timingJitterMs = 0;
       worldState.degradation.chordNoteCount = 99;
     }
+
+    // ── Convergenza automatica nell'ultimo 15% della dissoluzione ──
+    const dissolveDur = _track.phases.dissoluzione || 0;
+    if (dissolveDur > 0) {
+      const progress = _phaseBars / dissolveDur;
+      firma.convergenza = progress > 0.85;
+    }
   } else {
     worldState.degradation.noteDropProb   = 0;
     worldState.degradation.timingJitterMs = 0;
     worldState.degradation.chordNoteCount = 99;
+    // Reset convergenza outside dissoluzione
+    if (firma.convergenza) firma.convergenza = false;
   }
 
   // Advance phase if bar count exceeded
@@ -366,19 +377,7 @@ function _advanceTrack() {
   const currentIdx = TRACK_ORDER.indexOf(worldState.track);
   const nextIdx = currentIdx + 1;
 
-  // ── V2: structural silence at end of SOLCO (before RESPIRO) ──
-  if (CFG.MUSIC_EXPERIMENT && !_silenceTriggered.endOfSOLCO &&
-      worldState.track === 'SOLCO') {
-    _triggerStructuralSilence(2, 'fine SOLCO');
-    _silenceTriggered.endOfSOLCO = true;
-  }
-
-  // ── V2: structural silence at end of TEMPESTA (before RITORNO) — il più lungo ──
-  if (CFG.MUSIC_EXPERIMENT && !_silenceTriggered.endOfTEMPESTA &&
-      worldState.track === 'TEMPESTA') {
-    _triggerStructuralSilence(3, 'fine TEMPESTA');
-    _silenceTriggered.endOfTEMPESTA = true;
-  }
+  // V2 structural silences removed — replaced by overlap transitions (V3.5)
 
   if (nextIdx >= TRACK_ORDER.length) {
     // Concert is over — pause
@@ -397,6 +396,7 @@ function _advanceTrack() {
     // Try the one after
     for (let i = nextIdx + 1; i < TRACK_ORDER.length; i++) {
       if (TRACKS[TRACK_ORDER[i]]) {
+        sendMIDIAllNotesOff();
         initDirector3(TRACK_ORDER[i]);
         _paused = false; // keep playing
         return;
@@ -407,6 +407,8 @@ function _advanceTrack() {
     return;
   }
 
+  // Clean cut: silence all ringing notes before loading new track
+  sendMIDIAllNotesOff();
   console.log(`[DIR3] → Next track: ${nextTrack}`);
   initDirector3(nextTrack);
   _paused = false; // keep playing — don't reset to paused
