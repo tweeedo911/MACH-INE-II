@@ -72,9 +72,15 @@ export const worldState = {
   },
 
   // ── Visual regime (read by renderer) ──
-  palette:      { bg: '#000000', dot: '#FFFFFF', accent: null, ruptureTint: null, residual: null },
+  palette:      { bg: '#000000', dot: '#FFFFFF', accent: null, ruptureTint: null, ruptureBg: null, residual: null },
   visualRegime: { maxDensity: 0.5, minDotSize: 4, composition: 'DEFAULT' },
-  camera:       { mode: 'WIDE', drift: 0, focusPoint: [0.5, 0.5] },
+  camera: {
+    zoom:   1.0,        // attuale zoom (scritto da camera.js)
+    focusX: 0.5,        // attuale focus X 0→1 (scritto da camera.js)
+    focusY: 0.5,        // attuale focus Y 0→1 (scritto da camera.js)
+    personality: null,   // bioma attivo — scritto da director3
+    phase: null,         // fase corrente — scritta da director3
+  },
 };
 
 // ── Phase time tracking (internal to director3, exposed for HUD) ──

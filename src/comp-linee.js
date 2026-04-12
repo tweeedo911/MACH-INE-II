@@ -38,8 +38,8 @@ import {
 const PHASE_PARAMS = {
   germoglio:    { lineCount: 2, thickness: 1, gap: 0.15, glissSpeed: 0.00, sedimentRate: 0.94, zoom: 1.00 },
   pulsazione:   { lineCount: 3, thickness: 2, gap: 0.10, glissSpeed: 0.05, sedimentRate: 0.90, zoom: 1.00 },
-  densita:      { lineCount: 5, thickness: 3, gap: 0.06, glissSpeed: 0.10, sedimentRate: 0.85, zoom: 1.02 },
-  rottura:      { lineCount: 7, thickness: 5, gap: 0.03, glissSpeed: 0.20, sedimentRate: 0.78, zoom: 1.04 },
+  densita:      { lineCount: 5, thickness: 3, gap: 0.06, glissSpeed: 0.10, sedimentRate: 0.85, zoom: 1.00 },
+  rottura:      { lineCount: 7, thickness: 5, gap: 0.03, glissSpeed: 0.20, sedimentRate: 0.78, zoom: 1.00 },
   dissoluzione: { lineCount: 2, thickness: 1, gap: 0.15, glissSpeed: 0.02, sedimentRate: 0.95, zoom: 1.00 },
 };
 

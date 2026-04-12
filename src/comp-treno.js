@@ -134,7 +134,7 @@ export function render(ctx, W, H, env) {
   }
 
   // ── FG layer: oggetti, sparkles, ambient con camera ──
-  const cameraZoom = lerp(1.0, lerp(1.0, 1.04, clamp(_params.density - 0.5, 0, 1) * 2), ruptI);
+  const cameraZoom = lerp(1.0, lerp(1.0, 1.18, clamp(_params.density - 0.5, 0, 1) * 2), ruptI);
   if (lFg) applyCameraTransform(lFg, W, H, {
     zoom:        cameraZoom,
     shakeAmount: _shakeAmt,
@@ -166,7 +166,7 @@ export function render(ctx, W, H, env) {
     _objects.push({
       plane,
       x:        spawnX,
-      y:        lerp(yRange[0], yRange[1], n.note / 127) * H,
+      y:        lerp(yRange[0], yRange[1], 1 - n.note) * H,
       size:     dotSize * n.vel,
       isAccent: n.ch === 5 || n.ch === 6,
       alpha:    n.vel,

@@ -30,3 +30,7 @@ vedi `archive/docs/old/VISION-V4.md` e `archive/docs/old/DESIGN-V5.md`.
 Per l'evoluzione e la diagnosi che ha portato alla "tabula rasa" v3,
 vedi `archive/docs/old/RESEARCH-V4-COMPOSITIONAL-DIRECTION.md`
 e `archive/docs/old/RESEARCH-V4-VISUAL-DIRECTION.md`.
+
+---
+<!-- knowledge-graph links -->
+[[01-ARCHITECTURE]] [[02-MUSIC]] [[03-VISUAL]] [[05-ROADMAP]]

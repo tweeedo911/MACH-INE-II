@@ -211,7 +211,7 @@ export function render(ctx, W, H, env) {
         ? lerp(0.15, 0.85, 1 - n.note) + (Math.random() - 0.5) * spread * 0.2
         : _vanishY + (Math.random() - 0.5) * spread * 0.3;
 
-      const rotturaBoost = lerp(1.0, 1.5, ruptI);
+      const rotturaBoost = lerp(1.0, 3.0, ruptI);
       const sizeMul = (isVoice ? 2.0 : isChord ? 1.5 : isDrone ? 1.8 : 1.0) * rotturaBoost;
       const depth = _isRitorno
         ? (isVoice ? 0.2 + Math.random() * 0.3 : 0.05 + Math.random() * 0.15)

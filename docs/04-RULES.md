@@ -66,3 +66,7 @@ Per ogni task non banale:
 
 Risposte all'utente in **italiano**, terse e dirette, senza preamboli o riassunti
 di cose appena fatte.
+
+---
+<!-- knowledge-graph links -->
+[[01-ARCHITECTURE]] [[STATUS]] [[06-AGENTS]]

@@ -14,6 +14,7 @@
 
 import { CFG } from './config.js';
 import { firma } from './firma.js';
+import { getPalette } from './colors.js';
 
 // ── MIDI channel → role map (confermato 2026-04-07) ──
 // CH0 kick · CH1 percussion · CH2 drone · CH3 bass
@@ -71,6 +72,16 @@ let _nextId = 1;
 export function getEvents() { return _events; }
 export function eventCount() { return _events.length; }
 
+// ── Snapshot colore al momento dello spawn ──
+// Legge CFG.VISUAL.roleColors[role] → quale campo della palette usare.
+// Ritorna copia [r,g,b] (non riferimento — il colore è fisso al birth).
+function _pickSpawnColor(role) {
+  const p = getPalette();
+  const channel = CFG.VISUAL?.roleColors?.[role] ?? null;
+  const src = channel ? p[channel] : p.dot;
+  return src ? [src[0], src[1], src[2]] : [255, 255, 255];
+}
+
 // ── Factory ──
 function _makeEvent(role, data) {
   const lc = ROLE_LIFECYCLE[role] || ROLE_LIFECYCLE.onset;
@@ -84,6 +95,8 @@ function _makeEvent(role, data) {
     note: data.note ?? 0,      // 0..1 normalizzato
     vel:  data.vel  ?? 1,      // 0..1
     ch:   data.ch   ?? -1,     // canale originale o -1 per onset audio
+    // colore snapshot al birth (Bible §16.1 — non segue cambi palette)
+    spawnColor: _pickSpawnColor(role),
     // lifecycle
     birth: data.t ?? 0,        // globalTime al nascere
     age: 0,                    // s trascorsi

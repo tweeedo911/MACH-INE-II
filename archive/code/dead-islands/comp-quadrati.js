@@ -203,7 +203,7 @@ export function render(ctx, W, H, env) {
 
     const breathe = 1 + Math.sin(_time * 1.8 + b.breathPhase) * bassEnergy * 0.12;
 
-    const densityBoost = rmsBoost + ruptI * 0.08;
+    const densityBoost = rmsBoost + ruptI * 0.30;
     let density  = clamp(_params.fillDensity + b.flash * 0.4 + densityBoost, 0, 1);
     if (ruptI > 0.3 && shouldGlitch(ruptI, true, _time + i * 0.7)) {
       density = Math.random() > 0.5 ? 1.0 : 0.05;
@@ -246,7 +246,7 @@ export function render(ctx, W, H, env) {
           for (let k = 0; k < spawnCount; k++) {
             _arpParticles.push({
               cx:          (block.x + block.w * 0.5) * W,
-              cy:          (block.y + block.h * 0.5) * H,
+              cy:          H * (1 - n.note), // pitch → Y: acuto = alto
               angle:       Math.random() * Math.PI * 2,
               radiusBase:  baseRadius * (0.4 + Math.random() * 0.9),
               radiusWobble: baseRadius * (0.10 + Math.random() * 0.15),

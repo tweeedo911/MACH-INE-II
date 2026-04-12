@@ -35,3 +35,7 @@ Per il backlog completo e le diagnosi pre-v3:
 - `archive/docs/old/HANDOFF.md` — handoff tra sessioni
 - `archive/docs/old/SALVAGE.md` — classificazione 🟥/🟧/🟨 dei frammenti salvabili
 - `~/.claude/projects/-Users-Edo-1-MACH-INE-II-MACH-INE-II/memory/` — memoria agentica
+
+---
+<!-- knowledge-graph links -->
+[[STATUS]] [[DECISIONS]] [[07-ARTISTIC-GAPS]] [[00-VISION]]

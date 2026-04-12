@@ -63,6 +63,16 @@
 | **UVA** | **RITORNO: 7 linee oscillanti**, una per traccia passata, ognuna con il BPM della traccia originale | `comp-liminale.js` (RITORNO) | RITORNO usa la stessa liminale. Nessuna memoria delle 7 tracce. |
 | **D.9** | **RITORNO = memory dei 6 minuti chiave** (snapshot a min 6, 14, 22, 30, 36 come maschere α 0.05-0.15) | `field.js`, `comp-liminale.js` | Il sediment condiviso cattura tutto ma non i momenti specifici. |
 | **Kohlberger** | **Flicker dose budget**: max N frame di flicker per minuto (il glitch non ha budget) | `field.js` | Il micro-glitch è probabilistico ma non ha limite di esposizione temporale. |
+| **GC-1 (colore per canale MIDI)** | **Colore per ruolo nel LifecycleEvent**: ogni evento porta al momento spawn il colore del suo canale (CH0=pulse, CH3=bass, CH7=arp) dalla trackPalette corrente. Il colore decade verso bg lungo il lifecycle, non segue i cambi di palette. | `event-register.js`, `colors.js` | Kick e drone hanno lo stesso colore dot. Senza questo, la timbrica cromatica è impossibile. Prerequisito di GL-1 (lifecycle). |
+| **GC-2 (rupture flood cromatico)** | **Rupture takeover = amplificazione cromatica attiva**: `rupture.intensity` al takeover amplifica saturation/luminosità di `accent` e `ruptureTint`, non solo lerpa dot→ruptureTint. Al rilascio: collasso rapido configurabile. | `colors.js`, `config.js` | Il takeover attuale è una tinta. Deve essere un'inondazione. La differenza è tra "colore cambia" e "colore invade". |
+| **GC-3 (residual per ghost/fossil)** | **palette.residual usato per ghost/fossil overlay**: i dot ghost/fossil usano `lerp(dot→bg)`. Devono usare `palette.residual` (colore dedicato per memoria visiva). Ghost di una traccia restano cromaticamente distinti nella traccia successiva. | `field.js`, `director3.js` | I ghost delle tracce passate si mimetizzano con la traccia corrente. Il palimpsesto è visivamente muto. |
+| **GL-1 (lifecycle per canale)** | **Lifecycle duration per ruolo MIDI**: kick 3-4f, arp 12-20f, chord 60-90f, bass 80-120f, drone 400-600f. Attualmente tutti invecchiano alla stessa velocità — il kick e il drone sono visivamente intercambiabili. | `event-register.js`, `config.js` | Questa è la timbrica visiva. Senza differenziazione temporale, nessuno strumento ha identità. |
+| **GL-2 (pitch → Y)** | **Pitch mappa la posizione Y in tutte le comp-***: grave = basso, acuto = alto. Attualmente solo `comp-linee` rispetta questa grammatica. | tutte le `comp-*.js` | La perdita grammaticale più grave. La musica ha spazio verticale fisico — il visivo lo ignora. |
+| **GL-3 (vocabolario forme)** | **Sistema geometrico per traccia** — forma primaria + movimento per ogni delle 7 tracce: NEBBIA=cerchi/archi (Kandinsky), TESSUTO=bande orizzontali (Mondrian), SOLCO=rettangoli floating (Malevich), RESPIRO=campo→buchi (Black Square), MACCHINA=colonne caratteri (El Lissitzky), TEMPESTA=vettori diagonali (Moholy-Nagy), RITORNO=strati traslucidi (Klee). | tutte le `comp-*.js` | Attualmente ogni comp ha un'identità parziale ma non un vocabolario geometrico coerente col carattere musicale. |
+| **GL-4 (energia → morfologia)** | **Velocity/energia trasforma la geometria, non solo la densità**: bassa = forma pura e rada (Malevich essenziale), alta = forma moltiplicata e densa, rupture = deformazione della grammatica stabilita (UVA rule→violation). | tutte le `comp-*.js` | La dimensione musicale più espressiva (come suona, non quanto suona) è completamente invisibile. |
+| **WG-1 (v2 terrain)** | **World Physics per traccia**: `worldState.physics` con `gravityDir` + `terrainZone` + `fossilStyle`. `_sharedSediment` con Y-gradient decay → suolo accumula, cielo decade. Fossili cristallizzano in zona terrain invece di dissolversi. | `field.js`, `world-state.js` | Senza questo gli elementi fluttuano nel vuoto. Con questo abitano uno spazio con peso e storia. |
+| **WG-2 (v2 scale depth)** | **Multi-scale halftone**: Bayer cell size variabile per zona Y. Bottom (terrain) → blocchi 8×8+, mid → 4×4, top/sparse → 2×2 fini. Dot size come proxy di distanza percepita. | `field.js` | Il canvas attuale è piatto in scala — tutto alla stessa distanza percepita. La variazione di scala crea profondità senza 3D. |
+| **WG-3 (v2 ASCII depth)** | **ASCII depth zones**: a densità bassa i dot Bayer diventano caratteri `. , : ; + # @`. Il carattere scelto mappa la densità locale. Connette Henke text-mode (comp-griglia), esteso a tutte le comp-*. | `field.js` | La texture ASCII dà profondità analogica al digitale. Rumore leggibile + distanza codificata. |
 | **D.7 Kuleshov** | **Black frame come punteggiatura**: 2 frame neri a ogni cambio di traccia | `field.js` | Attualmente solo crossfade 3s. Il nero è un evento cognitivo. |
 | **D.4 Eisenstein** | **Hard cut selettivo**: NEBBIA→TESSUTO e TEMPESTA→RITORNO devono essere hard cut (1 frame), non crossfade | `field.js` | Il crossfade 3s uniforma tutto. Alcune transizioni devono "collidere". |
 | **B.14 Risograph** | **Misregistration**: accent color renderizzato su Bayer grid offset di 1-2 celle rispetto al primary | tutte le comp-* | Le palette sono già Riso-style (2 spot + paper) ma manca il fringe fisico. |
@@ -181,6 +191,38 @@ Basata su impatto artistico × costo implementazione × convergenza critica.
 4. **Black frame** in `field.js`: 2 frame neri a ogni cambio di traccia
 5. **Risograph misregistration** in tutte le comp-*: accent color offset 1-2 celle
 
+### Sprint E — Geometric Language (dopo Sprint B, parallelo o prima di Sprint D)
+> Sistema geometrico per traccia. Forma primaria + movimento + regola compositiva
+> per ogni delle 7 tracce, ispirato all'arte astratta, coerente col mondo costruito.
+> Prerequisiti: lifecycle per canale (item 20) + pitch→Y (item 21) devono essere in Sprint B.
+
+**Colore (prerequisiti — vanno prima della geometria):**
+1. **GC-1 Colore per canale** — `event-register.js` + `colors.js`: spawn porta roleColor, decade verso bg indipendente da palette shifts
+2. **GC-2 Rupture flood** — `colors.js`: amplificazione attiva accent/ruptureTint a intensity=1, collasso rapido al rilascio
+3. **GC-3 Residual per ghost** — `field.js` + `director3.js`: ghost overlay usa palette.residual per traccia
+
+**Geometria (dipende dal colore):**
+4. **Lifecycle per canale MIDI** — `event-register.js` + `config.js`:
+   kick 3-4f, arp 12-20f, chord 60-90f, bass 80-120f, drone 400-600f
+5. **Pitch → Y in tutte le comp-*** — grammatica base, diff minimo per comp
+6. **NEBBIA** `comp-liminale` — cerchi/archi concentrici, deriva radiale (Kandinsky)
+7. **TESSUTO** `comp-linee` — bande orizzontali pitch-mapped (Mondrian/Agnes Martin)
+8. **SOLCO** `comp-quadrati` — rettangoli floating beat-locked (Malevich Suprematismo)
+9. **RESPIRO** `comp-negativo` — già vicino; affinare campo→buco come Malevich Black Square
+10. **MACCHINA** `comp-griglia` — colonne caratteri + scan line clock-synced (El Lissitzky)
+11. **TEMPESTA** `comp-treno` — vettori diagonali sovrapposti (Moholy-Nagy/Costruttivismo)
+12. **RITORNO** `comp-liminale` — strati traslucidi sovrapposti (Klee/Schwitters palimpsesto)
+13. **Energia → morfologia** — velocity bassa = forma pura; alta = forma moltiplicata; rupture = deformazione della grammatica (UVA rule→violation)
+14. **Saturazione trackPalettes** — rivedere hex per le 7 tracce dopo test live GC-1/2 (item 25 STATUS)
+
+### Sprint D — World Grammar (dopo Sprint A+B+C)
+> Recupero concetti v2: spazi abitabili, profondità di scala, ASCII depth.
+> I tre punti sono connessi — WG-1 (terrain) è il fondamento, WG-2+3 sono texture sopra.
+
+1. **WG-1 World Physics** in `field.js` + `world-state.js`: Y-gradient decay su `_sharedSediment`, fossilStyle = crystallize in terrainZone, physics params per traccia in `director3.js`
+2. **WG-2 Multi-scale halftone** in `field.js`: mapping zona Y → Bayer cell size
+3. **WG-3 ASCII depth zones** in `field.js` (low-density fallback) → poi `comp-griglia.js` (Henke completo)
+
 ### Sprint C — Rifinitura (da fare in ordine di disponibilità)
 - Per-frame seed in comp-*
 - Room tone enforcement (silence ratio per fase)
@@ -193,3 +235,7 @@ Basata su impatto artistico × costo implementazione × convergenza critica.
 
 *Aggiornare questo documento quando una voce passa da ❌ a ⚠️ a ✅.*
 *Vedi STATUS.md per il backlog operativo corrente.*
+
+---
+<!-- knowledge-graph links -->
+[[VISUAL-VISION]] [[05-ROADMAP]] [[STATUS]] [[03-VISUAL]]

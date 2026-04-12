@@ -140,12 +140,15 @@ function _tick() {
     hatSent = true;
   }
 
-  // ── CH1 SNARE — variable backbeat ──
+  // ── CH1 SNARE — variable backbeat (V3.5: per-track config) ──
+  const trackSnare = TRACKS[worldState.track]?.snare;
+  const snareEnabled = trackSnare?.enabled !== undefined ? trackSnare.enabled : true;
   const snarePhase = phase === 'densita' || phase === 'rottura';
-  if (snarePhase && density > 0.5) {
+  if (snareEnabled && snarePhase && density > 0.5) {
     const stepMs = (60 / worldState.bpm / 4) * 1000;
+    const snareSteps = trackSnare?.steps ?? SNARE_BASE_STEPS;
 
-    for (const baseStep of SNARE_BASE_STEPS) {
+    for (const baseStep of snareSteps) {
       // Determine actual step for this hit (may shift ±1)
       let actualStep = baseStep;
       if (Math.random() < SNARE_SHIFT_PROB) {

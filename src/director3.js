@@ -33,7 +33,32 @@ const initMelody = () => {
   return initMelodyV1();
 };
 
-// V2 structural silence system removed — replaced by overlap transitions (V3.5)
+// ── V3.5: BPM ramp state ──
+// Interpolates BPM over N bars when track changes. Per-transition durations
+// because SOLCO→RESPIRO (129→null) needs 8 bar, not the same 2 of TESSUTO→SOLCO.
+const BPM_RAMP_BARS_DEFAULT = 2;
+const BPM_RAMP_BARS_TABLE = {
+  // from → to → bars. Keyed by source track (the one ending).
+  'NEBBIA':   4,   // null→86: da silenzio a primo tempo, graduale
+  'TESSUTO':  2,   // 86→129: stessa famiglia, OK rapido
+  'SOLCO':    8,   // 129→null: il groove rallenta, non crolla
+  'RESPIRO':  6,   // null→129: il tempo riemerge, non salta
+  // MACCHINA→TEMPESTA: stesso BPM, nessun ramp
+  'TEMPESTA': 6,   // 129→86: discesa dal picco, non caduta
+};
+let _bpmRamp = null;  // { from, to, elapsed, duration } or null when inactive
+
+// ── V3.5: Ghost entrance — ruolo dominante per traccia ──
+// ch: canale MIDI (CH0-7), role: per log, register: [lo,hi] MIDI per la ghost note
+const GHOST_ENTRANCE = {
+  TESSUTO:  { ch: 4, role: 'chord' },    // chord staccato è il motore
+  SOLCO:    { ch: 3, role: 'bass' },      // bass è il protagonista
+  RESPIRO:  { ch: 4, role: 'chord' },     // accordo Cmaj arioso — non voice (SOLCO ha già voice)
+  MACCHINA: { ch: 0, role: 'bass', vel: 25, fixedNote: 38 },  // tremito kick D2 — la macchina vibra sottoterra
+  TEMPESTA: { ch: 5, role: 'voice' },     // voice+lead hocket, anticipa voice
+  RITORNO:  { ch: 5, role: 'voice' },     // voice esposta
+};
+let _lastGhostBar = -1;  // prevent multiple ghosts in same bar
 
 // ── Phase order ──
 const PHASE_ORDER = ['germoglio', 'pulsazione', 'densita', 'rottura', 'dissoluzione'];
@@ -78,6 +103,7 @@ export function initDirector3(trackName = 'SOLCO') {
   _phaseBars = 0;
   _barAcc = 0;
   _totalTime = 0;
+  _lastGhostBar = -1;
   _totalBars = PHASE_ORDER.reduce((sum, p) => sum + (_track.phases[p] || 0), 0);
 
   // Reset walls of sound triggers when starting a new concert (NEBBIA)
@@ -102,11 +128,19 @@ export function initDirector3(trackName = 'SOLCO') {
   worldState.palette.residual    = tp?.residual  ?? null;
   worldState.visualRegime = { ...(_track.visualRegime) };
 
-  // Reset rupture — phase starts at germoglio, not rottura
+  // Reset rupture and transition — phase starts at germoglio, not rottura
   worldState.rupture.stage     = null;
   worldState.rupture.stageT    = 0;
   worldState.rupture.t         = 0;
   worldState.rupture.intensity = 0;
+  worldState.transition        = null;
+
+  // Reset camera — ogni traccia parte a zoom 1.0, camera.js riprende il pilotaggio
+  worldState.camera.zoom   = 1.0;
+  worldState.camera.focusX = 0.5;
+  worldState.camera.focusY = 0.5;
+  worldState.camera.personality = worldState.track;
+  worldState.camera.phase = PHASE_ORDER[0];
 
   _applyPhase();
 
@@ -144,10 +178,21 @@ export function updateDirector3(dt) {
   _phaseTime += dt;
   _totalTime += dt;
 
+  // ── V3.5: BPM ramp — smooth tempo transition between tracks ──
+  if (_bpmRamp) {
+    _bpmRamp.elapsed += dt;
+    const t = Math.min(1, _bpmRamp.elapsed / _bpmRamp.duration);
+    // ease-in-out quadratic for natural feel
+    const eased = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+    worldState.bpm = _bpmRamp.from + (_bpmRamp.to - _bpmRamp.from) * eased;
+    if (t >= 1) {
+      worldState.bpm = _bpmRamp.to;
+      _bpmRamp = null;
+    }
+  }
+
   const bpm = worldState.bpm || 60;
   const barDuration = 240 / bpm; // seconds per bar (4 beats)
-
-
 
   // Count bars using BPM (4 beats per bar)
   _barAcc += dt;
@@ -194,6 +239,75 @@ export function updateDirector3(dt) {
     worldState.density.texture = _phaseDensityBase.texture * tw.texture;
   }
 
+  // ── V3.5: Germoglio ramp — fade in density over first 4 bars ──
+  // Prevents hard cut at track entry: modules ease in from 25% to 100%.
+  // Only active in germoglio phase when coming from another track (not first track).
+  const GERMOGLIO_RAMP_BARS = 4;
+  if (PHASE_ORDER[_phaseIdx] === 'germoglio' && _phaseBars < GERMOGLIO_RAMP_BARS) {
+    const rampT = _phaseBars / GERMOGLIO_RAMP_BARS;  // 0 at bar 0, 1 at bar 4
+    const rampScale = 0.25 + 0.75 * rampT;           // 0.25 → 1.0
+    for (const mod of ['rhythm', 'harmony', 'bass', 'melody', 'texture']) {
+      worldState.density[mod] *= rampScale;
+    }
+  }
+
+  // ── Track-specific exit logic in dissoluzione ──
+  // Ogni traccia prepara musicalmente l'ingresso della successiva.
+  if (PHASE_ORDER[_phaseIdx] === 'dissoluzione') {
+    const dissolveDur = _track.phases.dissoluzione || 24;
+    const barsLeft = dissolveDur - _phaseBars;
+
+    if (worldState.track === 'TESSUTO') {
+      // TESSUTO → SOLCO: il basso svanisce — condizione di ingresso di SOLCO
+      // (SOLCO nasce con bass isolato nel germoglio)
+      if (barsLeft <= 8) {
+        worldState.density.bass *= Math.max(0, barsLeft / 8);
+      }
+    }
+
+    if (worldState.track === 'SOLCO') {
+      // SOLCO → RESPIRO: dropout dub progressivo
+      // Il groove si svuota dal basso: kick → arp → bass escono uno alla volta,
+      // lasciando chord + voice + drone = terreno già simile a RESPIRO.
+      if (barsLeft <= 16) worldState.density.rhythm  *= Math.max(0, barsLeft / 16);  // kick fade
+      if (barsLeft <= 12) worldState.density.texture  *= Math.max(0, barsLeft / 12);  // arp/texture fade
+      if (barsLeft <= 8)  worldState.density.bass     *= Math.max(0, barsLeft / 8);   // bass fade
+      // ultime 4 bar: solo chord + voice + drone sopravvivono
+    }
+
+    if (worldState.track === 'MACCHINA') {
+      // MACCHINA → TEMPESTA: l'arp si ritira, la voice si fa avanti
+      // Prepara il cambio di protagonista (arp meccanico → voice+lead hocket).
+      if (barsLeft <= 8) {
+        // arp velocity scala: protagonista → texture (1.0 → 0.3)
+        const arpFade = 0.3 + 0.7 * (barsLeft / 8);
+        worldState.density.texture *= arpFade;  // arp density scende
+      }
+      if (barsLeft <= 4) {
+        // voice density boost — anticipa l'hocket di TEMPESTA
+        worldState.density.melody *= 1.5;
+      }
+    }
+
+    if (worldState.track === 'TEMPESTA') {
+      // TEMPESTA → RITORNO: esaurimento verso la nudità
+      // Dal picco massimo al congedo: hat muore, bass scende, voice resta sola.
+      if (barsLeft <= 12) {
+        // hat forced sparse: riduco rhythm drasticamente
+        worldState.density.rhythm *= Math.max(0.15, barsLeft / 12);
+      }
+      if (barsLeft <= 8) {
+        // bass fade: 0.95 → 0.3
+        const bassFade = 0.3 + 0.7 * (barsLeft / 8);
+        worldState.density.bass *= bassFade;
+      }
+      // ultime 4 bar: voice + drone dominano — anticipa nudità di RITORNO
+      if (barsLeft <= 4) {
+        worldState.density.harmony *= 0.5;  // accordi si ritirano
+      }
+    }
+  }
+
   // ── V3: Degradation arc in dissoluzione (Hecker §A.7) ──
   // Final 16 bars of dissoluzione: progressive note-drop, jitter, chord stripping.
   // Outside the window, degradation is reset to inert defaults.
@@ -221,13 +335,60 @@ export function updateDirector3(dt) {
     if (dissolveDur > 0) {
       const progress = _phaseBars / dissolveDur;
       firma.convergenza = progress > 0.85;
+
+      // ── V3.5: Transition preview — ultime 4 bar della dissoluzione ──
+      // Popola worldState.transition con la traccia entrante.
+      // I moduli musicali e il campo leggono questo per preparare il passaggio.
+      const TRANSITION_BARS = 4;
+      const barsLeft = dissolveDur - _phaseBars;
+      if (barsLeft <= TRANSITION_BARS && barsLeft >= 0) {
+        const currentIdx = TRACK_ORDER.indexOf(worldState.track);
+        const nextIdx = currentIdx + 1;
+        if (nextIdx < TRACK_ORDER.length && TRACKS[TRACK_ORDER[nextIdx]]) {
+          const tProg = 1 - (barsLeft / TRANSITION_BARS);  // 0 at -4 bars, 1 at last bar
+          worldState.transition = {
+            from: worldState.track,
+            to: TRACK_ORDER[nextIdx],
+            progress: tProg,
+            nextTrack: TRACKS[TRACK_ORDER[nextIdx]],
+          };
+        }
+      } else {
+        worldState.transition = null;
+      }
+
+      // ── V3.5: Ghost entrance — ultime 2 bar, una nota ghost per bar ──
+      // Il ruolo dominante della prossima traccia entra pp sulla scala attuale.
+      if (worldState.transition && worldState.transition.progress > 0.5) {
+        const nextName = worldState.transition.to;
+        const ghost = GHOST_ENTRANCE[nextName];
+        if (ghost && _phaseBars !== _lastGhostBar) {
+          _lastGhostBar = _phaseBars;
+          const nextTrack = worldState.transition.nextTrack;
+          const reg = nextTrack.register;
+          // Scegli una nota dalla scala corrente nel registro del ruolo entrante
+          const roleName = ghost.role === 'chord' ? 'chords' : ghost.role;
+          const [rLo, rHi] = reg[roleName] || [48, 72];
+          const scale = worldState.scale || [];
+          const candidates = scale.filter(n => n >= rLo && n <= rHi);
+          if (candidates.length > 0 || ghost.fixedNote) {
+            const note = ghost.fixedNote || candidates[Math.floor(Math.random() * candidates.length)];
+            const bpmNow = worldState.bpm || 60;
+            const durMs = Math.round((60 / bpmNow) * 4 * 1000);  // 1 bar
+            const vel = ghost.vel || (20 + Math.floor(Math.random() * 10));  // pp: override o 20-30
+            sendMIDINote(ghost.ch, note, vel, durMs);
+            console.log(`[DIR3] ghost entrance: ${nextName} ${ghost.role} note=${note} vel=${vel}`);
+          }
+        }
+      }
     }
   } else {
     worldState.degradation.noteDropProb   = 0;
     worldState.degradation.timingJitterMs = 0;
     worldState.degradation.chordNoteCount = 99;
-    // Reset convergenza outside dissoluzione
+    // Reset convergenza and transition outside dissoluzione
     if (firma.convergenza) firma.convergenza = false;
+    worldState.transition = null;
   }
 
   // Advance phase if bar count exceeded
@@ -261,6 +422,9 @@ export function updateDirector3(dt) {
 
   // Bar progress: position within current bar (0→1) — for scan lines, visual sync
   worldState.barProgress = barDuration > 0 ? Math.min(1, _barAcc / barDuration) : 0;
+
+  // ── V3.6: Camera autopilot ──
+  _updateCamera(dt);
 
   // Audio-reactive energy: real-time modulation on top of phase-based density
   // Combines RMS, onset bursts, and narrative intensity
@@ -352,9 +516,29 @@ function _advanceTrack() {
 
   // Clean cut: silence all ringing notes before loading new track
   sendMIDIAllNotesOff();
+  const prevBpm = worldState.bpm || 60;  // capture before overwrite
   console.log(`[DIR3] → Next track: ${nextTrack}`);
   initDirector3(nextTrack);
   _paused = false; // keep playing — don't reset to paused
+
+  // BPM ramp: interpolate from previous tempo — durata per-transizione
+  const newBpm = _track.bpm || 60;
+  if (prevBpm !== newBpm) {
+    const prevTrack = TRACK_ORDER[TRACK_ORDER.indexOf(nextTrack) - 1] || '';
+    const rampBars = BPM_RAMP_BARS_TABLE[prevTrack] ?? BPM_RAMP_BARS_DEFAULT;
+    const rampDurationSec = (240 / newBpm) * rampBars;
+    _bpmRamp = { from: prevBpm, to: newBpm, elapsed: 0, duration: rampDurationSec };
+    worldState.bpm = prevBpm;  // start from old BPM
+    console.log(`[DIR3] BPM ramp: ${prevBpm} → ${newBpm} over ${rampBars} bar`);
+  }
+}
+
+// ── V3.6: Camera autopilot ──
+// Pilotaggio spostato in src/camera.js — il director comunica solo personality e phase
+function _updateCamera(dt) {
+  // Pilotaggio spostato in src/camera.js — il director comunica solo personality e phase
+  worldState.camera.personality = worldState.track || null;
+  worldState.camera.phase = PHASE_ORDER[_phaseIdx];
 }
 
 // ── V3: Rupture 4-stage envelope ──
@@ -501,6 +685,7 @@ export function jumpToTrack(trackName) {
     return;
   }
   const wasPlaying = !_paused;
+  _bpmRamp = null;  // manual jump = no ramp, immediate tempo
   initDirector3(trackName);
   if (wasPlaying) {
     _paused = false;

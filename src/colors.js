@@ -60,6 +60,15 @@ export function updateColors(dt) {
   _target.ruptureTint = hexToRgb(p.ruptureTint);
   _target.residual    = hexToRgb(p.residual);
 
+  if (p.ruptureBg) {
+    const ri = worldState.rupture?.intensity ?? 0;
+    if (ri > 0.6) {
+      const rbg = hexToRgb(p.ruptureBg);
+      const t = (ri - 0.6) / 0.4;
+      for (let i = 0; i < 3; i++) _target.bg[i] = _target.bg[i] + (rbg[i] - _target.bg[i]) * t;
+    }
+  }
+
   const s = dt ? (1 - Math.pow(1 - _lerpSpeed, dt * 60)) : _lerpSpeed;
   lerpChannel(_current.bg,          _target.bg,          s);
   lerpChannel(_current.dot,         _target.dot,         s);

@@ -126,9 +126,26 @@ export function renderFrame(_now, dt) {
     if (showDebug) { updateHUDDebug(); updateSeqPanel(); }
   }
 
-  // Session recorder — entities array removed post-A.2, pass empty
-  recordSnapshot({ arc: worldState.arc, currentBpm: worldState.bpm || 0 }, [], dt * 1000);
-  recordPhaseCheck({ arc: worldState.arc, currentBpm: worldState.bpm || 0 });
+  // Session recorder — pass full worldState snapshot for post-session review
+  const _recState = {
+    track: worldState.track,
+    phase: worldState.phase,
+    phaseProgress: phaseState.progress,
+    bpm: worldState.bpm || 0,
+    arc: worldState.arc,
+    energy: worldState.energy,
+    densityRhythm: worldState.density.rhythm,
+    densityHarmony: worldState.density.harmony,
+    densityBass: worldState.density.bass,
+    densityMelody: worldState.density.melody,
+    densityTexture: worldState.density.texture,
+    audioEnergy: worldState.audioEnergy,
+    ruptureStage: worldState.rupture.stage,
+    ruptureT: worldState.rupture.t,
+    firma: firma.gelo ? 'gelo' : firma.convergenza ? 'convergenza' : firma.vuotoTotale ? 'vuoto' : null,
+  };
+  recordSnapshot(_recState, [], dt * 1000);
+  recordPhaseCheck(_recState);
 }
 
 // ── Keyboard ──
@@ -206,100 +223,55 @@ function updateHUDDebug() {
   if (!hudDebug) return;
   const d3 = getDirector3Status();
   const ws = worldState;
-  const pal = getPalette();
   const trajArrow = audio.trajectory > 0 ? '\u2191' : audio.trajectory < 0 ? '\u2193' : '\u2192';
-  const lastNote = midi.lastNote ? `${noteName(midi.lastNote.note)} V${midi.lastNote.vel}` : '——';
+  const lastNote = midi.lastNote ? `${noteName(midi.lastNote.note)} V${midi.lastNote.vel} CH${midi.lastNote.ch}` : '——';
 
   const elapsed = Math.floor(d3.totalTime);
   const min = Math.floor(elapsed / 60);
   const sec = elapsed % 60;
   const playing = isDirector3Playing();
-  const tracks = ['NEBBIA','TESSUTO','SOLCO','RESPIRO','MACCHINA','TEMPESTA','RITORNO'];
   const vis = _visLabel();
-  const geoSt = (vis === 'GEO') ? getGeoStatus() : null;
+
+  // Rupture stato
+  const rup = ws.rupture;
+  const rupStr = rup.stage
+    ? `${rup.stage.toUpperCase()} ${bar(rup.intensity)} ${(rup.intensity * 100).toFixed(0)}%`
+    : '——';
+
+  // audioEnergy (il valore che pilota il campo)
+  const ae = ws.audioEnergy || 0;
 
   hudDebug.textContent =
-    `── VISUAL ──\n` +
-    `PARADIGMA  ${vis}` +
-    (vis === 'GEO'   ? `  bioma:${geoSt.biome}  part:${geoSt.particles}` : '') +
-    (vis === 'CAMPO' ? `  (Float32Array campo materiale)` : '') +
-    (vis === 'COMP'  ? `  (comp-* classiche: ${d3.track || '—'})` : '') +
-    `\n` +
-    `  Shift+G = GEO ${vis === 'GEO' ? '●' : '○'}` +
-    `   Shift+C = CAMPO ${vis === 'CAMPO' ? '●' : '○'}` +
-    `   nessuno = COMP ${vis === 'COMP' ? '●' : '○'}\n` +
-    `\n` +
-    `── FIRMA (gesti narrativi) ──\n` +
-    `GELO (G)  ${firma.gelo ? 'ON — tutto freezato' : 'off'}` +
-    `   CONV (J)  ${firma.convergenza ? 'ON — attrae al centro' : 'off'}` +
-    `   VUOTO (V) ${firma.vuotoTotale ? 'ON — blackout' : 'off'}\n` +
-    `\n` +
-    `── DIRECTOR ──\n` +
-    `${playing ? '▶ PLAY' : '⏸ PAUSA'}  ${d3.track}  ${d3.phase}  ${min}:${sec < 10 ? '0' : ''}${sec}\n` +
-    `ARC  ${bar(d3.arc)}  ${(d3.arc * 100).toFixed(1)}%\n` +
+    `══ DIRECTOR ══\n` +
+    `${playing ? '▶' : '⏸'}  ${d3.track}  ${d3.phase}  ${min}:${sec < 10 ? '0' : ''}${sec}` +
+    (ws.bpm ? `  ${ws.bpm}BPM` : '') + `\n` +
+    `ARC   ${bar(d3.arc)}  ${(d3.arc * 100).toFixed(1)}%\n` +
     `PHASE ${bar(phaseState.progress)}  bar ${Math.floor(phaseState.elapsed)}/${Math.floor(phaseState.duration)}\n` +
-    `ENERGY  ${ws.energy}` +
-    (ws.bpm ? `  BPM ${ws.bpm}` : '  BPM —') +
+    `RUPTURE  ${rupStr}\n` +
     `\n` +
-    `DENSITY  kick:${ws.density.rhythm.toFixed(2)}  harm:${ws.density.harmony.toFixed(2)}  bass:${ws.density.bass.toFixed(2)}  mel:${ws.density.melody.toFixed(2)}  tex:${ws.density.texture.toFixed(2)}\n` +
+
+    `══ AUDIO ══\n` +
+    `RMS     ${bar(audio.rms, 20)}  ${(audio.rms * 100).toFixed(0)}%\n` +
+    `ENERGY  ${bar(ae, 20)}  ${(ae * 100).toFixed(0)}%\n` +
+    `FLUX    ${bar(audio.flux * 5, 20)}  ${audio.onset ? 'ONSET' : ''}` +
+    `  TRAJ ${trajArrow}  GAIN ${getAudioGain().toFixed(1)}\n` +
+    `SUB ${bar(audio.bands.sub.L, 8)}  LOW ${bar(audio.bands.low.L, 8)}  MID ${bar(audio.bands.mid.L, 8)}  HI ${bar(audio.bands.high.L, 8)}\n` +
     `\n` +
-    `── AUDIO ──\n` +
-    `RMS  ${bar(audio.rms)}  ${(audio.rms * 100).toFixed(0)}%\n` +
-    `INT  ${bar(state.intensity)}  RHYT ${bar(state.rhythmicity)}\n` +
-    `BPM  ${audio.bpm || '——'}  TRAJ ${trajArrow}  GAIN ${getAudioGain().toFixed(1)}\n` +
+
+    `══ MIDI ══\n` +
+    `${midi.connected ? 'ON ' + midi.inputCount + ' in' : 'OFF'}  ${lastNote}\n` +
     `\n` +
-    `── MIDI ──\n` +
-    `${midi.connected ? 'CONNESSO ' + midi.inputCount + ' input' : 'DISCONNESSO'}` +
-    `  ultima: ${lastNote}  CH:${midi.lastNote ? midi.lastNote.ch : '-'}\n` +
+
+    `══ VISUAL [${vis}] ══\n` +
+    `DENSITY  R:${ws.density.rhythm.toFixed(2)} H:${ws.density.harmony.toFixed(2)} B:${ws.density.bass.toFixed(2)} M:${ws.density.melody.toFixed(2)} T:${ws.density.texture.toFixed(2)}\n` +
+    `FIRMA    ${firma.gelo ? 'GELO' : ''}${firma.convergenza ? ' CONV' : ''}${firma.vuotoTotale ? ' VUOTO' : ''}${firma.densityCap < 1 ? ' CAP:' + firma.densityCap.toFixed(2) : ''}` +
+    `${!firma.gelo && !firma.convergenza && !firma.vuotoTotale && firma.densityCap >= 1 ? '——' : ''}\n` +
+    `EV ${eventCount()}\n` +
     `\n` +
-    `── TRACCE ──\n` +
-    tracks.map((t, i) =>
-      `  Shift+${i + 1}  ${t.padEnd(10)} ${t === d3.track ? '◄ attiva' : ''}`
-    ).join('\n') +
-    `\n` +
-    `── FASI (della traccia corrente) ──\n` +
-    `  1 germoglio   2 pulsazione   3 densita\n` +
-    `  4 rottura     5 dissoluzione\n` +
-    `  ←/→ fase prev/next\n` +
-    `\n` +
-    `── MUSICA ──\n` +
-    `M  music v2 experiment  ${CFG.MUSIC_EXPERIMENT ? 'ON ●' : 'off ○'}\n` +
-    `N  music v3 structural  ${CFG.MUSIC_STRUCTURAL ? 'ON ●' : 'off ○'}\n` +
-    `\n` +
-    `═══ TUTTI I COMANDI ═══\n` +
-    `\n` +
-    `── Navigazione ──\n` +
-    `SPAZIO      play / pausa\n` +
-    `Shift+1-7   salta a traccia (NEBBIA→RITORNO)\n` +
-    `1-5         salta a fase (germoglio→dissoluzione)\n` +
-    `← / →       fase precedente / successiva\n` +
-    `\n` +
-    `── Paradigma visivo (mutuamente esclusivi) ──\n` +
-    `Shift+G     Sistema Geometrico (ARC/RECT Bayer su layer)\n` +
-    `Shift+C     Campo Materiale (Float32Array + Bayer)\n` +
-    `nessuno     comp-* classiche (default)\n` +
-    `\n` +
-    `── Firma (gesti narrativi live) ──\n` +
-    `G           gelo — freeza tutto a schermo\n` +
-    `J           convergenza — attrae verso il centro\n` +
-    `V           vuotoTotale — blackout + silenzio\n` +
-    `\n` +
-    `── Musica ──\n` +
-    `M           A/B music experiment (v2 overrides)\n` +
-    `N           A/C music structural (v3 bass+melody)\n` +
-    `\n` +
-    `── Display ──\n` +
-    `H           toggle barra stato (in basso)\n` +
-    `D           toggle pannello debug (questo)\n` +
-    `F           fullscreen\n` +
-    `P           proiettore (finestra secondaria)\n` +
-    `\n` +
-    `── Audio ──\n` +
-    `è  (←)      gain audio input -\n` +
-    `+  (→)      gain audio input +\n` +
-    `\n` +
-    `── Recording ──\n` +
-    `Shift+L     start/stop registrazione sessione\n` +
-    `Shift+D     download sessione registrata\n` +
-    `Shift+K     screenshot\n`;
+
+    `══ COMANDI ══\n` +
+    `SPAZIO play/pausa   Shift+1-7 traccia   1-5 fase   ←/→ fase\n` +
+    `Shift+C campo   Shift+G geo   G gelo   J conv   V vuoto\n` +
+    `H hud   D debug   F full   P proiettore   [/] gain\n` +
+    `Shift+L rec   Shift+D download   Shift+K screenshot\n`;
 }

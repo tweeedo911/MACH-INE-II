@@ -92,7 +92,8 @@ export function initField() {
 
 // Init geo una sola volta, appena il canvas ha dimensioni note
 let _geoInitialized = false;
-let _geoActiveTrack = null;  // tracker locale per geo (non condiviso con _activeTrack)
+let _geoActiveTrack = null;    // tracker locale per geo (non condiviso con _activeTrack)
+let _campoActiveTrack = null;  // tracker locale per campo (idem)
 function _ensureGeoInit(W, H) {
   if (_geoInitialized) {
     geo.resizeGeo(W, H);
@@ -211,11 +212,11 @@ export function renderField(ctx, W, H, envData) {
   // Mutuamente esclusivo con comp-* classiche: se attivo, bypassa tutto il resto.
   // Toggle runtime con tasto M in render.js.
   if (CFG.VISUAL?.campo?.useCampo) {
-    if (track !== _activeTrack) {
+    if (track !== _campoActiveTrack) {
       campo.setBiome(track);
-      _activeTrack = track;
+      _campoActiveTrack = track;
     }
-    campo.updateCampo(envData.dt || 0.016);
+    campo.updateCampo(envData.dt || 0.016, worldState.audioEnergy || 0);
     campo.renderCampo(ctx, W, H);
     return;
   }

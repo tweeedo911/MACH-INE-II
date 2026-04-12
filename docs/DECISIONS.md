@@ -405,8 +405,64 @@ sistematicamente vuota.
 - ✅ Le idee del geo (terrain, forme) migrano come depositFn nel campo
 - ✅ Canvas space usato al 80%+ per bioma (mapping locale registro)
 - ⚠️ geo.js resta nel repo ma non è sviluppato — potenziale dead code
+
+---
+
+## #016 — 7 biomi implementati: limiti noti e prossimi step
+
+**Data:** 2026-04-12 (sessione 9)
+**Contesto:** Tutti e 7 i biomi del Campo Materiale implementati in biomi.js
+con depositFn custom, localPitchToCell, audioReact (NEBBIA/RESPIRO/MACCHINA),
+palette coerenti coi moodboard. Campo fullscreen (non più quadrato centrato).
+Bug campo fix (tracker separato per setBiome). Test offline OK.
+
+**Limiti identificati (concordati con utente):**
+1. **Grana Bayer identica** — tutti i biomi usano Bayer 4×4 a stessa cellPx.
+   A densità alta = tappezzeria monotona. Serve variazione di grana per ruolo/bioma.
+2. **TEMPESTA a rischio saturazione** — con densità 0.95 su tutti i ruoli,
+   il campo si riempie → grigio uniforme. Servono density cap o zone di esclusione.
+3. **RESPIRO monocromatico** — solo drone renderizza (gli altri scrivono su drone).
+   Concettualmente corretto (una membrana) ma potrebbe sembrare piatto.
+4. **Nessun lifecycle visivo** — VISUAL-VISION prevede dotSize 2px→14px con età.
+   Nel campo le celle hanno tutte la stessa dimensione; la variazione è solo densità.
+5. **Non prototipato** — implementazione diretta senza prototipo HTML standalone.
+   La resa visiva va validata live traccia per traccia.
+
+**Scelta:** procedere con implementazione diretta per avere la pipeline completa,
+poi calibrare bioma per bioma dopo test live con musica.
+
+**Conseguenze:**
+- ✅ Pipeline completa: 7 biomi distinti, cambio traccia funzionante
+- ✅ Ogni bioma ha fisica diversa (non solo colori diversi)
+- ⚠️ La calibrazione visiva è tutta da fare — ogni bioma va testato con la musica reale
+- ⚠️ I 5 limiti sopra sono debito tecnico da affrontare in sessioni dedicate
 - ⚠️ 6 biomi da calibrare nel campo (solo SOLCO è calibrato, con palette
   da riscaldare secondo moodboard Dub Cosmico)
+
+---
+
+## #017 — Camera osservatore narrativo (sostituisce camera passiva)
+
+**Data:** 2026-04-13 (sessione 14)
+**Contesto:** La camera v3.6 era passiva — il director impostava zoom/focus per fase,
+tutto lerp lineare. Drift circolare senza intenzione, zoom macro timido (1.0→1.5).
+Barrel distortion usava ~2MB/frame per un effetto invisibile se la camera era in crop.
+
+**Scelta:** camera autonoma con POI detection + 5 gesti cinematografici + personalità per bioma.
+La camera percepisce dove c'è materia (o esplora il vuoto nei biomi sparsi), sceglie gesti
+narrativi (STARE/VIAGGIARE/TUFFO/SOLLEVARE/SCANSIONE) e interpola con smoothstep.
+Barrel distortion eliminato. RITORNO: fullscreen → tuffo intimo → allontanamento progressivo → puntino.
+
+**Alternative scartate:**
+- Tenere camera passiva + ampliare range zoom: non risolve il problema dell'intenzione
+- Camera reattiva istantanea (insegue ogni deposito): troppo nervosa, zero narrativa
+
+**Conseguenze:**
+- ✅ Nuovo file `src/camera.js` (~230 LOC), director3 alleggerito (~50 LOC in meno)
+- ✅ Barrel rimosso: -80 LOC da campo.js, -2MB/frame durante RITORNO
+- ✅ Zoom profondo 3-8× — la grana Bayer diventa leggibile, i depositi hanno dettaglio
+- ⚠️ Personalità per bioma da calibrare — ora i movimenti sono simili tra biomi
+- ⚠️ RITORNO allontanamento da verificare su durata reale della traccia
 
 ---
 <!-- knowledge-graph links -->
