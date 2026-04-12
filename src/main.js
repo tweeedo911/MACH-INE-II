@@ -80,14 +80,12 @@ abBadge.appendChild(_badgeM);
 abBadge.appendChild(_badgeN);
 
 function _refreshAbBadge() {
-  // M slot — MUSIC_EXPERIMENT (v2 calibration)
-  _badgeM.textContent = CFG.MUSIC_EXPERIMENT ? 'M·v2' : 'M·v1';
-  _badgeM.style.background = CFG.MUSIC_EXPERIMENT ? '#FE6B0D' : 'rgba(0,0,0,0.6)';
-  _badgeM.style.color      = CFG.MUSIC_EXPERIMENT ? '#000'    : '#9B8FCE';
-  // N slot — MUSIC_STRUCTURAL (v3 structural)
-  _badgeN.textContent = CFG.MUSIC_STRUCTURAL ? 'N·v3' : 'N·off';
-  _badgeN.style.background = CFG.MUSIC_STRUCTURAL ? '#CDD71D' : 'rgba(0,0,0,0.6)';
-  _badgeN.style.color      = CFG.MUSIC_STRUCTURAL ? '#000'    : '#9B8FCE';
+  // V3.5: M+N consolidati, badge fisso
+  _badgeM.textContent = 'v3.5';
+  _badgeM.style.background = '#CDD71D';
+  _badgeM.style.color = '#000';
+  _badgeN.textContent = '';
+  _badgeN.style.background = 'transparent';
 }
 _refreshAbBadge();
 
@@ -107,7 +105,8 @@ function toggleProjector() {
     projectorWindow = null;
     setProjectorWindow(null);
   } else {
-    projectorWindow = window.open('projector.html', 'projector', 'width=1280,height=720');
+    projectorWindow = window.open('projector.html', 'projector',
+      `width=${screen.width},height=${screen.height},left=0,top=0`);
     setProjectorWindow(projectorWindow);
   }
 }
@@ -203,33 +202,12 @@ document.addEventListener('keydown', (e) => {
     return;
   }
 
-  // ── A/B MUSIC EXPERIMENT toggle (M) — v2 calibration ──
-  if (e.code === 'KeyM' && !e.shiftKey) {
-    e.preventDefault();
-    CFG.MUSIC_EXPERIMENT = !CFG.MUSIC_EXPERIMENT;
-    sendMIDIAllNotesOff();
-    applyMusicExperimentOverrides(CFG.MUSIC_EXPERIMENT);
-    initBass();
-    initMelody();
-    _refreshAbBadge();
-    console.log(`%c[A/B] MUSIC_EXPERIMENT = ${CFG.MUSIC_EXPERIMENT ? 'ON  (v2)' : 'OFF (v1)'}`,
-                `color: ${CFG.MUSIC_EXPERIMENT ? '#FE6B0D' : '#9B8FCE'}; font-weight: bold;`);
-    return;
-  }
+  // M/N toggle rimossi — V3.5: M+N consolidati come default permanente
 
-  // ── A/C MUSIC STRUCTURAL toggle (N) — v3 structural ──
-  // Switches bass+melody to v3 (which takes priority over v2 for these layers).
-  // Combinable with M: M+N enables v2 track overrides + v3 melody/bass.
-  if (e.code === 'KeyN' && !e.shiftKey) {
-    e.preventDefault();
-    CFG.MUSIC_STRUCTURAL = !CFG.MUSIC_STRUCTURAL;
-    sendMIDIAllNotesOff();
-    initBass();
-    initMelody();
-    _refreshAbBadge();
-    console.log(`%c[A/C] MUSIC_STRUCTURAL = ${CFG.MUSIC_STRUCTURAL ? 'ON  (v3)' : 'OFF'}`,
-                `color: ${CFG.MUSIC_STRUCTURAL ? '#CDD71D' : '#9B8FCE'}; font-weight: bold;`);
-    return;
+  // Toggle version badge with HUD (H key)
+  if (e.code === 'KeyH') {
+    const vis = abBadge.style.display === 'none' ? 'flex' : 'none';
+    abBadge.style.display = vis;
   }
 
   const result = handleKey(e.code);

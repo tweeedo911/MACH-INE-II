@@ -74,6 +74,7 @@ export const TRACKS = {
 
     // Dub syncopated groove — the rhythm module aligns to this
     rhythmGrid: [1,0,0,0, 1,0,0,1, 1,0,0,0, 0,1,0,0],
+    snare: { enabled: false },  // dub: no snare tradizionale
 
     // Phase durations in seconds
     // Phase durations in BARS (at 129 BPM: 1 bar ≈ 1.86s)
@@ -86,6 +87,8 @@ export const TRACKS = {
     },  // total: 192 bars ≈ 6 min
 
     // Chord progression — 8 chords × 4 bar = 32 bar cycle (power of 2)
+    // V3.5: barsPerChord per fase — germoglio accorciato per completare almeno 1 giro
+    barsPerChord: { germoglio: 4, pulsazione: 4, densita: 4, rottura: 2, dissoluzione: 4 },
     chords: [
       [55, 58, 62],  // Gm
       [57, 60, 64],  // Am7 (no 5th)
@@ -100,6 +103,8 @@ export const TRACKS = {
     // Bass pattern: 16 steps, 0=rest, positive number = semitone offset from root
     // Steps 3,5,10,12 active — complementary to rhythmGrid
     bassPattern: [0,0,0,7, 0,5,0,0, 0,0,3,0, 5,0,0,0],
+    bassPatternLocked: true,  // V3.5: complementare al rhythmGrid — cycle extension lo romperebbe
+    bassSweep: { periodBars: 16, depth: 0.30 },  // dub: respiro profondo, lento
 
     // Arp: rate and note count
     arpRate: 8,   // 8th notes
@@ -109,10 +114,13 @@ export const TRACKS = {
     melodyStrategy: {
       voiceEveryBars: 4,       // 1 phrase every 4 bars (rare, precious)
       voicePhraseLen: [4, 6],  // short phrases
+      voiceStyle: { step: 0.45, skip: 0.75, repeatProb: 0.08 },  // medio, qualche skip espressivo
       leadMode: 'none',        // no lead — groove speaks for itself
       arpRole: 'accompany',    // arp present but secondary
       arpVelScale: 0.7,        // quieter than voice
     },
+
+    droneDrift: { periodBars: 16, amplitude: 400 },  // dub: stabile, drift contenuto
 
     palette: { bg: '#282B26', dot: '#FE6B0D', accent: '#CDD71D' },
     visualRegime: { maxDensity: 0.50, minDotSize: 4, composition: 'ASIMMETRIA' },
@@ -129,7 +137,7 @@ export const TRACKS = {
     bpm: null,  // no rhythmic clock — ambient
     kickNote: null,
 
-    density: { rhythm: 0, harmony: 0.3, bass: 0, melody: 0.5, texture: 0.05 },
+    density: { rhythm: 0, harmony: 0.3, bass: 0, melody: 0.65, texture: 0.05 },
 
     register: {
       bass:   [0, 0],      // no bass
@@ -173,12 +181,18 @@ export const TRACKS = {
     melodyStrategy: {
       voiceEveryBars: 4,             // base — gets reduced by growth curve
       voicePhraseLen: [1, 3],        // very short — single notes to tiny motifs
+      voiceStyle: { step: 0.65, skip: 0.40, repeatProb: 0.20 },  // grado congiunto, nota che insiste
+      callResponseDelay: [0.5, 1.2],   // eco lontanissima nel buio
       leadMode: 'response',          // lead enters in pulsazione as counterpoint
       leadProb: 0.3,                 // not too often
       arpRole: 'none',
       arpVelScale: 0,
       voiceGrowInGermoglio: true,    // V3: crescita progressiva nelle 32 bar di germoglio
     },
+
+    chordOverlapMs: 1500,  // accordi sostenuti che si sovrappongono — unico tessuto armonico
+
+    droneDrift: { periodBars: 48, amplitude: 1024 },  // respiro lento, ampio — il drone SI MUOVE
 
     palette: { bg: '#0A0A0A', dot: '#EFE6DE', accent: null },
     visualRegime: { maxDensity: 0.25, minDotSize: 10, composition: 'VUOTO' },
@@ -245,6 +259,7 @@ export const TRACKS = {
     melodyStrategy: {
       voiceEveryBars: 0,       // voice OFF — silent
       voicePhraseLen: [0, 0],
+      leadStyle: { step: 0.55, skip: 0.80, repeatProb: 0.10 },  // lead cerca la forma, esplorativo
       leadMode: 'solo',        // lead plays independently (not response to voice)
       leadProb: 1.0,           // always active when density allows
       leadEveryBars: 2,        // 1 phrase every 2 bars
@@ -252,6 +267,8 @@ export const TRACKS = {
       arpRole: 'none',
       arpVelScale: 0,
     },
+
+    droneDrift: { periodBars: 32, amplitude: 700 },  // inquietudine sottile
 
     palette: { bg: '#20130D', dot: '#CDD71D', accent: '#EFE6DE' },
     visualRegime: { maxDensity: 0.45, minDotSize: 6, composition: 'GRIGLIA' },
@@ -311,11 +328,17 @@ export const TRACKS = {
     melodyStrategy: {
       voiceEveryBars: 3,       // moderate
       voicePhraseLen: [5, 8],  // medium — breathing phrases
+      voiceStyle: { step: 0.60, skip: 0.50, repeatProb: 0.03 },  // fluida, cantabile, mai ripete
+      callResponseDelay: [0.4, 0.8],   // eco aperta, rilassata
       leadMode: 'echo',        // lead echoes voice, softer and delayed
       leadProb: 0.25,          // rare echoes
       arpRole: 'none',
       arpVelScale: 0,
     },
+
+    chordOverlapMs: 1200,  // pad che si sovrappone — apertura
+
+    droneDrift: { periodBars: 40, amplitude: 900 },  // apertura — drift ampio, lento
 
     palette: { bg: '#7BBA91', dot: '#20130D', accent: null },
     visualRegime: { maxDensity: 0.10, minDotSize: 8, composition: 'RESPIRO' },
@@ -371,6 +394,8 @@ export const TRACKS = {
 
     // Rolling bass — 8th note pump
     bassPattern: [7,0,7,0, 5,0,7,0, 3,0,5,0, 7,0,3,0],
+    bassPatternLocked: true,  // V3.5: pump meccanico — cycle extension rompe la simmetria
+    bassSweep: { periodBars: 4, depth: 0.05 },  // meccanico: quasi piatto, costante
 
     arpRate: 16,   // 16th notes — fast
     arpNotes: 4,
@@ -379,6 +404,8 @@ export const TRACKS = {
     melodyStrategy: {
       voiceEveryBars: 8,       // voice very rare — 1 phrase every 8 bars
       voicePhraseLen: [3, 5],  // short interjections
+      voiceStyle: { step: 0.30, skip: 0.85, repeatProb: 0.25 },  // meccanico: skip ampi, ripete come macchina
+      callResponseDelay: [0.08, 0.20],  // quasi in sync — meccanico
       leadMode: 'response',    // lead responds to voice, brief
       leadProb: 0.3,           // infrequent
       arpRole: 'protagonist',  // arp is the main melodic element
@@ -393,6 +420,8 @@ export const TRACKS = {
       rottura:      [1,1,1,1, 1,1,1,1, 1,1,1,1, 1,1,1,1],
       dissoluzione: [1,0,1,0, 0,0,1,0, 0,0,0,0, 1,0,0,0],
     },
+
+    droneDrift: { periodBars: 8, amplitude: 300 },   // meccanico: vibrazione rapida, piccola
 
     palette: { bg: '#1A1A2E', dot: '#F8ED00', accent: '#DD3A44' },
     visualRegime: { maxDensity: 0.55, minDotSize: 2, composition: 'GRIGLIA' },
@@ -428,6 +457,7 @@ export const TRACKS = {
 
     // Driving 4/4 with offbeat push
     rhythmGrid: [1,0,0,0, 1,0,0,0, 1,0,0,1, 1,0,0,0],
+    snare: { steps: [4, 10, 12] },  // picco: 3 hit per bar, posizioni asimmetriche
 
     // Phase durations in BARS (at 129 BPM: 1 bar ≈ 1.86s)
     phases: {
@@ -439,6 +469,8 @@ export const TRACKS = {
     },  // total: 200 bars ≈ 6.2 min
 
     // 4 chords × 2 bar = 8 bar cycle (fast, relentless)
+    // V3.5: barsPerChord — incalzante anche in germoglio (non 8 bar default)
+    barsPerChord: { germoglio: 3, pulsazione: 2, densita: 2, rottura: 1, dissoluzione: 4 },
     chords: [
       [52, 55, 59],  // Em (E G B)
       [53, 57, 60],  // F (F A C) — phrygian bII
@@ -448,6 +480,7 @@ export const TRACKS = {
 
     // Aggressive bass — almost every beat
     bassPattern: [7,0,0,5, 0,3,0,0, 7,0,5,0, 3,0,0,7],
+    bassSweep: { periodBars: 8, depth: 0.20 },  // pump deciso ma non profondo
 
     arpRate: 16,   // 16th notes
     arpNotes: 6,   // wider pattern
@@ -456,6 +489,7 @@ export const TRACKS = {
     melodyStrategy: {
       voiceEveryBars: 1,       // voice always active — dense
       voicePhraseLen: [8, 12], // long intertwined phrases
+      voiceStyle: { step: 0.25, skip: 0.90, repeatProb: 0.02 },  // tensione: salti grandi, mai ripete
       leadMode: 'hocket',      // lead and voice alternate notes (zipper)
       leadProb: 1.0,           // always — they are one instrument split in two
       arpRole: 'texture',      // arp drops to background
@@ -470,6 +504,8 @@ export const TRACKS = {
       rottura:      [1,1,1,1, 1,0,1,1, 1,1,0,1, 1,1,1,0],  // almost full but with holes
       dissoluzione: [1,0,0,0, 0,0,1,0, 0,0,0,0, 0,0,0,0],
     },
+
+    droneDrift: { periodBars: 12, amplitude: 820 },  // tensione: ampio E veloce
 
     palette: { bg: '#000000', dot: '#FFFFFF', accent: '#91010F' },
     visualRegime: { maxDensity: 0.70, minDotSize: 1, composition: 'DATA' },
@@ -532,11 +568,15 @@ export const TRACKS = {
     melodyStrategy: {
       voiceEveryBars: 2,       // voice presente — è il cuore
       voicePhraseLen: [6, 10], // long exposed phrases
+      voiceStyle: { step: 0.60, skip: 0.45, repeatProb: 0.15 },  // congiunta, insiste — congedo
+      callResponseDelay: [0.6, 1.0],   // eco lontana e rara — arriva da molto lontano
       leadMode: 'echo',        // lead ripete voice, più piano, ritardata
       leadProb: 0.35,          // non sempre — momenti di solitudine
       arpRole: 'dying',        // arp solo in pulsazione, poi muore
       arpVelScale: 0.5,        // fading
     },
+
+    droneDrift: { periodBars: 36, amplitude: 600 },  // congedo: medio, respira lentamente
 
     palette: { bg: '#0A0A0A', dot: '#9B8FCE', accent: '#EFE6DE' },
     visualRegime: { maxDensity: 0.30, minDotSize: 6, composition: 'DISSOLVENZA' },

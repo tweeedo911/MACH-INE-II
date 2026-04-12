@@ -67,7 +67,7 @@ const MAX_PHRASE_REPEATS = 2;
 
 // ── Lead response (V3: off-grid call-response) ──
 const LEAD_PROB        = 0.40;
-const LEAD_MIN_DENSITY = 0.3;
+const LEAD_MIN_DENSITY = 0.25;
 // V3: consonant intervals — 3a minore, 3a maggiore, 4a, 5a, ottava
 const CALL_RESPONSE_INTERVALS = [3, 4, 5, 7, 12];
 const LEAD_VEL_SCALE   = 0.85;
@@ -115,6 +115,7 @@ let _leadDuckCounter = 0;
 let _leadPhraseNotes = [];
 let _leadPhraseIdx = 0;
 let _leadPhraseRepeat = 0;
+let _leadRestUntilBar = 0;
 
 // V3: prime-length loop counters — NEVER reset on bar/phase boundary
 // so voice/lead drift permanently off the 4/4 grid.
@@ -138,6 +139,7 @@ export function initMelody() {
   _leadPhraseNotes = [];
   _leadPhraseIdx = 0;
   _leadPhraseRepeat = 0;
+  _leadRestUntilBar = 0;
   _voiceLoopCounter = 0;
   _leadLoopCounter = 0;
   console.log('[MELODY-V3] Initialized (Olafur call-response + prime-length loops)');
@@ -204,6 +206,94 @@ function _generatePhrase(scale, lo, hi, length, style = null) {
   return phrase;
 }
 
+// ── Chord-aware phrase generator (lead solo, TESSUTO) ──
+// Differences from _generatePhrase:
+//  1. Start and end on chord tones (anchor points)
+//  2. Mid-phrase notes attracted toward chord tones (gravity)
+//  3. Directional arc: first half tends up, second half tends down
+//  4. Occasional held notes (repeat) on chord tones for breath
+function _generatePhraseChordAware(scale, lo, hi, length, style, chord) {
+  const pool = scale.filter(n => n >= lo && n <= hi);
+  if (pool.length === 0) return [];
+
+  const stepProb   = style ? style.step : 0.70;
+  const skipProb   = style ? style.skip : 0.90;
+  const repeatProb = style ? (style.repeatProb || 0) : 0;
+
+  // Chord tones in this register (pitch classes)
+  const chordPCs = new Set();
+  if (chord) for (const n of chord) chordPCs.add(n % 12);
+  const isChordTone = (note) => chordPCs.size > 0 && chordPCs.has(note % 12);
+
+  // Start on a chord tone if possible
+  const chordPool = pool.filter(n => isChordTone(n));
+  let poolIdx;
+  if (chordPool.length > 0) {
+    const pick = chordPool[Math.floor(Math.random() * chordPool.length)];
+    poolIdx = pool.indexOf(pick);
+  } else {
+    poolIdx = Math.floor(Math.random() * pool.length);
+  }
+
+  const phrase = [pool[poolIdx]];
+
+  for (let i = 1; i < length; i++) {
+    const pos = i / (length - 1 || 1);  // 0..1
+
+    // Repeat/hold on chord tones — creates breath
+    if (isChordTone(pool[poolIdx]) && Math.random() < repeatProb * 2) {
+      phrase.push(pool[poolIdx]);
+      continue;
+    }
+
+    const roll = Math.random();
+    let jump;
+    if (roll < stepProb) {
+      jump = 1;
+    } else if (roll < skipProb) {
+      jump = 2;
+    } else {
+      jump = 3;
+    }
+
+    // Directional arc: up in first half, down in second half
+    // With some randomness to avoid mechanical feeling
+    const arcBias = pos < 0.45 ? 0.7 : pos > 0.55 ? 0.3 : 0.5;
+    const direction = Math.random() < arcBias ? 1 : -1;
+    jump *= direction;
+
+    let newIdx = Math.max(0, Math.min(pool.length - 1, poolIdx + jump));
+
+    // Chord-tone gravity: if a chord tone is within ±1 step, prefer it
+    if (!isChordTone(pool[newIdx]) && Math.random() < 0.4) {
+      for (const offset of [0, -1, 1]) {
+        const test = newIdx + offset;
+        if (test >= 0 && test < pool.length && isChordTone(pool[test])) {
+          newIdx = test;
+          break;
+        }
+      }
+    }
+
+    poolIdx = newIdx;
+    phrase.push(pool[poolIdx]);
+  }
+
+  // End on chord tone: replace last note if needed
+  if (chordPool.length > 0 && !isChordTone(phrase[phrase.length - 1])) {
+    // Find nearest chord tone in pool
+    let bestDist = 999;
+    let bestNote = phrase[phrase.length - 1];
+    for (const cn of chordPool) {
+      const dist = Math.abs(cn - phrase[phrase.length - 1]);
+      if (dist < bestDist) { bestDist = dist; bestNote = cn; }
+    }
+    phrase[phrase.length - 1] = bestNote;
+  }
+
+  return phrase;
+}
+
 function _buildArp(chord, scale, lo, hi, noteCount) {
   if (!chord || chord.length === 0) return [];
 
@@ -259,7 +349,7 @@ function _snapToScale(note, scale) {
 }
 
 // V3: schedule lead response with REAL off-grid delay
-function _scheduleCallResponse(voiceNote, voiceVel, scale, leadLo, leadHi, velCeil) {
+function _scheduleCallResponse(voiceNote, voiceVel, scale, leadLo, leadHi, velCeil, delayRange) {
   const interval = CALL_RESPONSE_INTERVALS[Math.floor(Math.random() * CALL_RESPONSE_INTERVALS.length)];
   const direction = Math.random() < 0.5 ? 1 : -1;
   let responseNote = voiceNote + (interval * direction);
@@ -290,11 +380,16 @@ function _scheduleCallResponse(voiceNote, voiceVel, scale, leadLo, leadHi, velCe
   responseNote = Math.max(leadLo, Math.min(leadHi, responseNote));
 
   const leadVel = Math.min(Math.round(voiceVel * LEAD_VEL_SCALE), velCeil);
-  const leadDur = 280;  // ms — slightly longer than v1's tick-based duration
+  // V3.5: lead duration proporzionale al BPM (non più 280ms fisso)
+  const bpm = worldState.bpm || 60;
+  const stepMs = (60 / bpm / 4) * 1000;
+  const leadDur = Math.round(stepMs * LEAD_DUR_SCALE);  // ~0.6 × step duration
 
   _pendingLead = { note: responseNote, vel: leadVel, dur: leadDur };
-  // Off-grid: 200-500ms real-time delay (Olafur principle)
-  _pendingLeadDelay = CALL_DELAY_MIN + Math.random() * (CALL_DELAY_MAX - CALL_DELAY_MIN);
+  // V3.5: delay range per traccia (default [0.20, 0.50])
+  const dMin = delayRange ? delayRange[0] : CALL_DELAY_MIN;
+  const dMax = delayRange ? delayRange[1] : CALL_DELAY_MAX;
+  _pendingLeadDelay = dMin + Math.random() * (dMax - dMin);
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -322,10 +417,13 @@ function _tick() {
   // ── CH5 VOICE ──
   let voiceEveryBars = strat.voiceEveryBars ?? 2;
   // Intra-track growth in germoglio (NEBBIA): voiceEveryBars decreases with phase progress
+  // V3.5: start from 16 bars (not voiceEveryBars) to get the "goccia ogni 16 bar" opening,
+  // then compress down to voiceEveryBars by end of germoglio
   if (isGermoglio && strat.voiceGrowInGermoglio && phaseState.duration > 0) {
     const p = phaseState.progress;  // 0..1 inside germoglio
-    // From base voiceEveryBars at p=0 down to 1 at p=1 (e.g. 4 → 3 → 2 → 1)
-    voiceEveryBars = Math.max(1, Math.round(voiceEveryBars - p * (voiceEveryBars - 1)));
+    const startEvery = 16;  // prima goccia ~64s in NEBBIA (16 bar × 4s)
+    const endEvery = strat.voiceEveryBars ?? 2;
+    voiceEveryBars = Math.max(endEvery, Math.round(startEvery - p * (startEvery - endEvery)));
   }
   const voiceEnabled = voiceEveryBars > 0 && voiceLo > 0 && voiceHi > 0;
 
@@ -362,7 +460,11 @@ function _tick() {
           } else {
             len = minLen + Math.floor(Math.random() * (maxLen - minLen + 1));
           }
-          _phraseNotes = _generatePhrase(scale, voiceLo, voiceHi, Math.max(1, len), VOICE_STYLE);
+          // V3.5: hocket consumes 2 notes per step (voice+lead alternating),
+          // so generate 2× longer phrases to match the intended duration
+          if (strat.leadMode === 'hocket') len = len * 2;
+          const vStyle = strat.voiceStyle || VOICE_STYLE;
+          _phraseNotes = _generatePhrase(scale, voiceLo, voiceHi, Math.max(1, len), vStyle);
           _phraseIdx = 0;
           _phraseRepeat = 0;
         }
@@ -393,7 +495,7 @@ function _tick() {
         if (!dropped && strat.leadMode === 'response' && !isGermoglio && density >= LEAD_MIN_DENSITY) {
           const lp = strat.leadProb ?? LEAD_PROB;
           if (Math.random() < lp) {
-            _scheduleCallResponse(note, vel, scale, leadLo, leadHi, velCeil);
+            _scheduleCallResponse(note, vel, scale, leadLo, leadHi, velCeil, strat.callResponseDelay);
           }
         }
 
@@ -404,7 +506,10 @@ function _tick() {
             const echoVel = Math.round(vel * 0.55);
             const echoNote = _snapToScale(note, scale);
             _pendingLead = { note: echoNote, vel: Math.min(echoVel, velCeil), dur: Math.round(dur * 1.5) };
-            _pendingLeadDelay = CALL_DELAY_MIN + Math.random() * (CALL_DELAY_MAX - CALL_DELAY_MIN);
+            const dr = strat.callResponseDelay;
+            const dMin = dr ? dr[0] : CALL_DELAY_MIN;
+            const dMax = dr ? dr[1] : CALL_DELAY_MAX;
+            _pendingLeadDelay = dMin + Math.random() * (dMax - dMin);
           }
         }
 
@@ -424,7 +529,7 @@ function _tick() {
     }
   }
 
-  // ── CH6 LEAD solo mode ──
+  // ── CH6 LEAD solo mode (chord-aware, with velocity arc and rest) ──
   if (strat.leadMode === 'solo' && leadLo > 0 && leadHi > 0 && density > 0.1 && !isGermoglio) {
     const leadEvery = strat.leadEveryBars || 2;
     const leadRate = VOICE_RATE[phase] ?? VOICE_RATE_DEFAULT;
@@ -433,21 +538,35 @@ function _tick() {
     // V3: prime-length gate, distinct from voice (5↔7, 11↔13)
     const leadLoopFires = (_leadLoopCounter % leadLoopN) === 0;
 
-    if (_leadPhraseIdx >= _leadPhraseNotes.length && barsGate) {
+    // Rest: skip phrase generation until rest expires
+    const leadResting = _bar < _leadRestUntilBar;
+
+    if (!leadResting && _leadPhraseIdx >= _leadPhraseNotes.length && barsGate) {
+      // Rest between phrases — breathe for 1-2 bars after long phrases
+      if (_leadPhraseNotes.length >= 5) {
+        _leadRestUntilBar = _bar + 1 + Math.floor(Math.random() * 2);  // 1-2 bar rest
+      }
       const [minLen, maxLen] = strat.leadPhraseLen || [4, 8];
       const len = minLen + Math.floor(Math.random() * (maxLen - minLen + 1));
-      _leadPhraseNotes = _generatePhrase(scale, leadLo, leadHi, len, LEAD_STYLE);
+      const lStyle = strat.leadStyle || LEAD_STYLE;
+      // Chord-aware phrase generation — anchors on chord tones, directional arc
+      _leadPhraseNotes = _generatePhraseChordAware(scale, leadLo, leadHi, len, lStyle, worldState.currentChord);
       _leadPhraseIdx = 0;
       _leadPhraseRepeat = 0;
-    } else if (_leadPhraseIdx >= _leadPhraseNotes.length && _leadPhraseRepeat < MAX_PHRASE_REPEATS && _leadPhraseNotes.length > 0) {
+    } else if (!leadResting && _leadPhraseIdx >= _leadPhraseNotes.length && _leadPhraseRepeat < MAX_PHRASE_REPEATS && _leadPhraseNotes.length > 0) {
       _leadPhraseIdx = 0;
       _leadPhraseRepeat++;
     }
 
     if (_leadPhraseIdx < _leadPhraseNotes.length && leadLoopFires) {
       const note = _leadPhraseNotes[_leadPhraseIdx];
+
+      // Velocity arc — sin curve over phrase (pp→ff→pp), same as voice
+      const phrasePos = _leadPhraseNotes.length > 1 ? _leadPhraseIdx / (_leadPhraseNotes.length - 1) : 0.5;
+      const arc = Math.sin(phrasePos * Math.PI);
       _leadPhraseIdx++;
-      const rawVel = (VOICE_VEL_BASE + 5) + density * VOICE_VEL_RANGE;
+
+      const rawVel = VOICE_VEL_BASE + density * VOICE_VEL_RANGE * (0.55 + 0.45 * arc);
       const humanize = Math.round((Math.random() * 4) - 2);
       const vel = Math.min(Math.max(Math.round(rawVel + humanize), VOICE_VEL_FLOOR), velCeil);
       const dur = Math.round(stepMs * leadRate * LEAD_DUR_SCALE);
