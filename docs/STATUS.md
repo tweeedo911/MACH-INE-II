@@ -1,23 +1,13 @@
 # STATUS — MACH:INE III
 
 > Snapshot vivo. Rigenerato a fine sessione. Punto di entrata di ogni nuova sessione.
-> **Last updated:** 2026-04-12 (sessione 8: decisione campo definitivo, bozze 7 biomi)
-
-## Decisione strategica (sessione 8)
-
-**Campo Materiale = paradigma visivo definitivo** (DECISIONS #015).
-Sistema Geometrico (geo.js) = archiviato come reference, non sviluppato.
-Comp-* classiche = fallback di emergenza (default, nessun toggle).
-
-Toggle runtime: **Shift+C** (campo ON), **Shift+G** (geo ON, reference only).
-
----
+> **Last updated:** 2026-04-12 (sessione 10: cablaggio infrastrutturale campo)
 
 ## Versione
 
-**v3.4.2** — single source: `src/VERSION.js` (`APP_VERSION`)
+**v3.4.3-wip** — single source: `src/VERSION.js` (`APP_VERSION`)
 
-Tag git: `v3.4.2` su `ccbbb13`.
+Tag git: `v3.4.2` su `ccbbb13` (ultimo tag stabile).
 Branch attivo: `machine-iii`.
 
 ---
@@ -29,8 +19,12 @@ Branch attivo: `machine-iii`.
 ```
 director3.js      →  5 moduli musicali (rhythm, harmony, bass, melody, texture)
                   →  Campo Materiale (campo.js + biomi.js) — PARADIGMA DEFINITIVO
-                     Toggle: Shift+C. 32×32 Float32Array per ruolo, Bayer halftone,
-                     decay + shimmer. Solo SOLCO calibrato, altri 6 = GENERIC.
+                     Toggle: Shift+C. 96×54 Float32Array per ruolo, Bayer halftone,
+                     cellPx variabile per ruolo (6-20px), decay + shimmer + audioReact.
+                     Firma cablata: gelo/convergenza/densityCap.
+                     Solidificazione 3 strati: silenzio/densità/spaziale.
+                     Fullscreen 16:9 senza stretch.
+                     **7/7 biomi implementati.** Calibrazione live da fare.
                   →  [reference] geo.js — Sistema Geometrico (Shift+G, non sviluppato)
                   →  [fallback] comp-* classiche (default, nessun toggle)
                   →  firma.js (gesti narrativi: gelo/convergenza/vuotoTotale/densityCap)
@@ -42,87 +36,92 @@ director3.js      →  5 moduli musicali (rhythm, harmony, bass, melody, texture
 
 ## Stato biomi nel Campo Materiale
 
-| Bioma | Stato | Prossimo |
-|---|---|---|
-| SOLCO | ✅ calibrato ma palette da riscaldare | fix palette (verde-oliva → terracotta/arancio per moodboard Dub Cosmico) |
-| NEBBIA | ⚠️ placeholder GENERIC | bozza pronta: voice=punti isolati, drone=campo uniforme, chord=velatura |
-| TESSUTO | ⚠️ placeholder GENERIC | bozza pronta: chord=righe staccato (telaio), lead=punti alti, kick=impulso |
-| RESPIRO | ⚠️ placeholder GENERIC | bozza pronta: INVERTITO (campo pieno, note sottraggono = pori) |
-| MACCHINA | ⚠️ placeholder GENERIC | bozza pronta: snap a griglia, blocchi on/off, arp=linee scorrevoli |
-| TEMPESTA | ⚠️ placeholder GENERIC | bozza pronta: massima densità, shimmer alto, tutti i ruoli sovrapposti |
-| RITORNO | ⚠️ placeholder GENERIC | bozza pronta: preserveOnSwitch (eredita sedimento), voice=NEBBIA, arp muore |
-
-**Bozze complete:** sessione 8 output, incrocio moodboard Pinterest × MOOD.md. Pronte per implementazione meccanica in `biomi.js`.
+| Bioma | Stato | Firma | cellPx override | Prossimo |
+|---|---|---|---|---|
+| NEBBIA | implementato | default | drone=20, voice=6, lead=7, chord=12 | calibrazione live |
+| TESSUTO | implementato | default | default | calibrazione live |
+| SOLCO | calibrato, palette riscaldata | default | default | calibrazione fine |
+| RESPIRO | implementato (invertito) | densityThreshold=0.9 | default | calibrazione live |
+| MACCHINA | implementato | spatial=false | uniforme 10px | calibrazione live |
+| TEMPESTA | implementato | roleEnabled=false | default | density cap + calibrazione |
+| RITORNO | implementato | globalFactor=0.5 | default | camera orbitale + calibrazione |
 
 ---
 
-## Principio canvas-space (sessione 8)
+## Funzionalità sessione 10 (cablaggio infrastrutturale)
 
-**Problema**: `pitchToCell` mappa MIDI 0-127 globalmente → ogni ruolo occupa 19-22% del campo.
-**Fix**: mapping LOCALE del registro per ruolo. Implementare `localPitchToCell(note, lo, hi)` in `campo.js`.
-**Regola**: drone riempie TUTTO il campo. Nessuna zona sistematicamente vuota.
+- **Grid rettangolare 96×54** — true 16:9, offscreen 960×540, zero stretch
+- **cellPx per ruolo** — grana variabile (drone=16 grosso → arp=6 fine), override per bioma
+- **Firma nel campo** — gelo (freeze totale), convergenza (attrazione centro), densityCap (gate probabilistico)
+- **Solidificazione 3 strati** — silenzio cristallizza, densità alta stabilizza, parte bassa sedimenta
+- **Convergenza automatica** — director3 attiva convergenza nell'ultimo 15% della dissoluzione
+- **freeze override per bioma** — MACCHINA no stratigrafia, TEMPESTA nulla cristallizza, RESPIRO solo altissime, RITORNO tutto solidifica 50%
 
 ---
 
-## Documenti di riferimento (sessione 8)
+## Funzionalità sessione 9
 
-- `docs/MOOD.md` — ritratto musicale 7 tracce (essenza emotiva + strumenti + arco + narrativa)
-- `docs/VISUAL-SPEC.md` — contratto geometrico (reference per geo.js, non per campo)
-- `ispirazioni-machne/visioni.md` — 6 visioni poetiche (mappate alle 7 tracce)
-- `ispirazioni-machne/per-brano.md` — ispirazioni Pinterest per bioma
-- `ispirazioni-machne/visione-totale.md` — il perché di tutto
+- **localPitchToCell(note, lo, hi)** — mapping registro locale, 25 celle per ruolo (era 4)
+- **audioReact** — callback per-bioma ogni frame, modulato da worldState.audioEnergy
+- **Campo fullscreen** — stretch su tutto il canvas (ora rettangolare senza stretch)
+- **_campoActiveTrack** — fix bug: tracker separato per setBiome nel campo
 
 ---
 
 ## Limiti noti
 
-- **Firma `gelo`** nel campo: non cablata (decay continua anche con gelo ON)
-- **Firma `convergenza`** nel campo: non cablata
-- **Firma `vuotoTotale`**: funziona (early-out in render.js)
-- **6/7 biomi = GENERIC placeholder** nel campo
-- **SOLCO palette troppo fredda/verde** rispetto al moodboard Dub Cosmico
+1. **TEMPESTA saturazione** — densità 0.95 su tutti i ruoli → rischio grigio uniforme (mitigato da freeze.roleEnabled=false)
+2. **RESPIRO monocromatico** — solo drone renderizza, potrebbe sembrare piatto
+3. **Non prototipato** — resa visiva da validare live traccia per traccia
+4. **Camera assente** — il campo è sempre a zoom 1.0, nessun macro/orbita
+5. **RITORNO non è orbita** — implementato come bioma, non come zoom-out del pianeta
+6. **Rupture non cablata nel campo** — director3 calcola i 4 stadi ma biomi.js non li consuma
 
 ---
 
 ## Prossimo (priorità top→bottom)
 
-### P0 — Implementare i 7 biomi nel Campo Materiale
+### P0 — Camera nel campo (sessione B)
 
-Bozze pronte dalla sessione 8. Ordine:
-1. Fix palette SOLCO (riscaldare: verde-oliva → terracotta/arancio)
-2. NEBBIA (campo rarefatto, voice punti isolati, drone uniforme)
-3. TESSUTO (righe staccato = telaio, lead sostituisce voice)
-4. RESPIRO (campo pieno invertito, note sottraggono)
-5. MACCHINA (snap griglia, blocchi on/off, arp linee)
-6. TEMPESTA (massima densità, shimmer alto)
-7. RITORNO (preserveOnSwitch, voice=NEBBIA, arp muore)
+Implementare il sistema camera in campo.js:
+- Zoom in (macro 2-4×): crop + scale sull'offscreen
+- Zoom out (orbita 0.2-0.5×): scale down + nero + barrel distortion
+- Pilotaggio automatico da director3 per fase
+- RITORNO override: zoom progressivo 1.0→0.3
 
-### P0b — localPitchToCell
+### P1 — Calibrazione visiva live
 
-Implementare mapping registro locale in `campo.js`. Ogni ruolo mappa il
-suo registro attivo all'80% del campo Y. Drone riempie tutto.
+Testare ogni bioma con musica reale (Shift+C, scorrere tracce 1→7).
+Per ogni bioma annotare: cosa funziona, cosa no, candidato per redesign.
+Ora con firma + grana variabile il test è significativo.
 
-### P1 — Firma nel campo
+### P2 — Rupture nel campo
 
-- gelo: freeze decay (shimmer continua ma campo non decade)
-- convergenza: attrazione celle verso centro
-- densityCap: gate probabilistico su feedNote (già parzialmente cablato)
+Cablare worldState.rupture.intensity in biomi.js:
+- Modulare decay, force, colori durante i 4 stadi di rottura
+- Effetti per-bioma (nebulose si moltiplicano, binario si corrompe, etc.)
 
-### P2 — RITORNO preserveOnSwitch
+### P3 — Density cap TEMPESTA
 
-Al cambio traccia verso RITORNO, NON resettare il campo. Il sedimento
-dei biomi precedenti è il punto ("i fantasmi delle forme").
+Impedire saturazione uniforme al picco.
+Gate probabilistico su feedNote e/o cap per ruolo.
 
-### P3 — Sedimento inter-traccia
+### P4 — Lato musicale
 
-Strategia per accumulare memoria tra tracce:
-- opzione A: decay ruoli rallentato (palimpsesto implicito)
-- opzione B: `_sharedResidual` separato con half-life ~38s
+- Tuning densità tra le 7 tracce
+- Transizioni smooth (fade tra fasi)
+- Silenzi strutturali via firma.densityCap
+- Durata 45-60 min da verificare
 
-### P4 — Camera narrativa
+---
 
-`worldState.camera.focusZone` + drift verso punto massima densità.
-RITORNO: zoom-out progressivo 1.0→0.6.
+## Documenti di riferimento
+
+- `docs/MOOD.md` — ritratto musicale 7 tracce (essenza + strumenti + arco + narrativa)
+- `docs/VISUAL-VISION.md` — visione visiva definitiva (pianeta, biomi, fisica)
+- `docs/superpowers/specs/2026-04-12-campo-infrastruttura-design.md` — spec cablaggio campo
+- `docs/superpowers/plans/2026-04-12-campo-infrastruttura.md` — piano implementativo
+- `ispirazioni-machne/` — moodboard Pinterest, visioni poetiche
 
 ---
 
@@ -130,13 +129,16 @@ RITORNO: zoom-out progressivo 1.0→0.6.
 
 | Verifica | Stato |
 |---|---|
-| Sistema Geometrico (geo.js) | ✅ funzionante (ARC+RECT, NEBBIA+SOLCO) — non sviluppato |
-| Campo Materiale (campo.js) | ✅ funzionante, solo SOLCO calibrato |
+| Campo Materiale (campo.js) | ✅ 96×54 rettangolare, firma cablata, cellPx per ruolo |
+| 7 biomi con CELLS_X/CELLS_Y | ✅ tutte le depositFn aggiornate |
+| Firma nel campo | ✅ gelo + convergenza + densityCap + solidificazione 3 strati |
+| freeze override per bioma | ✅ NEBBIA/RESPIRO/MACCHINA/TEMPESTA/RITORNO |
+| Convergenza auto dissoluzione | ✅ ultimo 15% fase dissoluzione |
+| Sistema Geometrico (geo.js) | ✅ funzionante — non sviluppato |
 | Comp-* classiche | ✅ funzionanti (default, fallback) |
-| Pannello debug (D) | ✅ aggiornato con paradigma, firma, comandi |
+| Pannello debug (D) | ✅ aggiornato |
 | HUD barra stato | ✅ mostra [GEO]/[CAMPO]/[COMP] |
 | Toggle Shift+C / Shift+G | ✅ mutuamente esclusivi |
-| health-check.sh | ✅ verde (pre-sessione 8, da riverificare) |
 
 ---
 
@@ -145,11 +147,13 @@ RITORNO: zoom-out progressivo 1.0→0.6.
 ```
 1077  src/config.js     ← OK, single source dei numeri
  618  src/tracks.js     ← OK, 7 tracce × multi-fase
- 521  src/director3.js  ← valutare split: scheduler vs density vs phases
- 503  src/melody-v3.js  ← valutare split A/B/C
- ~380 src/geo.js        ← reference only, non in sviluppo
+ 521  src/director3.js  ← valutare split
+ 503  src/melody-v3.js  ← valutare split
+~730  src/biomi.js      ← cresciuto con 7 biomi + freeze/cellPx — OK, è il catalogo
+~310  src/campo.js      ← cresciuto con firma/solidificazione — monitorare
+ ~380 src/geo.js        ← reference only
 ```
 
 ---
 <!-- knowledge-graph links -->
-[[DECISIONS]] [[WORKLOG]] [[01-ARCHITECTURE]] [[MOOD]] [[VISUAL-SPEC]]
+[[DECISIONS]] [[WORKLOG]] [[01-ARCHITECTURE]] [[MOOD]] [[VISUAL-VISION]]

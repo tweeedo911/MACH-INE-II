@@ -33,16 +33,7 @@ const initMelody = () => {
   return initMelodyV1();
 };
 
-// ── V2: structural silence state (post-tavola-rotonda) ──
-// _silenceBarsLeft is a bar-counted countdown — decremented on each downbeat
-// so both start AND end of silence are quantized to the musical grid.
-// Survives the _totalTime reset that happens on track changes.
-let _silenceBarsLeft = 0;         // bars remaining of structural silence
-let _silenceTriggered = {         // prevent re-triggering the same silence
-  endOfSOLCO: false,
-  midMACCHINA: false,
-  endOfTEMPESTA: false,
-};
+// V2 structural silence system removed — replaced by overlap transitions (V3.5)
 
 // ── Phase order ──
 const PHASE_ORDER = ['germoglio', 'pulsazione', 'densita', 'rottura', 'dissoluzione'];
@@ -89,12 +80,8 @@ export function initDirector3(trackName = 'SOLCO') {
   _totalTime = 0;
   _totalBars = PHASE_ORDER.reduce((sum, p) => sum + (_track.phases[p] || 0), 0);
 
-  // V2: reset structural silence triggers when starting a new concert (NEBBIA)
+  // Reset walls of sound triggers when starting a new concert (NEBBIA)
   if (trackName === 'NEBBIA') {
-    _silenceBarsLeft = 0;
-    _silenceTriggered.endOfSOLCO = false;
-    _silenceTriggered.midMACCHINA = false;
-    _silenceTriggered.endOfTEMPESTA = false;
     _wallsTriggered.tempesta = false;
     _wallsTriggered.ritorno = false;
   }
@@ -160,44 +147,13 @@ export function updateDirector3(dt) {
   const bpm = worldState.bpm || 60;
   const barDuration = 240 / bpm; // seconds per bar (4 beats)
 
-  // ── V2: structural silence — bar-counted, quantized to downbeat ──
-  // Counter decrements only on bar changes, so silence ends exactly on a downbeat.
-  if (CFG.MUSIC_EXPERIMENT && _silenceBarsLeft > 0) {
-    _barAcc += dt;
-    while (_barAcc >= barDuration && _silenceBarsLeft > 0) {
-      _barAcc -= barDuration;
-      _silenceBarsLeft--;
-    }
-    if (_silenceBarsLeft > 0) {
-      for (const mod of ['rhythm', 'harmony', 'bass', 'melody', 'texture']) {
-        worldState.density[mod] = 0;
-      }
-      return; // suspended — skip phase advance and audio energy update
-    } else {
-      _applyPhase(); // restore densities on downbeat
-      console.log('[DIR3] ═══ silenzio finito (downbeat) ═══');
-      // fall through to normal update for this frame
-    }
-  }
+
 
   // Count bars using BPM (4 beats per bar)
   _barAcc += dt;
   while (_barAcc >= barDuration) {
     _barAcc -= barDuration;
     _phaseBars++;
-
-    // ── V2: trigger mid-MACCHINA silenzio on downbeat ──
-    // Quantized: only fires on bar change, so silence starts aligned to grid.
-    if (CFG.MUSIC_EXPERIMENT && !_silenceTriggered.midMACCHINA &&
-        worldState.track === 'MACCHINA' &&
-        PHASE_ORDER[_phaseIdx] === 'pulsazione') {
-      const phaseDur = _track.phases.pulsazione || 0;
-      if (_phaseBars >= Math.floor(phaseDur * 0.75)) {
-        _triggerStructuralSilence(2, 'mid-MACCHINA'); // 2 bars
-        _silenceTriggered.midMACCHINA = true;
-        return; // abort rest of update — silence begins now
-      }
-    }
 
     // ── V3: Wall of Sound triggers on downbeat ──
     if (CFG.MUSIC_STRUCTURAL) {
@@ -357,19 +313,6 @@ function _triggerWallOfSound(label) {
   });
 
   console.log(`[DIR3] ═══ WALL OF SOUND (${label}) — ${notes.length} note, 8 bar ═══`);
-}
-
-// ── V2: trigger a structural silence that will block all densities ──
-// Bar-counted: both start and end are quantized to downbeats.
-// Survives _totalTime resets at track boundaries.
-function _triggerStructuralSilence(durationBars, label) {
-  _silenceBarsLeft = durationBars;
-  _barAcc = 0; // align to downbeat — we're triggering on a bar boundary
-  sendMIDIAllNotesOff();
-  for (const mod of ['rhythm', 'harmony', 'bass', 'melody', 'texture']) {
-    worldState.density[mod] = 0;
-  }
-  console.log(`[DIR3] ═══ SILENZIO STRUTTURALE (${label}) — ${durationBars} bar ═══`);
 }
 
 // ── Auto-advance to next track in album order ──
