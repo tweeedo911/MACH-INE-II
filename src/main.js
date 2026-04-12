@@ -187,8 +187,19 @@ document.addEventListener('keydown', (e) => {
   if (e.code === 'KeyC' && e.shiftKey) {
     e.preventDefault();
     CFG.VISUAL.campo.useCampo = !CFG.VISUAL.campo.useCampo;
+    if (CFG.VISUAL.campo.useCampo) CFG.VISUAL.geo.useGeo = false;  // mutex
     console.log(`%c[CAMPO] useCampo = ${CFG.VISUAL.campo.useCampo ? 'ON' : 'OFF'}`,
                 `color: ${CFG.VISUAL.campo.useCampo ? '#D5FF57' : '#888'}; font-weight: bold;`);
+    return;
+  }
+
+  // ── Sistema Geometrico toggle (Shift+G) — paradigma sperimentale ──
+  if (e.code === 'KeyG' && e.shiftKey) {
+    e.preventDefault();
+    CFG.VISUAL.geo.useGeo = !CFG.VISUAL.geo.useGeo;
+    if (CFG.VISUAL.geo.useGeo) CFG.VISUAL.campo.useCampo = false;  // mutex
+    console.log(`%c[GEO] useGeo = ${CFG.VISUAL.geo.useGeo ? 'ON' : 'OFF'}`,
+                `color: ${CFG.VISUAL.geo.useGeo ? '#E8F0D8' : '#888'}; font-weight: bold;`);
     return;
   }
 

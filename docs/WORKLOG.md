@@ -6,6 +6,114 @@
 
 ---
 
+## 2026-04-12 (sessione 8) — Sistema Geometrico v1, decisione campo definitivo, bozze 7 biomi
+
+**Versione fine sessione:** v3.4.2 (nessun bump — codice nuovo aggiunto, comp-* invariate)
+**Branch:** `machine-iii`
+
+### Obiettivo
+Analizzare lo stato del progetto. Costruire il "Sistema Geometrico" come
+terzo paradigma (particelle geometriche su layers.js). Validare. Decidere
+quale paradigma proseguire. Preparare le bozze per tutti e 7 i biomi.
+
+### Fatto
+
+**Analisi profonda dello stato del progetto**
+Lettura completa di STATUS/WORKLOG/DECISIONS. Diagnosi: 3 paradigmi
+coesistenti (comp-*, campo, geo) = debito tecnico pesante. Nessun
+paradigma completo per tutti i 7 biomi.
+
+**Documento MOOD.md creato**
+Ritratto musicale completo delle 7 tracce: essenza emotiva, ruolo
+strumenti con dati precisi da tracks.js, arco formale, contesto narrativo,
+quadro sinottico, simmetrie strutturali. Consegnabile a chi deve tradurre
+visivamente le composizioni.
+
+**VISUAL-SPEC.md creato**
+Contratto artistico canonico per il Sistema Geometrico: 7 primitive
+(ARC/RECT/SEG/PORE/CELL/PATH/TRAIL), geometria per canale × bioma,
+3 regole universali, matrice operativa completa.
+
+**Sistema Geometrico (geo.js) implementato**
+- Primitiva ARC completa: Bayer halftone, object pool, lifecycle
+  newborn→stable→ghost→fossil, layer routing FG→MG→OVERLAY
+- Primitiva RECT completa: gravità, terrain heightmap, impatto con
+  squash, deposito stratigrafico
+- NEBBIA calibrato: 4 canali ARC (drone con LFO, chord cluster, voice,
+  lead accent)
+- SOLCO calibrato: 6 canali RECT (kick g=1.2, drone bedrock, bass
+  protagonista con terrain deposit, chord caduta lenta, voice polvere,
+  arp frammenti)
+- Wiring: config.js (CFG.VISUAL.geo.useGeo), field.js (early-return +
+  feedNote forwarding + _geoActiveTrack), main.js (Shift+G toggle con
+  mutex vs Shift+C)
+
+**Debug e validazione**
+- Primo test: nessun arco visibile → diagnostica aggiunta → scoperto che
+  useGeo non era stato attivato (Shift+G non premuto)
+- Secondo test con diagnostica: confermato che il sistema funziona
+  (particelle auto-spawn magenta + feedCalls da musica reale in pulsazione)
+- NEBBIA produce poche note in germoglio (intenzionale — ambient rarefatto)
+- SOLCO RECT con gravità e terrain heightmap funzionante
+
+**Pannello debug aggiornato (render.js)**
+- Barra stato: mostra `[GEO]`/`[CAMPO]`/`[COMP]` per paradigma attivo
+- Pannello debug (D): sezioni VISUAL, FIRMA, DIRECTOR, AUDIO, MIDI,
+  TRACCE, FASI, MUSICA + legenda completa di TUTTI i comandi
+- Import getGeoStatus da geo.js per mostrare bioma/particelle
+
+**Decisione strategica: Campo Materiale confermato (#015)**
+L'utente ha valutato i due paradigmi e scelto il Campo Materiale.
+Il Sistema Geometrico resta come reference ma non verrà sviluppato.
+Le idee utili (terrain heightmap, depositFn geometriche, mapping
+registro locale) migrano nel campo come depositFn custom.
+
+**Bozze 7 biomi elaborate**
+Incrociati moodboard Pinterest (per-brano.md, visioni.md, visione-totale.md)
+con MOOD.md per produrre preset completi: depositFn, force, decay, palette
+per ciascuno dei 7 biomi. Mappatura moodboard→tracce: NEBBIA=Glaciale,
+TESSUTO=Original, SOLCO=Dub Cosmico, RESPIRO=Glaciale+Luminoso,
+MACCHINA=Rituale Techno, TEMPESTA=Rituale picco, RITORNO=Drone Abissale.
+
+**Principio canvas-space identificato**
+Problema: pitchToCell mappa MIDI 0-127 globalmente → ogni ruolo occupa
+5-7 celle su 32 (19-22% del campo). Fix: mapping LOCALE del registro
+per ruolo (stira il range attivo all'80% del campo). Il drone riempie
+tutto. Nessuna zona sistematicamente vuota.
+
+### File toccati
+**Nuovi:**
+- `src/geo.js` (Sistema Geometrico completo)
+- `docs/MOOD.md` (ritratto 7 tracce)
+- `docs/VISUAL-SPEC.md` (contratto geometrico)
+
+**Modificati:**
+- `src/config.js` (CFG.VISUAL.geo)
+- `src/field.js` (import geo, _ensureGeoInit, geo branch, feedNote)
+- `src/main.js` (Shift+G toggle + mutex)
+- `src/render.js` (HUD debug + paradigm label + getGeoStatus import)
+- `docs/DECISIONS.md` (#015)
+- `docs/STATUS.md` (rigenerato)
+- `docs/WORKLOG.md` (questa entry)
+
+### Decisioni
+- **#015** — Campo Materiale confermato come paradigma definitivo.
+  Sistema Geometrico archiviato come reference. Principio canvas-space.
+
+### Prossimo
+- **P0 — Implementare i 7 biomi nel Campo Materiale.** Bozze pronte
+  (sessione 8 output). Ordine: fix palette SOLCO (riscaldare) → NEBBIA →
+  TESSUTO → RESPIRO → MACCHINA → TEMPESTA → RITORNO.
+- **P0b — Mapping registro locale** per ogni ruolo in ogni bioma.
+  Implementare `localPitchToCell(note, registerLow, registerHigh)` in
+  campo.js. Drone riempie tutto.
+- **P1 — Firma nel campo** — gelo (freeze decay), convergenza (attrazione
+  celle verso centro), densityCap (gate probabilistico su feedNote).
+- **P2 — RITORNO preserveOnSwitch** — non resettare il campo al cambio
+  traccia verso RITORNO (il sedimento precedente è il punto).
+
+---
+
 ## 2026-04-10/11 (sessione 7) — Campo Materiale: paradigma + infrastruttura
 
 **Versione fine sessione:** v3.4.2 (nessun bump — codice nuovo, comp-* invariate)

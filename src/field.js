@@ -11,6 +11,7 @@ import { Sediment, shouldGlitch, clamp } from './visual-toolkit.js';
 import { firma } from './firma.js';
 import { getEvents, STATE_GHOST, STATE_FOSSIL } from './event-register.js';
 import * as campo from './campo.js';
+import * as geo from './geo.js';
 
 // ── Composition modules ──
 import * as compLiminale from './comp-liminale.js';
@@ -86,6 +87,19 @@ function buildEnv(extra) {
 export function initField() {
   // Will be initialized on first renderField call
   campo.initCampo();
+  // geo.js viene inizializzato lazy al primo renderField (serve W/H canvas)
+}
+
+// Init geo una sola volta, appena il canvas ha dimensioni note
+let _geoInitialized = false;
+let _geoActiveTrack = null;  // tracker locale per geo (non condiviso con _activeTrack)
+function _ensureGeoInit(W, H) {
+  if (_geoInitialized) {
+    geo.resizeGeo(W, H);
+    return;
+  }
+  geo.initGeo(W, H);
+  _geoInitialized = true;
 }
 
 // ── Onset waves (kept here for render.js compatibility) ──
@@ -103,6 +117,10 @@ export function addMidiNote(ch, noteNorm, velNorm) {
   // Campo materiale — forward note raw quando attivo (centralizza tutte le note interne)
   if (CFG.VISUAL?.campo?.useCampo) {
     campo.feedNote(ch, Math.round(noteNorm * 127), Math.round(velNorm * 127));
+  }
+  // Sistema Geometrico — stesso forwarding (mutuamente esclusivo via flag)
+  if (CFG.VISUAL?.geo?.useGeo) {
+    geo.feedNote(ch, Math.round(noteNorm * 127), Math.round(velNorm * 127));
   }
 
   // Floor for voice/lead visibility
@@ -175,6 +193,19 @@ export function updateWaves(dt) {
 // ── Main render entry point ──
 export function renderField(ctx, W, H, envData) {
   const track = worldState.track;
+
+  // ── Sistema Geometrico (paradigma sperimentale, Shift+G) ──
+  // Mutuamente esclusivo con comp-* e campo. Bypassa tutto il resto.
+  if (CFG.VISUAL?.geo?.useGeo) {
+    _ensureGeoInit(W, H);
+    if (track !== _geoActiveTrack) {
+      geo.setBiome(track);
+      _geoActiveTrack = track;
+    }
+    geo.update(envData.dt || 0.016);
+    geo.render(ctx);
+    return;
+  }
 
   // ── Campo Materiale path (paradigma sperimentale) ──
   // Mutuamente esclusivo con comp-* classiche: se attivo, bypassa tutto il resto.

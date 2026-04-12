@@ -362,5 +362,52 @@ di `ctx` diretto.
 **Ispirazioni sandbox:** `archive/sandbox/proto-campo.html` (validazione paradigma), `ispirazioni-machne/solco/JPG/*.jpg` (riferimento visivo chord SOLCO).
 
 ---
+
+## #015 — Campo Materiale confermato come paradigma visivo definitivo
+
+**Data:** 2026-04-12 (sessione 8)
+**Contesto:** In sessione 8 è stato costruito il "Sistema Geometrico" (`geo.js`)
+come terzo paradigma visivo — particelle tipizzate (ARC, RECT) su layers.js
+con Bayer halftone. Due biomi calibrati (NEBBIA con ARC, SOLCO con RECT +
+terrain heightmap). Funzionante tecnicamente ma ha generato una situazione
+a 3 paradigmi in parallelo (comp-* classiche, Campo Materiale, Sistema Geometrico).
+
+L'utente ha valutato i due paradigmi sperimentali e ha scelto il Campo
+Materiale come più interessante per il progetto. Motivazione: il campo
+produce *materia persistente che vive anche in silenzio* (shimmer, decay
+lento, Float32Array che accumula). Il sistema geometrico produce forme
+discrete che nascono e muoiono — belle ma non "materia".
+
+**Decisione:**
+1. **Campo Materiale è il paradigma visivo definitivo.** Tutte le sessioni
+   future lavorano su `campo.js` + `biomi.js`.
+2. **Sistema Geometrico archiviato come reference.** `geo.js` resta nel
+   codice come terzo toggle (Shift+G) ma non verrà sviluppato ulteriormente.
+   Le idee utili (terrain heightmap, depositFn geometriche, mapping registro
+   locale) vengono portate dentro `biomi.js` come depositFn custom.
+3. **Comp-* classiche restano come fallback di emergenza** (default, nessun
+   toggle). Se al live il campo non è pronto, si torna alle comp-*.
+
+**Principio aggiuntivo — uso dello spazio canvas:**
+Il registro musicale di ogni ruolo va mappato LOCALMENTE al campo (non
+MIDI 0-127 globale). Ogni ruolo occupa la SUA fascia del campo. Il drone
+riempie TUTTO come campo base. Nessuna zona del canvas deve essere
+sistematicamente vuota.
+
+**Alternative scartate:**
+- Sistema Geometrico come paradigma definitivo → troppo event-driven, non
+  produce materia persistente
+- Tenere 3 paradigmi in parallelo → insostenibile, nessuno raggiunge
+  completamento
+
+**Conseguenze:**
+- ✅ Focus su un solo paradigma → path chiaro verso 7 biomi completi
+- ✅ Le idee del geo (terrain, forme) migrano come depositFn nel campo
+- ✅ Canvas space usato al 80%+ per bioma (mapping locale registro)
+- ⚠️ geo.js resta nel repo ma non è sviluppato — potenziale dead code
+- ⚠️ 6 biomi da calibrare nel campo (solo SOLCO è calibrato, con palette
+  da riscaldare secondo moodboard Dub Cosmico)
+
+---
 <!-- knowledge-graph links -->
 [[STATUS]] [[01-ARCHITECTURE]] [[WORKLOG]]
