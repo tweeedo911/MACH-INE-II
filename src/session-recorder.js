@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════
-//  MACH:INE II — Session Recorder
+//  MACH:INE III — Session Recorder
 //  Records MIDI events, compositional decisions, state snapshots,
 //  frame timing, and screenshots for post-performance analysis.
 //  Zero-alloc in hot path: pre-allocated ring buffers, no strings.
@@ -190,7 +190,7 @@ export function captureScreenshotNow(label) {
 // ── Export session data ──
 export function exportSession() {
   const session = {
-    version: 'MACHINE-II-SESSION-v1',
+    version: 'MACHINE-III-SESSION-v1',
     date: new Date().toISOString(),
     duration: _r1(_elapsed()),
     totalMidiEvents: _midiCount,

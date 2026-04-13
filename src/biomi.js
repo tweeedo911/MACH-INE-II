@@ -47,15 +47,15 @@ const GENERIC = {
 // L'eco dub è lo spostamento X: tempo = spazio orizzontale.
 // L'orizzonte a Y 65% divide cielo (vuoto) da terra (sedimento).
 const SOLCO = {
-  bg: [14, 10, 8],                  // nero caldo — più scuro (spazio profondo dub)
+  bg: [12, 8, 6],                   // nero terra
   colors: {
-    drone:      [40,  30,  20],    // terra scurissima — sedimento antico
-    bass:       [255, 107,  10],   // arancio SATURO PIENO — il protagonista
-    chord:      [180, 140,  50],   // ambra calda — sedimento dorato
-    kick:       [255, 200, 160],   // cream caldo — distinto dal bass arancio
-    percussion: [0,   0,   0],     // assente in SOLCO
-    arp:        [200, 170,  70],   // oro opaco — polvere che cade
-    voice:      [255, 240, 200],   // cream brillante — raro, prezioso
+    drone:      [35,  30,  55],    // indaco profondo — lago nel bosco
+    bass:       [255, 120,  25],   // arancio bruciato — il sub dub
+    chord:      [60,   90, 130],   // blu ardesia — eco delay che si raffredda
+    kick:       [235, 220, 190],   // cream-sabbia — distinto dal bass
+    percussion: [0,   0,   0],     // assente
+    arp:        [155, 180, 115],   // oliva-salvia — la 6a dorica, luce verde
+    voice:      [170, 195, 230],   // blu chiaro freddo — raro, distante dal bass caldo
     lead:       [0,   0,   0],     // assente
   },
   decay: {
@@ -95,24 +95,27 @@ const SOLCO = {
 
     // Bass: COLONNA VERTICALE che sbatte giù + 2-3 ECHI spostati a destra
     // Il gesto fondamentale del dub: il sub cade e l'eco lo insegue nel tempo (= X)
+    // RUPTURE: echi si moltiplicano (2→6), colonna si spacca in frammenti
     bass(fields, particles, note127, vel127, h) {
+      const ri = h.rupture.intensity;
       const velN = vel127 / 127;
       const f = velN * 0.85;
-      // Posizione X: random su tutto il campo
       const cx = Math.floor(Math.random() * (h.CELLS_X - 4));
-      // COLONNA VERTICALE: larga 2-4 celle, da Y 20% a Y 85%
-      // Più intensa in basso (dove sbatte) che in alto (dove cade)
       const colW = 2 + Math.floor(Math.random() * 3);
       const yTop = Math.floor(h.CELLS_Y * (0.15 + Math.random() * 0.10));
       const yBot = Math.floor(h.CELLS_Y * (0.80 + Math.random() * 0.10));
+      // RUPTURE: la colonna si frammenta — gap casuali che crescono con l'intensità
       for (let y = yTop; y <= yBot; y++) {
-        const progress = (y - yTop) / (yBot - yTop);  // 0=top, 1=bottom
-        const yForce = f * (0.15 + progress * 0.85);   // debole in alto, forte in basso
+        if (ri > 0.3 && Math.random() < ri * 0.4) continue;  // buchi nella colonna
+        const progress = (y - yTop) / (yBot - yTop);
+        const yForce = f * (0.15 + progress * 0.85);
+        // RUPTURE: la colonna ondula orizzontalmente
+        const xShift = Math.round(Math.sin(y * 0.3) * ri * 3);
         for (let dx = 0; dx < colW; dx++) {
-          h.depositPoint(fields.bass, cx + dx, y, yForce);
+          h.depositPoint(fields.bass, cx + dx + xShift, y, yForce);
         }
       }
-      // IMPATTO: splash orizzontale dove sbatte (±5 celle dal piede della colonna)
+      // Impatto
       for (let dx = -5; dx <= colW + 5; dx++) {
         const dist = dx < 0 ? -dx : (dx >= colW ? dx - colW + 1 : 0);
         if (dist > 0) {
@@ -120,13 +123,13 @@ const SOLCO = {
           h.depositPoint(fields.bass, cx + dx, yBot - 1, f * 0.2 / dist);
         }
       }
-      // ECHI DUB: 2-3 colonne fantasma spostate a DESTRA (delay = tempo = X)
-      const nEcho = 2 + Math.floor(Math.random() * 2);
+      // ECHI DUB: 2-3 normali → fino a 6 durante rupture
+      const nEcho = 2 + Math.floor(Math.random() * 2) + Math.floor(ri * 4);
       for (let e = 0; e < nEcho; e++) {
         const echoX = cx + (e + 1) * (6 + Math.floor(Math.random() * 4));
         const echoF = f * (0.35 / (e + 1));
-        const echoW = Math.max(1, colW - e);
-        const echoTop = yTop + (e + 1) * 3;  // ogni eco parte più in basso
+        const echoW = Math.max(1, colW - Math.min(e, colW - 1));
+        const echoTop = yTop + (e + 1) * 3;
         for (let y = echoTop; y <= yBot; y++) {
           const progress = (y - echoTop) / (yBot - echoTop);
           for (let dx = 0; dx < echoW; dx++) {
@@ -206,22 +209,23 @@ const SOLCO = {
 
     // Voice: FLASH VERTICALE raro — una colonna sottile brillante (1-2 celle) che lampeggia
     // La voce in SOLCO è ogni 4 bar — quando arriva, è un fulmine nel cielo dub
+    // RUPTURE: fulmini si ramificano di più, wobble più violento
     voice(fields, particles, note127, vel127, h) {
+      const ri = h.rupture.intensity;
       const cx = Math.floor(Math.random() * h.CELLS_X);
-      const f = (vel127 / 127) * 0.55;
-      // Fulmine: colonna sottile da Y 5% a Y 55% (attraversa cielo e orizzonte)
+      const f = (vel127 / 127) * 0.55 * (1 + ri * 0.5);
       const yTop = Math.floor(h.CELLS_Y * 0.05);
-      const yBot = Math.floor(h.CELLS_Y * (0.45 + Math.random() * 0.15));
+      const yBot = Math.floor(h.CELLS_Y * (0.45 + Math.random() * 0.15 + ri * 0.25));  // più profondo
       for (let y = yTop; y <= yBot; y++) {
-        const wobble = Math.round(Math.sin(y * 0.8) * 1);
+        const wobble = Math.round(Math.sin(y * 0.8) * (1 + ri * 3));  // oscillazione ×4
         h.depositPoint(fields.voice, cx + wobble, y, f * (0.5 + Math.random() * 0.5));
       }
-      // Ramificazione: 1-2 branche corte laterali
-      const nBranch = 1 + Math.floor(Math.random() * 2);
+      // Ramificazione: 1-2 normali → fino a 5 durante rupture
+      const nBranch = 1 + Math.floor(Math.random() * 2) + Math.floor(ri * 3);
       for (let b = 0; b < nBranch; b++) {
         const brY = yTop + Math.floor(Math.random() * (yBot - yTop));
         const brDir = Math.random() < 0.5 ? -1 : 1;
-        const brLen = 3 + Math.floor(Math.random() * 5);
+        const brLen = 3 + Math.floor(Math.random() * 5) + Math.floor(ri * 4);
         for (let i = 0; i < brLen; i++) {
           h.depositPoint(fields.voice, cx + brDir * (i + 1), brY + i, f * 0.3 * (1 - i / brLen));
         }
@@ -230,67 +234,72 @@ const SOLCO = {
   },
 };
 
-// ── NEBBIA ── C lydian, no BPM — 90% vuoto nero, gocce di voce
-// "Ti ambienta" — il concerto è iniziato senza avvisarti.
-// Drone = campo uniforme (stelle formate). Voice = punti isolati.
-// Lead = scie brevi. Chord = velatura orizzontale tenue.
+// ── NEBBIA ── C lydian, no BPM — un lago nella nebbia
+// Spazialità verticale: lago in basso, nebbia al centro, cielo in alto.
+// Chord = il lago (bande larghe sfumate, Y 55-95%)
+// Drone = la nebbia (zone appena più chiare del fondo, Y 25-75%)
+// Voice/Lead = luci sopra la nebbia (punti luminosi, Y 0-35%)
 const NEBBIA = {
-  bg: [4, 5, 12],                   // nero blu profondo — spazio freddo
+  bg: [4, 4, 14],                   // nero con traccia d'indaco
   colors: {
-    drone:      [60,  75, 130],    // blu-indaco — stelle fredde
+    drone:      [55,  60, 120],    // indaco smorzato — substrato stellare
     bass:       [0,   0,   0],     // assente
-    chord:      [90, 110, 160],    // blu nebulare — velatura fredda
+    chord:      [100, 110, 170],   // pervinca nebbiosa
     kick:       [0,   0,   0],     // assente
     percussion: [0,   0,   0],     // assente
     arp:        [0,   0,   0],     // assente
-    voice:      [170, 200, 255],   // blu-bianco ghiaccio — freddo e luminoso
-    lead:       [130, 160, 220],   // blu chiaro — scia fredda
+    voice:      [255, 210, 150],   // ambra calda — unico punto caldo nel freddo
+    lead:       [180, 160, 210],   // malva rosa — ponte freddo/caldo
   },
   decay: {
-    drone:      0.9982,  // stelle ~3s
+    drone:      0.9990,  // nebbia lenta — si muove, non scompare subito
     bass:       1.000,
-    chord:      0.9970,  // velatura breve
+    chord:      0.9993,  // il lago persiste — l'accordo suona 8-32 bar
     kick:       1.000,
     percussion: 1.000,
     arp:        1.000,
-    voice:      0.9955,  // PIÙ EFFIMERE — ~1.5s, appaiono e svaniscono rapide
+    voice:      0.9955,  // stelle effimere — ~1.5s
     lead:       0.992,   // scie brevi
   },
   force: {
-    drone: 0.001,
+    drone: 0.003,     // più forte — la nebbia deve essere leggibile
     bass:  0,
-    chord: 0.07,
+    chord: 0.05,      // delicato — il lago è quieto
     kick:  0,
     percussion: 0,
     arp:   0,
-    voice: 0.60,    // luminose ma brevi (il decay le toglie presto)
+    voice: 0.60,
     lead:  0.25,
   },
   maxDensity: {
-    drone: 0.12, bass: 0, chord: 0.20, kick: 0, percussion: 0,
-    arp: 0, voice: 0.55, lead: 0.35,
+    drone: 0.20, bass: 0, chord: 0.35, kick: 0, percussion: 0,
+    arp: 0, voice: 0.75, lead: 0.50,
   },
-  // Audio-reactive: respira SOLO dove drone è tra 0.03 e 0.14 — non amplifica oltre il cap
+  // Audio-reactive: la nebbia respira con l'audio
+  // RUPTURE: la nebbia si riempie — antitesi del principio di scarsità
   audioReact(fields, energy, h) {
     if (energy < 0.01) return;
-    const f = energy * 0.002;
+    const ri = h.rupture.intensity;
+    const f = energy * (0.003 + ri * 0.010);  // respiro ×4 a takeover
+    const threshold = 0.08 + ri * 0.30;  // accetta celle più dense
     const n = h.CELLS_X * h.CELLS_Y;
     for (let i = 0; i < n; i++) {
-      // respira solo dove c'è materia ma NON dove è già densa
-      if (fields.drone[i] > 0.03 && fields.drone[i] < 0.14) {
+      if (fields.drone[i] > 0.02 && fields.drone[i] < threshold) {
         fields.drone[i] += f;
       }
     }
   },
 
   depositFn: {
-    // Drone: stelle RARE con zona di esclusione morbida
-    // Force FISSE (non dipendono da velocity scalata — NEBBIA non ha dinamica forte)
+    // Drone: PUNTI SPARSI — il tessuto di fondo, ovunque nel campo
+    // RUPTURE: la nebbia si moltiplica — skip rate crolla, forza triplica
     drone(fields, particles, note127, vel127, h) {
-      if (Math.random() > 0.45) return;  // 55% skip — meno aggressivo
-      const cy = h.localPitchToCell(note127, 36, 72);
+      const ri = h.rupture.intensity;
+      const skipChance = 0.45 * (1 - ri * 0.8);  // 0.45 → 0.09 a takeover
+      if (Math.random() > (1 - skipChance)) return;
+      const cy = Math.floor(Math.random() * h.CELLS_Y);
       const cx = Math.floor(Math.random() * h.CELLS_X);
-      // Zona di esclusione MORBIDA: threshold alzato a 0.10
+      // zona di esclusione morbida — si allenta durante rupture
       let neighborSum = 0, count = 0;
       for (let dy = -2; dy <= 2; dy++) {
         for (let dx = -2; dx <= 2; dx++) {
@@ -301,71 +310,66 @@ const NEBBIA = {
           }
         }
       }
-      if (count > 0 && neighborSum / count > 0.10) return;
-      // Force FISSA (non vel-dependent): le stelle hanno sempre la stessa luminosità
-      h.depositPoint(fields.drone, cx, cy, 0.025);
-      if (Math.random() < 0.35) {
-        const ox = Math.random() < 0.5 ? 1 : -1;
-        h.depositPoint(fields.drone, cx + ox, cy, 0.012);
-      }
+      const threshold = 0.10 + ri * 0.40;  // 0.10 → 0.50: accetta zone già dense
+      if (count > 0 && neighborSum / count > threshold) return;
+      h.depositPoint(fields.drone, cx, cy, 0.025 * (1 + ri * 2));
     },
 
-    // Voice: NEBULOSE — force FISSE per resistere al phase multiplier del germoglio
-    // In NEBBIA la velocity musicale è bassa per design; il visuale non deve dipenderne
+    // Voice: SEGNALE — punto singolo ovunque nel campo
+    // RUPTURE: i segnali si moltiplicano — 2-5 punti per evento
     voice(fields, particles, note127, vel127, h) {
-      const t = h.clamp((note127 - 67) / (84 - 67), 0, 1);
-      const baseY = Math.floor(h.CELLS_Y * (0.10 + (1 - t) * 0.75));
-      const cy = h.clamp(baseY + Math.floor((Math.random() - 0.5) * h.CELLS_Y * 0.5), 2, h.CELLS_Y - 3);
-      const cx = Math.floor(Math.random() * h.CELLS_X);
-      // Varietà: 40% gocce singole (brevi), 60% nebulose piccole (brevi).
-      if (Math.random() < 0.4) {
-        // Goccia: punto singolo che brilla e muore subito
-        h.depositPoint(fields.voice, cx, cy, 0.45);
-        if (Math.random() < 0.3) h.depositPoint(fields.voice, cx + 1, cy, 0.12);
-      } else {
-        // Nebulosa PICCOLA e BREVE — appare, si espande appena, svanisce
-        particles.voice.push({
-          cx, cy,
-          r0: 1,
-          rMax: 3 + Math.floor(Math.random() * 3),  // 3-5 celle (era 5-9)
-          f: 0.07,
-          age: 0,
-          maxAge: 50 + Math.floor(Math.random() * 40),  // 50-90 frame (era 90-160)
-        });
+      const ri = h.rupture.intensity;
+      const n = 1 + Math.floor(ri * 4);  // 1 → 5 punti
+      for (let i = 0; i < n; i++) {
+        const cy = Math.floor(Math.random() * h.CELLS_Y);
+        const cx = Math.floor(Math.random() * h.CELLS_X);
+        h.depositPoint(fields.voice, cx, cy, 0.75);
       }
     },
 
-    // Lead: SCIA LENTA — force FISSA per resistere al phase multiplier
+    // Lead: SCIA LENTA ovunque nel campo
+    // RUPTURE: scie più lunghe e veloci
     lead(fields, particles, note127, vel127, h) {
-      const cy = h.localPitchToCell(note127, 72, 88);
+      const ri = h.rupture.intensity;
+      const cy = Math.floor(Math.random() * h.CELLS_Y);
       const cx = Math.floor(Math.random() * h.CELLS_X);
       const dir = Math.random() < 0.5 ? -1 : 1;
       particles.lead.push({
         cx, cy,
-        vx: dir * (0.15 + Math.random() * 0.1),
-        f: 0.20,  // force fissa
+        vx: dir * (0.12 + Math.random() * 0.08) * (1 + ri),
+        f: 0.18 * (1 + ri),
         age: 0,
-        maxAge: 50 + Math.floor(Math.random() * 40),
+        maxAge: (40 + Math.floor(Math.random() * 30)) * (1 + ri * 0.5),
       });
     },
 
-    // Chord: velatura CORTA — 20-40% del canvas, non 60-80%
-    // Le velature sono frammenti, non bande. Con gap irregolari.
+    // Chord: VELATURE ORIZZONTALI nella metà bassa (Y 50-90%)
+    // RUPTURE: velature più larghe e fitte, gap spariscono
     chord(fields, particles, note127, vel127, h) {
-      const cy = h.localPitchToCell(note127, 55, 72);
-      const width = Math.floor(h.CELLS_X * (0.15 + Math.random() * 0.25));  // 15-40%
+      const ri = h.rupture.intensity;
+      const cy = Math.floor(h.CELLS_Y * (0.50 + Math.random() * 0.40));
+      const widthPct = 0.20 + Math.random() * 0.30 + ri * 0.40;  // più larghe
+      const width = Math.floor(h.CELLS_X * Math.min(widthPct, 0.95));
       const start = Math.floor(Math.random() * (h.CELLS_X - width));
-      const f = (vel127 / 127) * 0.10;
+      const f = 0.06 * (1 + ri * 2);
       for (let cx = start; cx < start + width; cx++) {
-        // gap irregolari — ogni 3-5 celle salta
-        if (Math.random() < 0.15) continue;
+        if (Math.random() < 0.12 * (1 - ri)) continue;  // gap spariscono
         h.depositPoint(fields.chord, cx, cy, f);
       }
     },
   },
-  // NEBBIA: massimo contrasto di grana — drone grosso, voice fine
+  // grana: drone GROSSO (banchi nebbia), chord GROSSO (lago), voice media (stelle)
   cellPx: {
-    drone: 20, voice: 6, lead: 7, chord: 14,
+    drone: 20, voice: 10, lead: 7, chord: 16,
+  },
+  // NEBBIA: NESSUNA solidificazione — il vuoto è il punto.
+  // Layer A (silence) cristallizzava il drone tra un'emissione e l'altra.
+  // Layer C (spatial) sedimentava la metà bassa senza motivo (no gravità).
+  // Risultato: le tracce persistevano invece di scomparire.
+  freeze: {
+    roleEnabled: false,    // Layer A off — il silenzio non conserva
+    spatial: false,         // Layer C off — nessuna sedimentazione spaziale
+    densityThreshold: 0.9,  // Layer B: solo materia quasi satura si congela
   },
 };
 
@@ -376,16 +380,16 @@ const NEBBIA = {
 //  Chord = protagonista ritmico (telaio staccato). Lead = voce.
 // ══════════════════════════════════════════════════════════════
 const TESSUTO = {
-  bg: [18, 14, 24],                // viola-marrone FREDDO — distinto da SOLCO (caldo)
+  bg: [6, 4, 10],                   // nero violaceo profondo — spazio per le fibre
   colors: {
-    drone:      [40,  35,  50],    // fibra scura violacea
-    bass:       [160, 130, 180],   // lavanda scuro — tensione fredda (distinto da SOLCO arancio)
-    chord:      [205, 215,  29],   // #CDD71D lime — protagonista staccato (invariato)
-    kick:       [240, 235, 250],   // bianco-lavanda flash
-    percussion: [140, 130, 150],   // sottile freddo
+    drone:      [45,  30,  50],    // aubergine scuro — il telaio
+    bass:       [110,  70, 130],   // prugna — profondità
+    chord:      [205, 215,  30],   // chartreuse — protagonista (invariato)
+    kick:       [240, 230, 210],   // cream caldo
+    percussion: [150, 130, 115],   // grigio caldo
     arp:        [0,   0,   0],     // assente
-    voice:      [0,   0,   0],     // TACE in TESSUTO
-    lead:       [239, 230, 222],   // #EFE6DE cream — voce melodica (invariato)
+    voice:      [0,   0,   0],     // tace
+    lead:       [245, 190, 130],   // pesca caldo — più vivo del cream
   },
   decay: {
     drone:      0.9997,   // quasi permanente — trama di fondo
@@ -411,28 +415,38 @@ const TESSUTO = {
     // drone: Y 0.05–0.95  (sparse su tutto — il telaio)
 
     // Drone: fibre permanenti sparse su TUTTO il campo (non cluster)
+    // RUPTURE: le fibre ondeggiano — Y varia lungo X con ampiezza crescente
     drone(fields, particles, note127, vel127, h) {
+      const ri = h.rupture.intensity;
       // Mappa la nota su tutto il canvas (5-95%) — il telaio copre tutto
       const t = h.clamp((note127 - 38) / (72 - 38), 0, 1);
-      const cy = Math.floor(h.CELLS_Y * (0.05 + (1 - t) * 0.90));
+      const baseY = Math.floor(h.CELLS_Y * (0.05 + (1 - t) * 0.90));
+      const waveAmp = ri * 4;  // 0 → ±4 celle di ondulazione
+      const waveFreq = 0.08 + Math.random() * 0.06;
+      const wavePhase = Math.random() * Math.PI * 2;
       for (let cx = 0; cx < h.CELLS_X; cx++) {
+        const cy = h.clamp(baseY + Math.round(Math.sin(cx * waveFreq + wavePhase) * waveAmp), 0, h.CELLS_Y - 1);
         h.depositPoint(fields.drone, cx, cy, 0.004);
       }
     },
 
     // Chord: FIBRE nella fascia centrale (Y 15-55%) — il protagonista staccato
     // Varietà: 50% continue, 30% tratteggiate, 20% doppie
+    // RUPTURE: le fibre rompono l'orizzontalità — Y jitterata ±(5 × intensity)
     chord(fields, particles, note127, vel127, h) {
+      const ri = h.rupture.intensity;
       // Fascia dedicata: note 50-67 → Y 15%-55%
       const t = h.clamp((note127 - 50) / (67 - 50), 0, 1);
-      const cy = Math.floor(h.CELLS_Y * (0.15 + (1 - t) * 0.40));
+      const baseY = Math.floor(h.CELLS_Y * (0.15 + (1 - t) * 0.40));
       const f = (vel127 / 127) * 0.70;
       const width = Math.floor(h.CELLS_X * (0.25 + Math.random() * 0.75));
       const start = Math.floor(Math.random() * (h.CELLS_X - width));
+      const jitterAmp = ri * 5;  // 0 → ±5 celle di deviazione verticale
       const roll = Math.random();
       if (roll < 0.5) {
         const thick = 1 + Math.floor(Math.random() * 2);
         for (let cx = start; cx < start + width; cx++) {
+          const cy = h.clamp(baseY + Math.round((Math.random() - 0.5) * 2 * jitterAmp), 0, h.CELLS_Y - 2);
           h.depositPoint(fields.chord, cx, cy, f);
           for (let tt = 1; tt < thick; tt++) {
             if (cy + tt < h.CELLS_Y) h.depositPoint(fields.chord, cx, cy + tt, f * (0.5 / tt));
@@ -442,12 +456,14 @@ const TESSUTO = {
         const gapLen = 4 + Math.floor(Math.random() * 4);
         for (let cx = start; cx < start + width; cx++) {
           if ((cx - start) % (gapLen * 2) >= gapLen) continue;
+          const cy = h.clamp(baseY + Math.round((Math.random() - 0.5) * 2 * jitterAmp), 0, h.CELLS_Y - 2);
           h.depositPoint(fields.chord, cx, cy, f);
           if (cy + 1 < h.CELLS_Y) h.depositPoint(fields.chord, cx, cy + 1, f * 0.3);
         }
       } else {
         const gap = 2 + Math.floor(Math.random() * 2);
         for (let cx = start; cx < start + width; cx++) {
+          const cy = h.clamp(baseY + Math.round((Math.random() - 0.5) * 2 * jitterAmp), 0, h.CELLS_Y - 2);
           h.depositPoint(fields.chord, cx, cy, f * 0.8);
           if (cy + gap < h.CELLS_Y) h.depositPoint(fields.chord, cx, cy + gap, f * 0.6);
         }
@@ -455,9 +471,12 @@ const TESSUTO = {
     },
 
     // Lead: zona ALTA (Y 3-22%) — voce melodica nello spazio aereo, separata dalle fibre
+    // RUPTURE: jitter verticale — la voce scende nella zona fibre, confondendosi
     lead(fields, particles, note127, vel127, h) {
+      const ri = h.rupture.intensity;
       const t = h.clamp((note127 - 62) / (79 - 62), 0, 1);
-      const cy = Math.floor(h.CELLS_Y * (0.03 + (1 - t) * 0.19));
+      const baseY = Math.floor(h.CELLS_Y * (0.03 + (1 - t) * 0.19));
+      const cy = h.clamp(baseY + Math.round((Math.random() - 0.5) * 2 * ri * 6), 0, h.CELLS_Y - 2);
       const cx = Math.floor(Math.random() * h.CELLS_X);
       const f = (vel127 / 127) * 0.50;
       h.depositPoint(fields.lead, cx, cy, f);
@@ -516,16 +535,16 @@ const TESSUTO = {
 //  Immagine: bolla di sapone vista dall'interno.
 // ══════════════════════════════════════════════════════════════
 const RESPIRO = {
-  bg: [12, 20, 15],                  // nero verde-notte — il buio dietro la membrana
+  bg: [6, 12, 10],                    // nero verde — il soffitto si alza
   colors: {
-    drone:      [110, 185, 140],     // sage luminoso — LA membrana visibile
+    drone:      [70, 130, 100],      // sage SCURO — membrana nasce tenue
     bass:       [0,   0,   0],       // scrive su drone (pori)
     chord:      [0,   0,   0],       // scrive su drone (increspature)
     kick:       [0,   0,   0],       // assente
     percussion: [0,   0,   0],       // assente
     arp:        [0,   0,   0],       // assente
-    voice:      [180, 230, 200],     // alone luminoso ai bordi del poro
-    lead:       [160, 210, 180],     // alone più tenue
+    voice:      [255, 185, 155],     // corallo caldo — alone iridescente ai bordi
+    lead:       [175, 160, 225],     // lavanda fredda — alone freddo ai bordi
   },
   decay: {
     drone:      1.000,   // no decay — audioReact gestisce il self-heal
@@ -539,17 +558,39 @@ const RESPIRO = {
     voice: 1,  lead: 1,   // token — depositFn gestisce i valori reali
   },
 
-  // Tensione superficiale: target VARIABILE nello spazio (non uniforme 0.85)
-  // Zone più dense e zone più sottili — come una bolla reale
+  // Colori che evolvono: membrana nasce tenue, si illumina al climax, si spegne
+  phaseColors: {
+    germoglio:    { drone: [70, 130, 100] },   // base scura (= colors.drone)
+    crescita:     { drone: [110, 185, 140] },  // sage pieno — si illumina
+    climax:       { drone: [120, 200, 155] },  // massima luminosità
+    dissoluzione: { drone: [40,  70,  55] },   // si spegne — quasi invisibile
+  },
+
+  // Tensione superficiale phase-aware + variabile nello spazio
+  // germoglio: membrana sottile con buchi — target basso
+  // crescita/climax: membrana piena
+  // dissoluzione: buchi restano aperti, la membrana si dissolve
+  // RUPTURE: il self-heal rallenta → i pori restano aperti
   audioReact(fields, energy, h) {
-    const heal = 0.004 + energy * 0.003;
+    const ri = h.rupture.intensity;
+    const pp = h.phaseProgress;
+    const phase = h.phase;
+
+    // target base per fase — la membrana non è mai uniformemente piena
+    let baseTarget;
+    if (phase === 'germoglio')         baseTarget = 0.35 + pp * 0.30;  // 0.35→0.65
+    else if (phase === 'crescita')     baseTarget = 0.65 + pp * 0.15;  // 0.65→0.80
+    else if (phase === 'climax')       baseTarget = 0.80;               // piena
+    else /* dissoluzione */            baseTarget = 0.80 - pp * 0.60;  // 0.80→0.20
+
+    const heal = (0.004 + energy * 0.003) * (1 - ri * 0.85);
     const n = h.CELLS_X * h.CELLS_Y;
     for (let i = 0; i < n; i++) {
-      // Target variabile: 0.72-0.88 basato su posizione (sin patterns)
       const cx = i % h.CELLS_X;
       const cy = (i / h.CELLS_X) | 0;
       const xN = cx / h.CELLS_X, yN = cy / h.CELLS_Y;
-      const target = 0.80 + Math.sin(xN * 7.3) * 0.04 + Math.sin(yN * 5.7) * 0.04;
+      // variazione spaziale: ±0.06 — zone sottili e zone dense
+      const target = baseTarget + Math.sin(xN * 7.3) * 0.04 + Math.sin(yN * 5.7) * 0.04;
       if (fields.drone[i] < target) {
         fields.drone[i] += heal;
         if (fields.drone[i] > target) fields.drone[i] = target;
@@ -559,10 +600,12 @@ const RESPIRO = {
 
   depositFn: {
     // Voice: poro IRREGOLARE — ellisse deformata + alone con variazione angolare
+    // RUPTURE: pori più grandi, il campo si svuota — inversione totale
     voice(fields, particles, note127, vel127, h) {
+      const ri = h.rupture.intensity;
       const cy = h.localPitchToCell(note127, 67, 84);
       const cx = Math.floor(h.CELLS_X * 0.12 + Math.random() * h.CELLS_X * 0.76);
-      const baseR = 2 + Math.floor((vel127 / 127) * 2.5);
+      const baseR = 2 + Math.floor((vel127 / 127) * 2.5) + Math.floor(ri * 3);  // pori ×2
       // Deformazione: raggio varia con l'angolo (ellisse + noise)
       const stretch = 0.7 + Math.random() * 0.6;  // rapporto assi 0.7-1.3
       const rotSeed = Math.random() * Math.PI;
@@ -588,10 +631,12 @@ const RESPIRO = {
     },
 
     // Lead: pori più piccoli, alone più debole, posizione spostata
+    // RUPTURE: pori crescono — convergono verso le dimensioni di voice
     lead(fields, particles, note127, vel127, h) {
+      const ri = h.rupture.intensity;
       const cy = h.localPitchToCell(note127, 72, 84);
       const cx = Math.floor(h.CELLS_X * 0.25 + Math.random() * h.CELLS_X * 0.5);
-      const r = 1 + Math.floor((vel127 / 127));
+      const r = 1 + Math.floor((vel127 / 127)) + Math.floor(ri * 2);
       for (let dy = -(r + 1); dy <= r + 1; dy++) {
         for (let dx = -(r + 1); dx <= r + 1; dx++) {
           const d2 = dx * dx + dy * dy;
@@ -607,10 +652,12 @@ const RESPIRO = {
     },
 
     // Bass: poro grosso, lento a richiudersi — il buco più grande della membrana
+    // RUPTURE: pori enormi — la membrana è più buco che materia
     bass(fields, particles, note127, vel127, h) {
+      const ri = h.rupture.intensity;
       const cy = h.localPitchToCell(note127, 36, 48);
-      const cx = Math.floor(h.CELLS_X / 2 + (Math.random() - 0.5) * 12);
-      const r = 4 + Math.floor((vel127 / 127) * 2);
+      const cx = Math.floor(h.CELLS_X / 2 + (Math.random() - 0.5) * (12 + ri * 20));  // posizioni più sparse
+      const r = 4 + Math.floor((vel127 / 127) * 2) + Math.floor(ri * 4);  // raggio ×2
       for (let dy = -r; dy <= r; dy++) {
         for (let dx = -r; dx <= r; dx++) {
           if (dx * dx + dy * dy <= r * r) {
@@ -653,16 +700,16 @@ const RESPIRO = {
 //  Immagine: scheda madre durante l'avvio.
 // ══════════════════════════════════════════════════════════════
 const MACCHINA = {
-  bg: [26, 26, 46],               // #1A1A2E navy
+  bg: [8, 8, 20],                  // nero navy profondo (Ikeda)
   colors: {
-    drone:      [40,  40,  60],   // navy chiaro — griglia base
-    bass:       [248, 237,   0],  // #F8ED00 giallo
-    chord:      [100, 100, 140],  // navy sfumato
-    kick:       [248, 237,   0],  // giallo flash
-    percussion: [221,  58,  68],  // #DD3A44 pink accent
-    arp:        [0,   232, 160],  // verde-ciano elettrico — protagonista (distinto dal giallo kick/bass)
-    voice:      [221,  58,  68],  // pink accent
-    lead:       [221,  58,  68],  // pink accent
+    drone:      [30,  30,  50],   // navy scuro
+    bass:       [248, 237,   0],  // giallo elettrico (invariato)
+    chord:      [80,   80, 120],  // navy chiaro
+    kick:       [255, 255, 255],  // bianco puro — distinto dal giallo bass
+    percussion: [220,  55,  65],  // rosa caldo
+    arp:        [0,   230, 160],  // ciano (invariato)
+    voice:      [250, 175,  60],  // ambra dorata — caldo vs ciano
+    lead:       [180,  40, 110],  // magenta scuro — distinto dal rosa percussion
   },
   decay: {
     drone:      1.000,   // audioReact gestisce la griglia base
@@ -682,8 +729,8 @@ const MACCHINA = {
 
   // Density cap — arp deve dominare, bass/chord limitati
   maxDensity: {
-    drone: 0.15, bass: 0.55, chord: 0.40, kick: 0.95,
-    percussion: 0.60, arp: 0.85, voice: 0.70, lead: 0.60,
+    drone: 0.30, bass: 0.80, chord: 0.65, kick: 0.95,
+    percussion: 0.75, arp: 0.90, voice: 0.85, lead: 0.80,
   },
   // Griglia sempre visibile — base 0.10 (la griglia è il soggetto, non lo sfondo)
   audioReact(fields, energy, h) {
@@ -707,48 +754,77 @@ const MACCHINA = {
     // Voice/lead sono MIRINI di targeting. Chord sono CHIP con pin.
 
     // Arp: RASTER SCAN — scorre da sinistra a destra come cursore
-    // Ogni nota avanza la posizione. Il pattern è LEGGIBILE come testo su terminale.
+    // RUPTURE: il cursore sbanda — posizione jitterata, trail frammentato
     arp(fields, particles, note127, vel127, h) {
+      const ri = h.rupture.intensity;
       const idx = (note127 * 3) % (h.CELLS_X * h.CELLS_Y);
-      const cy = Math.floor(idx / h.CELLS_X);
-      const cx = idx % h.CELLS_X;
-      const f = (vel127 / 127) * 1.00;
-      // Cursore 3×1 + trail orizzontale a sinistra (scia della scansione)
+      const cy0 = Math.floor(idx / h.CELLS_X);
+      const cx0 = idx % h.CELLS_X;
+      // RUPTURE: posizione jitterata ±1-2 celle
+      const jit = Math.round((Math.random() - 0.5) * 2 * ri * 2);
+      const cy = h.clamp(cy0 + jit, 0, h.CELLS_Y - 1);
+      const cx = h.clamp(cx0 + Math.round((Math.random() - 0.5) * 2 * ri * 2), 0, h.CELLS_X - 1);
+      const f = (vel127 / 127) * (1.00 - ri * 0.50);  // forza dimezzata a takeover
       h.depositPoint(fields.arp, cx, cy, f);
       h.depositPoint(fields.arp, cx, Math.max(0, cy - 1), f * 0.3);
       h.depositPoint(fields.arp, cx, Math.min(h.CELLS_Y - 1, cy + 1), f * 0.3);
       for (let i = 1; i <= 10; i++) {
+        if (ri > 0.3 && Math.random() < ri * 0.5) continue;  // trail frammentato
         const tx = (cx - i + h.CELLS_X) % h.CELLS_X;
         h.depositPoint(fields.arp, tx, cy, f * (0.6 / Math.sqrt(i)));
       }
     },
 
     // Kick: COLONNA VERTICALE intera — binario on/off, la macchina batte
+    // RUPTURE: snap a griglia 2 invece di 4 — binario corrotto, forza dimezzata
     kick(fields, particles, note127, vel127, h) {
+      const ri = h.rupture.intensity;
       const cx = Math.floor(Math.random() * h.CELLS_X);
-      for (let cy = 0; cy < h.CELLS_Y; cy++) h.depositPoint(fields.kick, cx, cy, 0.80);
-      if (cx > 0) for (let cy = 0; cy < h.CELLS_Y; cy++) h.depositPoint(fields.kick, cx - 1, cy, 0.25);
-      if (cx < h.CELLS_X - 1) for (let cy = 0; cy < h.CELLS_Y; cy++) h.depositPoint(fields.kick, cx + 1, cy, 0.25);
+      const kickF = 0.80 * (1 - ri * 0.50);  // 0.80 → 0.40 a takeover
+      for (let cy = 0; cy < h.CELLS_Y; cy++) {
+        // RUPTURE: gap nella colonna — il segnale si corrompe
+        if (ri > 0.2 && Math.random() < ri * 0.3) continue;
+        h.depositPoint(fields.kick, cx, cy, kickF);
+      }
+      const sideF = 0.25 * (1 - ri * 0.50);
+      if (cx > 0) for (let cy = 0; cy < h.CELLS_Y; cy++) h.depositPoint(fields.kick, cx - 1, cy, sideF);
+      if (cx < h.CELLS_X - 1) for (let cy = 0; cy < h.CELLS_Y; cy++) h.depositPoint(fields.kick, cx + 1, cy, sideF);
     },
 
     // Bass: TRACCE DI CIRCUITO — percorsi a L che collegano 2 nodi sulla griglia
+    // RUPTURE: la griglia 4 diventa griglia 2 (binario corrotto), tracce spezzate
     bass(fields, particles, note127, vel127, h) {
-      const f = (vel127 / 127) * 0.70;
-      const x1 = Math.floor(Math.random() * h.CELLS_X / 4) * 4;
-      const y1 = Math.floor(Math.random() * h.CELLS_Y / 4) * 4;
-      const x2 = Math.floor(Math.random() * h.CELLS_X / 4) * 4;
-      const y2 = Math.floor(Math.random() * h.CELLS_Y / 4) * 4;
+      const ri = h.rupture.intensity;
+      const f = (vel127 / 127) * 0.70 * (1 - ri * 0.35);
+      const gridSnap = ri > 0.5 ? 2 : 4;  // griglia corrotta
+      const x1 = Math.floor(Math.random() * h.CELLS_X / gridSnap) * gridSnap;
+      const y1 = Math.floor(Math.random() * h.CELLS_Y / gridSnap) * gridSnap;
+      const x2 = Math.floor(Math.random() * h.CELLS_X / gridSnap) * gridSnap;
+      const y2 = Math.floor(Math.random() * h.CELLS_Y / gridSnap) * gridSnap;
       const xMin = Math.min(x1, x2), xMax = Math.max(x1, x2);
       const yMin = Math.min(y1, y2), yMax = Math.max(y1, y2);
       if (Math.random() < 0.5) {
-        for (let x = xMin; x <= xMax; x++) h.depositPoint(fields.bass, x, y1, f);
-        for (let y = yMin; y <= yMax; y++) h.depositPoint(fields.bass, x2, y, f);
+        for (let x = xMin; x <= xMax; x++) {
+          if (ri > 0.3 && Math.random() < ri * 0.25) continue;  // tracce spezzate
+          h.depositPoint(fields.bass, x, y1, f);
+        }
+        for (let y = yMin; y <= yMax; y++) {
+          if (ri > 0.3 && Math.random() < ri * 0.25) continue;
+          h.depositPoint(fields.bass, x2, y, f);
+        }
       } else {
-        for (let y = yMin; y <= yMax; y++) h.depositPoint(fields.bass, x1, y, f);
-        for (let x = xMin; x <= xMax; x++) h.depositPoint(fields.bass, x, y2, f);
+        for (let y = yMin; y <= yMax; y++) {
+          if (ri > 0.3 && Math.random() < ri * 0.25) continue;
+          h.depositPoint(fields.bass, x1, y, f);
+        }
+        for (let x = xMin; x <= xMax; x++) {
+          if (ri > 0.3 && Math.random() < ri * 0.25) continue;
+          h.depositPoint(fields.bass, x, y2, f);
+        }
       }
-      // Nodi: blocchetti 3×3 agli estremi
+      // Nodi: blocchetti 3×3 — si deteriorano
       for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+        if (ri > 0.5 && Math.random() < ri * 0.4) continue;
         h.depositPoint(fields.bass, x1 + dx, y1 + dy, f * 0.5);
         h.depositPoint(fields.bass, x2 + dx, y2 + dy, f * 0.5);
       }
@@ -766,12 +842,16 @@ const MACCHINA = {
     },
 
     // Voice: MIRINO HUD — pixel brillante + croce sottile a 5 celle
+    // RUPTURE: mirino trema, bracci della croce si spezzano
     voice(fields, particles, note127, vel127, h) {
-      const cy = Math.floor((note127 * 7) % h.CELLS_Y);
-      const cx = Math.floor((note127 * 13) % h.CELLS_X);
-      const f = (vel127 / 127) * 0.80;
+      const ri = h.rupture.intensity;
+      const jit = Math.round((Math.random() - 0.5) * 2 * ri * 3);
+      const cy = h.clamp(Math.floor((note127 * 7) % h.CELLS_Y) + jit, 0, h.CELLS_Y - 1);
+      const cx = h.clamp(Math.floor((note127 * 13) % h.CELLS_X) + jit, 0, h.CELLS_X - 1);
+      const f = (vel127 / 127) * 0.80 * (1 - ri * 0.40);
       h.depositPoint(fields.voice, cx, cy, f);
       for (let i = 1; i <= 5; i++) {
+        if (ri > 0.3 && Math.random() < ri * 0.4) continue;  // bracci spezzati
         const fade = f * 0.3 / i;
         h.depositPoint(fields.voice, cx + i, cy, fade);
         h.depositPoint(fields.voice, cx - i, cy, fade);
@@ -781,12 +861,16 @@ const MACCHINA = {
     },
 
     // Lead: MIRINO specchiato — posizione complementare alla voice
+    // RUPTURE: stesso tremolio, croce degradata
     lead(fields, particles, note127, vel127, h) {
-      const cy = h.CELLS_Y - 1 - Math.floor((note127 * 7) % h.CELLS_Y);
-      const cx = h.CELLS_X - 1 - Math.floor((note127 * 13) % h.CELLS_X);
-      const f = (vel127 / 127) * 0.65;
+      const ri = h.rupture.intensity;
+      const jit = Math.round((Math.random() - 0.5) * 2 * ri * 3);
+      const cy = h.clamp(h.CELLS_Y - 1 - Math.floor((note127 * 7) % h.CELLS_Y) + jit, 0, h.CELLS_Y - 1);
+      const cx = h.clamp(h.CELLS_X - 1 - Math.floor((note127 * 13) % h.CELLS_X) + jit, 0, h.CELLS_X - 1);
+      const f = (vel127 / 127) * 0.65 * (1 - ri * 0.40);
       h.depositPoint(fields.lead, cx, cy, f);
       for (let i = 1; i <= 4; i++) {
+        if (ri > 0.3 && Math.random() < ri * 0.4) continue;
         const fade = f * 0.25 / i;
         h.depositPoint(fields.lead, cx + i, cy, fade);
         h.depositPoint(fields.lead, cx - i, cy, fade);
@@ -836,22 +920,22 @@ const _tempestaSusceptibility = {
 };
 
 const TEMPESTA = {
-  bg: [0, 0, 0],                   // nero puro
+  bg: [0, 0, 0],                    // nero puro (invariato)
   colors: {
-    drone:      [45,  45,  50],    // grigio freddo — linee di forza stabili
-    bass:       [255, 255, 255],   // bianco puro
-    chord:      [170, 170, 175],   // grigio medio — non compete con voice/lead
-    kick:       [255, 255, 255],   // bianco flash
-    percussion: [255,   0,  50],   // rosso fuoco saturo — scintille che feriscono
-    arp:        [90,   90, 100],   // grigio scuro — texture sottile
-    voice:      [255, 255, 255],   // bianco — hocket parte 1
-    lead:       [220,   0,  30],   // carmine PURO saturo — hocket parte 2
+    drone:      [28,  20,  55],    // viola profondo — la b2 come colore
+    bass:       [255, 255, 255],   // bianco puro (invariato)
+    chord:      [115,  90, 170],   // viola medio — tensione phrygian
+    kick:       [255, 255, 255],   // bianco flash (invariato)
+    percussion: [255,  45,  65],   // rosso fuoco
+    arp:        [70,   55, 110],   // viola scuro — texture caotica
+    voice:      [255, 255, 255],   // bianco hocket 1 (invariato)
+    lead:       [215,   0,  30],   // carmine puro hocket 2 (invariato)
   },
   // Density cap — evita il muro grigio: bass/chord/arp capped, voice/lead liberi
   maxDensity: {
-    drone: 0.25, bass: 0.50, chord: 0.35, kick: 0.95,
-    percussion: 0.70, arp: 0.30,
-    voice: 0.90, lead: 0.90,  // protagonisti: quasi liberi
+    drone: 0.40, bass: 0.75, chord: 0.60, kick: 0.95,
+    percussion: 0.80, arp: 0.50,
+    voice: 0.95, lead: 0.95,  // protagonisti: quasi liberi
   },
   decay: {
     drone:      0.9980,  // decade un po' più veloce — linee di forza si rinnovano
@@ -870,31 +954,34 @@ const TEMPESTA = {
   },
 
   // IMPULSI DIREZIONALI + EROSIONE — crea vuoti temporanei che i filamenti riempiono
+  // RUPTURE: suscettibilità converge a 1.0, erosione più violenta, campo si comprime
   audioReact(fields, energy, h) {
+    const ri = h.rupture.intensity;
     _tempestaTimer--;
     if (_tempestaTimer <= 0) {
-      // nuova direzione casuale
       const angle = Math.random() * Math.PI * 2;
       _tempestaDir.dx = Math.cos(angle);
       _tempestaDir.dy = Math.sin(angle);
-      _tempestaTimer = 3 + Math.floor(Math.random() * 12);  // 3-15 frame
+      // RUPTURE: cambi di direzione più frequenti e frenetici
+      _tempestaTimer = Math.max(1, Math.floor((3 + Math.floor(Math.random() * 12)) * (1 - ri * 0.6)));
     }
 
-    // EROSIONE DIREZIONALE — le celle controvento perdono materia
-    // Crea corridoi vuoti dove i filamenti voice/lead brillano
-    const erosion = 0.03 + energy * 0.04;
+    // EROSIONE DIREZIONALE — durante rupture l'erosione è molto più forte
+    const erosion = (0.03 + energy * 0.04) * (1 + ri * 2);
     const erodeRoles = ['bass', 'chord', 'arp', 'drone'];
     for (const er of erodeRoles) {
       const ef = fields[er];
-      // Erodi nella direzione opposta all'impulso
       const edx = Math.round(-_tempestaDir.dx);
       const edy = Math.round(-_tempestaDir.dy);
       if (edx === 0 && edy === 0) break;
+      // RUPTURE: suscettibilità converge a 1.0 anche per l'erosione
+      const baseS = _tempestaSusceptibility[er];
+      const erodeS = baseS + (1 - baseS) * ri;
       for (let cy = 0; cy < h.CELLS_Y; cy++) {
         for (let cx = 0; cx < h.CELLS_X; cx++) {
           const i = cy * h.CELLS_X + cx;
           if (ef[i] > 0.05) {
-            ef[i] *= (1 - erosion * _tempestaSusceptibility[er]);
+            ef[i] *= (1 - erosion * erodeS);
           }
         }
       }
@@ -904,7 +991,9 @@ const TEMPESTA = {
     const roles = ['arp', 'voice', 'lead', 'percussion', 'chord', 'bass', 'drone'];
 
     for (const role of roles) {
-      const susc = _tempestaSusceptibility[role] * strength;
+      // RUPTURE: suscettibilità converge a 1.0 — tutto è in balia del vento
+      const baseS = _tempestaSusceptibility[role];
+      const susc = (baseS + (1 - baseS) * ri) * strength;
       if (susc < 0.005) continue;
       const f = fields[role];
       const sdx = Math.round(_tempestaDir.dx);
@@ -944,12 +1033,13 @@ const TEMPESTA = {
     // Drone = linee di campo stabili (l'unica cosa che non si muove)
 
     // Voice: TENDE DI LUCE CURVE (aurora boreale) — archi che attraversano 60-80% del campo
-    // Ogni tenda è un arco sin con ampiezza e frequenza variabili
+    // RUPTURE: tende diventano enormi, attraversano TUTTO il campo (30+ → 60+ celle)
     voice(fields, particles, note127, vel127, h) {
+      const ri = h.rupture.intensity;
       const cx0 = Math.floor(Math.random() * h.CELLS_X);
-      const f = (vel127 / 127) * 1.00;
-      // Arco che attraversa gran parte del campo — la tenda d'aurora
-      const len = 25 + Math.floor(Math.random() * 20);  // 25-44 celle — LUNGO
+      const f = (vel127 / 127) * (1.00 + ri * 0.50);  // più intense
+      // RUPTURE: filamento enorme — fino a 70 celle
+      const len = 25 + Math.floor(Math.random() * 20) + Math.floor(ri * 25);
       const baseAngle = Math.atan2(_tempestaDir.dy, _tempestaDir.dx);
       const amplitude = 3 + Math.random() * 5;  // ondulazione 3-8 celle
       const freq = 0.15 + Math.random() * 0.20;
@@ -969,10 +1059,12 @@ const TEMPESTA = {
     },
 
     // Lead: CONTRO-TENDA CARMINE — arco più corto, curvatura opposta
+    // RUPTURE: converge con voice — stesso ordine di grandezza
     lead(fields, particles, note127, vel127, h) {
+      const ri = h.rupture.intensity;
       const cx0 = Math.floor(Math.random() * h.CELLS_X);
-      const f = (vel127 / 127) * 0.95;
-      const len = 18 + Math.floor(Math.random() * 15);
+      const f = (vel127 / 127) * (0.95 + ri * 0.50);
+      const len = 18 + Math.floor(Math.random() * 15) + Math.floor(ri * 20);
       const baseAngle = Math.atan2(_tempestaDir.dy, _tempestaDir.dx) + Math.PI * 0.3; // angolata diversamente
       const amplitude = 4 + Math.random() * 6;
       const freq = 0.12 + Math.random() * 0.18;
@@ -1096,17 +1188,17 @@ const TEMPESTA = {
 //  germoglio cresce 0→70%, dissoluzione si restringe 70%→0.
 // ══════════════════════════════════════════════════════════════
 const RITORNO = {
-  bg: [0, 0, 0],                  // nero PURO — lo spazio intorno al pianeta
-  planetMask: true,                // flag per campo.js: applica maschera circolare
+  bg: [0, 0, 0],                    // nero PURO — lo spazio intorno al pianeta
+  planetMask: true,                 // flag per campo.js: applica maschera circolare
   colors: {
-    drone:      [100,  90, 130],   // lavanda scuro
-    bass:       [155, 143, 206],   // lavanda
-    chord:      [180, 170, 160],   // cream scuro
-    kick:       [200, 190, 180],   // cream
-    percussion: [150, 140, 130],
-    arp:        [155, 143, 206],   // lavanda (morente)
-    voice:      [255, 252, 245],   // quasi bianco — protagonista esposta
-    lead:       [200, 195, 210],   // cream freddo
+    drone:      [40,  32,  55],    // viola-blu — sedimento di 55 minuti
+    bass:       [125, 105,  80],   // ambra spenta — eco SOLCO esaurita
+    chord:      [135, 125, 160],   // lavanda sbiadita
+    kick:       [170, 162, 150],   // cream stanco
+    percussion: [130, 120, 110],   // appena percettibile
+    arp:        [95,  100, 135],   // blu morente
+    voice:      [245, 215, 170],   // oro tenue — l'ultimo suono, nudo
+    lead:       [170, 158, 210],   // lavanda fredda — eco distante
   },
   decay: {
     drone:      0.998,
@@ -1308,140 +1400,7 @@ export const BIOMI = {
   RITORNO,
 };
 
-// ═══════════════════════════════════════════════════════════
-//  PALETTE B — palette alternativa incrociata con reference
-//  artistiche (Hubble, Agnes Martin, Dub, Kenya Hara, Ikeda,
-//  Moholy-Nagy, Pale Blue Dot).
-//  Solo bg + colors: fisica, decay, force, depositFn invariati.
-// ═══════════════════════════════════════════════════════════
-const PALETTE_B = {
-  NEBBIA: {
-    bg: [4, 4, 14],                    // nero con traccia d'indaco
-    colors: {
-      drone:      [55,  60,  120],     // indaco smorzato — substrato stellare
-      bass:       [0,   0,   0],       // assente
-      chord:      [100, 110, 170],     // pervinca nebbiosa
-      kick:       [0,   0,   0],       // assente
-      percussion: [0,   0,   0],       // assente
-      arp:        [0,   0,   0],       // assente
-      voice:      [255, 210, 150],     // ambra calda — unico punto caldo nel freddo
-      lead:       [180, 160, 210],     // malva rosa — ponte freddo/caldo
-    },
-  },
-  TESSUTO: {
-    bg: [10, 6, 14],                   // nero violaceo
-    colors: {
-      drone:      [45,  30,  50],      // aubergine scuro — il telaio
-      bass:       [110,  70, 130],     // prugna — profondità
-      chord:      [205, 215,  30],     // chartreuse — protagonista (invariato)
-      kick:       [240, 230, 210],     // cream caldo
-      percussion: [150, 130, 115],     // grigio caldo
-      arp:        [0,   0,   0],       // assente
-      voice:      [0,   0,   0],       // tace
-      lead:       [245, 190, 130],     // pesca caldo — più vivo del cream
-    },
-  },
-  SOLCO: {
-    bg: [12, 8, 6],                    // nero terra
-    colors: {
-      drone:      [35,  30,  55],      // indaco profondo — lago nel bosco
-      bass:       [255, 120,  25],     // arancio bruciato — il sub dub
-      chord:      [60,   90, 130],     // blu ardesia — eco delay che si raffredda
-      kick:       [235, 220, 190],     // cream-sabbia — distinto dal bass
-      percussion: [0,   0,   0],       // assente
-      arp:        [155, 180, 115],     // oliva-salvia — la 6a dorica, luce verde
-      voice:      [250, 195,  90],     // ambra-oro — calda ma distinta dal bass
-      lead:       [0,   0,   0],       // assente
-    },
-  },
-  RESPIRO: {
-    bg: [6, 12, 10],                   // nero verde — il soffitto si alza
-    colors: {
-      drone:      [110, 185, 140],     // sage (invariato — È la membrana)
-      bass:       [0,   0,   0],       // scrive su drone
-      chord:      [0,   0,   0],       // scrive su drone
-      kick:       [0,   0,   0],       // assente
-      percussion: [0,   0,   0],       // assente
-      arp:        [0,   0,   0],       // assente
-      voice:      [255, 185, 155],     // corallo caldo — alone iridescente ai bordi
-      lead:       [175, 160, 225],     // lavanda fredda — alone freddo ai bordi
-    },
-  },
-  MACCHINA: {
-    bg: [8, 8, 20],                    // nero navy più profondo (Ikeda)
-    colors: {
-      drone:      [30,  30,  50],      // navy scuro
-      bass:       [248, 237,   0],     // giallo elettrico (invariato)
-      chord:      [80,   80, 120],     // navy chiaro
-      kick:       [255, 255, 255],     // bianco puro — distinto dal giallo bass
-      percussion: [220,  55,  65],     // rosa caldo
-      arp:        [0,   230, 160],     // ciano (invariato)
-      voice:      [250, 175,  60],     // ambra dorata — caldo vs ciano
-      lead:       [220,  55,  65],     // rosa — specchiato alla voice
-    },
-  },
-  TEMPESTA: {
-    bg: [0, 0, 0],                     // nero puro (invariato)
-    colors: {
-      drone:      [28,  20,  55],      // viola profondo — la b2 come colore
-      bass:       [255, 255, 255],     // bianco puro (invariato)
-      chord:      [115,  90, 170],     // viola medio — tensione phrygian
-      kick:       [255, 255, 255],     // bianco flash (invariato)
-      percussion: [255,  45,  65],     // rosso fuoco
-      arp:        [70,   55, 110],     // viola scuro — texture caotica
-      voice:      [255, 255, 255],     // bianco hocket 1 (invariato)
-      lead:       [215,   0,  30],     // carmine puro hocket 2 (invariato)
-    },
-  },
-  RITORNO: {
-    bg: [5, 5, 14],                    // nero blu sera
-    colors: {
-      drone:      [40,  32,  55],      // viola-blu — sedimento di 55 minuti
-      bass:       [125, 105,  80],     // ambra spenta — eco SOLCO esaurita
-      chord:      [135, 125, 160],     // lavanda sbiadita
-      kick:       [170, 162, 150],     // cream stanco
-      percussion: [130, 120, 110],     // appena percettibile
-      arp:        [95,  100, 135],     // blu morente
-      voice:      [245, 215, 170],     // oro tenue — l'ultimo suono, nudo
-      lead:       [170, 158, 210],     // lavanda fredda — eco distante
-    },
-  },
-};
-
-// ── Palette A (originale) — salvata al primo swap ──
-let _paletteA = null;
-let _currentMode = 'A';
-
-function _saveOriginals() {
-  if (_paletteA) return;
-  _paletteA = {};
-  for (const name of Object.keys(PALETTE_B)) {
-    const b = BIOMI[name];
-    _paletteA[name] = { bg: [...b.bg], colors: {} };
-    for (const role of Object.keys(b.colors)) {
-      _paletteA[name].colors[role] = [...b.colors[role]];
-    }
-  }
-}
-
-/** Cambia palette: 'A' = originale, 'B' = alternativa. Modifica in-place. */
-export function setPaletteMode(mode) {
-  _saveOriginals();
-  const src = mode === 'B' ? PALETTE_B : _paletteA;
-  for (const name of Object.keys(src)) {
-    const biome = BIOMI[name];
-    const s = src[name];
-    biome.bg[0] = s.bg[0]; biome.bg[1] = s.bg[1]; biome.bg[2] = s.bg[2];
-    for (const role of Object.keys(s.colors)) {
-      const c = biome.colors[role];
-      const sc = s.colors[role];
-      c[0] = sc[0]; c[1] = sc[1]; c[2] = sc[2];
-    }
-  }
-  _currentMode = mode;
-}
-
-export function getPaletteMode() { return _currentMode; }
+// V3.9: palette unificata — PALETTE_B/A rimossa, colori consolidati inline
 
 export function getBiome(trackName) {
   return BIOMI[trackName] || GENERIC;

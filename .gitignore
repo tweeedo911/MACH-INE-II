@@ -34,3 +34,12 @@ analisi machine ii/FRAME-*.png
 
 # Superpowers/flow metadata locale
 .superpowers/
+
+# Symlink a memoria Claude locale
+docs/memory
+
+# Prompt interni (non parte del progetto)
+docs/_ULTRAPLAN-PROMPT.md
+
+# Planning archive (metadata GSD locale)
+.planning-archive/

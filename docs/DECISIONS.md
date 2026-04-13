@@ -147,7 +147,7 @@ Più protocollo in `CLAUDE.md`:
 
 ---
 
-## #010 — Piano implementativo pre-sessione obbligatorio
+## #010a — Piano implementativo pre-sessione obbligatorio
 
 **Data:** 2026-04-07 (notte)
 **Contesto:** Pattern osservato: quando si inizia a implementare senza piano preciso,

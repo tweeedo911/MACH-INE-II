@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════
-//  MACH:INE II — MIDI Engine
+//  MACH:INE III — MIDI Engine
 //  WebMIDI API: note tracking, density, pitch range, CC
 // ═══════════════════════════════════════════════════════════
 

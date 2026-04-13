@@ -392,8 +392,8 @@ export const TRACKS = {
       [52, 55, 59],  // Em (E G B)
     ],
 
-    // Rolling bass — 8th note pump
-    bassPattern: [7,0,7,0, 5,0,7,0, 3,0,5,0, 7,0,3,0],
+    // Pump sincopato — quinta con offbeat e quarta che rompe
+    bassPattern: [7,0,0,7, 0,0,7,0, 0,7,0,0, 7,0,5,0],
     bassPatternLocked: true,  // V3.5: pump meccanico — cycle extension rompe la simmetria
     bassSweep: { periodBars: 4, depth: 0.05 },  // meccanico: quasi piatto, costante
 

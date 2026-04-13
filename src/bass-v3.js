@@ -247,31 +247,7 @@ function _tick() {
     addMidiNote(3, note / 127, vel / 127);
     _lastNote = _step;
 
-    if (_step % 4 === 0 && density > 0.4 && Math.random() < 0.20) {
-      const fifth = note + 7;
-      if (fifth <= regHi) {
-        const fifthVel = Math.round(vel * 0.65);
-        sendMIDINote(3, fifth, fifthVel, dur);
-        addMidiNote(3, fifth / 127, fifthVel / 127);
-      }
-    }
-
-  } else if (density > 0.5 && Math.random() < 0.12) {
-    const prevStep = (_step + 15) % 16;
-    const nextStep = (_step + 1) % 16;
-    const adjacentToPlayed =
-      (activePattern[prevStep] > 0) || (activePattern[nextStep] > 0);
-
-    if (adjacentToPlayed) {
-      const ghostVel = Math.round(20 + Math.random() * 10);
-      let ghostNote = root;
-      while (ghostNote > regHi) ghostNote -= 12;
-      while (ghostNote < regLo) ghostNote += 12;
-      if (ghostNote < regLo || ghostNote > regHi) ghostNote = regLo;
-      const ghostDur  = stepMs * 1.5;
-
-      sendMIDINote(3, ghostNote, ghostVel, ghostDur);
-      addMidiNote(3, ghostNote / 127, ghostVel / 127);
-    }
+    // 5th doubling e ghost notes rimossi — bass va su modulare (gate+note),
+    // note extra fuori pattern creano gate imprevisti
   }
 }

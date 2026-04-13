@@ -6,6 +6,59 @@
 
 ---
 
+## 2026-04-13 (sessione 16) — Calibrazione personalità camera per bioma
+
+**Obiettivo:** Differenziare il comportamento camera tra biomi — i movimenti erano troppo uniformi.
+
+**Fatto:**
+- Zoom globale rallentato: TUFFO 4-6s base (era 2-3s), SOLLEVARE 4-8s base (era 2-4s)
+- Aggiunta grammatica `afterStare` per bioma in config.js con pesi per azione
+- Riscritto `_nextShot` con `_pickWeighted` + `_shotFromAction` (7 azioni distinte)
+- 6 personalità camera uniche:
+  - NEBBIA: contemplativa (50% stare di nuovo, hold 10-18s, speed 0.25)
+  - TESSUTO: scansione H + cambi fascia Y (45% scan, 35% travel)
+  - SOLCO: echoChase — pan a destra inseguendo l'eco dub (50%)
+  - RESPIRO: breathe ciclico — zoom avanti/indietro parziale, mai sotto 1.5× (45%)
+  - MACCHINA: snapJump — salti discreti tra POI con snap easing (85%)
+  - TEMPESTA: rapida — 70% travel, hold 1.5-2.5s, scan verticale
+- Fix TESSUTO bloccato: scan ridotto da 70% a 45%, travel alzato a 35%
+
+**File toccati:**
+- `src/camera.js` — _pickWeighted, _shotFromAction, rimosso SHOT_TYPES inutilizzato
+- `src/config.js` — camera.biomes riscritto con afterStare, scanDir, zoomFloor
+- `src/VERSION.js` — v3.8.0 → v3.8.1
+
+**Decisioni:** nessuna nuova ADR
+
+**Prossimo:** test live camera con musica reale su tutti i biomi; P1 rupture nel campo
+
+---
+
+## 2026-04-13 (sessione 15) — MACHINE IV + fix NEBBIA
+
+**Obiettivo:** Creare variante autonoma MACHINE IV; fix visivi NEBBIA.
+
+**Fatto:**
+- Creato MACHINE IV — "FONDALE" in `/Users/Edo_1/MACHINE-IV/` (progetto separato)
+  - 5 zone di profondità oceanica, ~30 min, famiglia modale Bb maggiore
+  - 26 file sorgente, ~7000 LOC, stessa architettura Band con Direttore
+- Fix NEBBIA: scoperto bug solidificazione 3 strati che cristallizzava materia
+  - freeze: roleEnabled=false, spatial=false, densityThreshold=0.9
+  - chord decay 0.9970→0.9993 (persiste per durata accordo senza bisogno freeze)
+  - voice: rimosso nebulose espandenti, ora pixel singolo bianco freddo ovunque
+  - drone: punti indaco sparsi (non banchi sfumati)
+  - chord: velature orizzontali nella metà bassa
+  - colori drone/chord ripristinati a leggibili (non quasi-invisibili)
+- maxDensity alzato su NEBBIA, MACCHINA, TEMPESTA per zone più piene (meno puntinato)
+
+**File toccati:** `biomi.js`
+
+**Decisioni:** nessuna nuova ADR
+
+**Prossimo:** test live NEBBIA con musica reale; calibrazione altri biomi
+
+---
+
 ## 2026-04-13 (sessione 14) — Camera osservatore narrativo
 
 **Obiettivo:** Sostituire la camera passiva con un sistema autonomo che osserva il campo con intenzione narrativa.
