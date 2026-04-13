@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <style>
+    * { margin: 0; padding: 0; }
+    body { background: #000; overflow: hidden; }
+    canvas { display: block; }
+    #info {
+      position: fixed; bottom: 10px; right: 10px;
+      color: rgba(255,140,0,0.35); font: 10px/1.4 monospace;
+      pointer-events: none; text-align: right;
+    }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="info">proto-solco-v2<br>gravità estrema — terrain Y=0.75<br>Grand Canyon in sezione</div>
+<script>
+
+// ─── setup ───────────────────────────────────────────────────────────────────
+const W = window.innerWidth, H = window.innerHeight;
+const c = document.getElementById('c');
+c.width = W; c.height = H;
+const ctx = c.getContext('2d');
+
+const TERRAIN_Y = H * 0.75;   // confine geologia
+const BPM       = 129;
+const STEP_S    = 60 / BPM / 4; // durata 16th note in secondi
+
+function lerp(a, b, t) { return a + (b - a) * t; }
+function clamp(v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }
+
+// ─── entità ──────────────────────────────────────────────────────────────────
+// Uso array flat + swap-and-pop per rimozione O(1)
+const ents = [];
+
+function addBass(pitch, vel) {
+  const nv = vel / 127;
+  const np = clamp((pitch - 24) / (43 - 24), 0, 1); // 0=pitch basso, 1=alto
+  ents.push({
+    type: 'bass',
+    x:  W * lerp(0.1, 0.9, np),              // basso grave → sinistra
+    y:  H * lerp(0.40, 0.20, nv),            // velocità alta → nasce più in alto
+    w:  lerp(40, 160, nv),
+    h:  lerp(20, 60, nv),
+    vy: 0,
+    splat: false,
+    age: 0, maxAge: 100,
+    nv,
+  });
+}
+
+function addKick() {
+  ents.push({ type: 'kick', age: 0, maxAge: 4 });
+}
+
+function addChord(pitch, vel) {
+  const nv = vel / 127;
+  const w  = lerp(60, 200, nv);
+  ents.push({
+    type: 'chord',
+    x:  W / 2 - w / 2 + lerp(-40, 40, Math.random()),
+    y:  H * (1 - pitch / 127),    // pitch → Y
+    w,
+    h:  8,
+    vy: 40,                        // px/s — cade lenta
+    age: 0, maxAge: 80,
+  });
+}
+
+function addVoice(pitch) {
+  const w = W * 0.35;
+  ents.push({
+    type: 'voice',
+    x:  W / 2 - w / 2 + lerp(-60, 60, Math.random()),
+    y:  H * (1 - pitch / 127),
+    w,
+    age: 0, maxAge: 25,
+  });
+}
+
+function addArp(pitch) {
+  ents.push({
+    type: 'arp',
+    x:   W * lerp(0.05, 0.95, Math.random()),
+    y:   H * lerp(0.20, 0.55, Math.random()),
+    orbitAmp: lerp(-20, 20, Math.random()),
+    orbitT: 0,
+    vy: 0,
+    age: 0, maxAge: 18,
+  });
+}
+
+// ─── fake MIDI — ritmo SOLCO ─────────────────────────────────────────────────
+// 32 step = 2 bar a 129 BPM
+const KICK_STEPS   = new Set([0, 8, 16, 24]);
+const BASS_PATTERN = new Map([
+  [0,  { pitch: 31, vel: 110 }],
+  [4,  { pitch: 28, vel: 90  }],
+  [8,  { pitch: 35, vel: 100 }],
+  [12, { pitch: 29, vel: 80  }],
+  [16, { pitch: 31, vel: 115 }],
+  [18, { pitch: 33, vel: 85  }],
+  [20, { pitch: 28, vel: 95  }],
+  [24, { pitch: 31, vel: 105 }],
+  [28, { pitch: 35, vel: 75  }],
+]);
+const CHORD_PATTERN = new Map([
+  [0,  { pitch: 62, vel: 70 }],
+  [16, { pitch: 58, vel: 65 }],
+]);
+const ARP_SEQ = [67, 64, 69, 71, 67, 62, 64, 69];
+
+let stepTotal = 0, arpIdx = 0;
+
+function tickStep() {
+  const s = stepTotal % 32;
+
+  if (KICK_STEPS.has(s)) addKick();
+
+  const b = BASS_PATTERN.get(s);
+  if (b) addBass(b.pitch, b.vel);
+
+  const ch = CHORD_PATTERN.get(s);
+  if (ch) addChord(ch.pitch, ch.vel);
+
+  // arp ogni 2 step (8th note density)
+  if (s % 2 === 1) {
+    addArp(ARP_SEQ[arpIdx % ARP_SEQ.length]);
+    arpIdx++;
+  }
+
+  // voice rarissima — ogni 4 bar (128 step)
+  if (stepTotal % 128 === 64) addVoice(80);
+
+  stepTotal++;
+}
+
+// ─── update ──────────────────────────────────────────────────────────────────
+function update(dt) {
+  // rimozione swap-and-pop
+  for (let i = ents.length - 1; i >= 0; i--) {
+    if (ents[i].age >= ents[i].maxAge) {
+      ents[i] = ents[ents.length - 1];
+      ents.pop();
+    }
+  }
+
+  for (const e of ents) {
+    if (e.type === 'bass' && !e.splat) {
+      e.vy += 0.8 * H * dt;          // gravità estrema
+      e.y  += e.vy * dt;
+      if (e.y + e.h / 2 >= TERRAIN_Y) {
+        // spiaccicamento al terrain
+        e.y     = TERRAIN_Y - e.h / 2;
+        e.vy    = 0;
+        e.splat = true;
+        e.h    *= 0.3;
+        e.w    *= 1.8;
+      }
+    }
+
+    if (e.type === 'chord') {
+      e.y += e.vy * dt;
+    }
+
+    if (e.type === 'arp') {
+      e.orbitT += dt;
+      if (e.age < e.maxAge * 0.5) {
+        // fase orbita
+        e.x += Math.cos(e.orbitT * 3) * e.orbitAmp * dt * 1.5;
+      } else {
+        // fase caduta
+        e.vy += 25 * dt;
+        e.y  += e.vy * dt;
+      }
+    }
+
+    e.age++;
+  }
+}
+
+// ─── draw ────────────────────────────────────────────────────────────────────
+function draw() {
+  // trail leggero — non hard clear (costruisce palimpsesto leggero)
+  ctx.fillStyle = 'rgba(13, 13, 18, 0.28)';
+  ctx.fillRect(0, 0, W, TERRAIN_Y);
+  ctx.fillStyle = 'rgba(18, 14, 10, 0.28)';
+  ctx.fillRect(0, TERRAIN_Y, W, H - TERRAIN_Y);
+
+  // linea terrain — sottile, quasi invisibile
+  ctx.globalAlpha = 0.18;
+  ctx.strokeStyle = '#FF7700';
+  ctx.lineWidth   = 1;
+  ctx.beginPath();
+  ctx.moveTo(0, TERRAIN_Y);
+  ctx.lineTo(W, TERRAIN_Y);
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+
+  for (const e of ents) {
+    const t  = e.age / e.maxAge;   // 0 → 1
+    const t2 = t * t;               // curva aging accelerata
+
+    // ─ BASS: blocco rettangolare con massa, pattern dot interno ──────────
+    if (e.type === 'bass') {
+      const hw    = e.w / 2, hh = e.h / 2;
+      const alpha = t < 0.70 ? 1 : (1 - t) / 0.30;
+
+      // blocco solido orange
+      ctx.globalAlpha = alpha * 0.50;
+      ctx.fillStyle   = '#FF7700';
+      ctx.fillRect(e.x - hw, e.y - hh, e.w, e.h);
+
+      // pattern dot interno: dotSz 3→8, density 0.85→0.20 (t²)
+      const dotSz   = lerp(3, 8, t2);
+      const density = lerp(0.85, 0.20, t2);
+      const gap     = dotSz * 2.5;
+      ctx.globalAlpha = alpha * density;
+      ctx.fillStyle   = '#FFAA33';
+      for (let dx = -hw + dotSz; dx < hw; dx += gap) {
+        for (let dy = -hh + dotSz; dy < hh; dy += gap) {
+          ctx.fillRect(e.x + dx - dotSz / 2, e.y + dy - dotSz / 2, dotSz, dotSz);
+        }
+      }
+    }
+
+    // ─ KICK: shockwave orizzontale a Y=0.70, si espande in 4 frame ──────
+    else if (e.type === 'kick') {
+      const lw    = W * t;
+      const alpha = (1 - t) * 0.90;
+      ctx.globalAlpha = alpha;
+      ctx.strokeStyle = '#CCFF00';
+      ctx.lineWidth   = 2;
+      ctx.beginPath();
+      ctx.moveTo(W / 2 - lw / 2, H * 0.70);
+      ctx.lineTo(W / 2 + lw / 2, H * 0.70);
+      ctx.stroke();
+    }
+
+    // ─ CHORD: lastra sottile, cade a 40 px/s ─────────────────────────────
+    else if (e.type === 'chord') {
+      const alpha = t < 0.80 ? 0.70 : ((1 - t) / 0.20) * 0.70;
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle   = '#B8B8B8';
+      ctx.fillRect(e.x, e.y - e.h / 2, e.w, e.h);
+    }
+
+    // ─ VOICE: traccia sismografica orizzontale, non cade ─────────────────
+    else if (e.type === 'voice') {
+      const alpha = t < 0.20 ? t / 0.20 : (1 - t) / 0.80;
+      ctx.globalAlpha = alpha * 0.80;
+      ctx.strokeStyle = '#FFFFFF';
+      ctx.lineWidth   = 1.5;
+      ctx.beginPath();
+      for (let i = 0; i <= e.w; i += 3) {
+        const y = e.y + Math.sin(i * 0.25 + e.age * 0.3) * 2.5;
+        i === 0 ? ctx.moveTo(e.x + i, y) : ctx.lineTo(e.x + i, y);
+      }
+      ctx.stroke();
+    }
+
+    // ─ ARP: particella 3px, scintilla ────────────────────────────────────
+    else if (e.type === 'arp') {
+      ctx.globalAlpha = 1 - t;
+      ctx.fillStyle   = '#FFCC44';
+      ctx.fillRect(e.x - 1.5, e.y - 1.5, 3, 3);
+    }
+  }
+
+  ctx.globalAlpha = 1;
+}
+
+// ─── loop ────────────────────────────────────────────────────────────────────
+let lastTs   = 0;
+let stepAccum = 0;
+
+function loop(ts) {
+  const dt = clamp((ts - lastTs) / 1000, 0, 0.05);
+  lastTs = ts;
+
+  stepAccum += dt;
+  while (stepAccum >= STEP_S) {
+    tickStep();
+    stepAccum -= STEP_S;
+  }
+
+  update(dt);
+  draw();
+  requestAnimationFrame(loop);
+}
+
+// init canvas
+ctx.fillStyle = '#0d0d12';
+ctx.fillRect(0, 0, W, TERRAIN_Y);
+ctx.fillStyle = '#12100a';
+ctx.fillRect(0, TERRAIN_Y, W, H - TERRAIN_Y);
+
+requestAnimationFrame(ts => { lastTs = ts; requestAnimationFrame(loop); });
+
+</script>
+</body>
+</html>

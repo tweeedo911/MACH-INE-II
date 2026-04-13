@@ -3,7 +3,7 @@
 //  Versione: vedi src/VERSION.js (APP_VERSION)
 // ═══════════════════════════════════════════════════════════
 
-import { APP_VERSION, APP_TITLE } from './VERSION.js';
+import { APP_VERSION } from './VERSION.js';
 import { CFG } from './config.js';
 import { initAudio, updateAudio, setAudioGain, getAudioGain } from './audio.js';
 import { initMIDI, updateMIDI, sendMIDIStart, updateMIDIClock, sendMIDIAllNotesOff } from './midi.js';
@@ -12,8 +12,8 @@ import { initRender, renderFrame, resize, setHUDElements, handleKey, setProjecto
 import { resetEvents } from './event-register.js';
 import { clearAllLayers } from './layers.js';
 import { snapPalette } from './colors.js';
-import { WakeLockManager } from '../.claude/skills/runtime-expert/scripts/perf-utils.js';
-import { setPaletteMode, getPaletteMode } from './biomi.js';
+import { WakeLockManager } from './wake-lock.js';
+// V3.9: palette unificata — import setPaletteMode/getPaletteMode rimosso
 import { setBiome } from './campo.js';
 import { initCamera, updateCamera } from './camera.js';
 
@@ -82,8 +82,8 @@ abBadge.appendChild(_badgeM);
 abBadge.appendChild(_badgeN);
 
 function _refreshAbBadge() {
-  // V3.5: M+N consolidati, badge fisso
-  _badgeM.textContent = 'v3.5';
+  // badge dinamico da VERSION.js
+  _badgeM.textContent = APP_VERSION;
   _badgeM.style.background = '#CDD71D';
   _badgeM.style.color = '#000';
   _badgeN.textContent = '';
@@ -208,23 +208,7 @@ document.addEventListener('keydown', (e) => {
 
   // M/N toggle rimossi — V3.5: M+N consolidati come default permanente
 
-  // ── Palette A/B toggle ──
-  if (e.code === 'KeyA' && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
-    if (getPaletteMode() !== 'A') {
-      setPaletteMode('A');
-      setBiome(worldState.track || 'GENERIC');  // morph transizione
-      console.log('%c[PALETTE] A (originale)', 'color: #EFE6DE; font-weight: bold;');
-    }
-    return;
-  }
-  if (e.code === 'KeyB' && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
-    if (getPaletteMode() !== 'B') {
-      setPaletteMode('B');
-      setBiome(worldState.track || 'GENERIC');  // morph transizione
-      console.log('%c[PALETTE] B (alternativa)', 'color: #FFD296; font-weight: bold;');
-    }
-    return;
-  }
+  // V3.9: palette unificata — toggle A/B rimosso
 
   // Toggle version badge with HUD (H key)
   if (e.code === 'KeyH') {
@@ -256,10 +240,8 @@ midiWorker.onmessage = ({ data: { dt } }) => {
     updateMelody(dt);
     updateTexture(dt);
 
-    // MIDI clock sync
-    if (worldState.bpm) {
-      updateMIDIClock(worldState.bpm);
-    }
+    // MIDI clock sync — fallback 60 BPM per NEBBIA (Ableton riceve sempre clock)
+    updateMIDIClock(worldState.bpm || 60);
   } catch (e) {
     console.error('[MIDI CLOCK] Handler error (clock kept alive):', e);
   }

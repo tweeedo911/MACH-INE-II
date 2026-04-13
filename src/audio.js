@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════
-//  MACH:INE II — Stereo Audio Engine
+//  MACH:INE III — Stereo Audio Engine
 //  Web Audio API: ChannelSplitter + 2x AnalyserNode
 // ═══════════════════════════════════════════════════════════
 

@@ -1188,13 +1188,44 @@ export const CFG = {
         poiMaxCount: 5,          // POI massimi restituiti dalla scansione
         macroMinDensity: 0.05,   // densità media minima per consentire micro zoom
         biomes: {
-          NEBBIA:   { zoomRange: [6, 8], holdRange: [8, 12], speed: 0.3, easing: 'smooth', preferScan: null },
-          TESSUTO:  { zoomRange: [3, 5], holdRange: [4, 6],  speed: 0.5, easing: 'smooth', preferScan: 'H' },
-          SOLCO:    { zoomRange: [3, 4], holdRange: [3, 5],  speed: 0.6, easing: 'smooth', preferScan: null },
-          RESPIRO:  { zoomRange: [2, 4], holdRange: [3, 5],  speed: 0.4, easing: 'smooth', preferScan: null },
-          MACCHINA: { zoomRange: [4, 6], holdRange: [2, 4],  speed: 0.8, easing: 'snap',   preferScan: null },
-          TEMPESTA: { zoomRange: [2, 3], holdRange: [2, 3],  speed: 0.9, easing: 'smooth', preferScan: null },
-          RITORNO:  { zoomRange: [1, 6], holdRange: [3, 8],  speed: 0.4, easing: 'smooth', preferScan: null },
+          // contemplativa: quasi ferma, hold lunghissimi, riposa sulle nebulose
+          NEBBIA: {
+            zoomRange: [6, 8], holdRange: [10, 18], speed: 0.25, easing: 'smooth',
+            afterStare: { stare: 0.5, travel: 0.2, lift: 0.1, scan: 0 },
+          },
+          // segue le fibre orizzontali, ma cambia fascia Y regolarmente
+          TESSUTO: {
+            zoomRange: [3, 5], holdRange: [4, 6], speed: 0.5, easing: 'smooth',
+            afterStare: { stare: 0.05, travel: 0.35, lift: 0.15, scan: 0.45 },
+            scanDir: 'H',
+          },
+          // inseguimento eco dub: pan a destra dopo deposit basso
+          SOLCO: {
+            zoomRange: [3, 4], holdRange: [3, 5], speed: 0.6, easing: 'smooth',
+            afterStare: { stare: 0.1, travel: 0.2, lift: 0.2, echoChase: 0.5 },
+          },
+          // respira con la membrana: zoom avanti/indietro ciclico, mai allontanamento totale
+          RESPIRO: {
+            zoomRange: [3, 5], holdRange: [3, 5], speed: 0.4, easing: 'smooth',
+            afterStare: { stare: 0.25, travel: 0.3, lift: 0, breathe: 0.45 },
+            zoomFloor: 1.5,   // mai sotto 1.5× — resta nella membrana
+          },
+          // cursore discreto: salta tra posizioni, niente transizioni dolci
+          MACCHINA: {
+            zoomRange: [4, 6], holdRange: [1.5, 3], speed: 0.8, easing: 'snap',
+            afterStare: { stare: 0, travel: 0, lift: 0.15, snapJump: 0.85 },
+          },
+          // rapida e grandangolare: insegue tende di luce, mai ferma
+          TEMPESTA: {
+            zoomRange: [2, 3], holdRange: [1.5, 2.5], speed: 0.9, easing: 'smooth',
+            afterStare: { stare: 0, travel: 0.7, lift: 0.15, scan: 0.15 },
+            scanDir: 'V',     // scansione verticale (segue le tende)
+          },
+          // logica speciale in _nextShotRitorno
+          RITORNO: {
+            zoomRange: [1, 6], holdRange: [3, 8], speed: 0.4, easing: 'smooth',
+            afterStare: {},
+          },
         },
       },
     },

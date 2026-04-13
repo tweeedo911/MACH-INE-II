@@ -40,23 +40,29 @@ const BPM_RAMP_BARS_DEFAULT = 2;
 const BPM_RAMP_BARS_TABLE = {
   // from → to → bars. Keyed by source track (the one ending).
   'NEBBIA':   4,   // null→86: da silenzio a primo tempo, graduale
-  'TESSUTO':  2,   // 86→129: stessa famiglia, OK rapido
+  'TESSUTO':  4,   // 86→129: accelera graduale, non salta
   'SOLCO':    8,   // 129→null: il groove rallenta, non crolla
   'RESPIRO':  6,   // null→129: il tempo riemerge, non salta
   // MACCHINA→TEMPESTA: stesso BPM, nessun ramp
-  'TEMPESTA': 6,   // 129→86: discesa dal picco, non caduta
+  'TEMPESTA': 8,   // 129→86: discesa lunga dal picco, la voice accompagna
 };
 let _bpmRamp = null;  // { from, to, elapsed, duration } or null when inactive
 
-// ── V3.5: Ghost entrance — ruolo dominante per traccia ──
-// ch: canale MIDI (CH0-7), role: per log, register: [lo,hi] MIDI per la ghost note
+// ── V3.9: Ghost entrance estesa — ruolo primario + secondario per traccia ──
+// primary: entra da bar -6, density crescente. secondary: ultime 2 bar.
 const GHOST_ENTRANCE = {
-  TESSUTO:  { ch: 4, role: 'chord' },    // chord staccato è il motore
-  SOLCO:    { ch: 3, role: 'bass' },      // bass è il protagonista
-  RESPIRO:  { ch: 4, role: 'chord' },     // accordo Cmaj arioso — non voice (SOLCO ha già voice)
-  MACCHINA: { ch: 0, role: 'bass', vel: 25, fixedNote: 38 },  // tremito kick D2 — la macchina vibra sottoterra
-  TEMPESTA: { ch: 5, role: 'voice' },     // voice+lead hocket, anticipa voice
-  RITORNO:  { ch: 5, role: 'voice' },     // voice esposta
+  TESSUTO:  { primary: { ch: 4, role: 'chord' },
+              secondary: { ch: 1, role: 'harmony' } },           // chord staccato + armonia sottile
+  SOLCO:    { primary: { ch: 3, role: 'bass' },
+              secondary: { ch: 0, role: 'rhythm' } },            // bass + kick lontano
+  RESPIRO:  { primary: { ch: 4, role: 'chord' },
+              secondary: { ch: 5, role: 'voice' } },             // accordo arioso + voice sussurrata
+  MACCHINA: { primary: { ch: 0, role: 'bass', vel: 25, fixedNote: 38 },
+              secondary: { ch: 6, role: 'arp' } },               // tremito kick + arp fantasma
+  TEMPESTA: { primary: { ch: 5, role: 'voice' },
+              secondary: { ch: 4, role: 'chord' } },             // voice anticipa + chord potenza
+  RITORNO:  { primary: { ch: 5, role: 'voice' },
+              secondary: { ch: 4, role: 'chord' } },             // voice esposta + accordo finale
 };
 let _lastGhostBar = -1;  // prevent multiple ghosts in same bar
 
@@ -135,12 +141,11 @@ export function initDirector3(trackName = 'SOLCO') {
   worldState.rupture.intensity = 0;
   worldState.transition        = null;
 
-  // Reset camera — ogni traccia parte a zoom 1.0, camera.js riprende il pilotaggio
-  worldState.camera.zoom   = 1.0;
-  worldState.camera.focusX = 0.5;
-  worldState.camera.focusY = 0.5;
+  // Camera: aggiorna personality/phase, ma NON resettare zoom/focus.
+  // camera.js gestisce la transizione con un SOLLEVARE naturale.
   worldState.camera.personality = worldState.track;
   worldState.camera.phase = PHASE_ORDER[0];
+  worldState.camera._trackChanged = true;  // segnale per camera.js
 
   _applyPhase();
 
@@ -258,10 +263,17 @@ export function updateDirector3(dt) {
     const barsLeft = dissolveDur - _phaseBars;
 
     if (worldState.track === 'TESSUTO') {
-      // TESSUTO → SOLCO: il basso svanisce — condizione di ingresso di SOLCO
-      // (SOLCO nasce con bass isolato nel germoglio)
+      // TESSUTO → SOLCO: il basso svanisce, gli accordi si diradano
+      // Il groove di SOLCO emerge dal vuoto lasciato da TESSUTO.
       if (barsLeft <= 8) {
         worldState.density.bass *= Math.max(0, barsLeft / 8);
+        // Accordi si diradano: da motore ritmico a colore rarefatto
+        const chordFade = 0.3 + 0.7 * (barsLeft / 8);
+        worldState.density.harmony *= chordFade;
+      }
+      // Ultime 4 bar: kick si fa più presente — prepara il groove
+      if (barsLeft <= 4) {
+        worldState.density.rhythm = Math.max(worldState.density.rhythm, 0.35);
       }
     }
 
@@ -273,6 +285,20 @@ export function updateDirector3(dt) {
       if (barsLeft <= 12) worldState.density.texture  *= Math.max(0, barsLeft / 12);  // arp/texture fade
       if (barsLeft <= 8)  worldState.density.bass     *= Math.max(0, barsLeft / 8);   // bass fade
       // ultime 4 bar: solo chord + voice + drone sopravvivono
+    }
+
+    if (worldState.track === 'RESPIRO') {
+      // RESPIRO → MACCHINA: il drone converge verso D (root di MACCHINA)
+      // Le ultime 8 bar: harmony si ritira, bass sfuma, drone rimane solo
+      // — prepara il terreno perché l'arp meccanico entri dal vuoto.
+      if (barsLeft <= 8) {
+        worldState.density.harmony *= Math.max(0.15, barsLeft / 8);
+        worldState.density.bass    *= Math.max(0, barsLeft / 8);
+      }
+      // Ultime 4 bar: voice tace, solo drone — silenzio prima della macchina
+      if (barsLeft <= 4) {
+        worldState.density.melody *= Math.max(0.1, barsLeft / 4);
+      }
     }
 
     if (worldState.track === 'MACCHINA') {
@@ -336,16 +362,14 @@ export function updateDirector3(dt) {
       const progress = _phaseBars / dissolveDur;
       firma.convergenza = progress > 0.85;
 
-      // ── V3.5: Transition preview — ultime 4 bar della dissoluzione ──
-      // Popola worldState.transition con la traccia entrante.
-      // I moduli musicali e il campo leggono questo per preparare il passaggio.
-      const TRANSITION_BARS = 4;
+      // ── V3.9: Transition preview estesa — ultime 8 bar della dissoluzione ──
+      const TRANSITION_BARS = 8;
       const barsLeft = dissolveDur - _phaseBars;
       if (barsLeft <= TRANSITION_BARS && barsLeft >= 0) {
         const currentIdx = TRACK_ORDER.indexOf(worldState.track);
         const nextIdx = currentIdx + 1;
         if (nextIdx < TRACK_ORDER.length && TRACKS[TRACK_ORDER[nextIdx]]) {
-          const tProg = 1 - (barsLeft / TRANSITION_BARS);  // 0 at -4 bars, 1 at last bar
+          const tProg = 1 - (barsLeft / TRANSITION_BARS);  // 0→1 su 8 bar
           worldState.transition = {
             from: worldState.track,
             to: TRACK_ORDER[nextIdx],
@@ -357,27 +381,53 @@ export function updateDirector3(dt) {
         worldState.transition = null;
       }
 
-      // ── V3.5: Ghost entrance — ultime 2 bar, una nota ghost per bar ──
-      // Il ruolo dominante della prossima traccia entra pp sulla scala attuale.
-      if (worldState.transition && worldState.transition.progress > 0.5) {
+      // ── V3.9: Ghost entrance estesa — da bar -6, densità crescente ──
+      // primary: bar -6 → -1, 1 nota/bar poi 2/bar nelle ultime 2
+      // secondary: bar -2 → -1, 1 nota/bar
+      // velocity crescente: pp(15) → p(40)
+      if (worldState.transition && worldState.transition.progress > 0.25) {
         const nextName = worldState.transition.to;
-        const ghost = GHOST_ENTRANCE[nextName];
-        if (ghost && _phaseBars !== _lastGhostBar) {
+        const ghostDef = GHOST_ENTRANCE[nextName];
+        if (ghostDef && _phaseBars !== _lastGhostBar) {
           _lastGhostBar = _phaseBars;
           const nextTrack = worldState.transition.nextTrack;
           const reg = nextTrack.register;
-          // Scegli una nota dalla scala corrente nel registro del ruolo entrante
-          const roleName = ghost.role === 'chord' ? 'chords' : ghost.role;
-          const [rLo, rHi] = reg[roleName] || [48, 72];
           const scale = worldState.scale || [];
-          const candidates = scale.filter(n => n >= rLo && n <= rHi);
-          if (candidates.length > 0 || ghost.fixedNote) {
-            const note = ghost.fixedNote || candidates[Math.floor(Math.random() * candidates.length)];
-            const bpmNow = worldState.bpm || 60;
-            const durMs = Math.round((60 / bpmNow) * 4 * 1000);  // 1 bar
-            const vel = ghost.vel || (20 + Math.floor(Math.random() * 10));  // pp: override o 20-30
-            sendMIDINote(ghost.ch, note, vel, durMs);
-            console.log(`[DIR3] ghost entrance: ${nextName} ${ghost.role} note=${note} vel=${vel}`);
+          const tProg = worldState.transition.progress;  // 0.25→1.0
+
+          // Velocity crescente con la transizione (pp → p)
+          const velBase = Math.round(15 + tProg * 25);  // 15→40
+          const bpmNow = worldState.bpm || 60;
+          const barMs = Math.round((60 / bpmNow) * 4 * 1000);
+
+          // Primary ghost
+          const pg = ghostDef.primary;
+          const pRole = pg.role === 'chord' ? 'chords' : pg.role;
+          const [pLo, pHi] = reg[pRole] || [48, 72];
+          const pCandidates = scale.filter(n => n >= pLo && n <= pHi);
+          if (pCandidates.length > 0 || pg.fixedNote) {
+            const note = pg.fixedNote || pCandidates[Math.floor(Math.random() * pCandidates.length)];
+            const vel = pg.vel || velBase;
+            sendMIDINote(pg.ch, note, vel, barMs);
+            // Ultime 2 bar: raddoppia (seconda nota a metà bar)
+            if (barsLeft <= 2 && pCandidates.length > 1) {
+              const note2 = pCandidates[Math.floor(Math.random() * pCandidates.length)];
+              setTimeout(() => sendMIDINote(pg.ch, note2, vel - 5, Math.round(barMs / 2)), Math.round(barMs / 2));
+            }
+            console.log(`[DIR3] ghost: ${nextName} ${pg.role} note=${note} vel=${vel} (barsLeft=${barsLeft})`);
+          }
+
+          // Secondary ghost — ultime 2 bar
+          if (barsLeft <= 2 && ghostDef.secondary) {
+            const sg = ghostDef.secondary;
+            const sRole = sg.role === 'chord' ? 'chords' : sg.role;
+            const [sLo, sHi] = reg[sRole] || [48, 72];
+            const sCandidates = scale.filter(n => n >= sLo && n <= sHi);
+            if (sCandidates.length > 0) {
+              const note = sCandidates[Math.floor(Math.random() * sCandidates.length)];
+              sendMIDINote(sg.ch, note, velBase - 5, barMs);
+              console.log(`[DIR3] ghost secondary: ${nextName} ${sg.role} note=${note}`);
+            }
           }
         }
       }
@@ -503,7 +553,7 @@ function _advanceTrack() {
     // Try the one after
     for (let i = nextIdx + 1; i < TRACK_ORDER.length; i++) {
       if (TRACKS[TRACK_ORDER[i]]) {
-        sendMIDIAllNotesOff();
+        setTimeout(() => sendMIDIAllNotesOff(), 800);
         initDirector3(TRACK_ORDER[i]);
         _paused = false; // keep playing
         return;
@@ -514,8 +564,9 @@ function _advanceTrack() {
     return;
   }
 
-  // Clean cut: silence all ringing notes before loading new track
-  sendMIDIAllNotesOff();
+  // Release naturale: le note schedulate hanno già note-off programmato.
+  // CC123 ritardato come safety net — le note vecchie sfumano col synth release.
+  setTimeout(() => sendMIDIAllNotesOff(), 800);
   const prevBpm = worldState.bpm || 60;  // capture before overwrite
   console.log(`[DIR3] → Next track: ${nextTrack}`);
   initDirector3(nextTrack);

@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════
-//  MACH:INE II — MIDI Clock Worker (high-resolution)
+//  MACH:INE III — MIDI Clock Worker (high-resolution)
 //  Thread separato: non throttolato dal browser.
 //  Tick ogni ~2ms per timing MIDI sub-millisecondo.
 //  Usa absolute time per eliminare drift cumulativo.

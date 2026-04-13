@@ -1,11 +1,11 @@
 # STATUS — MACH:INE III
 
 > Snapshot vivo. Rigenerato a fine sessione. Punto di entrata di ogni nuova sessione.
-> **Last updated:** 2026-04-13 (sessione 14: camera osservatore narrativo)
+> **Last updated:** 2026-04-13 (sessione 16: calibrazione personalità camera)
 
 ## Versione
 
-**v3.8.0** — single source: `src/VERSION.js` (`APP_VERSION`)
+**v3.8.1** — single source: `src/VERSION.js` (`APP_VERSION`)
 
 Tag git: `v3.4.2` su `ccbbb13` (ultimo tag stabile).
 Branch attivo: `machine-iii`.
@@ -29,7 +29,7 @@ director3.js      →  5 moduli musicali (rhythm, harmony, bass, melody, texture
                      **7/7 biomi con identità radicale (v3.7.0).**
                      Phase-aware: HELPERS espone phase/rupture/energy/audioEnergy.
                      Particle pools: voice (nebulose), lead (scie), chord, arp.
-                  →  camera.js — osservatore autonomo: POI detection + 5 gesti + personalità bioma
+                  →  camera.js — osservatore autonomo: POI + 7 azioni + grammatica per bioma
                   →  [reference] geo.js — Sistema Geometrico (Shift+G, non sviluppato)
                   →  [fallback] comp-* classiche (default, nessun toggle)
                   →  firma.js (gesti narrativi: gelo/convergenza/vuotoTotale/densityCap)
@@ -39,18 +39,30 @@ director3.js      →  5 moduli musicali (rhythm, harmony, bass, melody, texture
 
 ---
 
-## Camera osservatore (v3.8.0)
+## Camera osservatore (v3.8.1)
 
 | Feature | Stato |
 |---|---|
 | POI detection (blocchi 8×8, top 5 per densità) | ✅ |
-| 5 gesti: STARE / VIAGGIARE / TUFFO / SOLLEVARE / SCANSIONE | ✅ |
-| Personalità per bioma (7 config in CFG) | ✅ base — da calibrare |
+| 7 azioni: STARE / VIAGGIARE / TUFFO / SOLLEVARE / SCANSIONE / echoChase / breathe / snapJump | ✅ |
+| Grammatica `afterStare` per bioma (weighted pick) | ✅ calibrata |
+| 6 personalità distinte + RITORNO speciale | ✅ |
+| Zoom rallentato globale (TUFFO 4-6s, SOLLEVARE 4-8s base) | ✅ |
 | RITORNO: fullscreen → tuffo intimo → allontanamento → puntino | ✅ |
-| Barrel distortion | ❌ rimosso (inutile in crop) |
 | Zoom range effettivo | 0.15× – 8× |
 | Interpolazione smoothstep (+ snap per MACCHINA) | ✅ |
-| Esplorazione vuoto (biomi sparsi) | ✅ — fix gate densità |
+
+### Personalità camera per bioma
+
+| Bioma | Carattere | Azione dominante |
+|---|---|---|
+| NEBBIA | contemplativa, quasi ferma | 50% stare ripetuto, hold 10-18s |
+| TESSUTO | segue fibre H, cambia fascia | 45% scan H, 35% travel |
+| SOLCO | insegue eco dub | 50% echoChase (pan destra) |
+| RESPIRO | respiro ciclico | 45% breathe (zoom parziale), mai sotto 1.5× |
+| MACCHINA | cursore discreto | 85% snapJump (snap easing) |
+| TEMPESTA | rapida, grandangolare | 70% travel, hold 1.5-2.5s |
+| RITORNO | allontanamento monotono | logica speciale (fullscreen → puntino) |
 
 ---
 
@@ -68,7 +80,7 @@ director3.js      →  5 moduli musicali (rhythm, harmony, bass, melody, texture
 
 ---
 
-## Infrastruttura campo.js (v3.8.0)
+## Infrastruttura campo.js (v3.8.1)
 
 | Feature | Stato |
 |---|---|
@@ -76,44 +88,32 @@ director3.js      →  5 moduli musicali (rhythm, harmony, bass, melody, texture
 | Phase-aware force multiplier | ✅ germoglio ×0.35, rottura ×1.2, dissoluzione ×0.40 |
 | Phase-aware decay offset | ✅ germoglio +0.002 (effimero), dissoluzione -0.008 (cristallizza) |
 | Grid rettangolare 96×54 | ✅ |
-| Camera osservatore narrativo | ✅ camera.js autonomo (v3.8.0) |
+| Camera osservatore narrativo | ✅ camera.js autonomo (v3.8.1, grammatica per bioma) |
 | Firma nel campo | ✅ gelo/convergenza/densityCap |
 | Solidificazione 3 strati | ✅ silenzio/densità/spaziale |
 | Morph colori tra biomi | ✅ 3s ease-in-out |
 | getCampoDensityBlocks() | ✅ espone densità per blocco al camera system |
+| Rupture nelle depositFn | ✅ 6/7 biomi (RITORNO skip — nessuna rottura musicale) |
 
 ---
 
 ## Limiti noti
 
 1. **Non prototipato** — resa visiva di tutti e 7 i biomi da validare live
-2. **Rupture non cablata** — director3 calcola i 4 stadi ma biomi.js non li consuma ancora
-3. **TEMPESTA: da verificare** — l'erosione direzionale + density cap dovrebbero risolvere il muro grigio, ma serve test live
-4. **Camera personalità simili** — i movimenti camera sono funzionanti ma troppo uniformi tra biomi, da calibrare
+2. **TEMPESTA: da verificare** — erosione + rupture da testare con musica reale
 
 ---
 
 ## Prossimo (priorità top→bottom)
 
-### P0 — Calibrazione camera per bioma (sessione 15)
+### P0 — Test live tutti i biomi con musica reale
 
-I movimenti camera funzionano ma sono troppo simili tra biomi. Differenziare:
-- NEBBIA: più lenta, hold più lunghi, zoom più profondo
-- MACCHINA: snap meccanici più marcati, tempi più corti
-- SOLCO: inseguimento eco dub (pan orizzontale dopo bass deposit)
-- TEMPESTA: movimenti più rapidi, meno hold
-- RITORNO: verificare arco completo (fullscreen → puntino) su durata reale
-Test live con musica reale obbligatorio.
+Validare la resa visiva di biomi + rupture + camera con musica reale.
+In particolare: TEMPESTA rupture (suscettibilità converge a 1.0, filamenti enormi),
+RESPIRO rupture (pori che non si chiudono), MACCHINA rupture (binario corrotto).
+RITORNO: verificare arco completo (fullscreen → puntino) su durata reale.
 
-### P1 — Rupture nel campo
-
-Cablare h.rupture nelle depositFn — ora che le forme sono definite, le rotture possono violarle:
-- TESSUTO: fibre rompono orizzontalità (Y jitterata ±5*intensity)
-- SOLCO: echo trail si moltiplica (2→6 fantasmi), massa si frammenta
-- MACCHINA: snap a griglia 2 invece di 4 (binario corrotto)
-- TEMPESTA: suscettibilità converge a 1.0, filamento voice enorme (30+ celle)
-
-### P2 — Transizioni e polish
+### P1 — Transizioni e polish
 
 - Transizioni musicali più morbide (release naturale, ghost entrance estesa)
 - Verifica hocket voice/lead TEMPESTA (mutua esclusione)
@@ -127,7 +127,7 @@ Cablare h.rupture nelle depositFn — ora che le forme sono definite, le rotture
 | Verifica | Stato |
 |---|---|
 | Campo Materiale (campo.js) | ✅ 96×54, firma, density cap, phase-aware |
-| Camera osservatore (camera.js) | ✅ POI + 5 gesti + 7 personalità + RITORNO |
+| Camera osservatore (camera.js) | ✅ POI + 7 azioni + grammatica per bioma (v3.8.1) |
 | 7 biomi con identità radicale | ✅ redesign v3.7.0, nessuna sovrapposizione |
 | RITORNO (pianeta) | ✅ planetMask, depositFn polari, camera allontanamento |
 | Firma nel campo | ✅ gelo + convergenza + densityCap + solidificazione 3 strati |
@@ -140,14 +140,14 @@ Cablare h.rupture nelle depositFn — ora che le forme sono definite, le rotture
 ## File pesanti da tenere d'occhio (>500 LOC)
 
 ```
-1077  src/config.js     ← OK, single source dei numeri
- 618  src/tracks.js     ← OK, 7 tracce × multi-fase
-~520  src/director3.js  ← alleggerito (camera spostata)
- 503  src/melody-v3.js  ← valutare split
-~1200 src/biomi.js      ← cresciuto con 7 biomi radicali — OK, è il catalogo
-~500  src/campo.js      ← alleggerito (barrel rimosso), aggiunto density blocks
-~230  src/camera.js     ← nuovo, dimensione OK
- ~380 src/geo.js        ← reference only
+1278  src/config.js     ← OK, single source dei numeri (camera grammar aggiunta)
+ 658  src/tracks.js     ← OK, 7 tracce × multi-fase
+ 705  src/director3.js  ← alleggerito (camera spostata)
+ 617  src/melody-v3.js  ← valutare split
+1432  src/biomi.js      ← cresciuto con 7 biomi radicali — OK, è il catalogo
+ 670  src/campo.js      ← alleggerito (barrel rimosso), aggiunto density blocks
+ 297  src/camera.js     ← cresciuto con _shotFromAction, dimensione OK
+ 674  src/geo.js        ← reference only
 ```
 
 ---

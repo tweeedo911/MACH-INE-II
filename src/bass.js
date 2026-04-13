@@ -91,8 +91,8 @@ function _tick() {
     addMidiNote(3, note / 127, vel / 127);
     _lastNote = _step;
 
-    // Occasional 5th doubling on downbeats — bass non mono-nota
-    if (_step % 4 === 0 && density > 0.4 && Math.random() < 0.20) {
+    // Occasional 5th doubling on downbeats — raro, non deve rompere il groove
+    if (_step % 4 === 0 && density > 0.6 && Math.random() < 0.08) {
       const fifth = note + 7;
       if (fifth <= regHi) {
         const fifthVel = Math.round(vel * 0.65);
@@ -101,7 +101,7 @@ function _tick() {
       }
     }
 
-  } else if (density > 0.5 && Math.random() < 0.12) {
+  } else if (density > 0.7 && Math.random() < 0.04) {
     const prevStep = (_step + 15) % 16;
     const nextStep = (_step + 1) % 16;
     const adjacentToPlayed =

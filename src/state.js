@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════
-//  MACH:INE II — Narrative State
+//  MACH:INE III — Narrative State
 //  5 derived values from audio + MIDI data.
 //  This module does NOT make scene decisions —
 //  it only prepares data for the future director (v0.3.0).

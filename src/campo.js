@@ -88,11 +88,12 @@ let _cellPx = 10;
 let _W      = _cellsX * _cellPx;
 let _H      = _cellsY * _cellPx;
 
-// ── V3.5: Morph state — interpolazione colori tra biomi ──
+// ── V3.9: Morph state — interpolazione colori + decay tra biomi ──
 const MORPH_DURATION = 3.0;  // secondi
 let _morphTimer   = 0;
 let _morphOldBg   = null;    // [r,g,b] del bioma uscente
 let _morphOldColors = null;  // { role: [r,g,b], ... } del bioma uscente
+let _morphOldDecay  = null;  // { role: decayValue, ... } del bioma uscente
 
 // particles con fisica propria
 const _particles = { chord: [], arp: [], voice: [], lead: [] };
@@ -194,11 +195,15 @@ export function initCampo() {
 }
 
 export function setBiome(trackName) {
-  // V3.5: cattura colori uscenti per morph
+  // V3.9: cattura colori + decay uscenti per morph
   if (_bioma) {
     _morphOldBg = [..._bioma.bg];
     _morphOldColors = {};
-    for (const r of ROLES) _morphOldColors[r] = [..._bioma.colors[r]];
+    _morphOldDecay = {};
+    for (const r of ROLES) {
+      _morphOldColors[r] = [..._bioma.colors[r]];
+      _morphOldDecay[r] = _bioma.decay[r];
+    }
     _morphTimer = 0;
   }
   _bioma = getBiome(trackName);
@@ -266,6 +271,7 @@ export function updateCampo(dt, audioEnergy = 0) {
     if (_morphTimer >= MORPH_DURATION) {
       _morphOldBg = null;
       _morphOldColors = null;
+      _morphOldDecay = null;
     }
   }
 
@@ -382,9 +388,19 @@ export function updateCampo(dt, audioEnergy = 0) {
   // ── Density cap per ruolo (bioma.maxDensity) ──
   const maxDensityMap = _bioma.maxDensity || null;
 
+  // ── V3.9: morph factor per decay interpolation ──
+  const morphT = _morphOldBg ? Math.min(1, _morphTimer / MORPH_DURATION) : 1;
+  const decayMorphT = _morphOldDecay
+    ? (morphT < 0.5 ? 2 * morphT * morphT : 1 - Math.pow(-2 * morphT + 2, 2) / 2)
+    : 1;
+
   // ── Decay + shimmer + 3-layer solidification ──
   for (const r of ROLES) {
-    const baseDr = _bioma.decay[r];
+    // V3.9: interpola decay dal bioma uscente al nuovo durante il morph
+    const newDr = _bioma.decay[r];
+    const baseDr = _morphOldDecay
+      ? _morphOldDecay[r] + (newDr - _morphOldDecay[r]) * decayMorphT
+      : newDr;
     if (baseDr >= 1.0) continue;
     const f = _fields[r];
 
@@ -466,9 +482,23 @@ export function renderCampo(ctx, W, H) {
   // ease-in-out per transizione naturale
   const morphEased = morphT < 0.5 ? 2 * morphT * morphT : 1 - Math.pow(-2 * morphT + 2, 2) / 2;
 
-  const bgR = _morphOldBg ? Math.round(_morphOldBg[0] + (_bioma.bg[0] - _morphOldBg[0]) * morphEased) : _bioma.bg[0];
-  const bgG = _morphOldBg ? Math.round(_morphOldBg[1] + (_bioma.bg[1] - _morphOldBg[1]) * morphEased) : _bioma.bg[1];
-  const bgB = _morphOldBg ? Math.round(_morphOldBg[2] + (_bioma.bg[2] - _morphOldBg[2]) * morphEased) : _bioma.bg[2];
+  let bgR = _morphOldBg ? Math.round(_morphOldBg[0] + (_bioma.bg[0] - _morphOldBg[0]) * morphEased) : _bioma.bg[0];
+  let bgG = _morphOldBg ? Math.round(_morphOldBg[1] + (_bioma.bg[1] - _morphOldBg[1]) * morphEased) : _bioma.bg[1];
+  let bgB = _morphOldBg ? Math.round(_morphOldBg[2] + (_bioma.bg[2] - _morphOldBg[2]) * morphEased) : _bioma.bg[2];
+
+  // V3.9: phaseColors per bg
+  const pcBg = _bioma.phaseColors;
+  if (pcBg) {
+    const phase = worldState.phase || 'germoglio';
+    const pp = phaseState.duration > 0 ? Math.min(1, phaseState.elapsed / phaseState.duration) : 0;
+    const entry = pcBg[phase];
+    if (entry && entry.bg) {
+      const t = entry.bg;
+      bgR = Math.round(bgR + (t[0] - bgR) * pp);
+      bgG = Math.round(bgG + (t[1] - bgG) * pp);
+      bgB = Math.round(bgB + (t[2] - bgB) * pp);
+    }
+  }
 
   // BG fill offscreen
   for (let i = 0; i < data.length; i += 4) {
@@ -494,6 +524,22 @@ export function renderCampo(ctx, W, H) {
     } else {
       [rC, gC, bC] = _bioma.colors[role];
     }
+
+    // V3.9: phaseColors — colori che evolvono con la fase
+    const pc = _bioma.phaseColors;
+    if (pc) {
+      const phase = worldState.phase || 'germoglio';
+      const pp = phaseState.duration > 0 ? Math.min(1, phaseState.elapsed / phaseState.duration) : 0;
+      const entry = pc[phase];
+      if (entry && entry[role]) {
+        const t = entry[role];
+        // pp interpola dal colore base verso il target di fase
+        rC = Math.round(rC + (t[0] - rC) * pp);
+        gC = Math.round(gC + (t[1] - gC) * pp);
+        bC = Math.round(bC + (t[2] - bC) * pp);
+      }
+    }
+
     if (rC === 0 && gC === 0 && bC === 0) continue;
 
     const srcR = rC / 255;

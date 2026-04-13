@@ -19,9 +19,6 @@ import { getCampoDensityBlocks, getCampoAvgDensity } from './campo.js';
 function smoothstep(t) { return t * t * (3 - 2 * t); }
 function lerp(a, b, t) { return a + (b - a) * t; }
 
-// ── Shot types ──
-const SHOT_TYPES = ['STARE', 'VIAGGIARE', 'TUFFO', 'SOLLEVARE', 'SCANSIONE'];
-
 // ── State ──
 let _shot = null;          // shot corrente { type, fromZoom, fromX, fromY, toZoom, toX, toY, duration, elapsed, easing }
 let _pois = [];            // POI correnti [{ x, y, density, dominantRole }]
@@ -72,6 +69,19 @@ function _ease(t, type) {
   return smoothstep(t);   // 'smooth' default
 }
 
+// ── Weighted random pick da oggetto { key: weight, ... } ──
+function _pickWeighted(weights) {
+  const entries = Object.entries(weights);
+  const total = entries.reduce((s, [, w]) => s + w, 0);
+  if (total <= 0) return 'travel';  // fallback sicuro
+  let r = Math.random() * total;
+  for (const [key, w] of entries) {
+    r -= w;
+    if (r <= 0) return key;
+  }
+  return entries[entries.length - 1][0];
+}
+
 // ── Crea uno shot ──
 function _makeShot(type, toZoom, toX, toY, duration, easing) {
   const cam = worldState.camera;
@@ -91,7 +101,6 @@ function _makeShot(type, toZoom, toX, toY, duration, easing) {
 function _nextShot() {
   const cam = worldState.camera;
   const personality = cam.personality;
-  const phase = cam.phase;
   const camCfg = CFG.VISUAL?.campo?.camera ?? {};
   const biomeCfg = camCfg.biomes?.[personality];
 
@@ -104,11 +113,10 @@ function _nextShot() {
   const [hMin, hMax] = biomeCfg.holdRange;
   const speed = biomeCfg.speed ?? 0.5;
   const easing = biomeCfg.easing ?? 'smooth';
+  const zoomFloor = biomeCfg.zoomFloor ?? 1.0;
 
-  // Gate: non zoomare solo se il campo è completamente nero (primissimi secondi)
-  const minDens = camCfg.macroMinDensity ?? 0.05;
   const avgDens = getCampoAvgDensity();
-  const fieldEmpty = avgDens < 0.001;  // quasi zero — campo davvero vuoto
+  const fieldEmpty = avgDens < 0.001;
 
   // ── RITORNO: logica speciale — allontanamento progressivo ──
   if (personality === 'RITORNO') {
@@ -117,55 +125,99 @@ function _nextShot() {
 
   // ── Tutti gli altri biomi ──
   const prevType = _shot ? _shot.type : null;
+  const poi = _pois.length > 0 ? _pickPOI()
+    : { x: 0.15 + Math.random() * 0.7, y: 0.15 + Math.random() * 0.7 };
 
-  // Punto di interesse: POI se disponibile, altrimenti punto random (esplorazione del vuoto)
-  const poi = _pois.length > 0 ? _pickPOI() : { x: 0.15 + Math.random() * 0.7, y: 0.15 + Math.random() * 0.7 };
-
-  // Grammatica: dopo un gesto, quale segue?
+  // ── Ingresso (nessun shot precedente) o dopo SOLLEVARE → TUFFO ──
   if (!prevType || prevType === 'SOLLEVARE') {
     if (fieldEmpty) {
-      // Campo completamente nero → aspetta a zoom 1.0
       return _makeShot('STARE', 1.0, 0.5, 0.5, _rand(2, 4), easing);
     }
-    // Tuffo su un punto d'interesse (o un punto random se bioma sparso)
     const z = _rand(zMin, zMax);
-    return _makeShot('TUFFO', z, poi.x, poi.y, _rand(2, 3) / speed, easing);
+    return _makeShot('TUFFO', z, poi.x, poi.y, _rand(4, 6) / speed, easing);
   }
 
+  // ── Dopo TUFFO → osserva ──
   if (prevType === 'TUFFO') {
-    // Appena arrivato → osserva (STARE)
     return _makeShot('STARE', cam.zoom, cam.focusX, cam.focusY, _rand(hMin, hMax), easing);
   }
 
+  // ── Dopo STARE → grammatica per bioma (weighted pick) ──
   if (prevType === 'STARE') {
-    // Dopo osservazione → viaggia verso altro punto o solleva
-    // SCANSIONE se il bioma la preferisce e con 40% probabilità
-    if (biomeCfg.preferScan && Math.random() < 0.4) {
-      const dir = biomeCfg.preferScan;   // 'H' o 'V'
-      const scanDist = 0.3 + Math.random() * 0.3;
-      const toX = dir === 'H' ? Math.min(1, Math.max(0, cam.focusX + (Math.random() < 0.5 ? scanDist : -scanDist))) : cam.focusX;
-      const toY = dir === 'V' ? Math.min(1, Math.max(0, cam.focusY + (Math.random() < 0.5 ? scanDist : -scanDist))) : cam.focusY;
-      return _makeShot('SCANSIONE', cam.zoom, toX, toY, _rand(5, 10) / speed, easing);
-    }
-
-    // 60% viaggia verso nuovo punto, 40% solleva
-    if (Math.random() < 0.6) {
-      return _makeShot('VIAGGIARE', cam.zoom, poi.x, poi.y, _rand(4, 8) / speed, easing);
-    }
-    return _makeShot('SOLLEVARE', 1.0, 0.5, 0.5, _rand(2, 4) / speed, easing);
+    const weights = biomeCfg.afterStare ?? { travel: 0.6, lift: 0.4 };
+    const action = _pickWeighted(weights);
+    return _shotFromAction(action, biomeCfg, poi, speed, easing, zoomFloor);
   }
 
+  // ── Dopo VIAGGIARE / SCANSIONE → osserva dove sei ──
   if (prevType === 'VIAGGIARE' || prevType === 'SCANSIONE') {
-    // Dopo viaggio/scansione → osserva dove sei arrivato
     return _makeShot('STARE', cam.zoom, cam.focusX, cam.focusY, _rand(hMin, hMax), easing);
   }
 
-  // Default: tuffo su un punto
+  // Default
   if (!fieldEmpty) {
     const z = _rand(zMin, zMax);
-    return _makeShot('TUFFO', z, poi.x, poi.y, _rand(2, 3) / speed, easing);
+    return _makeShot('TUFFO', z, poi.x, poi.y, _rand(4, 6) / speed, easing);
   }
   return _makeShot('STARE', 1.0, 0.5, 0.5, _rand(hMin, hMax), easing);
+}
+
+// ── Risolvi azione grammaticale in shot concreto ──
+function _shotFromAction(action, cfg, poi, speed, easing, zoomFloor) {
+  const cam = worldState.camera;
+  const [zMin, zMax] = cfg.zoomRange;
+  const [hMin, hMax] = cfg.holdRange;
+
+  switch (action) {
+
+    // — riposa ancora (contemplazione, NEBBIA) —
+    case 'stare':
+      return _makeShot('STARE', cam.zoom, cam.focusX, cam.focusY, _rand(hMin, hMax), easing);
+
+    // — viaggia verso nuovo POI —
+    case 'travel':
+      return _makeShot('VIAGGIARE', cam.zoom, poi.x, poi.y, _rand(4, 8) / speed, easing);
+
+    // — allontanamento totale —
+    case 'lift':
+      return _makeShot('SOLLEVARE', zoomFloor, 0.5, 0.5, _rand(4, 8) / speed, easing);
+
+    // — scansione (H per TESSUTO, V per TEMPESTA) —
+    case 'scan': {
+      const dir = cfg.scanDir ?? 'H';
+      const scanDist = 0.2 + Math.random() * 0.3;
+      const sign = Math.random() < 0.5 ? 1 : -1;
+      const toX = dir === 'H' ? Math.min(1, Math.max(0, cam.focusX + sign * scanDist)) : cam.focusX;
+      const toY = dir === 'V' ? Math.min(1, Math.max(0, cam.focusY + sign * scanDist)) : cam.focusY;
+      return _makeShot('SCANSIONE', cam.zoom, toX, toY, _rand(6, 12) / speed, easing);
+    }
+
+    // — inseguimento eco dub: pan a destra (SOLCO) —
+    case 'echoChase': {
+      const echoDist = 0.15 + Math.random() * 0.15;   // 15-30% del campo verso destra
+      const toX = Math.min(1, cam.focusX + echoDist);
+      return _makeShot('SCANSIONE', cam.zoom, toX, cam.focusY, _rand(3, 5) / speed, easing);
+    }
+
+    // — respiro: zoom indietro parziale poi si rituffa (RESPIRO) —
+    case 'breathe': {
+      // espira: zoom indietro del 40%, poi il prossimo ciclo sarà TUFFO → STARE
+      const exhaleZoom = Math.max(zoomFloor, cam.zoom * 0.6);
+      // leggero spostamento laterale (la membrana si muove)
+      const driftX = cam.focusX + _rand(-0.08, 0.08);
+      const driftY = cam.focusY + _rand(-0.05, 0.05);
+      return _makeShot('SOLLEVARE', exhaleZoom, Math.min(1, Math.max(0, driftX)), Math.min(1, Math.max(0, driftY)), _rand(4, 7) / speed, easing);
+    }
+
+    // — salto discreto a nuova posizione (MACCHINA) —
+    case 'snapJump': {
+      const z = _rand(zMin, zMax);
+      return _makeShot('TUFFO', z, poi.x, poi.y, _rand(2, 3) / speed, 'snap');
+    }
+
+    default:
+      return _makeShot('VIAGGIARE', cam.zoom, poi.x, poi.y, _rand(4, 8) / speed, easing);
+  }
 }
 
 // ── RITORNO: allontanamento progressivo monotono ──
@@ -188,7 +240,7 @@ function _nextShotRitorno(cfg, easing) {
       // Un tuffo intimo su una scintilla
       const z = Math.min(_ritornoMaxZoom, _rand(3, zMax));
       _ritornoMaxZoom = z;   // il prossimo non potrà zoomare di più
-      return _makeShot('TUFFO', z, poi.x, poi.y, _rand(2, 3) / speed, easing);
+      return _makeShot('TUFFO', z, poi.x, poi.y, _rand(4, 6) / speed, easing);
     }
     if (prevType === 'TUFFO') {
       return _makeShot('STARE', worldState.camera.zoom, worldState.camera.focusX, worldState.camera.focusY, _rand(hMin, hMax), easing);
@@ -221,6 +273,17 @@ export function updateCamera(dt) {
   if (_poiFrame >= scanInterval) {
     _poiFrame = 0;
     _scanPOIs();
+  }
+
+  // Cambio traccia → SOLLEVARE naturale verso 1.0, poi camera riprende autonomamente
+  if (cam._trackChanged) {
+    cam._trackChanged = false;
+    _lastPoi = null;
+    _ritornoMaxZoom = 1.0;
+    // Se siamo già vicini a 1.0, solo un breve settle; altrimenti SOLLEVARE lento
+    const dist = Math.abs(cam.zoom - 1.0);
+    const dur = dist > 0.5 ? _rand(3, 5) : _rand(1.5, 2.5);
+    _shot = _makeShot('SOLLEVARE', 1.0, 0.5, 0.5, dur, 'smooth');
   }
 
   // Se non c'è shot corrente, creane uno
