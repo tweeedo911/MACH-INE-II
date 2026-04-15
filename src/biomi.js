@@ -1523,13 +1523,13 @@ const RITORNO = {
 const ENCORE = {
   bg: [0, 0, 0],
   colors: {
-    drone:      [30,  20,  50],    // viola scurissimo — base
-    bass:       [255, 220,   0],   // giallo caldo — peso
-    chord:      [255,  50, 220],   // magenta-rosa — blocchi
+    drone:      [40,  20,  60],    // viola scuro — base
+    bass:       [255, 255,   0],   // giallo PURO — peso
+    chord:      [255,   0, 255],   // magenta PURO — blocchi
     kick:       [255, 255, 255],   // bianco puro — flash
-    percussion: [0,   255, 200],   // ciano-verde — freddo
-    arp:        [50,  255,  80],   // verde brillante — trama
-    voice:      [80,  140, 255],   // blu cielo — melodia
+    percussion: [0,   255, 255],   // ciano PURO — freddo
+    arp:        [0,   255,   0],   // verde PURO — trama
+    voice:      [0,   120, 255],   // blu elettrico — melodia
     lead:       [0,     0,   0],   // non usato
   },
   decay: {
@@ -1538,9 +1538,9 @@ const ENCORE = {
     arp: 0.980, voice: 0.992, lead: 1.000,
   },
   force: {
-    drone: 0.02, bass: 1.00, chord: 0.90,
-    kick: 1.00, percussion: 0.95,         // più forte = più visibile
-    arp: 0.85, voice: 0.90, lead: 0,
+    drone: 0.04, bass: 1.00, chord: 1.00,
+    kick: 1.00, percussion: 1.00,
+    arp: 1.00, voice: 1.00, lead: 0,      // tutto al massimo — visualizer
   },
   maxDensity: {
     drone: 0.95, bass: 0.95, chord: 0.95,
@@ -1548,9 +1548,9 @@ const ENCORE = {
     arp: 0.95, voice: 0.95, lead: 0,
   },
   cellPx: {
-    drone: 6, bass: 6, chord: 5,          // leggermente più grossi = più visibili
-    kick: 4, percussion: 4,               // kick/perc fini e precisi
-    arp: 4, voice: 5, lead: 4,
+    drone: 10, bass: 12, chord: 10,       // grossi — blocchi di colore pieni
+    kick: 8, percussion: 8,               // anche kick/perc grandi
+    arp: 8, voice: 10, lead: 4,
   },
   agingInverted: true,
   shimmerScale: 3.0,     // shimmer aggressivo — pulsazione da evento
