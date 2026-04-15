@@ -8,7 +8,7 @@ import { CFG } from './config.js';
 import { worldState } from './world-state.js';
 import { sendMIDINote, sendMIDIPitchBend } from './midi.js';
 import { addMidiNote } from './field.js';
-import { TRACKS, ENCORE_CHORDS } from './tracks.js';
+import { TRACKS } from './tracks.js';
 
 // ── Channel assignments ──
 const CH_DRONE  = 2;  // CH2 = DRONE (sustained harmonic root)
@@ -65,9 +65,9 @@ export function updateHarmony(dt) {
   while (_lastTick < worldState.globalTick) {
     _lastTick++;
     if (worldState.encoreMode) {
-      const chordCycle = worldState.encoreCycleLens.harmony;  // 14
-      _step = _lastTick % chordCycle;
-      _bar  = Math.floor(_lastTick / chordCycle);
+      // V2: chord is 1× speed, standard 16-step cycle
+      _step = _lastTick % 16;
+      _bar  = Math.floor(_lastTick / 16);
     } else {
       _step = _lastTick % 16;
       _bar  = Math.floor(_lastTick / 16);
@@ -88,33 +88,52 @@ function _tick() {
   // ── Velocity ceiling guard ──
   const velCeil  = worldState.velocityCeiling.harmony || 127;
 
-  // ── ENCORE: chord cycles every chordCycle steps, octatonic progressions ──
+  // ── ENCORE V2: chord reads from canon voice ──
   if (worldState.encoreMode) {
-    const encoreChords = ENCORE_CHORDS[worldState.encoreScale] || ENCORE_CHORDS.halfWhole;
-    // Chord enters at brick 4 (+chord)
-    if (worldState.encoreBrick >= 4 && _step === 0 && _bar !== _lastChordBar) {
-      _lastChordBar = _bar;
-      _chordIdx = (_chordIdx + 1) % encoreChords.length;
-      const chord = encoreChords[_chordIdx];
-      worldState.currentChord = chord;
-      const chordVel = Math.min(Math.round(50 + density * 40), velCeil);
-      const chordDur = Math.round(beatMs * 3);
-      for (const note of chord) {
-        if (note >= regLo && note <= regHi) {
-          sendMIDINote(CH_CHORDS, note, chordVel, chordDur);
-          addMidiNote(CH_CHORDS, note / 127, chordVel / 127);
+    const canon = worldState.encoreCanon;
+    // Chord voice must be active (brick >= 6)
+    if (!canon.chord.active) {
+      // Before chord enters, just maintain drone if density allows
+      if (_step === 0 && _bar % 4 === 0 && density >= 0.08 && worldState.encoreBrick >= 6) {
+        const droneVel = Math.min(Math.round(25 + density * 20), velCeil);
+        sendMIDINote(CH_DRONE, root, droneVel, Math.round(beatMs * 15));
+        addMidiNote(CH_DRONE, root / 127, droneVel / 127);
+      }
+      return;
+    }
+
+    // Play chord note from canon on beat 0 of each bar
+    if (_step === 0) {
+      const note = canon.chord.note;
+      if (note > 0 && note >= regLo && note <= regHi) {
+        // Build triad from current scale
+        const scale = worldState.scale || [];
+        const triad = [note];
+        const third = scale.find(n => n > note && n <= note + 5);
+        if (third) triad.push(third);
+        const fifth = scale.find(n => n > note + 5 && n <= note + 9);
+        if (fifth) triad.push(fifth);
+
+        const chordVel = Math.min(Math.round(55 + density * 35), velCeil);
+        const chordDur = Math.round(beatMs * 3);
+        for (const n of triad) {
+          if (n >= regLo && n <= regHi) {
+            sendMIDINote(CH_CHORDS, n, chordVel, chordDur);
+            addMidiNote(CH_CHORDS, n / 127, chordVel / 127);
+          }
         }
+        worldState.currentChord = triad;
       }
     }
-    // Drone: hold root, no pitch drift. Low gate in encore (drone enters early)
-    const droneGate = worldState.encoreBrick >= 0 ? 0.02 : 0.08;
-    if (_step === 0 && _bar % 4 === 0 && _bar !== _lastDroneBar && density >= droneGate) {
-      _lastDroneBar = _bar;
-      const droneVel = Math.min(Math.round(25 + density * 20), velCeil);
-      sendMIDINote(CH_DRONE, root, droneVel, Math.round(beatMs * 15));
+
+    // Drone: hold root, refresh every 4 bars
+    if (_step === 0 && _bar % 4 === 0 && density >= 0.05) {
+      const droneVel = Math.min(Math.round(20 + density * 25), velCeil);
+      sendMIDINote(CH_DRONE, root, droneVel, Math.round(beatMs * 16));
       addMidiNote(CH_DRONE, root / 127, droneVel / 127);
     }
-    return;  // skip normal harmony logic
+
+    return;
   }
 
   // ──────────────────────────────────────────────
