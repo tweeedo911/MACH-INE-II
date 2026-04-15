@@ -131,7 +131,7 @@ function _tick() {
   }
 
   // ── CH1 HAT ──
-  // ENCORE: hat enters at brick 2 (+hat)
+  // ENCORE: hat enters at brick 3 (+hat)
   let hatStep, hatPat;
   if (worldState.encoreMode && trackDef.encoreHatPattern && worldState.encoreBrick >= 3) {
     const hatCycle = worldState.encoreCycleLens.hat;  // 10

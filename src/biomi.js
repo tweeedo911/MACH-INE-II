@@ -1560,7 +1560,28 @@ const ENCORE = {
     opacity: 0.7,
   },
   planetMask: false,
-  depositFn: {},
+  // Random scatter su tutto il canvas — nessuna fisica, l'optical emerge dalla polimetria
+  depositFn: (() => {
+    function makeScatter(role) {
+      return function(fields, particles, note127, vel127, h) {
+        const field = fields[role];
+        const f = (vel127 / 127) * 0.6;
+        const count = 3 + Math.floor(vel127 / 30);  // 3-7 punti per nota
+        const W = h.CELLS_X, H = h.CELLS_Y;
+        for (let i = 0; i < count; i++) {
+          const px = Math.floor(Math.random() * W);
+          const py = Math.floor(Math.random() * H);
+          h.depositPoint(field, px, py, f);
+        }
+      };
+    }
+    return {
+      drone: makeScatter('drone'), bass: makeScatter('bass'),
+      chord: makeScatter('chord'), kick: makeScatter('kick'),
+      percussion: makeScatter('percussion'), arp: makeScatter('arp'),
+      voice: makeScatter('voice'),
+    };
+  })(),
 };
 
 export const BIOMI = {
