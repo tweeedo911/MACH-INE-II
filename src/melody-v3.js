@@ -496,21 +496,27 @@ function _tick() {
   if (worldState.encoreMode && worldState.encoreBrick < 2) {
     // voice silent — skip to lead/arp section
   } else if (worldState.encoreMode && track.encoreVoicePattern && worldState.encoreBrick >= 2) {
+    // ── Four Tet style: frasi corte ripetute, intervalli semplici, gioiose ──
     const voiceCycle = worldState.encoreCycleLens.voice;  // 26
     const voiceStep = worldState.globalTick % voiceCycle;
     if (track.encoreVoicePattern[voiceStep] === 1 && density > 0.1) {
       const pool = scale.filter(n => n >= voiceLo && n <= voiceHi);
       if (pool.length > 0) {
-        // Weight toward chord tones
-        const chordTones = pool.filter(n =>
-          worldState.currentChord && worldState.currentChord.some(c => (n - c) % 12 === 0)
-        );
-        const notePool = chordTones.length >= 2 ? chordTones : pool;
-        const note = notePool[Math.floor(Math.random() * notePool.length)];
-        const rawVel = 45 + density * 35 + (Math.random() * 10 - 5);
+        // Frase corta che si ripete: 3-4 note che ciclano, cambiano ogni 8 cicli (~26 bar)
+        const phraseLen = 4;
+        const phraseSeed = Math.floor(worldState.globalTick / (voiceCycle * 8));
+        // Genera frase deterministica dal seed: scala step-wise da un punto di partenza
+        const startIdx = (phraseSeed * 3) % pool.length;
+        const hitInPhrase = Math.floor((worldState.globalTick / voiceCycle) % phraseLen);
+        // Pattern: root, +2, +4, +2 (terze, allegro)
+        const offsets = [0, 2, 4, 2];
+        const noteIdx = Math.min(pool.length - 1, startIdx + offsets[hitInPhrase]);
+        const note = pool[noteIdx];
+        // Velocity più alta — Four Tet è assertivo
+        const rawVel = 65 + density * 30 + (Math.random() * 8 - 4);
         const vel = Math.min(Math.round(rawVel), velCeil);
         const stepMs2 = (60 / (worldState.bpm || 132) / 4) * 1000;
-        const dur = Math.round(stepMs2 * 6);
+        const dur = Math.round(stepMs2 * 4);  // note più corte, più staccate
         sendMIDINote(CH_VOICE, note, vel, dur);
         addMidiNote(CH_VOICE, note / 127, vel / 127);
       }
@@ -709,9 +715,9 @@ function _tick() {
       if (pool.length > 0) {
         // Ascending sequence on the scale
         const arpNote = pool[worldState.globalTick % pool.length];
-        const arpVelMul = strat.arpVelScale ?? 0.7;
-        const accentMul = (arpStep % 5 === 0) ? 1.15 : 0.9;
-        const rawVel = (50 + density * 40) * arpVelMul * accentMul;
+        const arpVelMul = strat.arpVelScale ?? 0.85;  // più assertivo
+        const accentMul = (arpStep % 5 === 0) ? 1.20 : 0.95;
+        const rawVel = (55 + density * 40) * arpVelMul * accentMul;
         const arpVel = Math.min(Math.max(Math.round(rawVel), 1), velCeil);
         const stepMs2 = (60 / (worldState.bpm || 132) / 4) * 1000;
         const arpDur = Math.round(stepMs2 * 2);
