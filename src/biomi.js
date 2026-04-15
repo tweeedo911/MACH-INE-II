@@ -435,7 +435,7 @@ const TESSUTO = {
     percussion: [150, 130, 115],   // grigio caldo
     arp:        [0,   0,   0],     // assente
     voice:      [0,   0,   0],     // tace
-    lead:       [245, 190, 130],   // pesca caldo — più vivo del cream
+    lead:       [255, 210, 140],   // ambra luminosa — si impone sullo sfondo
   },
   decay: {
     drone:      0.9997,   // quasi permanente — trama di fondo
@@ -445,20 +445,20 @@ const TESSUTO = {
     percussion: 0.650,
     arp:        1.000,    // assente
     voice:      1.000,    // TACE
-    lead:       0.991,    // frasi medie, visibili
+    lead:       0.9955,   // persistente — striscia luminosa che resta
   },
   force: {
     drone: 0.004,  bass: 0.55,  chord: 0.70,
     kick: 0.80,    percussion: 0.35,
-    arp: 0,        voice: 0,    lead: 0.50,
+    arp: 0,        voice: 0,    lead: 0.90,
   },
   // phaseColors: il tessuto si scalda e si tinge — da freddo a incandescente
   phaseColors: {
     germoglio:    { chord: [180, 195,  25] },  // chartreuse tenue — le fibre germinano
     pulsazione:   { chord: [210, 220,  40] },  // chartreuse pieno — le fibre pulsano
-    densita:      { chord: [230, 235,  60], lead: [255, 200, 140] },  // si scalda tutto
-    rottura:      { chord: [255, 240,  80], lead: [255, 170, 100] },  // incandescente
-    dissoluzione: { chord: [140, 150,  20], lead: [180, 150, 110] },  // le fibre si spengono
+    densita:      { chord: [230, 235,  60], lead: [255, 225, 160] },  // lead diventa oro caldo
+    rottura:      { chord: [255, 240,  80], lead: [255, 255, 200] },  // lead bianco incandescente
+    dissoluzione: { chord: [140, 150,  20], lead: [200, 160, 100] },  // le fibre si spengono
   },
 
   depositFn: {
@@ -525,19 +525,38 @@ const TESSUTO = {
       }
     },
 
-    // Lead: zona ALTA (Y 3-22%) — voce melodica nello spazio aereo, separata dalle fibre
-    // RUPTURE: jitter verticale — la voce scende nella zona fibre, confondendosi
+    // Lead: COLONNA VERTICALE luminosa — sviluppo principale su asse X
+    // Nota→X: pitch determina la posizione orizzontale (grave=sinistra, acuta=destra)
+    // Velocity→altezza: forte = colonna alta, piano = tratto corto
+    // Sempre visibile anche con camera zoomata su Y
+    // RUPTURE: jitter orizzontale — la colonna si sposta lateralmente
     lead(fields, particles, note127, vel127, h) {
       const ri = h.rupture.intensity;
       const t = h.clamp((note127 - 62) / (79 - 62), 0, 1);
-      const baseY = Math.floor(h.CELLS_Y * (0.03 + (1 - t) * 0.19));
-      const cy = h.clamp(baseY + Math.round((Math.random() - 0.5) * 2 * ri * 6), 0, h.CELLS_Y - 2);
-      const cx = Math.floor(Math.random() * h.CELLS_X);
-      const f = (vel127 / 127) * 0.50;
-      h.depositPoint(fields.lead, cx, cy, f);
-      h.depositPoint(fields.lead, cx - 1, cy, f * 0.5);
-      h.depositPoint(fields.lead, cx + 1, cy, f * 0.5);
-      h.depositPoint(fields.lead, cx, cy - 1, f * 0.3);
+      // X: nota determina la colonna (grave→sinistra, acuta→destra)
+      const centerX = Math.floor(h.CELLS_X * (0.08 + t * 0.84));
+      const jitterX = Math.round((Math.random() - 0.5) * 2 * ri * 4);
+      const cx = h.clamp(centerX + jitterX, 2, h.CELLS_X - 3);
+      // Y: colonna che copre buona parte del campo verticale
+      const velN = vel127 / 127;
+      const height = Math.floor(h.CELLS_Y * (0.35 + velN * 0.45));
+      const startY = Math.floor((h.CELLS_Y - height) * (0.2 + Math.random() * 0.6));
+      const f = velN * 0.90;
+      for (let dy = 0; dy < height; dy++) {
+        const cy = startY + dy;
+        if (cy < 0 || cy >= h.CELLS_Y) continue;
+        // fade verticale ai bordi — cuore luminoso al centro
+        const nt = dy / height;
+        const edgeFade = nt < 0.15 ? nt / 0.15
+                       : nt > 0.85 ? (1 - nt) / 0.15
+                       : 1.0;
+        const ff = f * Math.max(0.25, edgeFade);
+        h.depositPoint(fields.lead, cx, cy, ff);               // colonna centrale
+        h.depositPoint(fields.lead, cx - 1, cy, ff * 0.55);    // alone sinistra
+        h.depositPoint(fields.lead, cx + 1, cy, ff * 0.55);    // alone destra
+        h.depositPoint(fields.lead, cx - 2, cy, ff * 0.15);    // sfumatura esterna
+        h.depositPoint(fields.lead, cx + 2, cy, ff * 0.15);
+      }
     },
 
     // Kick: orizzonte a Y 74% — flash + eco sulle fibre chord sopra
@@ -581,12 +600,20 @@ const TESSUTO = {
     },
   },
 
+  // grana: lead GROSSO e luminoso — si stacca dalle fibre chord
+  cellPx: {
+    lead: 12,
+  },
+  // lead senza cap — striscia densa e piena
+  maxDensity: {
+    lead: 0.95,
+  },
   // glifi tessuto: trame e orditi — le fibre parlano
   glyphs: {
     roles: ['lead', 'kick'],
     chars: '—|+×:',
-    threshold: 0.35,
-    opacity: 0.80,
+    threshold: 0.30,
+    opacity: 0.85,
   },
 };
 
@@ -1518,130 +1545,137 @@ const RITORNO = {
   },
 };
 
-// ── ENCORE ── 8° bioma — VISUALIZER da grande evento
-// Più reattivo, più esplosivo, più colore dei 7 biomi narrativi.
+// ── ENCORE v2 ── Canon Machine — geometrie a blocchi, B/N + RGB puro
 const ENCORE = {
   bg: [0, 0, 0],
   colors: {
-    drone:      [40,  20,  60],    // viola scuro — base
-    bass:       [255, 255,   0],   // giallo PURO — peso
-    chord:      [255,   0, 255],   // magenta PURO — blocchi
-    kick:       [255, 255, 255],   // bianco puro — flash
-    percussion: [0,   255, 255],   // ciano PURO — freddo
-    arp:        [0,   255,   0],   // verde PURO — trama
-    voice:      [0,   120, 255],   // blu elettrico — melodia
-    lead:       [0,     0,   0],   // non usato
+    drone:      [30,  30,  30],    // grigio scurissimo — quasi invisibile
+    bass:       [255, 255, 255],   // bianco (giallo solo a vel forte)
+    chord:      [255, 255, 255],   // bianco (ciano solo a vel forte)
+    kick:       [255, 255, 255],   // bianco puro
+    percussion: [255, 255, 255],   // bianco — polvere
+    arp:        [255, 255, 255],   // bianco (verde solo a vel forte)
+    voice:      [255, 255, 255],   // bianco (blu solo a vel forte)
+    lead:       [255, 255, 255],   // bianco (magenta solo a vel forte)
+  },
+  // Colori forti — usati quando velocity > threshold (campo.js li legge)
+  colorsStrong: {
+    bass:  [255, 255,   0],   // giallo
+    chord: [0,   255, 255],   // ciano
+    arp:   [0,   255,   0],   // verde
+    voice: [0,   100, 255],   // blu elettrico
+    lead:  [255,   0, 255],   // magenta
   },
   decay: {
-    drone: 0.9999, bass: 0.996, chord: 0.997,
-    kick: 0.400, percussion: 0.500,       // flash brevissimo — stroboscopico
-    arp: 0.985, voice: 0.994, lead: 1.000,
+    drone: 0.92, bass: 0.88, chord: 0.90,
+    kick: 0.50, percussion: 0.60,
+    arp: 0.85, voice: 0.90, lead: 0.87,
   },
   force: {
-    drone: 0.06, bass: 1.00, chord: 1.00,
-    kick: 1.00, percussion: 1.00,
-    arp: 1.00, voice: 1.00, lead: 0,      // TUTTO AL MASSIMO
+    drone: 0.03, bass: 0.90, chord: 0.85,
+    kick: 1.00, percussion: 0.70,
+    arp: 0.80, voice: 0.85, lead: 0.80,
   },
   maxDensity: {
-    drone: 1.00, bass: 1.00, chord: 1.00,
-    kick: 1.00, percussion: 1.00,
-    arp: 1.00, voice: 1.00, lead: 0,      // nessun cap — satura tutto
+    drone: 0.30, bass: 0.95, chord: 0.95,
+    kick: 1.00, percussion: 0.80,
+    arp: 0.95, voice: 0.95, lead: 0.90,
   },
   cellPx: {
-    drone: 14, bass: 16, chord: 14,       // GROSSI — blocchi di colore massicci
-    kick: 10, percussion: 10,
-    arp: 10, voice: 14, lead: 4,
+    drone: 20, bass: 20, chord: 20,
+    kick: 20, percussion: 20,
+    arp: 20, voice: 20, lead: 20,
   },
   agingInverted: true,
-  shimmerScale: 4.0,     // shimmer ESTREMO — pulsazione stroboscopica
-  glyphs: {
-    roles: ['kick', 'bass', 'chord', 'arp', 'voice', 'percussion'],
-    chars: '█▓▒░■□●○◆◇▲▼',
-    threshold: 0.15,     // ancora più glifi
-    opacity: 0.8,
-  },
+  shimmerScale: 0.5,
+  glyphs: false,
   planetMask: false,
-  // Visualizer scatter — più punti, più esplosivo, kick = riga intera
   depositFn: (() => {
-    function makeScatter(role, count, spread) {
-      return function(fields, particles, note127, vel127, h) {
-        const field = fields[role];
-        const f = (vel127 / 127) * 1.0;  // forza massima — satura
-        const n = count + Math.floor(vel127 / 25);
-        const W = h.CELLS_X, H = h.CELLS_Y;
-        // spread: 0 = tutto il canvas, >0 = cluster intorno a un centro random
-        const cx0 = spread > 0 ? Math.floor(Math.random() * W) : 0;
-        const cy0 = spread > 0 ? Math.floor(Math.random() * H) : 0;
-        for (let i = 0; i < n; i++) {
-          const px = spread > 0
-            ? h.clamp(cx0 + Math.floor((Math.random() - 0.5) * spread * 2), 0, W - 1)
-            : Math.floor(Math.random() * W);
-          const py = spread > 0
-            ? h.clamp(cy0 + Math.floor((Math.random() - 0.5) * spread * 2), 0, H - 1)
-            : Math.floor(Math.random() * H);
-          h.depositPoint(field, px, py, f);
-        }
-      };
+    function kickRow(fields, particles, note127, vel127, h) {
+      const f = (vel127 / 127) * 0.9;
+      const cy = Math.floor(h.CELLS_Y / 2) + Math.floor((Math.random() - 0.5) * 4);
+      h.depositRow(fields.kick, h.clamp(cy, 0, h.CELLS_Y - 1), f);
+      if (cy + 1 < h.CELLS_Y) h.depositRow(fields.kick, cy + 1, f * 0.4);
     }
-    // Kick: TRIPLO GESTO — flash / erosione / INVERSIONE COLORI
-    // L'inversione trasforma lo sfondo in bianco per 1 frame — stroboscopico.
-    // Frequenza inversione cresce col brick (0% primi brick, ~15% dal plateau)
-    function kickFlash(fields, particles, note127, vel127, h) {
-      const f = (vel127 / 127) * 0.8;
+    function snareInvert(fields, particles, note127, vel127, h) {
+      const f = (vel127 / 127) * 0.6;
       const cy = Math.floor(Math.random() * h.CELLS_Y);
       const W = h.CELLS_X;
-      // Inversione colori — probabilità cresce col brick (da hat in poi)
-      const brick = h.encoreBrick || 0;
-      const invertProb = brick >= 8 ? 0.20 : brick >= 6 ? 0.12 : brick >= 3 ? 0.06 : 0;
-      if (invertProb > 0 && Math.random() < invertProb) {
-        h.setEncoreInvert();  // il renderer invertirà TUTTI i colori questo frame
-      }
-      const negative = Math.random() < 0.40;
-      if (negative) {
-        // Erosione: sottrai materia da TUTTI i ruoli su 5 righe
-        const erodeF = f * 0.50;  // aggressivo
-        const roles = ['drone', 'bass', 'chord', 'arp', 'voice', 'percussion'];
-        for (const r of roles) {
-          const fld = fields[r];
-          for (let dy = -2; dy <= 2; dy++) {
-            const row = cy + dy;
-            if (row < 0 || row >= h.CELLS_Y) continue;
-            for (let x = 0; x < W; x++) {
-              const idx = row * W + x;
-              fld[idx] = Math.max(0, fld[idx] - erodeF);
-            }
+      const roles = ['drone', 'bass', 'chord', 'arp', 'voice', 'lead'];
+      for (const r of roles) {
+        const fld = fields[r];
+        for (let dy = -1; dy <= 1; dy++) {
+          const row = cy + dy;
+          if (row < 0 || row >= h.CELLS_Y) continue;
+          for (let x = 0; x < W; x++) {
+            fld[row * W + x] = Math.max(0, fld[row * W + x] - f);
           }
         }
-        // Flash bianco sottile sulla riga centrale
-        h.depositRow(fields.kick, cy, f * 0.4);
-      } else {
-        // Flash positivo normale — riga bianca piena
-        h.depositRow(fields.kick, cy, f);
-        if (cy + 1 < h.CELLS_Y) h.depositRow(fields.kick, cy + 1, f * 0.5);
+      }
+      h.depositRow(fields.percussion, cy, f * 0.5);
+    }
+    function bassHalf(fields, particles, note127, vel127, h) {
+      const f = (vel127 / 127) * 0.8;
+      const top = note127 > 64;
+      const fillCount = 20 + Math.floor(vel127 / 5);
+      h.depositHalf(fields.bass, top, fillCount, f);
+    }
+    function arpDiagonal(fields, particles, note127, vel127, h) {
+      const f = (vel127 / 127) * 0.7;
+      const angle = note127 / 127;
+      const thickness = vel127 > 90 ? 3 : vel127 > 60 ? 2 : 1;
+      h.depositDiagonal(fields.arp, angle, thickness, f);
+    }
+    function voiceArc(fields, particles, note127, vel127, h) {
+      const f = (vel127 / 127) * 0.75;
+      const maxR = Math.min(h.CELLS_X, h.CELLS_Y) / 2;
+      const radius = Math.floor(maxR * (1 - note127 / 127) + 2);
+      const arcFrac = 0.25 + (vel127 / 127) * 0.75;
+      h.depositArc(fields.voice, radius, arcFrac, f);
+    }
+    function leadCross(fields, particles, note127, vel127, h) {
+      const f = (vel127 / 127) * 0.7;
+      const cx = Math.floor((note127 / 127) * (h.CELLS_X - 1));
+      const cy = Math.floor((1 - note127 / 127) * (h.CELLS_Y - 1));
+      const armLen = vel127 > 80 ? 6 : vel127 > 50 ? 4 : 2;
+      h.depositCross(fields.lead, cx, cy, armLen, f);
+    }
+    function chordQuadrant(fields, particles, note127, vel127, h) {
+      const f = (vel127 / 127) * 0.6;
+      const quadrant = Math.floor((note127 / 127) * 3.99);
+      const fillRatio = vel127 > 90 ? 0.8 : vel127 > 60 ? 0.4 : 0.1;
+      h.depositQuadrant(fields.chord, quadrant, fillRatio, f);
+    }
+    function percDust(fields, particles, note127, vel127, h) {
+      const f = (vel127 / 127) * 0.5;
+      const n = 3 + Math.floor(vel127 / 30);
+      for (let i = 0; i < n; i++) {
+        const px = Math.floor(Math.random() * h.CELLS_X);
+        const py = Math.floor(Math.random() * h.CELLS_Y);
+        h.depositPoint(fields.percussion, px, py, f);
       }
     }
-    // Bass: blob ENORME — senti il peso nel petto
-    function bassBlob(fields, particles, note127, vel127, h) {
-      const field = fields.bass;
-      const f = (vel127 / 127) * 1.0;
-      const cx = Math.floor(Math.random() * h.CELLS_X);
-      const cy = Math.floor(h.CELLS_Y * 0.3 + Math.random() * h.CELLS_Y * 0.7);
-      h.depositBlob(fields, cx, cy, 10, 6, f);  // blob enorme
-      // esplosione di punti intorno
-      for (let i = 0; i < 12; i++) {
-        const dx = Math.floor((Math.random() - 0.5) * 30);
-        const dy = Math.floor((Math.random() - 0.5) * 15);
-        h.depositPoint(field, h.clamp(cx + dx, 0, h.CELLS_X - 1), h.clamp(cy + dy, 0, h.CELLS_Y - 1), f * 0.4);
+    function droneGrain(fields, particles, note127, vel127, h) {
+      const f = 0.15;
+      for (let i = 0; i < 5; i++) {
+        const px = Math.floor(Math.random() * h.CELLS_X);
+        const py = Math.floor(Math.random() * h.CELLS_Y);
+        h.depositPoint(fields.drone, px, py, f);
       }
+    }
+    function convergenceFlash(fields, particles, note127, vel127, h) {
+      h.depositFlash(fields, 0.7);
     }
     return {
-      drone: makeScatter('drone', 8, 0),               // sparso ovunque, più denso
-      bass: bassBlob,                                    // blob enorme
-      chord: makeScatter('chord', 12, 20),              // cluster grandi
-      kick: kickFlash,                                   // riga + erosione
-      percussion: makeScatter('percussion', 10, 15),    // cluster
-      arp: makeScatter('arp', 15, 0),                   // TANTI punti sparsi
-      voice: makeScatter('voice', 10, 18),              // cluster larghi
+      drone: droneGrain,
+      bass: bassHalf,
+      chord: chordQuadrant,
+      kick: kickRow,
+      percussion: percDust,
+      arp: arpDiagonal,
+      voice: voiceArc,
+      lead: leadCross,
+      convergence: convergenceFlash,
     };
   })(),
 };
