@@ -134,9 +134,9 @@ export function updateBass(dt) {
   while (_lastTick < worldState.globalTick) {
     _lastTick++;
     if (worldState.encoreMode) {
-      const bassCycle = worldState.encoreCycleLens.bass;  // 12
-      _step = _lastTick % bassCycle;
-      _bar  = Math.floor(_lastTick / bassCycle);
+      // V2: bass is 1× speed, standard 16-step cycle
+      _step = _lastTick % 16;
+      _bar  = Math.floor(_lastTick / 16);
     } else {
       _step = _lastTick % 16;
       _bar  = Math.floor(_lastTick / 16);
@@ -149,31 +149,29 @@ function _tick() {
   const track = TRACKS[worldState.track];
   if (!track) return;
 
-  // ── ENCORE: bass pattern on 12-step cycle — enters at brick 7 (+BASS = the drop) ──
-  if (worldState.encoreMode && track.bassPattern && worldState.encoreBrick >= 7) {
-    const noteVal = track.bassPattern[_step];
-    if (!noteVal) return;  // 0 = rest
+  // ── ENCORE V2: bass reads from canon voice ──
+  if (worldState.encoreMode) {
+    const canon = worldState.encoreCanon;
+    if (!canon.bass.active) return;
+
+    // Play bass note from canon — one note per bar on beat 0
+    if (_step !== 0) return;
+
+    const note = canon.bass.note;
+    if (note <= 0) return;
 
     const density = worldState.density.bass;
     const ceiling = worldState.velocityCeiling.bass;
-    const [regLo, regHi] = worldState.register.bass;
     const bpm = worldState.bpm || 132;
     const stepMs = (60 / bpm / 4) * 1000;
 
-    // Transpose by chord root relative to C3 (MIDI 48)
-    const chordRoot = (worldState.currentChord && worldState.currentChord[0]) || 48;
-    const offset = chordRoot - 48;
-    let note = noteVal + offset;
-    while (note < regLo) note += 12;
-    while (note > regHi) note -= 12;
-
-    const rawVel = 60 + density * 40 + (Math.random() * 8 - 4);
+    const rawVel = 55 + density * 45 + (Math.random() * 8 - 4);
     const vel = Math.min(Math.round(rawVel), ceiling);
-    const dur = Math.round(stepMs * 3.0);
+    const dur = Math.round(stepMs * 6);  // long gate — sustained bass
 
-    sendMIDINote(3, note, vel, dur);  // CH3
+    sendMIDINote(3, note, vel, dur);
     addMidiNote(3, note / 127, vel / 127);
-    return;  // skip normal bass logic
+    return;
   }
 
   const pattern = track.bassPattern;
