@@ -9,6 +9,11 @@ export const CFG = {
   bpmLerpBeats: 2,      // BPM transition lerp duration in beats (tempo-relative smoothing)
   debug: false,         // false per performance live — true solo per diagnostica
 
+  // Risoluzione interna rendering (indipendente dalla finestra)
+  // 1920×1080 = 2× intero del campo 960×540 → pixel-perfect upscale
+  renderW: 1920,
+  renderH: 1080,
+
   // ── V3.5: M+N consolidati — sempre attivi (post-sessione 2026-04-12) ──
   // Ex-EXPERIMENT (v2): velocity ceiling calibrati, phase velocity scaling
   // Ex-STRUCTURAL (v3): tension waves, call-response, walls of sound,
@@ -1181,50 +1186,76 @@ export const CFG = {
       freezeSpatialLo: 0.5,   // cy/cellsY sotto = volatile
       freezeSpatialHi: 0.9,   // cy/cellsY sopra = sedimentario
 
-      // ── Camera Osservatore ──
+      // ── Camera Sguardo (modello fisico di attenzione) ──
+      // baseZoom:         quota di equilibrio senza attività
+      // curiosityWeight:  densità locale → zoom IN
+      // breathWeight:     densità globale → zoom OUT
+      // focusDrift:       velocità spostamento focus (per secondo, bassa = contemplativo)
+      // zoomDrift:        velocità adattamento zoom (per secondo)
+      // centerPull:       bias verso centro campo (0→1, alto = resta centrato)
+      // freshnessWeight:  quanto i depositi nuovi attraggono di più dei vecchi
       camera: {
-        poiScanInterval: 15,     // frame tra scansioni POI
+        poiScanInterval: 15,     // frame tra scansioni blocchi densità
         poiBlockSize: 8,         // celle per lato blocco
-        poiMaxCount: 5,          // POI massimi restituiti dalla scansione
-        macroMinDensity: 0.05,   // densità media minima per consentire micro zoom
         biomes: {
-          // contemplativa: quasi ferma, hold lunghissimi, riposa sulle nebulose
+          // ── NEBBIA: contemplazione. Il vuoto è il soggetto. ──
+          // Camera quasi ferma sul totale. Lentissima. Guarda il niente.
           NEBBIA: {
-            zoomRange: [6, 8], holdRange: [10, 18], speed: 0.25, easing: 'smooth',
-            afterStare: { stare: 0.5, travel: 0.2, lift: 0.1, scan: 0 },
+            phaseZoom: { germoglio: 1.0, pulsazione: 1.0, dissoluzione: 1.0 },
+            curiosityWeight: 0.1, breathWeight: 0.05,
+            focusDrift: 0.06, zoomDrift: 0.03, centerPull: 0.20,
+            freshnessWeight: 0.3,
           },
-          // segue le fibre orizzontali, ma cambia fascia Y regolarmente
+          // ── TESSUTO: le fibre emergono. Largo, poi si avvicina alla trama. ──
           TESSUTO: {
-            zoomRange: [3, 5], holdRange: [4, 6], speed: 0.5, easing: 'smooth',
-            afterStare: { stare: 0.05, travel: 0.35, lift: 0.15, scan: 0.45 },
-            scanDir: 'H',
+            phaseZoom: { germoglio: 1.0, pulsazione: 1.12, densita: 1.22,
+                         rottura: 1.35, dissoluzione: 1.0 },
+            curiosityWeight: 0.15, breathWeight: 0.10,
+            focusDrift: 0.12, zoomDrift: 0.08, centerPull: 0.12,
+            freshnessWeight: 0.8,
           },
-          // inseguimento eco dub: pan a destra dopo deposit basso
+          // ── SOLCO: segue il groove dub. Entra nelle colonne, insegue l'eco. ──
           SOLCO: {
-            zoomRange: [3, 4], holdRange: [3, 5], speed: 0.6, easing: 'smooth',
-            afterStare: { stare: 0.1, travel: 0.2, lift: 0.2, echoChase: 0.5 },
+            phaseZoom: { germoglio: 1.0, pulsazione: 1.25, densita: 1.45,
+                         rottura: 1.6, dissoluzione: 1.05 },
+            curiosityWeight: 0.20, breathWeight: 0.10,
+            focusDrift: 0.15, zoomDrift: 0.10, centerPull: 0.10,
+            freshnessWeight: 1.2,
           },
-          // respira con la membrana: zoom avanti/indietro ciclico, mai allontanamento totale
+          // ── RESPIRO: la membrana si vede tutta. Quasi nessun movimento. ──
           RESPIRO: {
-            zoomRange: [3, 5], holdRange: [3, 5], speed: 0.4, easing: 'smooth',
-            afterStare: { stare: 0.25, travel: 0.3, lift: 0, breathe: 0.45 },
-            zoomFloor: 1.5,   // mai sotto 1.5× — resta nella membrana
+            phaseZoom: { germoglio: 1.0, pulsazione: 1.05, dissoluzione: 1.0 },
+            curiosityWeight: 0.08, breathWeight: 0.05,
+            focusDrift: 0.08, zoomDrift: 0.05, centerPull: 0.15,
+            freshnessWeight: 0.5,
           },
-          // cursore discreto: salta tra posizioni, niente transizioni dolci
+          // ── MACCHINA: terminale. Snap-cut tra fasi, non lerp. ──
+          // densita: pull-back per vedere il campo pieno (il pattern è il soggetto)
+          // rottura: snap close-up sul caos
           MACCHINA: {
-            zoomRange: [4, 6], holdRange: [1.5, 3], speed: 0.8, easing: 'snap',
-            afterStare: { stare: 0, travel: 0, lift: 0.15, snapJump: 0.85 },
+            phaseZoom: { germoglio: 1.25, pulsazione: 1.4, densita: 1.15,
+                         rottura: 1.7, dissoluzione: 1.05 },
+            snapPhaseZoom: true,   // cambio zoom istantaneo al cambio fase
+            curiosityWeight: 0.10, breathWeight: 0.08,
+            focusDrift: 0.06, zoomDrift: 0.06, centerPull: 0.05,
+            freshnessWeight: 0.3,
+            snakeSpeed: 0.018,
+            snakeWeight: 0.85,
           },
-          // rapida e grandangolare: insegue tende di luce, mai ferma
+          // ── TEMPESTA: aurora larga. Resta largo, la tempesta è immensa. ──
           TEMPESTA: {
-            zoomRange: [2, 3], holdRange: [1.5, 2.5], speed: 0.9, easing: 'smooth',
-            afterStare: { stare: 0, travel: 0.7, lift: 0.15, scan: 0.15 },
-            scanDir: 'V',     // scansione verticale (segue le tende)
+            phaseZoom: { germoglio: 1.0, pulsazione: 1.12, densita: 1.08,
+                         rottura: 1.35, dissoluzione: 1.0 },
+            curiosityWeight: 0.15, breathWeight: 0.12,
+            focusDrift: 0.14, zoomDrift: 0.10, centerPull: 0.10,
+            freshnessWeight: 1.0,
           },
-          // logica speciale in _nextShotRitorno
+          // ── RITORNO: allontanamento monotono — ritornoDecay governa. ──
           RITORNO: {
-            zoomRange: [1, 6], holdRange: [3, 8], speed: 0.4, easing: 'smooth',
-            afterStare: {},
+            phaseZoom: { germoglio: 1.0 },  // ritornoDecay sovrascrive
+            curiosityWeight: 0.12, breathWeight: 0.05,
+            focusDrift: 0.08, zoomDrift: 0.06, centerPull: 0.05,
+            freshnessWeight: 0.5, ritornoDecay: 0.007,
           },
         },
       },
@@ -1274,5 +1305,11 @@ export const CFG = {
       arp:        'accent',  // scintilla: usa accent
       onset:      null,      // onset audio generico: usa dot
     },
+
+    // ── ENCORE ──
+    ENCORE_BPM_START: 60,
+    ENCORE_BPM_TARGET: 132,
+    ENCORE_HEARTBEAT_BARS: 8,
+    ENCORE_TEARDOWN_FADE_BARS: 4,
   },
 };
