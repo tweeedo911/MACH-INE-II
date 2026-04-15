@@ -397,6 +397,14 @@ export function feedNote(ch, note127, vel127) {
   _ensureBuffers();
   if (!_bioma) _bioma = getBiome('GENERIC');
 
+  // ── ENCORE v2: convergence flash ──
+  if (worldState.encoreMode && worldState.encoreCanon && worldState.encoreCanon.convergence) {
+    if (_bioma && _bioma.depositFn && _bioma.depositFn.convergence) {
+      _bioma.depositFn.convergence(_fields, null, 64, 100, HELPERS);
+    }
+    worldState.encoreCanon.convergence = false;  // consume the event
+  }
+
   // Firma: gelo blocks all new deposits
   if (firma.gelo) return;
 
@@ -870,9 +878,20 @@ export function renderCampo(ctx, W, H) {
             ? 1.0 - ageFrac * 0.45
             : 0.55 + ageFrac * 0.45;
         }
-        const aR = srcR * ageFactor;
-        const aG = srcG * ageFactor;
-        const aB = srcB * ageFactor;
+        let aR = srcR * ageFactor;
+        let aG = srcG * ageFactor;
+        let aB = srcB * ageFactor;
+
+        // ENCORE v2: strong colors at high density — Ikeda effect (color is rare and dramatic)
+        if (_bioma.colorsStrong && density > 0.7) {
+          const strong = _bioma.colorsStrong[role];
+          if (strong) {
+            const blend = (density - 0.7) / 0.3;
+            aR = aR * (1 - blend) + (strong[0] / 255) * _bpmPulse * ageFactor * blend;
+            aG = aG * (1 - blend) + (strong[1] / 255) * _bpmPulse * ageFactor * blend;
+            aB = aB * (1 - blend) + (strong[2] / 255) * _bpmPulse * ageFactor * blend;
+          }
+        }
 
         // Proportional position on offscreen
         const centerX = Math.floor((cx + 0.5) * _W / _cellsX);
