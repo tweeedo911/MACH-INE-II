@@ -699,7 +699,8 @@ export const TRACKS = {
     },
 
     rhythmGrid: [1,0,0,0, 1,0,0,0, 1,0,0,0, 1,0,0,0],
-    snare: { enabled: true, steps: [4, 12], shift: false, skip: false, flam: false },
+    // Snare sincopato — step 3, 7, 11 (mai sul backbeat, mai prevedibile)
+    snare: { enabled: true, steps: [3, 7, 11], shift: false, skip: false, flam: false },
 
     encoreHatPattern: [1,0,1,0,0, 1,0,1,0,0],
     encoreOpenHatSteps: [4, 8],

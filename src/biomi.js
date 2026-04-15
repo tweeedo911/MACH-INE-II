@@ -1518,28 +1518,29 @@ const RITORNO = {
   },
 };
 
-// ── ENCORE ── 8° bioma — RGB puri, optical, densità massima
+// ── ENCORE ── 8° bioma — VISUALIZER da grande evento
+// Più reattivo, più esplosivo, più colore dei 7 biomi narrativi.
 const ENCORE = {
   bg: [0, 0, 0],
   colors: {
-    drone:      [40,  40,  40],
-    bass:       [255, 255,   0],
-    chord:      [255,   0, 255],
-    kick:       [255, 255, 255],
-    percussion: [0,   255, 255],
-    arp:        [0,   255,   0],
-    voice:      [0,   100, 255],
-    lead:       [0,     0,   0],
+    drone:      [30,  20,  50],    // viola scurissimo — base
+    bass:       [255, 220,   0],   // giallo caldo — peso
+    chord:      [255,  50, 220],   // magenta-rosa — blocchi
+    kick:       [255, 255, 255],   // bianco puro — flash
+    percussion: [0,   255, 200],   // ciano-verde — freddo
+    arp:        [50,  255,  80],   // verde brillante — trama
+    voice:      [80,  140, 255],   // blu cielo — melodia
+    lead:       [0,     0,   0],   // non usato
   },
   decay: {
-    drone: 0.9999, bass: 0.997, chord: 0.998,
-    kick: 0.700, percussion: 0.750,
-    arp: 0.985, voice: 0.995, lead: 1.000,
+    drone: 0.9999, bass: 0.993, chord: 0.996,
+    kick: 0.500, percussion: 0.600,       // kick/perc più flash, meno persistente
+    arp: 0.980, voice: 0.992, lead: 1.000,
   },
   force: {
-    drone: 0.01, bass: 0.90, chord: 0.80,
-    kick: 1.00, percussion: 0.85,
-    arp: 0.80, voice: 0.85, lead: 0,
+    drone: 0.02, bass: 1.00, chord: 0.90,
+    kick: 1.00, percussion: 0.95,         // più forte = più visibile
+    arp: 0.85, voice: 0.90, lead: 0,
   },
   maxDensity: {
     drone: 0.95, bass: 0.95, chord: 0.95,
@@ -1547,39 +1548,72 @@ const ENCORE = {
     arp: 0.95, voice: 0.95, lead: 0,
   },
   cellPx: {
-    drone: 4, bass: 4, chord: 4,
-    kick: 4, percussion: 4,
-    arp: 4, voice: 4, lead: 4,
+    drone: 6, bass: 6, chord: 5,          // leggermente più grossi = più visibili
+    kick: 4, percussion: 4,               // kick/perc fini e precisi
+    arp: 4, voice: 5, lead: 4,
   },
   agingInverted: true,
-  shimmerScale: 2.0,
+  shimmerScale: 3.0,     // shimmer aggressivo — pulsazione da evento
   glyphs: {
     roles: ['kick', 'bass', 'chord', 'arp', 'voice', 'percussion'],
     chars: '█▓▒░■□●○◆◇▲▼',
-    threshold: 0.20,
-    opacity: 0.7,
+    threshold: 0.15,     // ancora più glifi
+    opacity: 0.8,
   },
   planetMask: false,
-  // Random scatter su tutto il canvas — nessuna fisica, l'optical emerge dalla polimetria
+  // Visualizer scatter — più punti, più esplosivo, kick = riga intera
   depositFn: (() => {
-    function makeScatter(role) {
+    function makeScatter(role, count, spread) {
       return function(fields, particles, note127, vel127, h) {
         const field = fields[role];
-        const f = (vel127 / 127) * 0.6;
-        const count = 3 + Math.floor(vel127 / 30);  // 3-7 punti per nota
+        const f = (vel127 / 127) * 0.7;
+        const n = count + Math.floor(vel127 / 25);
         const W = h.CELLS_X, H = h.CELLS_Y;
-        for (let i = 0; i < count; i++) {
-          const px = Math.floor(Math.random() * W);
-          const py = Math.floor(Math.random() * H);
+        // spread: 0 = tutto il canvas, >0 = cluster intorno a un centro random
+        const cx0 = spread > 0 ? Math.floor(Math.random() * W) : 0;
+        const cy0 = spread > 0 ? Math.floor(Math.random() * H) : 0;
+        for (let i = 0; i < n; i++) {
+          const px = spread > 0
+            ? h.clamp(cx0 + Math.floor((Math.random() - 0.5) * spread * 2), 0, W - 1)
+            : Math.floor(Math.random() * W);
+          const py = spread > 0
+            ? h.clamp(cy0 + Math.floor((Math.random() - 0.5) * spread * 2), 0, H - 1)
+            : Math.floor(Math.random() * H);
           h.depositPoint(field, px, py, f);
         }
       };
     }
+    // Kick: RIGA INTERA flash — visualizer da evento
+    function kickFlash(fields, particles, note127, vel127, h) {
+      const field = fields.kick;
+      const f = (vel127 / 127) * 0.8;
+      const cy = Math.floor(Math.random() * h.CELLS_Y);
+      h.depositRow(field, cy, f);
+      // seconda riga adiacente per spessore
+      if (cy + 1 < h.CELLS_Y) h.depositRow(field, cy + 1, f * 0.5);
+    }
+    // Bass: blob grosso in posizione random — senti il peso
+    function bassBlob(fields, particles, note127, vel127, h) {
+      const field = fields.bass;
+      const f = (vel127 / 127) * 0.9;
+      const cx = Math.floor(Math.random() * h.CELLS_X);
+      const cy = Math.floor(h.CELLS_Y * 0.5 + Math.random() * h.CELLS_Y * 0.5);
+      h.depositBlob(fields, cx, cy, 6, 4, f);  // blob largo
+      // + punti sparsi intorno
+      for (let i = 0; i < 5; i++) {
+        const dx = Math.floor((Math.random() - 0.5) * 20);
+        const dy = Math.floor((Math.random() - 0.5) * 10);
+        h.depositPoint(field, h.clamp(cx + dx, 0, h.CELLS_X - 1), h.clamp(cy + dy, 0, h.CELLS_Y - 1), f * 0.3);
+      }
+    }
     return {
-      drone: makeScatter('drone'), bass: makeScatter('bass'),
-      chord: makeScatter('chord'), kick: makeScatter('kick'),
-      percussion: makeScatter('percussion'), arp: makeScatter('arp'),
-      voice: makeScatter('voice'),
+      drone: makeScatter('drone', 4, 0),              // sparso ovunque
+      bass: bassBlob,                                   // blob pesante
+      chord: makeScatter('chord', 6, 15),              // cluster (spread 15)
+      kick: kickFlash,                                  // riga intera
+      percussion: makeScatter('percussion', 5, 10),    // cluster piccolo
+      arp: makeScatter('arp', 8, 0),                   // sparso, tanti punti
+      voice: makeScatter('voice', 5, 12),              // cluster medio
     };
   })(),
 };
