@@ -20,13 +20,47 @@ const SCALES = {
 
   // ── C lydian (NEBBIA — bridges into D aeolian with 5 shared notes) ──
   C_lydian:    [36,38,40,42,43,45,47,48,50,52,54,55,57,59,60,62,64,66,67,69,71,72,74,76,78,79],
+
+  // ── ENCORE — 3 switchable scales (non-diatonic) ──
+  octatonic_halfWhole: [48,49,51,52,54,55,57,58, 60,61,63,64,66,67,69,70, 72,73,75,76,78,79,81,82],
+  octatonic_wholeHalf: [48,50,51,53,54,56,57,59, 60,62,63,65,66,68,69,71, 72,74,75,77,78,80,81,83],
+  prometheus:          [48,50,52,54,57,58, 60,62,64,66,69,70, 72,74,76,78,81,82],
 };
 
 export { SCALES };
 
+// ── ENCORE scale lookup (switchable live with Q/W/R) ──
+export const ENCORE_SCALES = {
+  halfWhole: SCALES.octatonic_halfWhole,
+  wholeHalf: SCALES.octatonic_wholeHalf,
+  prometheus: SCALES.prometheus,
+};
+
+// ── ENCORE chord progressions per scale ──
+export const ENCORE_CHORDS = {
+  halfWhole: [
+    [48, 52, 55],  // C major
+    [51, 54, 58],  // Eb minor
+    [54, 57, 61],  // F# major
+    [57, 60, 63],  // A minor
+  ],
+  wholeHalf: [
+    [48, 51, 54],  // C minor
+    [51, 54, 57],  // Eb dim-ish
+    [54, 57, 60],  // Gb minor
+    [57, 60, 63],  // A dim-ish
+  ],
+  prometheus: [
+    [48, 52, 57],  // C-E-A (no 5th, with 6th)
+    [50, 54, 58],  // D-F#-Bb
+    [54, 57, 62],  // F#-A-D (inversion)
+    [57, 58, 64],  // A-Bb-E (cluster)
+  ],
+};
+
 // ── Density profiles per phase (multiplied by track density) ──
 const PHASE_DENSITY = {
-  germoglio:    { rhythm: 0.0, harmony: 0.5, bass: 0.3, melody: 0.2, texture: 0.1 },
+  germoglio:    { rhythm: 0.0, harmony: 0.5, bass: 0.3, melody: 0.2, texture: 0.20 },
   pulsazione:   { rhythm: 0.4, harmony: 0.6, bass: 0.6, melody: 0.6, texture: 0.15 },
   densita:      { rhythm: 0.8, harmony: 0.7, bass: 0.9, melody: 0.7, texture: 0.2 },
   rottura:      { rhythm: 1.0, harmony: 0.5, bass: 1.0, melody: 0.9, texture: 0.5 },
@@ -115,10 +149,16 @@ export const TRACKS = {
       voiceEveryBars: 4,       // 1 phrase every 4 bars (rare, precious)
       voicePhraseLen: [4, 6],  // short phrases
       voiceStyle: { step: 0.45, skip: 0.75, repeatProb: 0.08 },  // medio, qualche skip espressivo
+      voiceContours: [['arch', 3], ['question', 2], ['answer', 1]],  // V3.11: dub — arco naturale, qualche domanda
       leadMode: 'none',        // no lead — groove speaks for itself
       arpRole: 'accompany',    // arp present but secondary
       arpVelScale: 0.7,        // quieter than voice
+      // V3.11: arp che cambia direzione — dub non è mai un loop fisso
+      arpVariation: { dirChangeEvery: 4, restProb: 0.12, passingProb: 0.08 },
     },
+
+    // V3.11: basso dub con ottave e ghost
+    bassOrnament: { octaveProb: 0.06, ghostProb: 0.10 },
 
     droneDrift: { periodBars: 16, amplitude: 400 },  // dub: stabile, drift contenuto
 
@@ -182,6 +222,8 @@ export const TRACKS = {
       voiceEveryBars: 4,             // base — gets reduced by growth curve
       voicePhraseLen: [1, 3],        // very short — single notes to tiny motifs
       voiceStyle: { step: 0.65, skip: 0.40, repeatProb: 0.20 },  // grado congiunto, nota che insiste
+      // V3.11: NEBBIA — gocce che salgono dal buio, qualche arco intimo
+      voiceContours: [['question', 3], ['arch', 2], ['peak', 1]],
       callResponseDelay: [0.5, 1.2],   // eco lontanissima nel buio
       leadMode: 'response',          // lead enters in pulsazione as counterpoint
       leadProb: 0.3,                 // not too often
@@ -209,7 +251,7 @@ export const TRACKS = {
     bpm: 86,
     kickNote: 38,  // D2
 
-    density: { rhythm: 0.15, harmony: 0.6, bass: 0.4, melody: 0.3, texture: 0.1 },
+    density: { rhythm: 0.15, harmony: 0.6, bass: 0.6, melody: 0.3, texture: 0.1 },
 
     register: {
       bass:   [26, 45],    // sub
@@ -240,6 +282,7 @@ export const TRACKS = {
 
     // Rhythmic chord hits — staccato on this grid instead of sustained
     chordGrid: [1,0,0,0, 0,0,1,0, 0,1,0,0, 0,0,0,1],
+    chordGridGhostProb: 0.08,   // V3.11: ghost hit ~8% sugli step vuoti — groove si riempie
 
     // 4 chords × 8 bar = 32 bar
     chords: [
@@ -249,8 +292,10 @@ export const TRACKS = {
       [45, 48, 52],  // Am (A C E)
     ],
 
-    // Follow harmony mode: long sustained notes on chord root changes
-    bassPattern: null,
+    // Ritmo proprio complementare a chordGrid — nota dall'accordo corrente
+    // chordGrid step 0,6,9,15 — bassGrid step 3,10: incastrato nei vuoti, ipnotico
+    bassGrid: [0,0,0,1, 0,0,0,0, 0,0,1,0, 0,0,0,0],
+    bassPattern: null,  // Mode A: segue armonia con ritmo da bassGrid
 
     arpRate: 0,
     arpNotes: 0,
@@ -260,6 +305,7 @@ export const TRACKS = {
       voiceEveryBars: 0,       // voice OFF — silent
       voicePhraseLen: [0, 0],
       leadStyle: { step: 0.55, skip: 0.80, repeatProb: 0.10 },  // lead cerca la forma, esplorativo
+      leadContours: [['arch', 3], ['question', 2], ['peak', 1]],  // V3.11: lead esplorativo, sale e cerca
       leadMode: 'solo',        // lead plays independently (not response to voice)
       leadProb: 1.0,           // always active when density allows
       leadEveryBars: 2,        // 1 phrase every 2 bars
@@ -355,7 +401,7 @@ export const TRACKS = {
     bpm: 129,     // 43×3 — same tempo as SOLCO, energy from density not speed
     kickNote: 38,  // D2
 
-    density: { rhythm: 0.8, harmony: 0.5, bass: 0.85, melody: 0.6, texture: 0.15 },
+    density: { rhythm: 0.8, harmony: 0.5, bass: 0.85, melody: 0.6, texture: 0.45 },
 
     register: {
       bass:   [26, 45],
@@ -410,7 +456,17 @@ export const TRACKS = {
       leadProb: 0.3,           // infrequent
       arpRole: 'protagonist',  // arp is the main melodic element
       arpVelScale: 1.0,        // full velocity
+      // V3.11: arp = cuore di MACCHINA — deve variare molto
+      arpVariation: {
+        dirChangeEvery: 2,     // cambia direzione ogni 2 bar (meccanico ma vario)
+        restProb: 0.08,        // pochi buchi — la macchina non si ferma
+        passingProb: 0.12,     // note di passaggio: la macchina "sbaglia"
+        directions: ['up', 'down', 'pendulum', 'random'],
+      },
     },
+
+    // V3.11: bass meccanico — solo octave, no ghost (pattern locked)
+    bassOrnament: { octaveProb: 0.05, ghostProb: 0 },
 
     // ── Custom hat: tight mechanical 16ths ──
     hatPatterns: {
@@ -428,20 +484,22 @@ export const TRACKS = {
   },
 
   // ═══════════════════════════════════════════════════════════
-  //  6. TEMPESTA — "balli" (E phrygian, 142 BPM)
-  //  Peak energy. Full kit. Aggressive bass. Dense.
+  //  6. TEMPESTA — "balli" (E phrygian, 129 BPM)
+  //  Esplosione umana dopo la macchina. Voice protagonista, bII frigio,
+  //  conga sincopata, hat con open hat — ≠ MACCHINA in tutto tranne BPM.
+  //  Transizione DJ: crossfade 32 bar da MACCHINA (vedi director3.js).
   // ═══════════════════════════════════════════════════════════
   TEMPESTA: {
     scale: SCALES.E_phrygian,
     modeHint: 'phrygian',
     root: 52,   // E3
-    bpm: 129,     // 43×3 — same tempo, peak from density and complexity
+    bpm: 129,     // 43×3 — stesso BPM di MACCHINA, crossfade DJ
     kickNote: 40,  // E2
 
-    density: { rhythm: 0.95, harmony: 0.5, bass: 0.95, melody: 0.7, texture: 0.3 },
+    density: { rhythm: 0.95, harmony: 0.45, bass: 0.95, melody: 1.0, texture: 0.2 },
 
     register: {
-      bass:   [28, 47],
+      bass:   [24, 43],     // più basso di MACCHINA [26,45] — più sub, più peso
       melody: [64, 81],
       lead:   [72, 93],
       chords: [52, 69],
@@ -449,63 +507,88 @@ export const TRACKS = {
     },
     velocityCeiling: {
       rhythm:  120,
-      harmony: 65,
-      bass:    100,
-      melody:  85,
-      texture: 50,
+      harmony: 75,          // più alto — armonia frigia deve farsi sentire
+      bass:    110,         // più alto — bass protagonista
+      melody:  95,          // voice protagonista — deve dominare
+      texture: 40,
     },
 
-    // Driving 4/4 with offbeat push
-    rhythmGrid: [1,0,0,0, 1,0,0,0, 1,0,0,1, 1,0,0,0],
-    snare: { steps: [4, 10, 12] },  // picco: 3 hit per bar, posizioni asimmetriche
+    // Picco dance — 4-on-floor puro, griglia solida
+    rhythmGrid: [1,0,0,0, 1,0,0,0, 1,0,0,0, 1,0,0,0],
+    snare: { steps: [4, 12], shift: false, skip: false, flam: false },
+
+    // ── Conga pattern: sincopature che MACCHINA non ha (calore tribale/latino) ──
+    congaPattern: {
+      germoglio:    [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0],
+      pulsazione:   [0,0,0,1, 0,0,0,0, 0,0,0,1, 0,0,0,0],  // appena accennata
+      densita:      [0,0,0,1, 0,0,0,0, 0,0,0,1, 0,1,0,0],  // step 3,11,13 — sincopatura piena
+      rottura:      [0,0,1,1, 0,0,0,1, 0,0,1,1, 0,1,0,0],  // più densa, caotica
+      dissoluzione: [0,0,0,1, 0,0,0,0, 0,0,0,0, 0,0,0,0],  // eco che muore
+    },
 
     // Phase durations in BARS (at 129 BPM: 1 bar ≈ 1.86s)
     phases: {
-      germoglio:    24,   // ~45s — quick build to peak
+      germoglio:    24,   // ~45s — breve, arriva dal crossfade DJ
       pulsazione:   32,   // ~60s
-      densita:      96,   // ~179s — the peak LASTS, the longest section
+      densita:      96,   // ~179s — il picco DURA
       rottura:      16,   // ~30s
       dissoluzione: 32,   // ~60s
     },  // total: 200 bars ≈ 6.2 min
 
-    // 4 chords × 2 bar = 8 bar cycle (fast, relentless)
-    // V3.5: barsPerChord — incalzante anche in germoglio (non 8 bar default)
-    barsPerChord: { germoglio: 3, pulsazione: 2, densita: 2, rottura: 1, dissoluzione: 4 },
+    // 4 chords × 2 bar = 8 bar cycle (incalzante)
+    barsPerChord: { germoglio: 4, pulsazione: 2, densita: 2, rottura: 1, dissoluzione: 4 },
     chords: [
       [52, 55, 59],  // Em (E G B)
-      [53, 57, 60],  // F (F A C) — phrygian bII
+      [53, 57, 60],  // F (F A C) — bII frigio: IL colore che separa TEMPESTA da MACCHINA
       [50, 53, 57],  // Dm (D F A)
       [57, 60, 64],  // Am (A C E)
     ],
 
-    // Aggressive bass — almost every beat
-    bassPattern: [7,0,0,5, 0,3,0,0, 7,0,5,0, 3,0,0,7],
-    bassSweep: { periodBars: 8, depth: 0.20 },  // pump deciso ma non profondo
+    // Chord ritmico — staccato che dà groove, non pad
+    chordGrid: [1,0,0,0, 1,0,0,0, 0,0,1,0, 0,0,0,1],
+    chordGridGhostProb: 0.06,   // ghost rari — groove si ispessisce
 
-    arpRate: 16,   // 16th notes
-    arpNotes: 6,   // wider pattern
+    // Bass melodico — meno note, più lunghe, walking. Densità attiva il pump.
+    bassPattern: [7,0,0,0, 0,0,0,0, 5,0,0,0, 0,0,3,0],
+    bassSweep: { periodBars: 8, depth: 0.20 },  // respiro melodico
 
-    // ── Melody strategy: VOICE+LEAD hocket (interlocked), arp as texture ──
+    arpRate: 8,    // 8th notes (≠ MACCHINA 16th) — più lento, più spazio, non compete col hat
+    arpNotes: 4,
+
+    // ── Melody strategy: VOICE protagonista (≠ MACCHINA dove arp comanda) ──
     melodyStrategy: {
-      voiceEveryBars: 1,       // voice always active — dense
-      voicePhraseLen: [8, 12], // long intertwined phrases
-      voiceStyle: { step: 0.25, skip: 0.90, repeatProb: 0.02 },  // tensione: salti grandi, mai ripete
-      leadMode: 'hocket',      // lead and voice alternate notes (zipper)
-      leadProb: 1.0,           // always — they are one instrument split in two
-      arpRole: 'texture',      // arp drops to background
-      arpVelScale: 0.4,        // quiet — texture underneath the voices
+      voiceEveryBars: 2,       // frasi ogni 2 bar — costante ma respira
+      voicePhraseLen: [6, 10], // frasi lunghe, cantabili
+      voiceStyle: { step: 0.55, skip: 0.65, repeatProb: 0.08 },  // cantabile: gradi congiunti, qualche salto espressivo
+      // V3.11: voice di TEMPESTA chiama, sale, domanda — è l'esplosione umana
+      voiceContours: [['arch', 2], ['question', 4], ['peak', 2], ['answer', 1]],
+      leadMode: 'response',    // lead risponde — dialogo
+      leadProb: 0.7,           // risponde spesso
+      arpRole: 'texture',      // arp = sfondo
+      arpVelScale: 0.35,       // quieto, sotto tutto
+      // V3.11: arp texture — cambia direzione spesso, qualche buco e nota di passaggio
+      arpVariation: {
+        dirChangeEvery: 4,
+        restProb: 0.15,        // texture: più buchi = respira
+        passingProb: 0.10,
+      },
     },
 
-    // ── Custom hat: complex polyrhythmic (additive 3+3+3+3+4) ──
+    // V3.11: basso con tutti gli ornamenti — il groove è denso
+    bassOrnament: { octaveProb: 0.08, ghostProb: 0.12 },
+
+    // ── Hat: 8th con open hat (≠ MACCHINA 16th pieni) — groove dance, non macchina ──
     hatPatterns: {
       germoglio:    [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0],
-      pulsazione:   [1,0,0,1, 0,0,1,0, 0,1,0,0, 1,0,0,0],  // asymmetric
-      densita:      [1,0,1,1, 0,1,1,0, 1,0,1,1, 0,1,0,1],  // polyrhythmic dense
-      rottura:      [1,1,1,1, 1,0,1,1, 1,1,0,1, 1,1,1,0],  // almost full but with holes
+      pulsazione:   [1,0,0,0, 1,0,0,0, 1,0,0,0, 1,0,0,0],  // quarti — polso essenziale
+      densita:      [1,0,1,0, 1,0,1,0, 1,0,1,0, 1,0,1,0],  // 8th note — groove aperto
+      rottura:      [1,0,1,0, 1,0,1,1, 1,0,1,0, 1,0,1,1],  // 8th + 16th fill su beat 4
       dissoluzione: [1,0,0,0, 0,0,1,0, 0,0,0,0, 0,0,0,0],
     },
+    // Open hat su offbeat di beat 2 e 4 (step 6,14) — gestito in rhythm.js
+    openHatSteps: [6, 14],
 
-    droneDrift: { periodBars: 12, amplitude: 820 },  // tensione: ampio E veloce
+    droneDrift: { periodBars: 16, amplitude: 500 },
 
     palette: { bg: '#000000', dot: '#FFFFFF', accent: '#91010F' },
     visualRegime: { maxDensity: 0.70, minDotSize: 1, composition: 'DATA' },
@@ -569,18 +652,79 @@ export const TRACKS = {
       voiceEveryBars: 2,       // voice presente — è il cuore
       voicePhraseLen: [6, 10], // long exposed phrases
       voiceStyle: { step: 0.60, skip: 0.45, repeatProb: 0.15 },  // congiunta, insiste — congedo
+      // V3.11: RITORNO si congeda — frasi che scendono, qualche arco nostalgico
+      voiceContours: [['answer', 4], ['arch', 2], ['question', 1]],
       callResponseDelay: [0.6, 1.0],   // eco lontana e rara — arriva da molto lontano
       leadMode: 'echo',        // lead ripete voice, più piano, ritardata
       leadProb: 0.35,          // non sempre — momenti di solitudine
       arpRole: 'dying',        // arp solo in pulsazione, poi muore
       arpVelScale: 0.5,        // fading
+      // V3.11: arp morente — varia direzione ma solo pendolo e random (no cicli regolari)
+      arpVariation: {
+        dirChangeEvery: 8,     // cambia raramente — sta morendo
+        restProb: 0.20,        // molti buchi — si sfilaccia
+        passingProb: 0.05,
+        directions: ['pendulum', 'random', 'down'],  // no 'up' — non sale, scende
+      },
     },
 
     droneDrift: { periodBars: 36, amplitude: 600 },  // congedo: medio, respira lentamente
 
     palette: { bg: '#0A0A0A', dot: '#9B8FCE', accent: '#EFE6DE' },
     visualRegime: { maxDensity: 0.30, minDotSize: 6, composition: 'DISSOLVENZA' },
-  }
+  },
+
+  ENCORE: {
+    scale: SCALES.octatonic_halfWhole,
+    modeHint: null,
+    root: 48,   // C3
+    bpm: 132,
+    kickNote: 36,  // C2
+
+    density: { rhythm: 0.8, harmony: 0.6, bass: 0.8, melody: 0.7, texture: 0.1 },
+
+    register: {
+      bass:   [36, 55],
+      melody: [67, 84],
+      lead:   [0, 0],
+      chords: [48, 72],
+      arp:    [60, 82],
+    },
+    velocityCeiling: {
+      rhythm:  120,
+      harmony: 100,
+      bass:    110,
+      melody:  90,
+      texture: 40,
+    },
+
+    rhythmGrid: [1,0,0,0, 1,0,0,0, 1,0,0,0, 1,0,0,0],
+    snare: { enabled: true, steps: [4, 12], shift: false, skip: false, flam: false },
+
+    encoreHatPattern: [1,0,1,0,0, 1,0,1,0,0],
+    encoreOpenHatSteps: [4, 8],
+    encoreCongaPattern: [1,0,0,1,0,0,1],
+
+    bassPattern: [60,0,0,0, 0,0,48,0, 0,55,0,0],
+    bassPatternRelative: true,
+
+    encoreArpPattern: [1,0,1,0,0, 1,0,1,0,0, 1,0,1,0,0, 1,0,1,0,0, 1,0],
+    encoreVoicePattern: [1,0,0,0,0,0, 1,0,0,0,0,0, 1,0,0,0,0,0, 0,0,1,0,0,0, 0,0],
+
+    chords: null,
+    barsPerChord: { germoglio: 1, pulsazione: 1, densita: 1, rottura: 1, dissoluzione: 1 },
+
+    phases: {
+      germoglio:    8,
+      pulsazione:   56,
+      densita:      60,
+      rottura:      32,
+      dissoluzione: 56,
+    },
+
+    palette: { bg: '#000000', dot: '#FFFFFF', accent: '#FF0000' },
+    visualRegime: { maxDensity: 0.95, minDotSize: 2, composition: 'DEFAULT' },
+  },
 };
 
 // ═══════════════════════════════════════════════════════════
@@ -655,4 +799,4 @@ if (CFG.MUSIC_EXPERIMENT) {
 }
 
 // ── Track sequence (the album order) ──
-export const TRACK_ORDER = ['NEBBIA', 'TESSUTO', 'SOLCO', 'RESPIRO', 'MACCHINA', 'TEMPESTA', 'RITORNO'];
+export const TRACK_ORDER = ['NEBBIA', 'TESSUTO', 'SOLCO', 'RESPIRO', 'MACCHINA', 'TEMPESTA', 'RITORNO', 'ENCORE'];
