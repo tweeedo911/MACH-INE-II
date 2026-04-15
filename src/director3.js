@@ -88,27 +88,30 @@ let _encoreBrick  = 0;      // 0=heartbeat, 1-6=bricks, 7=plateau, 8=teardown
 let _encoreBrickBar = 0;    // bars elapsed in current brick
 
 // Each brick: name, duration in bars, module densities to set
+// Ordine: kick → voice → hat → chord → arp → snare → BASS (ultimo = drop)
+// Brick gates in modules: voice>=2, hat>=3, chord>=4, arp>=5, snare>=6, bass>=7, conga>=8(plateau)
 const ENCORE_BRICKS = [
-  { name: 'heartbeat', bars: 8, mods: { rhythm: 0.8, harmony: 0.05, bass: 0, melody: 0, texture: 0 } },
-  { name: 'kick+snare', bars: 32, mods: { rhythm: 0.8, harmony: 0.05, bass: 0, melody: 0, texture: 0.1 } },
-  { name: '+hat', bars: 24, mods: { rhythm: 0.9, harmony: 0.05, bass: 0, melody: 0, texture: 0.1 } },
-  { name: '+bass', bars: 24, mods: { rhythm: 0.9, harmony: 0.05, bass: 0.8, melody: 0, texture: 0.1 } },
-  { name: '+chord', bars: 20, mods: { rhythm: 0.9, harmony: 0.6, bass: 0.8, melody: 0, texture: 0.1 } },
-  { name: '+arp', bars: 16, mods: { rhythm: 0.9, harmony: 0.6, bass: 0.8, melody: 0.5, texture: 0.1 } },
-  { name: '+voice', bars: 16, mods: { rhythm: 1.0, harmony: 0.7, bass: 0.9, melody: 0.8, texture: 0.15 } },
-  { name: 'plateau', bars: 16, mods: { rhythm: 1.0, harmony: 0.8, bass: 1.0, melody: 1.0, texture: 0.2 } },
-  { name: 'teardown', bars: 56, mods: null },
+  /* 0 */ { name: 'heartbeat', bars: 8, mods: { rhythm: 0.8, harmony: 0.05, bass: 0, melody: 0, texture: 0 } },
+  /* 1 */ { name: 'kick', bars: 32, mods: { rhythm: 0.8, harmony: 0.05, bass: 0, melody: 0, texture: 0.1 } },
+  /* 2 */ { name: '+voice', bars: 24, mods: { rhythm: 0.8, harmony: 0.05, bass: 0, melody: 0.7, texture: 0.1 } },
+  /* 3 */ { name: '+hat', bars: 24, mods: { rhythm: 0.9, harmony: 0.05, bass: 0, melody: 0.7, texture: 0.1 } },
+  /* 4 */ { name: '+chord', bars: 20, mods: { rhythm: 0.9, harmony: 0.6, bass: 0, melody: 0.7, texture: 0.1 } },
+  /* 5 */ { name: '+arp', bars: 16, mods: { rhythm: 0.9, harmony: 0.6, bass: 0, melody: 0.9, texture: 0.1 } },
+  /* 6 */ { name: '+snare', bars: 16, mods: { rhythm: 1.0, harmony: 0.7, bass: 0, melody: 0.9, texture: 0.15 } },
+  /* 7 */ { name: '+BASS', bars: 16, mods: { rhythm: 1.0, harmony: 0.8, bass: 1.0, melody: 1.0, texture: 0.15 } },
+  /* 8 */ { name: 'plateau', bars: 16, mods: { rhythm: 1.0, harmony: 0.8, bass: 1.0, melody: 1.0, texture: 0.2 } },
+  /* 9 */ { name: 'teardown', bars: 56, mods: null },
 ];
 
-// Teardown: at which bar offset each element fades out (4-bar fade each)
+// Teardown: reverse order — bass out first (what entered last), kick out last
 const ENCORE_TEARDOWN = [
-  { bar: 0,  target: 'melody',  ceil: 90 },     // voice out
-  { bar: 8,  target: 'melody',  ceil: 0 },       // arp out (melody already fading)
-  { bar: 16, target: 'harmony', ceil: 100 },     // chord out
-  { bar: 24, target: 'rhythm',  fade: true },    // hat+conga out (density drops)
-  { bar: 32, target: 'bass',    ceil: 110 },     // bass + drone out
-  { bar: 40, target: 'snare',   fade: true },    // snare out, only kick
-  { bar: 48, target: 'decel' },                  // kick decelerates 132→60
+  { bar: 0,  target: 'bass',    ceil: 110 },    // bass out (il drop se ne va)
+  { bar: 8,  target: 'snare',   fade: true },   // snare out
+  { bar: 16, target: 'melody',  ceil: 90 },     // arp out (melody ceiling drops)
+  { bar: 24, target: 'harmony', ceil: 100 },    // chord out
+  { bar: 32, target: 'rhythm',  fade: true },   // hat+conga out
+  { bar: 40, target: 'melody',  ceil: 0 },      // voice out (melody to zero)
+  { bar: 48, target: 'decel' },                 // kick decelerates 132→60
 ];
 
 // V3: base densities computed by _applyPhase, then modulated each frame
@@ -992,7 +995,7 @@ function _updateEncore(dt) {
   if (!brick) { _endEncore(); return; }
 
   // ── Teardown: fade modules in reverse order ──
-  if (_encoreBrick === 8) {
+  if (_encoreBrick === 9) {
     const fadeBars = CFG.ENCORE_TEARDOWN_FADE_BARS;  // 4
     for (const td of ENCORE_TEARDOWN) {
       const barInTd = _encoreBrickBar - td.bar;
@@ -1052,10 +1055,10 @@ function _updateEncore(dt) {
       worldState.velocityCeiling.texture = track.velocityCeiling.texture;
     }
 
-    // Update phase label
-    if (_encoreBrick <= 2) worldState.phase = 'pulsazione';
-    else if (_encoreBrick <= 5) worldState.phase = 'densita';
-    else if (_encoreBrick <= 7) worldState.phase = 'rottura';
+    // Update phase label (10 bricks: 0=heartbeat, 1-3=pulsazione, 4-6=densita, 7-8=rottura, 9=teardown)
+    if (_encoreBrick <= 3) worldState.phase = 'pulsazione';
+    else if (_encoreBrick <= 6) worldState.phase = 'densita';
+    else if (_encoreBrick <= 8) worldState.phase = 'rottura';
     else worldState.phase = 'dissoluzione';
 
     worldState.camera.phase = worldState.phase;

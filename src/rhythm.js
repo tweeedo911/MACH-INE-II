@@ -133,7 +133,7 @@ function _tick() {
   // ── CH1 HAT ──
   // ENCORE: hat enters at brick 2 (+hat)
   let hatStep, hatPat;
-  if (worldState.encoreMode && trackDef.encoreHatPattern && worldState.encoreBrick >= 2) {
+  if (worldState.encoreMode && trackDef.encoreHatPattern && worldState.encoreBrick >= 3) {
     const hatCycle = worldState.encoreCycleLens.hat;  // 10
     hatStep = worldState.globalTick % hatCycle;
     hatPat = trackDef.encoreHatPattern;
@@ -167,9 +167,9 @@ function _tick() {
   // ── CH1 SNARE — variable backbeat (V3.5: per-track config) ──
   const trackSnare = TRACKS[worldState.track]?.snare;
   const snareEnabled = trackSnare?.enabled !== undefined ? trackSnare.enabled : true;
-  // ENCORE: snare fires from brick 1 onward, bypassing phase check
+  // ENCORE: snare fires from brick 6 (+snare), bypassing phase check
   const snarePhase = worldState.encoreMode
-    ? (worldState.encoreBrick >= 1)
+    ? (worldState.encoreBrick >= 6)
     : (phase === 'densita' || phase === 'rottura');
   if (snareEnabled && snarePhase && density > 0.5) {
     const stepMs = (60 / worldState.bpm / 4) * 1000;
@@ -210,8 +210,8 @@ function _tick() {
 
   // ── Conga pattern (per-track, TEMPESTA) ──
   let congaStep, congaPat2;
-  // ENCORE: conga enters at plateau (brick >= 7)
-  if (worldState.encoreMode && trackDef.encoreCongaPattern && worldState.encoreBrick >= 7) {
+  // ENCORE: conga enters at plateau (brick >= 8)
+  if (worldState.encoreMode && trackDef.encoreCongaPattern && worldState.encoreBrick >= 8) {
     congaStep = worldState.globalTick % trackDef.encoreCongaPattern.length;
     congaPat2 = trackDef.encoreCongaPattern;
   } else {
