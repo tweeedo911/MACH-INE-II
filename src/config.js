@@ -1198,64 +1198,95 @@ export const CFG = {
         poiScanInterval: 15,     // frame tra scansioni blocchi densità
         poiBlockSize: 8,         // celle per lato blocco
         biomes: {
-          // ── NEBBIA: contemplazione. Il vuoto è il soggetto. ──
-          // Camera quasi ferma sul totale. Lentissima. Guarda il niente.
+          // ── NEBBIA: il vuoto è il soggetto. ──
+          // Largo e lento. Pulsazione: nota le gocce, si avvicina appena.
           NEBBIA: {
-            phaseZoom: { germoglio: 1.0, pulsazione: 1.0, dissoluzione: 1.0 },
-            curiosityWeight: 0.1, breathWeight: 0.05,
-            focusDrift: 0.06, zoomDrift: 0.03, centerPull: 0.20,
-            freshnessWeight: 0.3,
-          },
-          // ── TESSUTO: le fibre emergono. Largo, poi si avvicina alla trama. ──
-          TESSUTO: {
-            phaseZoom: { germoglio: 1.0, pulsazione: 1.12, densita: 1.22,
-                         rottura: 1.35, dissoluzione: 1.0 },
-            curiosityWeight: 0.15, breathWeight: 0.10,
-            focusDrift: 0.12, zoomDrift: 0.08, centerPull: 0.12,
-            freshnessWeight: 0.8,
-          },
-          // ── SOLCO: segue il groove dub. Entra nelle colonne, insegue l'eco. ──
-          SOLCO: {
-            phaseZoom: { germoglio: 1.0, pulsazione: 1.25, densita: 1.45,
-                         rottura: 1.6, dissoluzione: 1.05 },
-            curiosityWeight: 0.20, breathWeight: 0.10,
-            focusDrift: 0.15, zoomDrift: 0.10, centerPull: 0.10,
-            freshnessWeight: 1.2,
-          },
-          // ── RESPIRO: la membrana si vede tutta. Quasi nessun movimento. ──
-          RESPIRO: {
-            phaseZoom: { germoglio: 1.0, pulsazione: 1.05, dissoluzione: 1.0 },
-            curiosityWeight: 0.08, breathWeight: 0.05,
-            focusDrift: 0.08, zoomDrift: 0.05, centerPull: 0.15,
+            phaseZoom:   { germoglio: 1.0,  pulsazione: 1.15, dissoluzione: 1.0 },
+            focusDrift:  { germoglio: 0.06, pulsazione: 0.15, dissoluzione: 0.06 },
+            zoomDrift:   { germoglio: 0.08, pulsazione: 0.12, dissoluzione: 0.08 },
+            centerPull:  { germoglio: 0.20, pulsazione: 0.10, dissoluzione: 0.18 },
+            curiosityWeight: 0.20, breathWeight: 0.08,
             freshnessWeight: 0.5,
           },
-          // ── MACCHINA: terminale. Snap-cut tra fasi, non lerp. ──
-          // densita: pull-back per vedere il campo pieno (il pattern è il soggetto)
-          // rottura: snap close-up sul caos
-          MACCHINA: {
-            phaseZoom: { germoglio: 1.25, pulsazione: 1.4, densita: 1.15,
-                         rottura: 1.7, dissoluzione: 1.05 },
-            snapPhaseZoom: true,   // cambio zoom istantaneo al cambio fase
-            curiosityWeight: 0.10, breathWeight: 0.08,
-            focusDrift: 0.06, zoomDrift: 0.06, centerPull: 0.05,
-            freshnessWeight: 0.3,
-            snakeSpeed: 0.018,
-            snakeWeight: 0.85,
-          },
-          // ── TEMPESTA: aurora larga. Resta largo, la tempesta è immensa. ──
-          TEMPESTA: {
-            phaseZoom: { germoglio: 1.0, pulsazione: 1.12, densita: 1.08,
-                         rottura: 1.35, dissoluzione: 1.0 },
-            curiosityWeight: 0.15, breathWeight: 0.12,
-            focusDrift: 0.14, zoomDrift: 0.10, centerPull: 0.10,
+          // ── TESSUTO: scopre la trama, se ne inquieta. ──
+          // Germoglio largo → densità dentro la trama → dissoluzione si ritira.
+          TESSUTO: {
+            phaseZoom:   { germoglio: 1.0,  pulsazione: 1.25, densita: 1.45,
+                           rottura: 1.6,    dissoluzione: 1.05 },
+            focusDrift:  { germoglio: 0.10, pulsazione: 0.20, densita: 0.25,
+                           rottura: 0.35,   dissoluzione: 0.12 },
+            zoomDrift:   { germoglio: 0.10, pulsazione: 0.18, densita: 0.20,
+                           rottura: 0.30,   dissoluzione: 0.12 },
+            centerPull:  { germoglio: 0.12, pulsazione: 0.08, densita: 0.05,
+                           rottura: 0.03,   dissoluzione: 0.10 },
+            curiosityWeight: 0.25, breathWeight: 0.12,
             freshnessWeight: 1.0,
           },
-          // ── RITORNO: allontanamento monotono — ritornoDecay governa. ──
+          // ── SOLCO: il peso del groove dub. ──
+          // Bass solo → groove vicino → dentro il dub → rottura → si scioglie.
+          SOLCO: {
+            phaseZoom:   { germoglio: 1.05, pulsazione: 1.40, densita: 1.65,
+                           rottura: 1.85,   dissoluzione: 1.10 },
+            focusDrift:  { germoglio: 0.12, pulsazione: 0.25, densita: 0.28,
+                           rottura: 0.40,   dissoluzione: 0.14 },
+            zoomDrift:   { germoglio: 0.12, pulsazione: 0.20, densita: 0.22,
+                           rottura: 0.30,   dissoluzione: 0.14 },
+            centerPull:  { germoglio: 0.06, pulsazione: 0.04, densita: 0.03,
+                           rottura: 0.02,   dissoluzione: 0.06 },
+            curiosityWeight: 0.30, breathWeight: 0.12,
+            freshnessWeight: 1.5,
+          },
+          // ── RESPIRO: il cielo si apre. ──
+          // Lo spazio è il soggetto. Camera calma, respira col pezzo.
+          RESPIRO: {
+            phaseZoom:   { germoglio: 1.0,  pulsazione: 1.10, dissoluzione: 1.0 },
+            focusDrift:  { germoglio: 0.08, pulsazione: 0.12, dissoluzione: 0.06 },
+            zoomDrift:   { germoglio: 0.08, pulsazione: 0.10, dissoluzione: 0.08 },
+            centerPull:  { germoglio: 0.18, pulsazione: 0.14, dissoluzione: 0.20 },
+            curiosityWeight: 0.15, breathWeight: 0.08,
+            freshnessWeight: 0.6,
+          },
+          // ── MACCHINA: sei dentro la macchina. ──
+          // Snap-cut tra fasi. Densita: pull-back (il pattern pieno è il soggetto).
+          // Rottura: close-up improvviso. Snake patrol phase-aware.
+          MACCHINA: {
+            phaseZoom:   { germoglio: 1.30, pulsazione: 1.55, densita: 1.20,
+                           rottura: 1.90,   dissoluzione: 1.05 },
+            snapPhaseZoom: true,
+            snakeSpeed:  { germoglio: 0.012, pulsazione: 0.020, densita: 0.025,
+                           rottura: 0.008,   dissoluzione: 0.010 },
+            curiosityWeight: 0.15, breathWeight: 0.10,
+            focusDrift: 0.08, zoomDrift: 0.10, centerPull: 0.05,
+            freshnessWeight: 0.4,
+            snakeWeight: 0.85,
+          },
+          // ── TEMPESTA: l'altopiano del picco. ──
+          // Camera viva, segue l'aurora. Densità (96 bar): ampia e costante.
+          // Rottura: agitazione massima.
+          TEMPESTA: {
+            phaseZoom:   { germoglio: 1.05, pulsazione: 1.30, densita: 1.20,
+                           rottura: 1.55,   dissoluzione: 1.0 },
+            focusDrift:  { germoglio: 0.18, pulsazione: 0.28, densita: 0.32,
+                           rottura: 0.45,   dissoluzione: 0.16 },
+            zoomDrift:   { germoglio: 0.14, pulsazione: 0.22, densita: 0.24,
+                           rottura: 0.32,   dissoluzione: 0.12 },
+            centerPull:  { germoglio: 0.06, pulsazione: 0.04, densita: 0.03,
+                           rottura: 0.02,   dissoluzione: 0.06 },
+            curiosityWeight: 0.25, breathWeight: 0.15,
+            freshnessWeight: 1.2,
+          },
+          // ── RITORNO: il congedo. ──
+          // ritornoDecay governa zoom-out monotono. Focus rallenta col tempo.
           RITORNO: {
-            phaseZoom: { germoglio: 1.0 },  // ritornoDecay sovrascrive
-            curiosityWeight: 0.12, breathWeight: 0.05,
-            focusDrift: 0.08, zoomDrift: 0.06, centerPull: 0.05,
-            freshnessWeight: 0.5, ritornoDecay: 0.007,
+            phaseZoom:   { germoglio: 1.0 },  // ritornoDecay sovrascrive
+            focusDrift:  { germoglio: 0.15, pulsazione: 0.18, densita: 0.10,
+                           dissoluzione: 0.05 },
+            zoomDrift:   { germoglio: 0.10, pulsazione: 0.12, densita: 0.08,
+                           dissoluzione: 0.05 },
+            centerPull:  { germoglio: 0.06, pulsazione: 0.05, densita: 0.04,
+                           dissoluzione: 0.02 },
+            curiosityWeight: 0.18, breathWeight: 0.06,
+            freshnessWeight: 0.6, ritornoDecay: 0.007,
           },
         },
       },
@@ -1308,9 +1339,28 @@ export const CFG = {
 
   },
 
-  // ── ENCORE ──
+  // ── ENCORE v2 — Canon Machine ──
   ENCORE_BPM_START: 60,
   ENCORE_BPM_TARGET: 132,
-  ENCORE_HEARTBEAT_BARS: 8,
-  ENCORE_TEARDOWN_FADE_BARS: 4,
+  ENCORE_HEARTBEAT_BARS: 16,
+  // Phrase generation
+  ENCORE_PHRASE_LEN_MIN: 7,
+  ENCORE_PHRASE_LEN_MAX: 13,
+  ENCORE_PHRASE_LEN_PLATEAU: 5,   // shorter phrases during plateau
+  // Contour rules (probability weights, must sum to 1.0)
+  ENCORE_CONTOUR_STEP: 0.70,      // stepwise motion (2nd)
+  ENCORE_CONTOUR_SKIP: 0.20,      // skip (3rd or 4th), compensated
+  ENCORE_CONTOUR_LEAP: 0.10,      // leap (5th or 6th), max 1 per phrase
+  // Voice speeds (multiplier on base tick rate)
+  ENCORE_SPEED_BASS:  1,
+  ENCORE_SPEED_CHORD: 1,    // same speed, offset start
+  ENCORE_SPEED_ARP:   3,
+  ENCORE_SPEED_VOICE: 0.5,
+  ENCORE_SPEED_LEAD:  2,
+  // Chord voice offset (fraction of phrase length)
+  ENCORE_CHORD_OFFSET: 1/3,
+  // Escalation: bars per brick (index = brick number)
+  // brick 0=heartbeat, 1=+arp, 2=+bass, 3=+hat/snare, 4=+voice, 5=+lead, 6=+chord/drone, 7=+conga, 8=plateau
+  ENCORE_BRICK_BARS: [16, 36, 32, 24, 20, 16, 12, 8, 32],
+  // Total: 196 bars ≈ 5m56s at 132 BPM
 };
