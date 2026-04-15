@@ -980,11 +980,13 @@ function _updateEncore(dt) {
     barAdvanced = true;
   }
 
-  // ── Heartbeat: linear BPM ramp (constant acceleration, feels even) ──
+  // ── Heartbeat: linear BPM ramp con interpolazione intra-bar ──
+  // _encoreBrickBar = bar completate, _barAcc/barDuration = posizione nella bar corrente
+  // Insieme danno un progress fluido frame-by-frame.
   if (_encoreBrick === 0) {
     const brick0 = ENCORE_BRICKS[0];
-    const totalHeartbeatSec = brick0.bars * 240 / CFG.ENCORE_BPM_START;
-    const progress = Math.min(1, _phaseTime / totalHeartbeatSec);
+    const intraBar = barDuration > 0 ? _barAcc / barDuration : 0;
+    const progress = Math.min(1, (_encoreBrickBar + intraBar) / brick0.bars);
     worldState.bpm = CFG.ENCORE_BPM_START + (CFG.ENCORE_BPM_TARGET - CFG.ENCORE_BPM_START) * progress;
     worldState.velocityCeiling.rhythm = Math.round(40 + progress * 70);
   }
