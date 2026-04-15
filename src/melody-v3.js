@@ -492,7 +492,10 @@ function _tick() {
   const voiceEnabled = voiceEveryBars > 0 && voiceLo > 0 && voiceHi > 0;
 
   // ── ENCORE VOICE: 26-step cycle (13/16) — enters at brick 2 (+voice) ──
-  if (worldState.encoreMode && track.encoreVoicePattern && worldState.encoreBrick >= 2) {
+  // In encore mode, BLOCK normal voice entirely (even before brick 2)
+  if (worldState.encoreMode && worldState.encoreBrick < 2) {
+    // voice silent — skip to lead/arp section
+  } else if (worldState.encoreMode && track.encoreVoicePattern && worldState.encoreBrick >= 2) {
     const voiceCycle = worldState.encoreCycleLens.voice;  // 26
     const voiceStep = worldState.globalTick % voiceCycle;
     if (track.encoreVoicePattern[voiceStep] === 1 && density > 0.1) {
@@ -695,7 +698,10 @@ function _tick() {
   }
 
   // ── ENCORE ARP: 22-step cycle (11/16) — enters at brick 5 ──
-  if (worldState.encoreMode && track.encoreArpPattern && worldState.encoreBrick >= 5) {
+  // In encore mode, BLOCK normal arp entirely (even before brick 5)
+  if (worldState.encoreMode && worldState.encoreBrick < 5) {
+    // arp silent — do nothing, skip normal arp too
+  } else if (worldState.encoreMode && track.encoreArpPattern && worldState.encoreBrick >= 5) {
     const arpCycle = worldState.encoreCycleLens.arp;  // 22
     const arpStep = worldState.globalTick % arpCycle;
     if (track.encoreArpPattern[arpStep] === 1 && density >= 0.15) {
