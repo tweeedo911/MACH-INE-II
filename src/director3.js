@@ -103,14 +103,15 @@ const ENCORE_BRICKS = [
   /* 9 */ { name: 'teardown', bars: 56, mods: null },
 ];
 
-// Teardown: reverse order — bass out first (what entered last), kick out last
+// Teardown: reverse order — bass out first, kick last.
+// Arp/voice share velocityCeiling.melody, so we use encoreBrick demotion to gate them independently.
 const ENCORE_TEARDOWN = [
-  { bar: 0,  target: 'bass',    ceil: 110 },    // bass out (il drop se ne va)
-  { bar: 8,  target: 'snare',   fade: true },   // snare out
-  { bar: 16, target: 'melody',  ceil: 90 },     // arp out (melody ceiling drops)
+  { bar: 0,  target: 'bass',    ceil: 110 },    // bass out
+  { bar: 8,  target: 'snare',   fade: true },   // snare out (density drops below 0.5)
+  { bar: 16, target: 'arp-off' },               // arp off via brick demotion (brick < 5)
   { bar: 24, target: 'harmony', ceil: 100 },    // chord out
   { bar: 32, target: 'rhythm',  fade: true },   // hat+conga out
-  { bar: 40, target: 'melody',  ceil: 0 },      // voice out (melody to zero)
+  { bar: 40, target: 'voice-off' },             // voice off via brick demotion (brick < 2)
   { bar: 48, target: 'decel' },                 // kick decelerates 132→60
 ];
 
@@ -1000,7 +1001,13 @@ function _updateEncore(dt) {
       const barInTd = _encoreBrickBar - td.bar;
       if (barInTd < 0 || barInTd >= fadeBars + 1) continue;
 
-      if (td.target === 'decel') {
+      if (td.target === 'arp-off') {
+        // Demote encoreBrick below arp gate (5) — arp stops, voice stays
+        if (barInTd === 0) { worldState.encoreBrick = 4; }
+      } else if (td.target === 'voice-off') {
+        // Demote encoreBrick below voice gate (2) — voice stops
+        if (barInTd === 0) { worldState.encoreBrick = 1; }
+      } else if (td.target === 'decel') {
         // Kick deceleration (bar 48-56): 132 → 60 BPM
         const decelBars = brick.bars - td.bar;  // 8
         const p = Math.min(1, barInTd / decelBars);
