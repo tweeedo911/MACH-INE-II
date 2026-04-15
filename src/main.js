@@ -6,7 +6,7 @@
 import { APP_VERSION } from './VERSION.js';
 import { CFG } from './config.js';
 import { initAudio, updateAudio, setAudioGain, getAudioGain } from './audio.js';
-import { initMIDI, updateMIDI, sendMIDIStart, updateMIDIClock, sendMIDIAllNotesOff } from './midi.js';
+import { initMIDI, updateMIDI, sendMIDIStart, sendMIDIStop, updateMIDIClock, sendMIDIAllNotesOff } from './midi.js';
 import { state, updateState } from './state.js';
 import { initRender, renderFrame, resize, setHUDElements, handleKey, setProjectorWindow } from './render.js';
 import { resetEvents } from './event-register.js';
@@ -19,7 +19,7 @@ import { initCamera, updateCamera } from './camera.js';
 
 // ── MACH:INE III modules ──
 import { worldState } from './world-state.js';
-import { initDirector3, updateDirector3, skipPhase, jumpToPhase, jumpToTrack, toggleDirector3, isDirector3Playing, getDirector3Status } from './director3.js';
+import { initDirector3, updateDirector3, skipPhase, jumpToPhase, jumpToTrack, toggleDirector3, isDirector3Playing, getDirector3Status, launchEncore, switchEncoreScale } from './director3.js';
 import { initRhythm, updateRhythm } from './rhythm.js';
 import { initHarmony, updateHarmony } from './harmony.js';
 import { initBass as initBassV1, updateBass as updateBassV1 } from './bass.js';
@@ -94,6 +94,12 @@ _refreshAbBadge();
 // ── Keep layout in sync ──
 window.addEventListener('resize', resize);
 
+// ── Cleanup MIDI on page close (prevent hanging notes on external synths) ──
+window.addEventListener('beforeunload', () => {
+  sendMIDIAllNotesOff();
+  sendMIDIStop();
+});
+
 // ── Projector ──
 let projectorWindow = null;
 const projChannel = new BroadcastChannel('machine-projector');
@@ -116,6 +122,7 @@ function toggleProjector() {
 // ── Boot on click ──
 let running = false;
 let lastTime = 0;
+let _clockStarted = false;
 const _wakeLock = new WakeLockManager();
 
 startScreen.addEventListener('click', async () => {
@@ -130,15 +137,10 @@ startScreen.addEventListener('click', async () => {
   await initMIDI();
 
   // ── MACH:INE III composition system ──
+  // initDirector3 chiama internamente initRhythm/Harmony/Bass/Melody/Texture
   initDirector3('NEBBIA');
   initCamera();
   snapPalette();
-  initRhythm();
-  initHarmony();
-  initBass();
-  initMelody();
-  initTexture();
-  sendMIDIStart();
   console.log('[III] Director + 5 modules initialized');
 
   startScreen.style.display = 'none';
@@ -146,7 +148,6 @@ startScreen.addEventListener('click', async () => {
 
   running = true;
   lastTime = 0;
-  startMidiClock();
   await _wakeLock.acquire();
   requestAnimationFrame(loop);
 });
@@ -159,10 +160,26 @@ document.addEventListener('keydown', (e) => {
   if (e.code === 'BracketLeft')  { e.preventDefault(); setAudioGain(getAudioGain() - CFG.audioInputGainStep); return; }
   if (e.code === 'BracketRight') { e.preventDefault(); setAudioGain(getAudioGain() + CFG.audioInputGainStep); return; }
 
+  // ── ENCORE launcher (E key) ──
+  if (e.code === 'KeyE' && !e.shiftKey) {
+    e.preventDefault();
+    launchEncore();
+    initCamera();
+    return;
+  }
+
+  // ── ENCORE scale switch (Q/W/R) — only during encore ──
+  if (worldState.encoreMode) {
+    if (e.code === 'KeyQ') { switchEncoreScale('halfWhole'); return; }
+    if (e.code === 'KeyW') { switchEncoreScale('wholeHalf'); return; }
+    if (e.code === 'KeyR') { switchEncoreScale('prometheus'); return; }
+  }
+
   // Tasti 1-5: jump tra le 5 fasi compositive
   // Shift+1-7: jump to track (album order)
   const _trackMap = { Digit1: 'NEBBIA', Digit2: 'TESSUTO', Digit3: 'SOLCO', Digit4: 'RESPIRO', Digit5: 'MACCHINA', Digit6: 'TEMPESTA', Digit7: 'RITORNO' };
   if (_trackMap[e.code] && e.shiftKey) {
+    if (worldState.encoreMode) return;  // no track jumping during encore
     jumpToTrack(_trackMap[e.code]);
     initCamera();
     return;
@@ -173,7 +190,12 @@ document.addEventListener('keydown', (e) => {
     jumpToPhase(_phaseMap[e.code]);
     return;
   }
-  if (e.code === 'Space') { e.preventDefault(); toggleDirector3(); return; }
+  if (e.code === 'Space') {
+    e.preventDefault();
+    const nowPlaying = toggleDirector3();
+    if (nowPlaying && !_clockStarted) { sendMIDIStart(); startMidiClock(); _clockStarted = true; }
+    return;
+  }
   if (e.code === 'ArrowRight') { skipPhase(+1); return; }
   if (e.code === 'ArrowLeft')  { skipPhase(-1); return; }
   // Session recorder: Shift+L = start/stop, Shift+D = download, Shift+K = screenshot
@@ -226,9 +248,25 @@ document.addEventListener('keydown', (e) => {
 // ── MIDI clock — Web Worker (non throttolato quando il browser perde focus) ──
 const midiWorker = new Worker('./src/midi-clock.worker.js');
 
-midiWorker.onmessage = ({ data: { dt } }) => {
+let _workerLagMax = 0;
+let _workerLagSum = 0;
+let _workerLagN   = 0;
+midiWorker.onmessage = ({ data: { dt, now: workerNow } }) => {
   try {
     if (!running) return;
+
+    // Latenza worker→main: quanto tempo il messaggio ha atteso nella coda
+    const lag = (performance.now() - workerNow) / 1000; // secondi
+    if (lag > _workerLagMax) _workerLagMax = lag;
+    _workerLagSum += lag;
+    _workerLagN++;
+    // Log ogni 2000 messaggi (~4s): se avg>5ms o max>20ms c'è starvation
+    if (_workerLagN >= 2000) {
+      const avg = (_workerLagSum / _workerLagN * 1000).toFixed(1);
+      const max = (_workerLagMax * 1000).toFixed(1);
+      if (_workerLagMax > 0.020) console.warn(`[CLOCK LAG] avg=${avg}ms max=${max}ms — main thread saturo`);
+      _workerLagMax = 0; _workerLagSum = 0; _workerLagN = 0;
+    }
 
     // Director reads clock → updates worldState
     updateDirector3(dt);
