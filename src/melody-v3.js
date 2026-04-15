@@ -491,8 +491,8 @@ function _tick() {
   }
   const voiceEnabled = voiceEveryBars > 0 && voiceLo > 0 && voiceHi > 0;
 
-  // ── ENCORE VOICE: 26-step cycle (13/16) — enters at brick 6 ──
-  if (worldState.encoreMode && track.encoreVoicePattern && worldState.encoreBrick >= 6) {
+  // ── ENCORE VOICE: 26-step cycle (13/16) — enters at brick 2 (+voice) ──
+  if (worldState.encoreMode && track.encoreVoicePattern && worldState.encoreBrick >= 2) {
     const voiceCycle = worldState.encoreCycleLens.voice;  // 26
     const voiceStep = worldState.globalTick % voiceCycle;
     if (track.encoreVoicePattern[voiceStep] === 1 && density > 0.1) {

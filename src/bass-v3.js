@@ -149,8 +149,8 @@ function _tick() {
   const track = TRACKS[worldState.track];
   if (!track) return;
 
-  // ── ENCORE: bass pattern on 12-step cycle ──
-  if (worldState.encoreMode && track.bassPattern) {
+  // ── ENCORE: bass pattern on 12-step cycle — enters at brick 7 (+BASS = the drop) ──
+  if (worldState.encoreMode && track.bassPattern && worldState.encoreBrick >= 7) {
     const noteVal = track.bassPattern[_step];
     if (!noteVal) return;  // 0 = rest
 
