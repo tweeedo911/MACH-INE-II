@@ -200,6 +200,90 @@ function depositBlob(field, cx, cy, w, h, force) {
   }
 }
 
+// ── ENCORE v2: geometric deposit helpers ──
+
+function depositDiagonal(field, angle, thickness, force) {
+  // angle: 0 = top-left→bottom-right, 1 = top-right→bottom-left, 0.5 = vertical
+  const W = _cellsX, H = _cellsY;
+  const t = Math.max(1, thickness);
+  for (let i = 0; i < H; i++) {
+    const baseX = angle < 0.5
+      ? Math.floor(i * (W - 1) / (H - 1))
+      : W - 1 - Math.floor(i * (W - 1) / (H - 1));
+    for (let dx = -Math.floor(t/2); dx <= Math.floor(t/2); dx++) {
+      const cx = baseX + dx;
+      if (cx >= 0 && cx < W) depositPoint(field, cx, i, force);
+    }
+  }
+}
+
+function depositQuadrant(field, quadrant, fillRatio, force) {
+  // quadrant: 0=TL, 1=TR, 2=BL, 3=BR. fillRatio: 0-1 (0=border only, 1=filled)
+  const W = _cellsX, H = _cellsY;
+  const hW = Math.floor(W / 2), hH = Math.floor(H / 2);
+  const x0 = (quadrant & 1) ? hW : 0;
+  const y0 = (quadrant & 2) ? hH : 0;
+  const x1 = (quadrant & 1) ? W  : hW;
+  const y1 = (quadrant & 2) ? H  : hH;
+  for (let y = y0; y < y1; y++) {
+    for (let x = x0; x < x1; x++) {
+      const isBorder = (x === x0 || x === x1 - 1 || y === y0 || y === y1 - 1);
+      if (isBorder || Math.random() < fillRatio) {
+        depositPoint(field, x, y, force);
+      }
+    }
+  }
+}
+
+function depositArc(field, radius, arcFraction, force) {
+  const W = _cellsX, H = _cellsY;
+  const cx = Math.floor(W / 2), cy = Math.floor(H / 2);
+  const r = Math.min(radius, Math.min(cx, cy));
+  const steps = Math.max(12, Math.floor(r * 6.28 * arcFraction));
+  const maxAngle = arcFraction * 6.2832;
+  const startAngle = Math.random() * 6.2832;
+  for (let i = 0; i < steps; i++) {
+    const a = startAngle + (i / steps) * maxAngle;
+    const px = cx + Math.round(r * Math.cos(a));
+    const py = cy + Math.round(r * Math.sin(a) * (W / H));
+    if (px >= 0 && px < W && py >= 0 && py < H) {
+      depositPoint(field, px, py, force);
+    }
+  }
+}
+
+function depositCross(field, cx, cy, armLen, force) {
+  const W = _cellsX, H = _cellsY;
+  for (let d = -armLen; d <= armLen; d++) {
+    const px = cx + d, py = cy + d;
+    if (px >= 0 && px < W) depositPoint(field, px, cy, force);
+    if (py >= 0 && py < H) depositPoint(field, cx, py, force);
+  }
+}
+
+function depositHalf(field, top, fillCount, force) {
+  const W = _cellsX, H = _cellsY;
+  const hH = Math.floor(H / 2);
+  const y0 = top ? 0 : hH;
+  const y1 = top ? hH : H;
+  const maxCells = W * (y1 - y0);
+  const n = Math.min(fillCount, maxCells);
+  for (let i = 0; i < n; i++) {
+    const px = Math.floor(Math.random() * W);
+    const py = y0 + Math.floor(Math.random() * (y1 - y0));
+    depositPoint(field, px, py, force);
+  }
+}
+
+function depositFlash(fields, force) {
+  const W = _cellsX, H = _cellsY;
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      fields.kick[y * W + x] = Math.min(1, fields.kick[y * W + x] + force);
+    }
+  }
+}
+
 function smoothstep(lo, hi, x) {
   const t = clamp((x - lo) / (hi - lo), 0, 1);
   return t * t * (3 - 2 * t);
@@ -211,6 +295,7 @@ const HELPERS = {
   get CELLS() { return _cellsX; },  // backward compat for horizontal depositFn
   clamp, pitchToCell, localPitchToCell,
   depositPoint, depositRow, depositBlob,
+  depositDiagonal, depositQuadrant, depositArc, depositCross, depositHalf, depositFlash,
   // ── Runtime state — le depositFn possono leggere fase e rupture ──
   get phase()         { return worldState.phase || 'germoglio'; },
   get energy()        { return worldState.energy || 'SILENCE'; },
