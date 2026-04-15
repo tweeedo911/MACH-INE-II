@@ -7,10 +7,11 @@
 import { CFG } from './config.js';
 import { firma } from './firma.js';
 import { worldState, phaseState } from './world-state.js';
-import { TRACKS, PHASE_DENSITY, PHASE_ENERGY, TRACK_ORDER } from './tracks.js';
+import { TRACKS, PHASE_DENSITY, PHASE_ENERGY, TRACK_ORDER, ENCORE_SCALES } from './tracks.js';
 import { audio } from './audio.js';
 import { state } from './state.js';
-import { sendMIDIAllNotesOff, sendMIDINote } from './midi.js';
+import { sendMIDIAllNotesOff, sendMIDINote, sendNornsBiome, sendNornsDroneStart, sendNornsDroneStop } from './midi.js';
+import { addMidiNote } from './field.js';
 import { initRhythm } from './rhythm.js';
 import { initHarmony } from './harmony.js';
 import { initBass as initBassV1 } from './bass.js';
@@ -50,19 +51,22 @@ let _bpmRamp = null;  // { from, to, elapsed, duration } or null when inactive
 
 // ── V3.9: Ghost entrance estesa — ruolo primario + secondario per traccia ──
 // primary: entra da bar -6, density crescente. secondary: ultime 2 bar.
+// CH3 bass, CH5 voice, CH6 lead, CH7 arp = modulare (no velocity → suonano a palla)
+// Ghost SOLO su canali con velocity: CH0 kick, CH1 perc, CH2 drone, CH4 chords
 const GHOST_ENTRANCE = {
   TESSUTO:  { primary: { ch: 4, role: 'chord' },
-              secondary: { ch: 1, role: 'harmony' } },           // chord staccato + armonia sottile
-  SOLCO:    { primary: { ch: 3, role: 'bass' },
-              secondary: { ch: 0, role: 'rhythm' } },            // bass + kick lontano
+              secondary: { ch: 2, role: 'harmony' } },           // chord staccato + drone sottile
+  SOLCO:    { primary: { ch: 0, role: 'rhythm', vel: 20, fixedNote: 38 },
+              secondary: null },                                   // solo kick lontano, bass è modulare
   RESPIRO:  { primary: { ch: 4, role: 'chord' },
-              secondary: { ch: 5, role: 'voice' } },             // accordo arioso + voice sussurrata
-  MACCHINA: { primary: { ch: 0, role: 'bass', vel: 25, fixedNote: 38 },
-              secondary: { ch: 6, role: 'arp' } },               // tremito kick + arp fantasma
-  TEMPESTA: { primary: { ch: 5, role: 'voice' },
-              secondary: { ch: 4, role: 'chord' } },             // voice anticipa + chord potenza
-  RITORNO:  { primary: { ch: 5, role: 'voice' },
-              secondary: { ch: 4, role: 'chord' } },             // voice esposta + accordo finale
+              secondary: { ch: 2, role: 'harmony' } },           // chord arioso + drone
+  MACCHINA: { primary: { ch: 0, role: 'rhythm', vel: 25, fixedNote: 38 },
+              secondary: null },                                   // solo kick, arp è modulare
+  TEMPESTA: { primary: { ch: 2, role: 'harmony' },                // drone E entra per primo (bar -20)
+              secondary: { ch: 4, role: 'chord' },                // chord con bII frigio (bar -12)
+              djCrossfade: true },                                 // crossfade DJ esteso (vedi sotto)
+  RITORNO:  { primary: { ch: 4, role: 'chord' },
+              secondary: { ch: 2, role: 'harmony' } },           // chord + drone (voice è modulare)
 };
 let _lastGhostBar = -1;  // prevent multiple ghosts in same bar
 
@@ -77,6 +81,35 @@ let _barAcc = 0;       // accumulator for bar counting (seconds within current b
 let _totalTime = 0;    // total seconds since start
 let _totalBars = 0;    // total bars for all phases
 let _paused = true;     // starts paused — performer presses Space to begin
+
+// ── ENCORE state machine ──
+let _encoreActive = false;
+let _encoreBrick  = 0;      // 0=heartbeat, 1-6=bricks, 7=plateau, 8=teardown
+let _encoreBrickBar = 0;    // bars elapsed in current brick
+
+// Each brick: name, duration in bars, module densities to set
+const ENCORE_BRICKS = [
+  { name: 'heartbeat', bars: 8, mods: { rhythm: 0.8, harmony: 0, bass: 0, melody: 0, texture: 0 } },
+  { name: 'kick+snare', bars: 32, mods: { rhythm: 0.8, harmony: 0, bass: 0, melody: 0, texture: 0.1 } },
+  { name: '+hat', bars: 24, mods: { rhythm: 0.9, harmony: 0, bass: 0, melody: 0, texture: 0.1 } },
+  { name: '+bass', bars: 24, mods: { rhythm: 0.9, harmony: 0, bass: 0.8, melody: 0, texture: 0.1 } },
+  { name: '+chord', bars: 20, mods: { rhythm: 0.9, harmony: 0.6, bass: 0.8, melody: 0, texture: 0.1 } },
+  { name: '+arp', bars: 16, mods: { rhythm: 0.9, harmony: 0.6, bass: 0.8, melody: 0.5, texture: 0.1 } },
+  { name: '+voice', bars: 16, mods: { rhythm: 1.0, harmony: 0.7, bass: 0.9, melody: 0.8, texture: 0.15 } },
+  { name: 'plateau', bars: 16, mods: { rhythm: 1.0, harmony: 0.8, bass: 1.0, melody: 1.0, texture: 0.2 } },
+  { name: 'teardown', bars: 56, mods: null },
+];
+
+// Teardown: at which bar offset each element fades out (4-bar fade each)
+const ENCORE_TEARDOWN = [
+  { bar: 0,  target: 'melody',  ceil: 90 },     // voice out
+  { bar: 8,  target: 'melody',  ceil: 0 },       // arp out (melody already fading)
+  { bar: 16, target: 'harmony', ceil: 100 },     // chord out
+  { bar: 24, target: 'rhythm',  fade: true },    // hat+conga out (density drops)
+  { bar: 32, target: 'bass',    ceil: 110 },     // bass + drone out
+  { bar: 40, target: 'snare',   fade: true },    // snare out, only kick
+  { bar: 48, target: 'decel' },                  // kick decelerates 132→60
+];
 
 // V3: base densities computed by _applyPhase, then modulated each frame
 // by tension waves (RESEARCH-V4 §B.1) when MUSIC_STRUCTURAL is on.
@@ -100,7 +133,7 @@ const PHASE_VEL_SCALE = {
 };
 
 // ── Init: load a track into worldState ──
-export function initDirector3(trackName = 'SOLCO') {
+export function initDirector3(trackName = 'SOLCO', { seamless = false } = {}) {
   _track = TRACKS[trackName];
   if (!_track) throw new Error(`[DIR3] Track "${trackName}" not found`);
 
@@ -120,6 +153,7 @@ export function initDirector3(trackName = 'SOLCO') {
 
   // Load track identity into worldState
   worldState.track = trackName;
+  if (!_paused) sendNornsBiome(TRACK_ORDER.indexOf(trackName));  // → Norns: solo se in play
   worldState.scale = _track.scale;
   worldState.root = _track.root;
   worldState.bpm = _track.bpm;
@@ -150,7 +184,7 @@ export function initDirector3(trackName = 'SOLCO') {
   _applyPhase();
 
   // Reset all modules so they start clean on the new track
-  initRhythm();
+  initRhythm(seamless);
   initHarmony();
   initBass();
   initMelody();
@@ -162,7 +196,13 @@ export function initDirector3(trackName = 'SOLCO') {
 // ── Pause/play control ──
 export function toggleDirector3() {
   _paused = !_paused;
-  if (!_paused) _applyPhase();  // restore density values on unpause
+  if (!_paused) {
+    _applyPhase();  // restore density values on unpause
+    sendNornsBiome(TRACK_ORDER.indexOf(worldState.track));  // drone: bioma attivo
+    sendNornsDroneStart();
+  } else {
+    sendNornsDroneStop();
+  }
   console.log(`[DIR3] ${_paused ? 'PAUSED' : 'PLAYING'}`);
   return !_paused;
 }
@@ -180,6 +220,13 @@ export function updateDirector3(dt) {
     }
     return;
   }
+
+  // ── ENCORE state machine ──
+  if (_encoreActive) {
+    _updateEncore(dt);
+    return;
+  }
+
   _phaseTime += dt;
   _totalTime += dt;
 
@@ -204,6 +251,9 @@ export function updateDirector3(dt) {
   while (_barAcc >= barDuration) {
     _barAcc -= barDuration;
     _phaseBars++;
+
+    // ── Micro-rupture check (per bar, non per frame) ──
+    _triggerMicroRupture(PHASE_ORDER[_phaseIdx]);
 
     // ── V3: Wall of Sound triggers on downbeat ──
     if (CFG.MUSIC_STRUCTURAL) {
@@ -246,7 +296,7 @@ export function updateDirector3(dt) {
 
   // ── V3.5: Germoglio ramp — fade in density over first 4 bars ──
   // Prevents hard cut at track entry: modules ease in from 25% to 100%.
-  // Only active in germoglio phase when coming from another track (not first track).
+  // Attivo sempre in germoglio (NEBBIA inclusa — density basse, effetto trascurabile).
   const GERMOGLIO_RAMP_BARS = 4;
   if (PHASE_ORDER[_phaseIdx] === 'germoglio' && _phaseBars < GERMOGLIO_RAMP_BARS) {
     const rampT = _phaseBars / GERMOGLIO_RAMP_BARS;  // 0 at bar 0, 1 at bar 4
@@ -256,22 +306,45 @@ export function updateDirector3(dt) {
     }
   }
 
+  // ── TEMPESTA germoglio: il kick continua dal crossfade DJ — non deve sparire ──
+  // PHASE_DENSITY.germoglio.rhythm = 0 normalmente, ma TEMPESTA arriva da MACCHINA
+  // con il kick già in piedi. Il germoglio di TEMPESTA è la coda del crossfade.
+  if (worldState.track === 'TEMPESTA' && PHASE_ORDER[_phaseIdx] === 'germoglio') {
+    worldState.density.rhythm = Math.max(worldState.density.rhythm, 0.7);
+    // Bass anche solido fin da subito — il crossfade l'ha già introdotto
+    worldState.density.bass = Math.max(worldState.density.bass, 0.5);
+  }
+
+  // ── SOLCO germoglio: il bass è l'intro — gira solido prima che entri la drum ──
+  // Il pattern loop è fisso (bassPatternLocked), qui alzo la density perché
+  // PHASE_DENSITY.germoglio.bass (0.3) × track (0.8) = 0.24 → troppo fiacca.
+  if (worldState.track === 'SOLCO' && PHASE_ORDER[_phaseIdx] === 'germoglio') {
+    worldState.density.bass = Math.max(worldState.density.bass, 0.55);
+  }
+
   // ── Track-specific exit logic in dissoluzione ──
   // Ogni traccia prepara musicalmente l'ingresso della successiva.
   if (PHASE_ORDER[_phaseIdx] === 'dissoluzione') {
     const dissolveDur = _track.phases.dissoluzione || 24;
     const barsLeft = dissolveDur - _phaseBars;
 
+    if (worldState.track === 'NEBBIA') {
+      // NEBBIA → TESSUTO: drone e voice svaniscono, spazio per il ghost chord di TESSUTO
+      // dissoluzione 16 bar: fade progressivo su harmony (drone) e melody (voice)
+      if (barsLeft <= 10) {
+        worldState.density.harmony *= Math.max(0, (barsLeft - 2) / 8);  // 0 a bar -2
+        worldState.density.melody  *= Math.max(0, (barsLeft - 2) / 8);  // 0 a bar -2
+      }
+    }
+
     if (worldState.track === 'TESSUTO') {
-      // TESSUTO → SOLCO: il basso svanisce, gli accordi si diradano
-      // Il groove di SOLCO emerge dal vuoto lasciato da TESSUTO.
-      if (barsLeft <= 8) {
-        worldState.density.bass *= Math.max(0, barsLeft / 8);
-        // Accordi si diradano: da motore ritmico a colore rarefatto
-        const chordFade = 0.3 + 0.7 * (barsLeft / 8);
+      // TESSUTO → SOLCO: il basso svanisce PRIMA dei ghost (bar -6), gli accordi si diradano
+      // Mute a bar -7 (ghost SOLCO entra a bar -6 su CH3 — serve silenzio)
+      if (barsLeft <= 12) {
+        worldState.density.bass *= Math.max(0, (barsLeft - 7) / 5);  // 0 a bar -7
+        const chordFade = 0.3 + 0.7 * (barsLeft / 12);
         worldState.density.harmony *= chordFade;
       }
-      // Ultime 4 bar: kick si fa più presente — prepara il groove
       if (barsLeft <= 4) {
         worldState.density.rhythm = Math.max(worldState.density.rhythm, 0.35);
       }
@@ -279,70 +352,72 @@ export function updateDirector3(dt) {
 
     if (worldState.track === 'SOLCO') {
       // SOLCO → RESPIRO: dropout dub progressivo
-      // Il groove si svuota dal basso: kick → arp → bass escono uno alla volta,
-      // lasciando chord + voice + drone = terreno già simile a RESPIRO.
-      if (barsLeft <= 16) worldState.density.rhythm  *= Math.max(0, barsLeft / 16);  // kick fade
-      if (barsLeft <= 12) worldState.density.texture  *= Math.max(0, barsLeft / 12);  // arp/texture fade
-      if (barsLeft <= 8)  worldState.density.bass     *= Math.max(0, barsLeft / 8);   // bass fade
-      // ultime 4 bar: solo chord + voice + drone sopravvivono
+      // Harmony (drone+chord) mute a bar -7 per fare spazio al ghost chord RESPIRO (CH4)
+      if (barsLeft <= 16) worldState.density.rhythm  *= Math.max(0, barsLeft / 16);
+      if (barsLeft <= 12) worldState.density.texture  *= Math.max(0, barsLeft / 12);
+      if (barsLeft <= 12) worldState.density.harmony  *= Math.max(0, (barsLeft - 7) / 5);  // 0 a bar -7
+      if (barsLeft <= 10) worldState.density.bass     *= Math.max(0, (barsLeft - 3) / 7);  // 0 a bar -3
     }
 
     if (worldState.track === 'RESPIRO') {
-      // RESPIRO → MACCHINA: il drone converge verso D (root di MACCHINA)
-      // Le ultime 8 bar: harmony si ritira, bass sfuma, drone rimane solo
-      // — prepara il terreno perché l'arp meccanico entri dal vuoto.
-      if (barsLeft <= 8) {
-        worldState.density.harmony *= Math.max(0.15, barsLeft / 8);
-        worldState.density.bass    *= Math.max(0, barsLeft / 8);
+      // RESPIRO → MACCHINA: harmony e melody sfumano, bass resta più a lungo
+      // per evitare buco prima del ghost kick MACCHINA (bar -6)
+      if (barsLeft <= 10) {
+        worldState.density.harmony *= Math.max(0.15, barsLeft / 10);
+        worldState.density.bass    *= Math.max(0, (barsLeft - 2) / 8);  // 0 a bar -2 (era -4)
       }
-      // Ultime 4 bar: voice tace, solo drone — silenzio prima della macchina
-      if (barsLeft <= 4) {
-        worldState.density.melody *= Math.max(0.1, barsLeft / 4);
+      if (barsLeft <= 6) {
+        worldState.density.melody *= Math.max(0.1, barsLeft / 6);
       }
     }
 
     if (worldState.track === 'MACCHINA') {
-      // MACCHINA → TEMPESTA: l'arp si ritira, la voice si fa avanti
-      // Prepara il cambio di protagonista (arp meccanico → voice+lead hocket).
-      if (barsLeft <= 8) {
-        // arp velocity scala: protagonista → texture (1.0 → 0.3)
-        const arpFade = 0.3 + 0.7 * (barsLeft / 8);
-        worldState.density.texture *= arpFade;  // arp density scende
+      // ── MACCHINA → TEMPESTA: crossfade DJ su 32 bar ──
+      // L'arp (protagonista MACCHINA) si ritira per primo, poi harmony (per spazio al drone E ghost),
+      // poi bass, poi melody. Il kick resta fino alla fine.
+      // Bar -32 a 0: arp sfuma lentamente (da protagonista a silenzio)
+      if (barsLeft <= 32) {
+        const arpFade = Math.max(0, barsLeft / 32);
+        worldState.density.texture *= arpFade;
       }
-      if (barsLeft <= 4) {
-        // voice density boost — anticipa l'hocket di TEMPESTA
-        worldState.density.melody *= 1.5;
+      // Bar -24 a -8: harmony sfuma (allineato col drone ghost E che entra a bar -22)
+      if (barsLeft <= 24) {
+        worldState.density.harmony *= Math.max(0, (barsLeft - 8) / 16);  // 0 a bar -8
       }
+      // Bar -20 a -8: bass perde densità
+      if (barsLeft <= 20) {
+        worldState.density.bass *= Math.max(0.1, (barsLeft - 8) / 12);
+      }
+      // Bar -16 a -4: melody esce
+      if (barsLeft <= 16) {
+        worldState.density.melody *= Math.max(0, (barsLeft - 4) / 12);
+      }
+      // Il kick non sfuma — continua fino allo switch (stesso BPM, DJ continuity)
     }
 
     if (worldState.track === 'TEMPESTA') {
       // TEMPESTA → RITORNO: esaurimento verso la nudità
-      // Dal picco massimo al congedo: hat muore, bass scende, voice resta sola.
+      // Harmony mute a bar -3 per ghost chord RITORNO (CH4)
       if (barsLeft <= 12) {
-        // hat forced sparse: riduco rhythm drasticamente
         worldState.density.rhythm *= Math.max(0.15, barsLeft / 12);
       }
-      if (barsLeft <= 8) {
-        // bass fade: 0.95 → 0.3
-        const bassFade = 0.3 + 0.7 * (barsLeft / 8);
-        worldState.density.bass *= bassFade;
-      }
-      // ultime 4 bar: voice + drone dominano — anticipa nudità di RITORNO
-      if (barsLeft <= 4) {
-        worldState.density.harmony *= 0.5;  // accordi si ritirano
+      if (barsLeft <= 10) {
+        worldState.density.bass *= Math.max(0, (barsLeft - 3) / 7);  // 0 a bar -3
+        worldState.density.harmony *= Math.max(0, (barsLeft - 3) / 7);  // 0 a bar -3
       }
     }
   }
 
   // ── V3: Degradation arc in dissoluzione (Hecker §A.7) ──
   // Final 16 bars of dissoluzione: progressive note-drop, jitter, chord stripping.
+  // SKIP per MACCHINA: il crossfade DJ richiede griglia pulita, no jitter sul kick.
   // Outside the window, degradation is reset to inert defaults.
-  if (CFG.MUSIC_STRUCTURAL && PHASE_ORDER[_phaseIdx] === 'dissoluzione') {
-    const phaseDur = _track.phases.dissoluzione || 0;
-    const barsLeft = phaseDur - _phaseBars;
-    if (barsLeft <= 16 && barsLeft >= 0) {
+  if (CFG.MUSIC_STRUCTURAL && PHASE_ORDER[_phaseIdx] === 'dissoluzione' && worldState.track !== 'MACCHINA') {
+    const degradDur = _track.phases.dissoluzione || 0;
+    const degradBarsLeft = degradDur - _phaseBars;
+    if (degradBarsLeft <= 16 && degradBarsLeft >= 0) {
       // 0 at bar -16, 1 at bar 0 (last bar of dissoluzione)
-      const t = 1 - (barsLeft / 16);
+      const t = 1 - (degradBarsLeft / 16);
       worldState.degradation.noteDropProb   = t * 0.4;
       worldState.degradation.timingJitterMs = 5 + t * 20;
       // 4 → 3 → 2 → 1 in 4 quartiles
@@ -362,8 +437,10 @@ export function updateDirector3(dt) {
       const progress = _phaseBars / dissolveDur;
       firma.convergenza = progress > 0.85;
 
-      // ── V3.9: Transition preview estesa — ultime 8 bar della dissoluzione ──
-      const TRANSITION_BARS = 8;
+      // ── V3.9: Transition preview — ultime N bar della dissoluzione ──
+      // MACCHINA→TEMPESTA: 24 bar (crossfade DJ lungo). Tutti gli altri: 8 bar.
+      const isDJCrossfade = worldState.track === 'MACCHINA';
+      const TRANSITION_BARS = isDJCrossfade ? 24 : 8;
       const barsLeft = dissolveDur - _phaseBars;
       if (barsLeft <= TRANSITION_BARS && barsLeft >= 0) {
         const currentIdx = TRACK_ORDER.indexOf(worldState.track);
@@ -385,14 +462,16 @@ export function updateDirector3(dt) {
       // primary: bar -6 → -1, 1 nota/bar poi 2/bar nelle ultime 2
       // secondary: bar -2 → -1, 1 nota/bar
       // velocity crescente: pp(15) → p(40)
-      if (worldState.transition && worldState.transition.progress > 0.25) {
+      // DJ crossfade: ghost da subito (progress > 0.05). Standard: da progress > 0.25
+      const ghostThreshold = isDJCrossfade ? 0.05 : 0.25;
+      if (worldState.transition && worldState.transition.progress > ghostThreshold) {
         const nextName = worldState.transition.to;
         const ghostDef = GHOST_ENTRANCE[nextName];
         if (ghostDef && _phaseBars !== _lastGhostBar) {
           _lastGhostBar = _phaseBars;
           const nextTrack = worldState.transition.nextTrack;
           const reg = nextTrack.register;
-          const scale = worldState.scale || [];
+          const scale = nextTrack.scale || [];  // scala della traccia ENTRANTE, non quella corrente
           const tProg = worldState.transition.progress;  // 0.25→1.0
 
           // Velocity crescente con la transizione (pp → p)
@@ -412,12 +491,12 @@ export function updateDirector3(dt) {
             // Ultime 2 bar: raddoppia (seconda nota a metà bar)
             if (barsLeft <= 2 && pCandidates.length > 1) {
               const note2 = pCandidates[Math.floor(Math.random() * pCandidates.length)];
-              setTimeout(() => sendMIDINote(pg.ch, note2, vel - 5, Math.round(barMs / 2)), Math.round(barMs / 2));
+              setTimeout(() => sendMIDINote(pg.ch, note2, Math.max(1, vel - 5), Math.round(barMs / 2)), Math.round(barMs / 2));
             }
             console.log(`[DIR3] ghost: ${nextName} ${pg.role} note=${note} vel=${vel} (barsLeft=${barsLeft})`);
           }
 
-          // Secondary ghost — ultime 2 bar
+          // Secondary ghost (chord/drone)
           if (barsLeft <= 2 && ghostDef.secondary) {
             const sg = ghostDef.secondary;
             const sRole = sg.role === 'chord' ? 'chords' : sg.role;
@@ -427,6 +506,30 @@ export function updateDirector3(dt) {
               const note = sCandidates[Math.floor(Math.random() * sCandidates.length)];
               sendMIDINote(sg.ch, note, velBase - 5, barMs);
               console.log(`[DIR3] ghost secondary: ${nextName} ${sg.role} note=${note}`);
+            }
+          }
+
+          // ── DJ crossfade esteso (MACCHINA→TEMPESTA) ──
+          // Bass ghost rimosso: il pavimento armonico è già coperto dal
+          // chord ghost CH4 (accordi E phrygian) + TEMPESTA bassFloor 0.5.
+          // Resta solo la conga ghost per anticipare il groove.
+          if (ghostDef.djCrossfade) {
+            // Conga ghost: bar -8 a -1, sincopatura che anticipa il groove
+            if (barsLeft <= 8) {
+              const congaVel = Math.round(15 + tProg * 20);  // 15→35 — appena percepibile
+              const stepMs = Math.round(barMs / 4);
+              // Conga su step 3 e 11 del bar (sincopatura caratteristica TEMPESTA)
+              setTimeout(() => {
+                sendMIDINote(1, 48, congaVel, stepMs);  // CONGA_LO = 48
+                addMidiNote(1, 48 / 127, congaVel / 127);
+              }, stepMs * 3);
+              if (barsLeft <= 4) {
+                setTimeout(() => {
+                  sendMIDINote(1, 48, congaVel - 5, stepMs);
+                  addMidiNote(1, 48 / 127, (congaVel - 5) / 127);
+                }, stepMs * 11);
+              }
+              console.log(`[DIR3] DJ conga ghost: vel=${congaVel} (barsLeft=${barsLeft})`);
             }
           }
         }
@@ -498,7 +601,7 @@ function _triggerWallOfSound(label) {
   const root  = worldState.root || 60;
   const bpm   = worldState.bpm || 96;
   const durMs = Math.round((60 / bpm) * 4 * 8 * 1000); // 8 bars
-  const channels = [2, 4, 5]; // CH2 drone, CH4 chords, CH5 voice
+  const channels = [2, 4]; // CH2 drone, CH4 chords (CH5 voice = modulare, no velocity)
 
   // Build a sorted scale-tone pool spanning MIDI 36-72
   const rootPC = root % 12;
@@ -553,7 +656,8 @@ function _advanceTrack() {
     // Try the one after
     for (let i = nextIdx + 1; i < TRACK_ORDER.length; i++) {
       if (TRACKS[TRACK_ORDER[i]]) {
-        setTimeout(() => sendMIDIAllNotesOff(), 800);
+        const _skipBarMs = Math.round((240 / (worldState.bpm || 60)) * 1000);
+        setTimeout(() => sendMIDIAllNotesOff(), Math.max(800, _skipBarMs + 200));
         initDirector3(TRACK_ORDER[i]);
         _paused = false; // keep playing
         return;
@@ -564,12 +668,16 @@ function _advanceTrack() {
     return;
   }
 
-  // Release naturale: le note schedulate hanno già note-off programmato.
-  // CC123 ritardato come safety net — le note vecchie sfumano col synth release.
-  setTimeout(() => sendMIDIAllNotesOff(), 800);
+  // DJ crossfade MACCHINA→TEMPESTA: NO CC123 (il kick non deve fermarsi)
+  // Tutte le altre transizioni: CC123 ritardato come safety net.
+  const isDJ = worldState.track === 'MACCHINA' && nextTrack === 'TEMPESTA';
+  if (!isDJ) {
+    const _barMsForOff = Math.round((240 / (worldState.bpm || 60)) * 1000);
+    setTimeout(() => sendMIDIAllNotesOff(), Math.max(800, _barMsForOff + 200));
+  }
   const prevBpm = worldState.bpm || 60;  // capture before overwrite
-  console.log(`[DIR3] → Next track: ${nextTrack}`);
-  initDirector3(nextTrack);
+  console.log(`[DIR3] → Next track: ${nextTrack}${isDJ ? ' (DJ crossfade)' : ''}`);
+  initDirector3(nextTrack, { seamless: isDJ });
   _paused = false; // keep playing — don't reset to paused
 
   // BPM ramp: interpolate from previous tempo — durata per-transizione
@@ -577,7 +685,8 @@ function _advanceTrack() {
   if (prevBpm !== newBpm) {
     const prevTrack = TRACK_ORDER[TRACK_ORDER.indexOf(nextTrack) - 1] || '';
     const rampBars = BPM_RAMP_BARS_TABLE[prevTrack] ?? BPM_RAMP_BARS_DEFAULT;
-    const rampDurationSec = (240 / newBpm) * rampBars;
+    // Durata calcolata col BPM di partenza — il ramp dura N bar reali, non N bar al tempo di arrivo
+    const rampDurationSec = (240 / prevBpm) * rampBars;
     _bpmRamp = { from: prevBpm, to: newBpm, elapsed: 0, duration: rampDurationSec };
     worldState.bpm = prevBpm;  // start from old BPM
     console.log(`[DIR3] BPM ramp: ${prevBpm} → ${newBpm} over ${rampBars} bar`);
@@ -602,34 +711,76 @@ const _RUPTURE_STAGE_BOUNDS = [
   { name: 'residue',      start: 0.80, end: 1.00 },
 ];
 
+// ── Micro-rupture state ──
+// Spasmi brevi e casuali fuori dalla fase rottura.
+// Probabilità per BAR (non per frame). Durata 2-5s, intensità 0.15-0.40.
+// Innesco: _triggerMicroRupture() chiamato nel bar-tick loop.
+// Decay: ogni frame in _updateRupture per smoothness.
+let _microRup = { active: false, intensity: 0, decay: 0 };
+const _MICRO_RUP_PHASE_CHANCE = {
+  germoglio:   0,       // mai — il mondo nasce, nessuna frattura
+  pulsazione:  0.06,    // ~1 ogni 16 bar
+  densita:     0.12,    // ~1 ogni 8 bar
+  rottura:     0,       // fase piena gestisce tutto
+  dissoluzione: 0.04,   // residui — echi della rottura passata
+};
+
+function _triggerMicroRupture(phaseName) {
+  if (_microRup.active) return;   // uno alla volta
+  const chance = _MICRO_RUP_PHASE_CHANCE[phaseName] ?? 0;
+  if (chance <= 0) return;
+  const tension = worldState.tension ?? 0;
+  if (Math.random() < chance * (0.5 + tension)) {
+    _microRup.active = true;
+    _microRup.intensity = 0.15 + Math.random() * 0.25;
+    _microRup.decay = 0.96 + Math.random() * 0.03;  // ~50-160 frame (~1-3s)
+  }
+}
+
 function _updateRupture(phaseName, phaseBars, phaseDurBars) {
-  if (phaseName !== 'rottura' || phaseDurBars <= 0) {
-    worldState.rupture.stage     = null;
-    worldState.rupture.stageT    = 0;
-    worldState.rupture.t         = 0;
-    worldState.rupture.intensity = 0;
+  // ── Fase rottura piena: arco narrativo completo ──
+  if (phaseName === 'rottura' && phaseDurBars > 0) {
+    _microRup.active = false;
+    const t = Math.min(1, phaseBars / phaseDurBars);
+    worldState.rupture.t = t;
+
+    let s = _RUPTURE_STAGE_BOUNDS[_RUPTURE_STAGE_BOUNDS.length - 1];
+    for (const b of _RUPTURE_STAGE_BOUNDS) {
+      if (t < b.end) { s = b; break; }
+    }
+    const stageT = Math.min(1, (t - s.start) / (s.end - s.start));
+    worldState.rupture.stage  = s.name;
+    worldState.rupture.stageT = stageT;
+
+    const intensityMap = {
+      omen:         stageT * 0.40,
+      infiltration: 0.40 + stageT * 0.35,
+      takeover:     0.75 + stageT * 0.25,
+      residue:      1.00 - stageT,
+    };
+    worldState.rupture.intensity = intensityMap[s.name] ?? 0;
     return;
   }
-  const t = Math.min(1, phaseBars / phaseDurBars);
-  worldState.rupture.t = t;
 
-  // Find current stage (last bound is the fallback)
-  let s = _RUPTURE_STAGE_BOUNDS[_RUPTURE_STAGE_BOUNDS.length - 1];
-  for (const b of _RUPTURE_STAGE_BOUNDS) {
-    if (t < b.end) { s = b; break; }
+  // ── Micro-rupture: decay ogni frame per smoothness ──
+  if (_microRup.active) {
+    _microRup.intensity *= _microRup.decay;
+    if (_microRup.intensity < 0.01) {
+      _microRup.active = false;
+      _microRup.intensity = 0;
+    }
+    worldState.rupture.stage     = 'micro';
+    worldState.rupture.stageT    = 0;
+    worldState.rupture.t         = 0;
+    worldState.rupture.intensity = _microRup.intensity;
+    return;
   }
-  const stageT = Math.min(1, (t - s.start) / (s.end - s.start));
-  worldState.rupture.stage  = s.name;
-  worldState.rupture.stageT = stageT;
 
-  // Intensity envelope per stage
-  const intensityMap = {
-    omen:         stageT * 0.40,
-    infiltration: 0.40 + stageT * 0.35,
-    takeover:     0.75 + stageT * 0.25,
-    residue:      1.00 - stageT,
-  };
-  worldState.rupture.intensity = intensityMap[s.name] ?? 0;
+  // Nessuna rupture attiva
+  worldState.rupture.stage     = null;
+  worldState.rupture.stageT    = 0;
+  worldState.rupture.t         = 0;
+  worldState.rupture.intensity = 0;
 }
 
 // ── V3: Tension waves (RESEARCH-V4 §B.1) ──
@@ -696,8 +847,15 @@ function _applyPhase() {
 
   // V2 ext: Frahm phase-modulated velocity range (extension of MUSIC_EXPERIMENT)
   // Scales the per-track ceiling by a phase factor (pp on germoglio, ff on rottura).
+  // V3.9: dissoluzione fade progressivo — il ceiling scende da 0.60 a 0.10
+  // nelle ultime battute, così gli strumenti svaniscono gradualmente
   if (CFG.MUSIC_EXPERIMENT) {
-    const scale = PHASE_VEL_SCALE[phaseName] ?? 1.0;
+    let scale = PHASE_VEL_SCALE[phaseName] ?? 1.0;
+    if (phaseName === 'dissoluzione') {
+      const pp = phaseState.progress ?? 0;
+      // 0.60 → 0.10 nell'arco della dissoluzione (curva quadratica: più lento all'inizio)
+      scale = 0.60 * (1 - pp * pp * 0.83);  // 0.60 → ~0.10
+    }
     for (const k of Object.keys(worldState.velocityCeiling)) {
       worldState.velocityCeiling[k] = Math.min(127, Math.round(worldState.velocityCeiling[k] * scale));
     }
@@ -742,6 +900,168 @@ export function jumpToTrack(trackName) {
     _paused = false;
     _applyPhase();
   }
+}
+
+// ── ENCORE: launch the encore sequence ──
+export function launchEncore() {
+  if (_encoreActive) return;
+
+  // Stop current playback cleanly
+  if (!_paused) {
+    _paused = true;
+    sendMIDIAllNotesOff();
+    sendNornsDroneStop();
+  }
+
+  // Set encore mode in worldState
+  worldState.encoreMode = true;
+  worldState.encoreScale = 'halfWhole';
+  worldState.scale = ENCORE_SCALES.halfWhole;
+
+  // Activate
+  _encoreActive = true;
+  _encoreBrick = 0;
+  _encoreBrickBar = 0;
+
+  // Load ENCORE track via normal init
+  initDirector3('ENCORE');
+
+  // Override BPM for heartbeat start
+  worldState.bpm = CFG.ENCORE_BPM_START;  // 60
+  worldState.phase = 'germoglio';
+
+  // Apply first brick densities
+  const brick0 = ENCORE_BRICKS[0];
+  for (const [mod, val] of Object.entries(brick0.mods)) {
+    worldState.density[mod] = val;
+  }
+
+  // Start playing
+  _paused = false;
+  sendNornsBiome(TRACK_ORDER.indexOf('ENCORE'));
+  sendNornsDroneStart();
+
+  console.log('[DIR3] ENCORE launched — heartbeat starting');
+}
+
+// ── ENCORE: switch scale on the fly ──
+export function switchEncoreScale(scaleName) {
+  if (!_encoreActive) return;
+  if (!ENCORE_SCALES[scaleName]) return;
+  worldState.encoreScale = scaleName;
+  worldState.scale = ENCORE_SCALES[scaleName];
+  console.log(`[DIR3] ENCORE scale → ${scaleName}`);
+}
+
+// ── ENCORE: per-tick update ──
+function _updateEncore(dt) {
+  _phaseTime += dt;
+  _totalTime += dt;
+
+  const bpm = worldState.bpm || CFG.ENCORE_BPM_TARGET;
+  const barDuration = 240 / bpm;
+
+  _barAcc += dt;
+  let barAdvanced = false;
+  while (_barAcc >= barDuration) {
+    _barAcc -= barDuration;
+    _phaseBars++;
+    _encoreBrickBar++;
+    barAdvanced = true;
+  }
+
+  if (!barAdvanced) return;
+
+  const brick = ENCORE_BRICKS[_encoreBrick];
+  if (!brick) { _endEncore(); return; }
+
+  // ── Heartbeat: exponential BPM ramp ──
+  if (_encoreBrick === 0) {
+    const progress = Math.min(1, _encoreBrickBar / brick.bars);
+    worldState.bpm = CFG.ENCORE_BPM_START * Math.pow(CFG.ENCORE_BPM_TARGET / CFG.ENCORE_BPM_START, progress);
+    worldState.velocityCeiling.rhythm = Math.round(40 + progress * 70);
+  }
+
+  // ── Teardown: fade modules in reverse order ──
+  if (_encoreBrick === 8) {
+    const fadeBars = CFG.ENCORE_TEARDOWN_FADE_BARS;  // 4
+    for (const td of ENCORE_TEARDOWN) {
+      const barInTd = _encoreBrickBar - td.bar;
+      if (barInTd < 0 || barInTd >= fadeBars + 1) continue;
+
+      if (td.target === 'decel') {
+        // Kick deceleration (bar 48-56): 132 → 60 BPM
+        const decelBars = brick.bars - td.bar;  // 8
+        const p = Math.min(1, barInTd / decelBars);
+        worldState.bpm = CFG.ENCORE_BPM_TARGET * Math.pow(CFG.ENCORE_BPM_START / CFG.ENCORE_BPM_TARGET, p);
+        worldState.velocityCeiling.rhythm = Math.round(110 * (1 - p));
+      } else if (td.target === 'snare') {
+        // Reduce density to kill snare but keep kick
+        const p = Math.min(1, barInTd / fadeBars);
+        worldState.density.rhythm = Math.max(0.3, 1.0 - p * 0.7);
+      } else if (td.fade) {
+        // Generic density fade (hat/conga)
+        const p = Math.min(1, barInTd / fadeBars);
+        worldState.density.rhythm = Math.max(0.4, worldState.density.rhythm * (1 - p * 0.5));
+      } else if (td.ceil !== undefined) {
+        // Velocity ceiling fade
+        const p = Math.min(1, barInTd / fadeBars);
+        const mod = td.target;
+        worldState.velocityCeiling[mod] = Math.round(td.ceil * (1 - p));
+        // Also fade density for complete silence
+        if (p >= 1) worldState.density[mod] = 0;
+      }
+    }
+  }
+
+  // ── Brick transition ──
+  if (_encoreBrickBar >= brick.bars) {
+    _encoreBrick++;
+    _encoreBrickBar = 0;
+
+    const next = ENCORE_BRICKS[_encoreBrick];
+    if (!next) { _endEncore(); return; }
+
+    // Apply module densities
+    if (next.mods) {
+      for (const mod of ['rhythm', 'harmony', 'bass', 'melody', 'texture']) {
+        worldState.density[mod] = next.mods[mod] ?? 0;
+      }
+    }
+
+    // Lock BPM after heartbeat
+    if (_encoreBrick >= 1) worldState.bpm = CFG.ENCORE_BPM_TARGET;
+
+    // Restore velocity ceilings for new brick
+    if (next.mods) {
+      const track = TRACKS.ENCORE;
+      worldState.velocityCeiling.rhythm  = track.velocityCeiling.rhythm;
+      worldState.velocityCeiling.harmony = track.velocityCeiling.harmony;
+      worldState.velocityCeiling.bass    = track.velocityCeiling.bass;
+      worldState.velocityCeiling.melody  = track.velocityCeiling.melody;
+      worldState.velocityCeiling.texture = track.velocityCeiling.texture;
+    }
+
+    // Update phase label
+    if (_encoreBrick <= 2) worldState.phase = 'pulsazione';
+    else if (_encoreBrick <= 5) worldState.phase = 'densita';
+    else if (_encoreBrick <= 7) worldState.phase = 'rottura';
+    else worldState.phase = 'dissoluzione';
+
+    worldState.camera.phase = worldState.phase;
+
+    console.log(`[DIR3] ENCORE brick ${_encoreBrick}: ${next.name}`);
+  }
+}
+
+function _endEncore() {
+  _encoreActive = false;
+  _paused = true;
+  worldState.encoreMode = false;
+  worldState.bpm = null;
+  sendMIDIAllNotesOff();
+  sendNornsDroneStop();
+  console.log('[DIR3] ENCORE ended');
 }
 
 export function getDirector3Status() {
