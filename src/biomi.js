@@ -1583,13 +1583,19 @@ const ENCORE = {
         }
       };
     }
-    // Kick: DOPPIO GESTO — riga flash bianca + erosione negativa su TUTTI gli altri ruoli
-    // Il kick buca il campo: per un istante vedi il bianco, poi il buco nel colore.
-    // Alterna: 70% flash positivo, 30% erosione negativa (non troppo)
+    // Kick: TRIPLO GESTO — flash / erosione / INVERSIONE COLORI
+    // L'inversione trasforma lo sfondo in bianco per 1 frame — stroboscopico.
+    // Frequenza inversione cresce col brick (0% primi brick, ~15% dal plateau)
     function kickFlash(fields, particles, note127, vel127, h) {
       const f = (vel127 / 127) * 0.8;
       const cy = Math.floor(Math.random() * h.CELLS_Y);
       const W = h.CELLS_X;
+      // Inversione colori — probabilità cresce col brick (da hat in poi)
+      const brick = h.encoreBrick || 0;
+      const invertProb = brick >= 8 ? 0.20 : brick >= 6 ? 0.12 : brick >= 3 ? 0.06 : 0;
+      if (invertProb > 0 && Math.random() < invertProb) {
+        h.setEncoreInvert();  // il renderer invertirà TUTTI i colori questo frame
+      }
       const negative = Math.random() < 0.40;
       if (negative) {
         // Erosione: sottrai materia da TUTTI i ruoli su 5 righe

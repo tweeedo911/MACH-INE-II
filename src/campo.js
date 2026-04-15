@@ -216,6 +216,8 @@ const HELPERS = {
   get energy()        { return worldState.energy || 'SILENCE'; },
   get phaseProgress() { return phaseState.duration > 0 ? phaseState.elapsed / phaseState.duration : 0; },
   get rupture()       { return worldState.rupture; },
+  get encoreBrick()   { return worldState.encoreBrick; },
+  setEncoreInvert()   { worldState.encoreInvert = true; },
   get audioEnergy()   { return worldState.audioEnergy || 0; },
   get frameCount()    { return _renderFrame; },
 };
@@ -953,6 +955,15 @@ export function renderCampo(ctx, W, H) {
         }
       }
     }
+  }
+
+  // ── ENCORE: inversione colori stroboscopica (kick trigger) ──
+  if (worldState.encoreInvert) {
+    const len = _imgBuf32.length;
+    for (let i = 0; i < len; i++) {
+      _imgBuf32[i] ^= 0x00FFFFFF;  // invert RGB, keep alpha
+    }
+    worldState.encoreInvert = false;  // reset — dura 1 solo frame
   }
 
   _offCtx.putImageData(_imgData, 0, 0);
