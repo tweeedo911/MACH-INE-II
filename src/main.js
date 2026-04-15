@@ -165,6 +165,8 @@ document.addEventListener('keydown', (e) => {
     e.preventDefault();
     launchEncore();
     initCamera();
+    // Start MIDI clock if not already running (normally started by Space)
+    if (!_clockStarted) { sendMIDIStart(); startMidiClock(); _clockStarted = true; }
     return;
   }
 
