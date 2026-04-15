@@ -491,38 +491,22 @@ function _tick() {
   }
   const voiceEnabled = voiceEveryBars > 0 && voiceLo > 0 && voiceHi > 0;
 
-  // ── ENCORE VOICE: 26-step cycle (13/16) — enters at brick 2 (+voice) ──
-  // In encore mode, BLOCK normal voice entirely (even before brick 2)
-  if (worldState.encoreMode && worldState.encoreBrick < 2) {
-    // voice silent — skip to lead/arp section
-  } else if (worldState.encoreMode && track.encoreVoicePattern && worldState.encoreBrick >= 2) {
-    // ── Four Tet style: frasi corte ripetute, intervalli semplici, gioiose ──
-    const voiceCycle = worldState.encoreCycleLens.voice;  // 26
-    const voiceStep = worldState.globalTick % voiceCycle;
-    if (track.encoreVoicePattern[voiceStep] === 1 && density > 0.1) {
-      const pool = scale.filter(n => n >= voiceLo && n <= voiceHi);
-      if (pool.length > 0) {
-        // Frase corta che si ripete: 3-4 note che ciclano, cambiano ogni 8 cicli (~26 bar)
-        const phraseLen = 4;
-        const phraseSeed = Math.floor(worldState.globalTick / (voiceCycle * 8));
-        // Genera frase deterministica dal seed: scala step-wise da un punto di partenza
-        const startIdx = (phraseSeed * 3) % pool.length;
-        const hitInPhrase = Math.floor((worldState.globalTick / voiceCycle) % phraseLen);
-        // Pattern: root, +2, +4, +2 (terze, allegro)
-        const offsets = [0, 2, 4, 2];
-        const noteIdx = Math.min(pool.length - 1, startIdx + offsets[hitInPhrase]);
-        const note = pool[noteIdx];
-        // Velocity più alta — Four Tet è assertivo
-        const rawVel = 65 + density * 30 + (Math.random() * 8 - 4);
-        const vel = Math.min(Math.round(rawVel), velCeil);
-        const stepMs2 = (60 / (worldState.bpm || 132) / 4) * 1000;
-        const dur = Math.round(stepMs2 * 4);  // note più corte, più staccate
-        sendMIDINote(CH_VOICE, note, vel, dur);
-        addMidiNote(CH_VOICE, note / 127, vel / 127);
-      }
+  // ── ENCORE VOICE v2: reads from canon (½× retrograde) ──
+  if (worldState.encoreMode && !worldState.encoreCanon.voice.active) {
+    // Voice not yet active — skip
+  } else if (worldState.encoreMode && worldState.encoreCanon.voice.active) {
+    // ── ENCORE v2: voice reads from canon (½× retrograde) ──
+    const canon = worldState.encoreCanon;
+    const note = canon.voice.note;
+    if (note > 0 && _step % 4 === 0 && density > 0.1) {
+      const rawVel = 40 + density * 40 + (Math.random() * 10 - 5);
+      const vel = Math.min(Math.round(rawVel), velCeil);
+      const stepMs2 = (60 / (worldState.bpm || 132) / 4) * 1000;
+      const dur = Math.round(stepMs2 * 8);
+      sendMIDINote(CH_VOICE, note, vel, dur);
+      addMidiNote(CH_VOICE, note / 127, vel / 127);
     }
-  } else
-  if (voiceEnabled) {
+  } else if (voiceEnabled) {
     const voiceRate = VOICE_RATE[phase] ?? VOICE_RATE_DEFAULT;
     const voiceLoopN = VOICE_LOOP_STEPS[phase] ?? VOICE_LOOP_DEFAULT;
     const barsGate = _step === 0 && _bar % voiceEveryBars === 0;
@@ -626,6 +610,21 @@ function _tick() {
     }
   }
 
+  // ── CH6 LEAD ──
+  // ── ENCORE v2: lead reads from canon (2× original) ──
+  if (worldState.encoreMode) {
+    const canon = worldState.encoreCanon;
+    if (canon.lead.active && canon.lead.note > 0 && _step % 2 === 0 && density > 0.15) {
+      const rawVel = 45 + density * 35 + (Math.random() * 8 - 4);
+      const vel = Math.min(Math.round(rawVel), velCeil);
+      const stepMs2 = (60 / (worldState.bpm || 132) / 4) * 1000;
+      const dur = Math.round(stepMs2 * 3);
+      sendMIDINote(CH_LEAD, canon.lead.note, vel, dur);
+      addMidiNote(CH_LEAD, canon.lead.note / 127, vel / 127);
+    }
+    // Skip normal lead logic during encore
+  } else
+
   // ── CH6 LEAD solo mode (chord-aware, with velocity arc and rest) ──
   if (strat.leadMode === 'solo' && leadLo > 0 && leadHi > 0 && density > 0.1 && !isGermoglio) {
     const leadEvery = strat.leadEveryBars || 2;
@@ -703,27 +702,21 @@ function _tick() {
     }
   }
 
-  // ── ENCORE ARP: 22-step cycle (11/16) — enters at brick 5 ──
-  // In encore mode, BLOCK normal arp entirely (even before brick 5)
-  if (worldState.encoreMode && worldState.encoreBrick < 5) {
-    // arp silent — do nothing, skip normal arp too
-  } else if (worldState.encoreMode && track.encoreArpPattern && worldState.encoreBrick >= 5) {
-    const arpCycle = worldState.encoreCycleLens.arp;  // 22
-    const arpStep = worldState.globalTick % arpCycle;
-    if (track.encoreArpPattern[arpStep] === 1 && density >= 0.15) {
-      const pool = scale.filter(n => n >= arpLo && n <= arpHi);
-      if (pool.length > 0) {
-        // Ascending sequence on the scale
-        const arpNote = pool[worldState.globalTick % pool.length];
-        const arpVelMul = strat.arpVelScale ?? 0.85;  // più assertivo
-        const accentMul = (arpStep % 5 === 0) ? 1.20 : 0.95;
-        const rawVel = (55 + density * 40) * arpVelMul * accentMul;
-        const arpVel = Math.min(Math.max(Math.round(rawVel), 1), velCeil);
-        const stepMs2 = (60 / (worldState.bpm || 132) / 4) * 1000;
-        const arpDur = Math.round(stepMs2 * 2);
-        sendMIDINote(CH_ARP, arpNote, arpVel, arpDur);
-        addMidiNote(CH_ARP, arpNote / 127, arpVel / 127);
-      }
+  // ── ENCORE ARP v2: reads from canon (3× inverted) ──
+  if (worldState.encoreMode && !worldState.encoreCanon.arp.active) {
+    // Arp not yet active — skip
+  } else if (worldState.encoreMode && worldState.encoreCanon.arp.active) {
+    // ── ENCORE v2: arp reads from canon (3× inverted) ──
+    const canon = worldState.encoreCanon;
+    const note = canon.arp.note;
+    if (note > 0 && density >= 0.15) {
+      const arpVelMul = strat.arpVelScale ?? 0.8;
+      const rawVel = (50 + density * 40) * arpVelMul;
+      const arpVel = Math.min(Math.max(Math.round(rawVel), 1), velCeil);
+      const stepMs2 = (60 / (worldState.bpm || 132) / 4) * 1000;
+      const arpDur = Math.round(stepMs2 * 1.5);
+      sendMIDINote(CH_ARP, note, arpVel, arpDur);
+      addMidiNote(CH_ARP, note / 127, arpVel / 127);
     }
   } else {
   const arpInGermoglio = arpRole === 'protagonist';
