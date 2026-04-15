@@ -79,6 +79,15 @@ const SOLCO = {
     lead:  0,
   },
 
+  // phaseColors: il dub si scalda fino alla rottura, poi si raffredda nel delay
+  phaseColors: {
+    germoglio:    { bass: [200, 110,  30] },  // arancio più tenue — il sub nasce
+    pulsazione:   { bass: [255, 130,  35] },  // arancio pieno — il groove è caldo
+    densita:      { bass: [255, 140,  50], chord: [75, 105, 150] },  // tutto si scalda
+    rottura:      { bass: [255,  80,  20], voice: [200, 220, 255] },  // bass infuocato, voice ghiacciata
+    dissoluzione: { bass: [180,  90,  40], chord: [40,  55,  90] },   // l'eco si spegne, il freddo vince
+  },
+
   depositFn: {
     // ── FASCE VERTICALI SOLCO ──
     // cielo:     Y 0-40%   (vuoto, arp in caduta, voice rare)
@@ -88,7 +97,7 @@ const SOLCO = {
     // Drone: TERRENO — blob sparsi nella metà inferiore. Il suolo su cui tutto si accumula.
     drone(fields, particles, note127, vel127, h) {
       const minY = Math.floor(h.CELLS_Y * 0.55);
-      const cy = minY + Math.floor(Math.random() * (h.CELLS_Y - minY - 2));
+      const cy = minY + Math.floor(Math.random() * (h.CELLS_Y - minY));
       const cx = Math.floor(Math.random() * h.CELLS_X);
       h.depositBlob(fields.drone, cx, cy, 3, 2, 0.005);
     },
@@ -232,6 +241,14 @@ const SOLCO = {
       }
     },
   },
+
+  // glifi dub: echi verticali, punti cadenti — il fulmine ha una voce ASCII
+  glyphs: {
+    roles: ['voice', 'kick'],
+    chars: '|!∙:;▼',
+    threshold: 0.35,
+    opacity: 0.85,
+  },
 };
 
 // ── NEBBIA ── C lydian, no BPM — un lago nella nebbia
@@ -240,79 +257,90 @@ const SOLCO = {
 // Drone = la nebbia (zone appena più chiare del fondo, Y 25-75%)
 // Voice/Lead = luci sopra la nebbia (punti luminosi, Y 0-35%)
 const NEBBIA = {
-  bg: [4, 4, 14],                   // nero con traccia d'indaco
+  bg: [0, 0, 0],                     // nero puro — il vuoto è il campo
   colors: {
-    drone:      [55,  60, 120],    // indaco smorzato — substrato stellare
+    drone:      [40,  45,  95],    // indaco più luminoso — visibile su nero
     bass:       [0,   0,   0],     // assente
     chord:      [100, 110, 170],   // pervinca nebbiosa
     kick:       [0,   0,   0],     // assente
     percussion: [0,   0,   0],     // assente
     arp:        [0,   0,   0],     // assente
     voice:      [255, 210, 150],   // ambra calda — unico punto caldo nel freddo
-    lead:       [180, 160, 210],   // malva rosa — ponte freddo/caldo
+    lead:       [240, 240, 245],   // bianco freddo — scia luminosa
   },
   decay: {
-    drone:      0.9990,  // nebbia lenta — si muove, non scompare subito
+    drone:      0.9998,  // quasi permanente — la nebbia si accumula, non scompare
     bass:       1.000,
     chord:      0.9993,  // il lago persiste — l'accordo suona 8-32 bar
     kick:       1.000,
     percussion: 1.000,
     arp:        1.000,
     voice:      0.9955,  // stelle effimere — ~1.5s
-    lead:       0.992,   // scie brevi
+    lead:       0.9965,  // scia lunga — persiste ~4s
   },
   force: {
-    drone: 0.003,     // più forte — la nebbia deve essere leggibile
+    drone: 0.025,     // forte — la coltre deve formarsi, visibile su nero
     bass:  0,
     chord: 0.05,      // delicato — il lago è quieto
     kick:  0,
     percussion: 0,
     arp:   0,
     voice: 0.60,
-    lead:  0.25,
+    lead:  0.18,
   },
   maxDensity: {
-    drone: 0.20, bass: 0, chord: 0.35, kick: 0, percussion: 0,
+    drone: 0.65, bass: 0, chord: 0.35, kick: 0, percussion: 0,
     arp: 0, voice: 0.75, lead: 0.50,
   },
-  // Audio-reactive: la nebbia respira con l'audio
-  // RUPTURE: la nebbia si riempie — antitesi del principio di scarsità
+  // Audio-reactive: le chiazze respirano — si espandono con l'audio, si ritirano nel silenzio
+  // RUPTURE: il respiro si fa pesante, le chiazze si gonfiano
   audioReact(fields, energy, h) {
-    if (energy < 0.01) return;
     const ri = h.rupture.intensity;
-    const f = energy * (0.003 + ri * 0.010);  // respiro ×4 a takeover
-    const threshold = 0.08 + ri * 0.30;  // accetta celle più dense
     const n = h.CELLS_X * h.CELLS_Y;
-    for (let i = 0; i < n; i++) {
-      if (fields.drone[i] > 0.02 && fields.drone[i] < threshold) {
-        fields.drone[i] += f;
+    if (energy > 0.01) {
+      // inspirazione: la nebbia esistente si addensa — coltre
+      const grow = energy * (0.012 + ri * 0.025);
+      const cap = 0.55 + ri * 0.30;
+      for (let i = 0; i < n; i++) {
+        if (fields.drone[i] > 0.01 && fields.drone[i] < cap) {
+          fields.drone[i] += grow;
+        }
+      }
+    } else {
+      // espirazione: le chiazze si ritirano lentamente — il nero torna
+      for (let i = 0; i < n; i++) {
+        if (fields.drone[i] > 0.005) {
+          fields.drone[i] *= 0.997;
+        }
       }
     }
   },
 
   depositFn: {
-    // Drone: PUNTI SPARSI — il tessuto di fondo, ovunque nel campo
-    // RUPTURE: la nebbia si moltiplica — skip rate crolla, forza triplica
+    // Drone: POLVERE SPARSA — punti singoli distribuiti su un'area ampia
+    // nessun blob, nessuna forma — solo particelle di nebbia
+    // RUPTURE: più punti, più densi
     drone(fields, particles, note127, vel127, h) {
       const ri = h.rupture.intensity;
-      const skipChance = 0.45 * (1 - ri * 0.8);  // 0.45 → 0.09 a takeover
-      if (Math.random() > (1 - skipChance)) return;
-      const cy = Math.floor(Math.random() * h.CELLS_Y);
-      const cx = Math.floor(Math.random() * h.CELLS_X);
-      // zona di esclusione morbida — si allenta durante rupture
-      let neighborSum = 0, count = 0;
-      for (let dy = -2; dy <= 2; dy++) {
-        for (let dx = -2; dx <= 2; dx++) {
-          const nx = cx + dx, ny = cy + dy;
-          if (nx >= 0 && nx < h.CELLS_X && ny >= 0 && ny < h.CELLS_Y) {
-            neighborSum += fields.drone[ny * h.CELLS_X + nx];
-            count++;
-          }
-        }
+      const pp = h.phaseProgress;
+      const phase = h.phase;
+      // germoglio: pochi punti, crescono lentamente
+      // pulsazione/densita: molti punti, coprono il campo
+      // rottura: picco massimo — la nebbia esplode
+      let baseCount, baseF;
+      if (phase === 'germoglio')         { baseCount = 6 + Math.floor(pp * 14); baseF = 0.04 + pp * 0.03; }
+      else if (phase === 'pulsazione')   { baseCount = 20 + Math.floor(pp * 10); baseF = 0.07; }
+      else if (phase === 'densita')      { baseCount = 30; baseF = 0.08; }
+      else if (phase === 'rottura')      { baseCount = 30 + Math.floor(ri * 15); baseF = 0.09; }
+      else /* dissoluzione */            { baseCount = 14; baseF = 0.05; }
+      const count = baseCount + Math.floor(ri * 12);
+      const f = baseF * (1 + ri * 2);
+      for (let i = 0; i < count; i++) {
+        const px = Math.floor(Math.random() * h.CELLS_X);
+        const py = Math.floor(Math.random() * h.CELLS_Y);
+        if (fields.drone[py * h.CELLS_X + px] > 0.35 + ri * 0.30) continue;
+        h.depositPoint(fields.drone, px, py, f);
       }
-      const threshold = 0.10 + ri * 0.40;  // 0.10 → 0.50: accetta zone già dense
-      if (count > 0 && neighborSum / count > threshold) return;
-      h.depositPoint(fields.drone, cx, cy, 0.025 * (1 + ri * 2));
     },
 
     // Voice: SEGNALE — punto singolo ovunque nel campo
@@ -336,31 +364,41 @@ const NEBBIA = {
       const dir = Math.random() < 0.5 ? -1 : 1;
       particles.lead.push({
         cx, cy,
-        vx: dir * (0.12 + Math.random() * 0.08) * (1 + ri),
-        f: 0.18 * (1 + ri),
+        vx: dir * (0.30 + Math.random() * 0.25) * (1 + ri),
+        f: 0.22 * (1 + ri),
         age: 0,
-        maxAge: (40 + Math.floor(Math.random() * 30)) * (1 + ri * 0.5),
+        maxAge: (35 + Math.floor(Math.random() * 25)) * (1 + ri * 0.5),
       });
     },
 
     // Chord: VELATURE ORIZZONTALI nella metà bassa (Y 50-90%)
+    // germoglio: velature corte e deboli — il lago si forma piano
+    // pulsazione→rottura: velature piene
     // RUPTURE: velature più larghe e fitte, gap spariscono
     chord(fields, particles, note127, vel127, h) {
       const ri = h.rupture.intensity;
+      const pp = h.phaseProgress;
+      const phase = h.phase;
+      // germoglio: skip frequente, velature corte e deboli
+      let skipChance, widthMult, fMult;
+      if (phase === 'germoglio')         { skipChance = 0.50 * (1 - pp); widthMult = 0.3 + pp * 0.4; fMult = 0.4 + pp * 0.4; }
+      else if (phase === 'pulsazione')   { skipChance = 0.05; widthMult = 0.7 + pp * 0.3; fMult = 0.8 + pp * 0.2; }
+      else                               { skipChance = 0; widthMult = 1.0; fMult = 1.0; }
+      if (Math.random() < skipChance) return;
       const cy = Math.floor(h.CELLS_Y * (0.50 + Math.random() * 0.40));
-      const widthPct = 0.20 + Math.random() * 0.30 + ri * 0.40;  // più larghe
+      const widthPct = (0.20 + Math.random() * 0.30 + ri * 0.40) * widthMult;
       const width = Math.floor(h.CELLS_X * Math.min(widthPct, 0.95));
       const start = Math.floor(Math.random() * (h.CELLS_X - width));
-      const f = 0.06 * (1 + ri * 2);
+      const f = 0.06 * fMult * (1 + ri * 2);
       for (let cx = start; cx < start + width; cx++) {
-        if (Math.random() < 0.12 * (1 - ri)) continue;  // gap spariscono
+        if (Math.random() < 0.12 * (1 - ri)) continue;
         h.depositPoint(fields.chord, cx, cy, f);
       }
     },
   },
   // grana: drone GROSSO (banchi nebbia), chord GROSSO (lago), voice media (stelle)
   cellPx: {
-    drone: 20, voice: 10, lead: 7, chord: 16,
+    drone: 6, voice: 10, lead: 7, chord: 16,
   },
   // NEBBIA: NESSUNA solidificazione — il vuoto è il punto.
   // Layer A (silence) cristallizzava il drone tra un'emissione e l'altra.
@@ -370,6 +408,14 @@ const NEBBIA = {
     roleEnabled: false,    // Layer A off — il silenzio non conserva
     spatial: false,         // Layer C off — nessuna sedimentazione spaziale
     densityThreshold: 0.9,  // Layer B: solo materia quasi satura si congela
+  },
+
+  // glifi nebbia: punti e silenzi — la nebbia sussurra
+  glyphs: {
+    roles: ['voice', 'lead'],
+    chars: '∙·○',
+    threshold: 0.30,
+    opacity: 0.75,
   },
 };
 
@@ -383,7 +429,7 @@ const TESSUTO = {
   bg: [6, 4, 10],                   // nero violaceo profondo — spazio per le fibre
   colors: {
     drone:      [45,  30,  50],    // aubergine scuro — il telaio
-    bass:       [110,  70, 130],   // prugna — profondità
+    bass:       [140,  55, 120],   // magenta scuro — distinto dal drone aubergine
     chord:      [205, 215,  30],   // chartreuse — protagonista (invariato)
     kick:       [240, 230, 210],   // cream caldo
     percussion: [150, 130, 115],   // grigio caldo
@@ -406,6 +452,15 @@ const TESSUTO = {
     kick: 0.80,    percussion: 0.35,
     arp: 0,        voice: 0,    lead: 0.50,
   },
+  // phaseColors: il tessuto si scalda e si tinge — da freddo a incandescente
+  phaseColors: {
+    germoglio:    { chord: [180, 195,  25] },  // chartreuse tenue — le fibre germinano
+    pulsazione:   { chord: [210, 220,  40] },  // chartreuse pieno — le fibre pulsano
+    densita:      { chord: [230, 235,  60], lead: [255, 200, 140] },  // si scalda tutto
+    rottura:      { chord: [255, 240,  80], lead: [255, 170, 100] },  // incandescente
+    dissoluzione: { chord: [140, 150,  20], lead: [180, 150, 110] },  // le fibre si spengono
+  },
+
   depositFn: {
     // ── FASCE VERTICALI DEDICATE ──
     // lead:  Y 0.03–0.22  (spazio aereo, in alto)
@@ -525,6 +580,14 @@ const TESSUTO = {
       }
     },
   },
+
+  // glifi tessuto: trame e orditi — le fibre parlano
+  glyphs: {
+    roles: ['lead', 'kick'],
+    chars: '—|+×:',
+    threshold: 0.35,
+    opacity: 0.80,
+  },
 };
 
 // ══════════════════════════════════════════════════════════════
@@ -535,9 +598,9 @@ const TESSUTO = {
 //  Immagine: bolla di sapone vista dall'interno.
 // ══════════════════════════════════════════════════════════════
 const RESPIRO = {
-  bg: [6, 12, 10],                    // nero verde — il soffitto si alza
+  bg: [4, 4, 12],                     // nero blu profondo — vuoto freddo
   colors: {
-    drone:      [70, 130, 100],      // sage SCURO — membrana nasce tenue
+    drone:      [90, 105, 155],      // lavanda scura — più contrasto col nero, meno tovaglia
     bass:       [0,   0,   0],       // scrive su drone (pori)
     chord:      [0,   0,   0],       // scrive su drone (increspature)
     kick:       [0,   0,   0],       // assente
@@ -558,17 +621,19 @@ const RESPIRO = {
     voice: 1,  lead: 1,   // token — depositFn gestisce i valori reali
   },
 
-  // Colori che evolvono: membrana nasce tenue, si illumina al climax, si spegne
+  // Colori che evolvono: membrana nasce tenue, si illumina al picco, si spegne
   phaseColors: {
-    germoglio:    { drone: [70, 130, 100] },   // base scura (= colors.drone)
-    crescita:     { drone: [110, 185, 140] },  // sage pieno — si illumina
-    climax:       { drone: [120, 200, 155] },  // massima luminosità
-    dissoluzione: { drone: [40,  70,  55] },   // si spegne — quasi invisibile
+    germoglio:    { drone: [90,  105, 155] },  // base lavanda scura (= colors.drone)
+    pulsazione:   { drone: [120, 135, 185] },  // più luminosa — membrana viva
+    densita:      { drone: [145, 160, 210] },  // massima luminosità
+    rottura:      { drone: [100, 115, 165] },  // la frattura incrina — luce cala
+    dissoluzione: { drone: [50,   55,  80] },  // si spegne — grigio blu tenue
   },
 
   // Tensione superficiale phase-aware + variabile nello spazio
   // germoglio: membrana sottile con buchi — target basso
-  // crescita/climax: membrana piena
+  // pulsazione/densita: membrana piena
+  // rottura: i pori si aprono — la membrana cede
   // dissoluzione: buchi restano aperti, la membrana si dissolve
   // RUPTURE: il self-heal rallenta → i pori restano aperti
   audioReact(fields, energy, h) {
@@ -578,19 +643,30 @@ const RESPIRO = {
 
     // target base per fase — la membrana non è mai uniformemente piena
     let baseTarget;
-    if (phase === 'germoglio')         baseTarget = 0.35 + pp * 0.30;  // 0.35→0.65
-    else if (phase === 'crescita')     baseTarget = 0.65 + pp * 0.15;  // 0.65→0.80
-    else if (phase === 'climax')       baseTarget = 0.80;               // piena
-    else /* dissoluzione */            baseTarget = 0.80 - pp * 0.60;  // 0.80→0.20
+    if (phase === 'germoglio')         baseTarget = 0.25 + pp * 0.25;  // 0.25→0.50
+    else if (phase === 'pulsazione')   baseTarget = 0.50 + pp * 0.15;  // 0.50→0.65
+    else if (phase === 'densita')      baseTarget = 0.65;               // piena ma non uniforme
+    else if (phase === 'rottura')      baseTarget = 0.65 - pp * 0.30;  // 0.65→0.35 — la frattura apre pori
+    else /* dissoluzione */            baseTarget = 0.35 - pp * 0.20;  // 0.35→0.15
 
     const heal = (0.004 + energy * 0.003) * (1 - ri * 0.85);
     const n = h.CELLS_X * h.CELLS_Y;
+    // tempo lento per drift organico (~0.3 rad/s a 60fps)
+    const t = (h.frameCount || 0) * 0.005;
     for (let i = 0; i < n; i++) {
       const cx = i % h.CELLS_X;
       const cy = (i / h.CELLS_X) | 0;
       const xN = cx / h.CELLS_X, yN = cy / h.CELLS_Y;
-      // variazione spaziale: ±0.06 — zone sottili e zone dense
-      const target = baseTarget + Math.sin(xN * 7.3) * 0.04 + Math.sin(yN * 5.7) * 0.04;
+      // variazione organica: 4 ottave con frequenze irrazionali + drift temporale
+      // ampiezza ±0.15 — zone sottili e zone dense ben visibili
+      const spatial =
+          Math.sin(xN * 4.7 + t * 0.3) * 0.12          // onda larga H — più contrasto
+        + Math.sin(yN * 3.3 + t * 0.2) * 0.10          // onda larga V
+        + Math.sin(xN * 11.1 + yN * 7.9 + t) * 0.06    // diagonale media
+        + Math.sin(xN * 19.3 - yN * 13.7 - t * 0.7) * 0.04; // grana fine
+      // audio modula l'ampiezza: più energia = più contrasto nella membrana
+      const amp = 1 + energy * 0.5;
+      const target = Math.max(0, Math.min(1, baseTarget + spatial * amp));
       if (fields.drone[i] < target) {
         fields.drone[i] += heal;
         if (fields.drone[i] > target) fields.drone[i] = target;
@@ -689,6 +765,14 @@ const RESPIRO = {
   // RESPIRO: membrana elastica, solo altissime si solidificano
   freeze: {
     densityThreshold: 0.9,
+  },
+
+  // glifi respiro: bolle e cerchi — i pori della membrana hanno una voce
+  glyphs: {
+    roles: ['voice', 'lead'],
+    chars: '○◦∘·',
+    threshold: 0.40,
+    opacity: 0.75,
   },
 };
 
@@ -901,6 +985,15 @@ const MACCHINA = {
   freeze: {
     spatial: false,
   },
+
+  // glifi macchina: codice binario e circuiti — il terminale parla
+  glyphs: {
+    roles: ['arp', 'voice', 'lead', 'kick'],
+    chars: '01▸▪□×',
+    threshold: 0.35,
+    opacity: 0.90,
+    color: [0, 230, 160],   // ciano — contrasta col navy/giallo
+  },
 };
 
 // ══════════════════════════════════════════════════════════════
@@ -923,12 +1016,12 @@ const TEMPESTA = {
   bg: [0, 0, 0],                    // nero puro (invariato)
   colors: {
     drone:      [28,  20,  55],    // viola profondo — la b2 come colore
-    bass:       [255, 255, 255],   // bianco puro (invariato)
+    bass:       [220, 230, 255],   // bianco azzurro — sub freddo (≠ kick puro)
     chord:      [115,  90, 170],   // viola medio — tensione phrygian
-    kick:       [255, 255, 255],   // bianco flash (invariato)
+    kick:       [255, 255, 255],   // bianco puro flash
     percussion: [255,  45,  65],   // rosso fuoco
     arp:        [70,   55, 110],   // viola scuro — texture caotica
-    voice:      [255, 255, 255],   // bianco hocket 1 (invariato)
+    voice:      [255, 220, 180],   // ambra chiara — hocket 1 caldo (≠ kick bianco)
     lead:       [215,   0,  30],   // carmine puro hocket 2 (invariato)
   },
   // Density cap — evita il muro grigio: bass/chord/arp capped, voice/lead liberi
@@ -951,6 +1044,15 @@ const TEMPESTA = {
     drone: 0.006,  bass: 0.35,  chord: 0.18,   // DIMEZZATI — non devono dominare
     kick: 0.95,    percussion: 0.75,
     arp: 0.25,     voice: 1.00,  lead: 0.95,   // RADDOPPIATI — protagonisti assoluti
+  },
+
+  // phaseColors: l'aurora cresce dal viola profondo al bianco infuocato
+  phaseColors: {
+    germoglio:    { drone: [35, 25, 70] },   // viola più profondo — il buio prima della tempesta
+    pulsazione:   { drone: [40, 30, 80], chord: [130, 100, 190] },  // il viola si accende
+    densita:      { chord: [145, 110, 200], voice: [255, 240, 200] },  // picco luminoso
+    rottura:      { percussion: [255, 80, 40], voice: [255, 255, 220] },  // rosso→arancio, voice incandescente
+    dissoluzione: { drone: [20, 15, 35], chord: [60, 45, 90] },  // il buio ritorna
   },
 
   // IMPULSI DIREZIONALI + EROSIONE — crea vuoti temporanei che i filamenti riempiono
@@ -1172,6 +1274,14 @@ const TEMPESTA = {
   freeze: {
     roleEnabled: false,
   },
+
+  // glifi tempesta: furia e vento — l'aurora ha frecce e lampi
+  glyphs: {
+    roles: ['voice', 'lead', 'kick'],
+    chars: '▲▼▸◆!',
+    threshold: 0.35,
+    opacity: 0.85,
+  },
 };
 
 // ══════════════════════════════════════════════════════════════
@@ -1181,7 +1291,7 @@ const TEMPESTA = {
 //  Il sedimento di tutti i biomi precedenti è visibile come geologia.
 //  Le note di RITORNO = scintille 2px sparse sulla superficie.
 //  Voice esposta, arp morente, dissoluzione 48 bar → il pianeta si spegne.
-//  Immagine: Pale Blue Dot. Lavanda e crema su nero.
+//  Immagine: Pale Blue Dot. Bianco e rosso corallo su nero.
 //
 //  planetMask: true → campo.js renderizza dentro maschera circolare
 //  irregolare (contorni noise). Raggio guidato da fase:
@@ -1191,14 +1301,25 @@ const RITORNO = {
   bg: [0, 0, 0],                    // nero PURO — lo spazio intorno al pianeta
   planetMask: true,                 // flag per campo.js: applica maschera circolare
   colors: {
-    drone:      [40,  32,  55],    // viola-blu — sedimento di 55 minuti
-    bass:       [125, 105,  80],   // ambra spenta — eco SOLCO esaurita
-    chord:      [135, 125, 160],   // lavanda sbiadita
-    kick:       [170, 162, 150],   // cream stanco
-    percussion: [130, 120, 110],   // appena percettibile
-    arp:        [95,  100, 135],   // blu morente
-    voice:      [245, 215, 170],   // oro tenue — l'ultimo suono, nudo
-    lead:       [170, 158, 210],   // lavanda fredda — eco distante
+    drone:      [200, 200, 205],   // bianco freddo — sedimento pallido
+    bass:       [220, 70, 60],     // rosso corallo — unico accento
+    chord:      [230, 230, 235],   // bianco appena azzurrato
+    kick:       [250, 248, 245],   // bianco caldo
+    percussion: [180, 178, 175],   // grigio chiaro
+    arp:        [210, 208, 212],   // grigio perla
+    voice:      [255, 252, 250],   // bianco puro — protagonista
+    lead:       [235, 80, 70],     // rosso corallo chiaro — eco del bass
+  },
+  // Colori che sbiadiscono: bianco → grigio, corallo → cenere
+  phaseColors: {
+    pulsazione:   { drone: [160, 158, 162], bass: [190, 60, 50], chord: [190, 188, 192],
+                    voice: [245, 242, 240], lead: [200, 68, 58] },
+    densita:      { drone: [120, 118, 122], bass: [160, 50, 42], chord: [155, 152, 158],
+                    voice: [230, 225, 222], lead: [170, 55, 48] },
+    rottura:      { drone: [80, 78, 82], bass: [120, 40, 35], chord: [110, 108, 112],
+                    voice: [200, 195, 190], lead: [130, 42, 38] },
+    dissoluzione: { drone: [45, 44, 46], bass: [70, 25, 22], chord: [60, 58, 62],
+                    kick: [80, 78, 76], voice: [130, 125, 120], lead: [75, 28, 25] },
   },
   decay: {
     drone:      0.998,
@@ -1211,9 +1332,9 @@ const RITORNO = {
     lead:       0.990,
   },
   force: {
-    drone: 0.005,  bass: 0.40,  chord: 0.30,
-    kick: 0.50,    percussion: 0.30,
-    arp: 0.15,     voice: 0.50,  lead: 0.30,
+    drone: 0.008,  bass: 0.50,  chord: 0.40,
+    kick: 0.60,    percussion: 0.35,
+    arp: 0.20,     voice: 0.65,  lead: 0.40,
   },
   depositFn: {
     // Voice: scintille VARIABILI — 60% punti singoli (stelle), 30% costellazioni (3-5 punti),
@@ -1387,6 +1508,59 @@ const RITORNO = {
   freeze: {
     globalFactor: 0.5,
   },
+
+  // glifi ritorno: stelle e ricordi — la memoria ha una scrittura
+  glyphs: {
+    roles: ['voice', 'lead'],
+    chars: '∙·*○∞',
+    threshold: 0.30,
+    opacity: 0.75,
+  },
+};
+
+// ── ENCORE ── 8° bioma — RGB puri, optical, densità massima
+const ENCORE = {
+  bg: [0, 0, 0],
+  colors: {
+    drone:      [40,  40,  40],
+    bass:       [255, 255,   0],
+    chord:      [255,   0, 255],
+    kick:       [255, 255, 255],
+    percussion: [0,   255, 255],
+    arp:        [0,   255,   0],
+    voice:      [0,   100, 255],
+    lead:       [0,     0,   0],
+  },
+  decay: {
+    drone: 0.9999, bass: 0.997, chord: 0.998,
+    kick: 0.700, percussion: 0.750,
+    arp: 0.985, voice: 0.995, lead: 1.000,
+  },
+  force: {
+    drone: 0.01, bass: 0.90, chord: 0.80,
+    kick: 1.00, percussion: 0.85,
+    arp: 0.80, voice: 0.85, lead: 0,
+  },
+  maxDensity: {
+    drone: 0.95, bass: 0.95, chord: 0.95,
+    kick: 0.95, percussion: 0.95,
+    arp: 0.95, voice: 0.95, lead: 0,
+  },
+  cellPx: {
+    drone: 4, bass: 4, chord: 4,
+    kick: 4, percussion: 4,
+    arp: 4, voice: 4, lead: 4,
+  },
+  agingInverted: true,
+  shimmerScale: 2.0,
+  glyphs: {
+    roles: ['kick', 'bass', 'chord', 'arp', 'voice', 'percussion'],
+    chars: '█▓▒░■□●○◆◇▲▼',
+    threshold: 0.20,
+    opacity: 0.7,
+  },
+  planetMask: false,
+  depositFn: {},
 };
 
 export const BIOMI = {
@@ -1398,6 +1572,7 @@ export const BIOMI = {
   MACCHINA,
   TEMPESTA,
   RITORNO,
+  ENCORE,
 };
 
 // V3.9: palette unificata — PALETTE_B/A rimossa, colori consolidati inline
