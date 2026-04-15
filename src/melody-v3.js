@@ -122,6 +122,16 @@ let _leadRestUntilBar = 0;
 let _voiceLoopCounter = 0;
 let _leadLoopCounter  = 0;
 
+// ── V3.11: Arp direction system — rompe la ciclicità ascendente ──
+const ARP_DIRECTIONS = ['up', 'down', 'pendulum', 'random'];
+let _arpDirection = 'up';
+let _arpPendulumUp = true;
+let _arpDirLastBar = -1;
+
+// ── V3.11: Voice/lead contour — arco dinamico variabile per frase ──
+let _voiceContour = 'arch';
+let _leadContour  = 'arch';
+
 export function initMelody() {
   _step = 0;
   _bar = 0;
@@ -142,7 +152,12 @@ export function initMelody() {
   _leadRestUntilBar = 0;
   _voiceLoopCounter = 0;
   _leadLoopCounter = 0;
-  console.log('[MELODY-V3] Initialized (Olafur call-response + prime-length loops)');
+  _arpDirection = 'up';
+  _arpPendulumUp = true;
+  _arpDirLastBar = -1;
+  _voiceContour = 'arch';
+  _leadContour = 'arch';
+  console.log('[MELODY-V3] Initialized (Olafur call-response + prime-length loops + arp variation)');
 }
 
 export function updateMelody(dt) {
@@ -392,6 +407,55 @@ function _scheduleCallResponse(voiceNote, voiceVel, scale, leadLo, leadHi, velCe
   _pendingLeadDelay = dMin + Math.random() * (dMax - dMin);
 }
 
+// ── V3.11: contorno dinamico per arco velocity frasale ──
+// arch = sin (sale e scende), question = sale, answer = scende, peak = salita rapida + discesa lenta
+function _contourArc(phrasePos, contour) {
+  switch (contour) {
+    case 'question': return 0.3 + phrasePos * 0.7;            // cresce: p → f
+    case 'answer':   return 1.0 - phrasePos * 0.7;            // cala: f → p
+    case 'peak':     return phrasePos < 0.3                    // picco rapido, coda lunga
+      ? phrasePos / 0.3
+      : 1.0 - (phrasePos - 0.3) / 0.7 * 0.6;
+    default:         return Math.sin(phrasePos * Math.PI);     // arch (originale)
+  }
+}
+
+// ── V3.11: scelta contorno pesata — pick da array [['arch',3],['question',2]] ──
+function _pickContour(weights) {
+  if (!weights || weights.length === 0) return 'arch';
+  let total = 0;
+  for (const [, w] of weights) total += w;
+  let roll = Math.random() * total;
+  for (const [name, w] of weights) {
+    roll -= w;
+    if (roll <= 0) return name;
+  }
+  return weights[0][0];
+}
+
+// ── V3.11: avanza indice arp in base alla direzione corrente ──
+function _advanceArpIdx(patLen) {
+  switch (_arpDirection) {
+    case 'down':
+      _arpIdx = (_arpIdx - 1 + patLen) % patLen;
+      break;
+    case 'pendulum':
+      if (_arpPendulumUp) {
+        if (_arpIdx >= patLen - 1) { _arpPendulumUp = false; _arpIdx--; }
+        else _arpIdx++;
+      } else {
+        if (_arpIdx <= 0) { _arpPendulumUp = true; _arpIdx++; }
+        else _arpIdx--;
+      }
+      break;
+    case 'random':
+      _arpIdx = Math.floor(Math.random() * patLen);
+      break;
+    default: // 'up'
+      _arpIdx = (_arpIdx + 1) % patLen;
+  }
+}
+
 // ═══════════════════════════════════════════════════════════
 //  Tick — same flow as v1, but call-response uses off-grid delay
 // ═══════════════════════════════════════════════════════════
@@ -427,6 +491,28 @@ function _tick() {
   }
   const voiceEnabled = voiceEveryBars > 0 && voiceLo > 0 && voiceHi > 0;
 
+  // ── ENCORE VOICE: 26-step cycle (13/16) ──
+  if (worldState.encoreMode && track.encoreVoicePattern) {
+    const voiceCycle = worldState.encoreCycleLens.voice;  // 26
+    const voiceStep = worldState.globalTick % voiceCycle;
+    if (track.encoreVoicePattern[voiceStep] === 1 && density > 0.1) {
+      const pool = scale.filter(n => n >= voiceLo && n <= voiceHi);
+      if (pool.length > 0) {
+        // Weight toward chord tones
+        const chordTones = pool.filter(n =>
+          worldState.currentChord && worldState.currentChord.some(c => (n - c) % 12 === 0)
+        );
+        const notePool = chordTones.length >= 2 ? chordTones : pool;
+        const note = notePool[Math.floor(Math.random() * notePool.length)];
+        const rawVel = 45 + density * 35 + (Math.random() * 10 - 5);
+        const vel = Math.min(Math.round(rawVel), velCeil);
+        const stepMs2 = (60 / (worldState.bpm || 132) / 4) * 1000;
+        const dur = Math.round(stepMs2 * 6);
+        sendMIDINote(CH_VOICE, note, vel, dur);
+        addMidiNote(CH_VOICE, note / 127, vel / 127);
+      }
+    }
+  } else
   if (voiceEnabled) {
     const voiceRate = VOICE_RATE[phase] ?? VOICE_RATE_DEFAULT;
     const voiceLoopN = VOICE_LOOP_STEPS[phase] ?? VOICE_LOOP_DEFAULT;
@@ -467,6 +553,8 @@ function _tick() {
           _phraseNotes = _generatePhrase(scale, voiceLo, voiceHi, Math.max(1, len), vStyle);
           _phraseIdx = 0;
           _phraseRepeat = 0;
+          // V3.11: scegli contorno per questa frase
+          _voiceContour = _pickContour(strat.voiceContours);
         }
       }
 
@@ -474,7 +562,7 @@ function _tick() {
         const note = _phraseNotes[_phraseIdx];
 
         const phrasePos = _phraseNotes.length > 1 ? _phraseIdx / (_phraseNotes.length - 1) : 0.5;
-        const arc = Math.sin(phrasePos * Math.PI);
+        const arc = _contourArc(phrasePos, _voiceContour);
         _phraseIdx++;
 
         const rawVel = VOICE_VEL_BASE + density * VOICE_VEL_RANGE * (0.6 + 0.4 * arc);
@@ -553,6 +641,8 @@ function _tick() {
       _leadPhraseNotes = _generatePhraseChordAware(scale, leadLo, leadHi, len, lStyle, worldState.currentChord);
       _leadPhraseIdx = 0;
       _leadPhraseRepeat = 0;
+      // V3.11: contorno lead indipendente
+      _leadContour = _pickContour(strat.leadContours);
     } else if (!leadResting && _leadPhraseIdx >= _leadPhraseNotes.length && _leadPhraseRepeat < MAX_PHRASE_REPEATS && _leadPhraseNotes.length > 0) {
       _leadPhraseIdx = 0;
       _leadPhraseRepeat++;
@@ -561,9 +651,9 @@ function _tick() {
     if (_leadPhraseIdx < _leadPhraseNotes.length && leadLoopFires) {
       const note = _leadPhraseNotes[_leadPhraseIdx];
 
-      // Velocity arc — sin curve over phrase (pp→ff→pp), same as voice
+      // V3.11: arco dinamico con contorno variabile (non più solo sin)
       const phrasePos = _leadPhraseNotes.length > 1 ? _leadPhraseIdx / (_leadPhraseNotes.length - 1) : 0.5;
-      const arc = Math.sin(phrasePos * Math.PI);
+      const arc = _contourArc(phrasePos, _leadContour);
       _leadPhraseIdx++;
 
       const rawVel = VOICE_VEL_BASE + density * VOICE_VEL_RANGE * (0.55 + 0.45 * arc);
@@ -588,27 +678,82 @@ function _tick() {
     _arpIdx = 0;
   }
 
+  // V3.11: cambio direzione arp ogni N bar (default 4)
+  const arpVar = strat.arpVariation;
+  if (arpVar && _step === 0) {
+    const dirEvery = arpVar.dirChangeEvery || 4;
+    if (_bar % dirEvery === 0 && _bar !== _arpDirLastBar) {
+      _arpDirLastBar = _bar;
+      const dirs = arpVar.directions || ARP_DIRECTIONS;
+      // Evita la stessa direzione due volte di fila
+      let pick;
+      do { pick = dirs[Math.floor(Math.random() * dirs.length)]; }
+      while (pick === _arpDirection && dirs.length > 1);
+      _arpDirection = pick;
+      _arpPendulumUp = true;
+    }
+  }
+
+  // ── ENCORE ARP: 22-step cycle (11/16) ──
+  if (worldState.encoreMode && track.encoreArpPattern) {
+    const arpCycle = worldState.encoreCycleLens.arp;  // 22
+    const arpStep = worldState.globalTick % arpCycle;
+    if (track.encoreArpPattern[arpStep] === 1 && density >= 0.15) {
+      const pool = scale.filter(n => n >= arpLo && n <= arpHi);
+      if (pool.length > 0) {
+        // Ascending sequence on the scale
+        const arpNote = pool[worldState.globalTick % pool.length];
+        const arpVelMul = strat.arpVelScale ?? 0.7;
+        const accentMul = (arpStep % 5 === 0) ? 1.15 : 0.9;
+        const rawVel = (50 + density * 40) * arpVelMul * accentMul;
+        const arpVel = Math.min(Math.max(Math.round(rawVel), 1), velCeil);
+        const stepMs2 = (60 / (worldState.bpm || 132) / 4) * 1000;
+        const arpDur = Math.round(stepMs2 * 2);
+        sendMIDINote(CH_ARP, arpNote, arpVel, arpDur);
+        addMidiNote(CH_ARP, arpNote / 127, arpVel / 127);
+      }
+    }
+  } else {
   const arpInGermoglio = arpRole === 'protagonist';
   if ((arpInGermoglio || !isGermoglio) && density >= ARP_MIN_DENSITY && _arpPattern.length > 0) {
     const arpRate = (track && track.arpRate) || 8;
     const arpStepInterval = Math.max(1, Math.round(16 / arpRate));
 
     if (_step % arpStepInterval === 0) {
-      const arpNote = _arpPattern[_arpIdx % _arpPattern.length];
-      _arpIdx = (_arpIdx + 1) % _arpPattern.length;
+      // V3.11: rest probabilistico — il groove respira
+      const restProb = arpVar?.restProb ?? 0;
+      if (restProb > 0 && Math.random() < restProb) {
+        _advanceArpIdx(_arpPattern.length);
+        // silenzio: avanziamo l'indice ma non suoniamo
+      } else {
+        let arpNote = _arpPattern[_arpIdx % _arpPattern.length];
+        _advanceArpIdx(_arpPattern.length);
 
-      const arpVelMul = strat.arpVelScale ?? 0.7;
-      const duckMul = _leadDuckCounter > 0 ? ARP_DUCK_FACTOR : 1.0;
-      const accentMul = (_step % 4 === 0) ? 1.15 : 0.9;
-      const rawArpVel = (ARP_VEL_BASE + density * ARP_VEL_RANGE) * arpVelMul * duckMul * accentMul;
-      const arpHumanize = Math.round((Math.random() * ARP_HUMANIZE * 2) - ARP_HUMANIZE);
-      const arpVel = Math.min(Math.max(Math.round(rawArpVel + arpHumanize), 1), velCeil);
-      const arpDur = Math.round(stepMs * arpStepInterval * ARP_DUR_RATIO);
+        // V3.11: nota di passaggio — scala invece di accordo, velocity bassa
+        const passProb = arpVar?.passingProb ?? 0;
+        if (passProb > 0 && Math.random() < passProb) {
+          // Nota di scala vicina alla nota corrente (±1-2 gradi), non dell'accordo
+          const offset = (Math.random() < 0.5 ? 1 : -1) * (Math.random() < 0.7 ? 1 : 2);
+          const candidate = _snapToScale(arpNote + offset, scale);
+          if (candidate >= arpLo && candidate <= arpHi) arpNote = candidate;
+        }
 
-      sendMIDINote(CH_ARP, arpNote, arpVel, arpDur);
-      addMidiNote(CH_ARP, arpNote / 127, arpVel / 127);
+        const arpVelMul = strat.arpVelScale ?? 0.7;
+        const duckMul = _leadDuckCounter > 0 ? ARP_DUCK_FACTOR : 1.0;
+        const accentMul = (_step % 4 === 0) ? 1.15 : 0.9;
+        // V3.11: nota di passaggio suona più piano
+        const passingMul = (arpNote !== _arpPattern[(_arpIdx + _arpPattern.length - 1) % _arpPattern.length]) ? 1.0 : 1.0;
+        const rawArpVel = (ARP_VEL_BASE + density * ARP_VEL_RANGE) * arpVelMul * duckMul * accentMul;
+        const arpHumanize = Math.round((Math.random() * ARP_HUMANIZE * 2) - ARP_HUMANIZE);
+        const arpVel = Math.min(Math.max(Math.round(rawArpVel + arpHumanize), 1), velCeil);
+        const arpDur = Math.round(stepMs * arpStepInterval * ARP_DUR_RATIO);
+
+        sendMIDINote(CH_ARP, arpNote, arpVel, arpDur);
+        addMidiNote(CH_ARP, arpNote / 127, arpVel / 127);
+      }
     }
   }
+  } // end else (non-encore arp)
 
   // V3: advance prime-length loop counters at the end of every step
   // (always — never gated by phase, density, or rest. They drift forever.)
