@@ -62,15 +62,23 @@ let _step = 0;        // mirror of worldState.globalStep, used by _tick()
 let _stepAcc = 0;     // accumulator for step timing (master)
 let _bar = 0;         // mirror of worldState.globalBar
 
-export function initRhythm() {
+export function initRhythm(seamless = false) {
   _step = 0;
-  _stepAcc = 0;
+  if (seamless) {
+    // DJ crossfade: nessun grace, il kick deve partire al primo frame
+    _stepAcc = 0;
+  } else {
+    // Mezzo step di grazia: previene blip ritmico al cambio traccia.
+    // Senza questo, il primo dt dopo il reset supera subito stepDur=0 e spara un colpo extra.
+    const graceBpm = worldState.bpm || 60;
+    _stepAcc = (60 / graceBpm / 4) * 0.5;
+  }
   _bar = 0;
   // Reset master clock — sentinels so first advance lands on tick=0/step=0/bar=0
   worldState.globalStep = -1;
   worldState.globalBar  = 0;
   worldState.globalTick = -1;
-  console.log('[RHYTHM] Initialized (master clock reset)');
+  console.log(`[RHYTHM] Initialized (master clock reset${seamless ? ', seamless' : ''})`);
 }
 
 export function updateRhythm(dt) {
@@ -122,15 +130,26 @@ function _tick() {
     }
   }
 
-  // ── CH1 HAT ── (use per-track pattern if defined, else default)
-  const customHat = trackDef.hatPatterns && trackDef.hatPatterns[phase];
-  const hatPat = customHat || HAT_PATTERNS[phase] || HAT_PATTERNS.germoglio;
-  const hasHat = hatPat[_step] === 1;
+  // ── CH1 HAT ──
+  let hatStep, hatPat;
+  if (worldState.encoreMode && trackDef.encoreHatPattern) {
+    const hatCycle = worldState.encoreCycleLens.hat;  // 10
+    hatStep = worldState.globalTick % hatCycle;
+    hatPat = trackDef.encoreHatPattern;
+  } else {
+    hatStep = _step;
+    const customHat = trackDef.hatPatterns && trackDef.hatPatterns[phase];
+    hatPat = customHat || HAT_PATTERNS[phase] || HAT_PATTERNS.germoglio;
+  }
+  const hasHat = hatPat[hatStep] === 1;
   let hatSent   = false;
 
   if (hasHat) {
-    // Open hat on the "and" of beat 3 (step 12 mod 8 === 4) except in pulsazione
-    const useOpen = (_step % 8 === 4) && phase !== 'pulsazione';
+    // Open hat: per-track steps (TEMPESTA: offbeat dance) o default (and di beat 3)
+    const openHatSteps = trackDef.openHatSteps;
+    const useOpen = worldState.encoreMode
+      ? (trackDef.encoreOpenHatSteps || []).includes(hatStep)
+      : (openHatSteps ? openHatSteps.includes(_step) : ((_step % 8 === 4) && phase !== 'pulsazione'));
     const hatNote = useOpen ? HAT_OPEN : HAT_CLOSED;
     const rawVel  = 40 + density * 40 + (Math.random() * 12 - 6);  // ±6 humanize
     const vel     = Math.min(Math.round(rawVel), Math.round(ceiling * 0.7));
@@ -148,10 +167,15 @@ function _tick() {
     const stepMs = (60 / worldState.bpm / 4) * 1000;
     const snareSteps = trackSnare?.steps ?? SNARE_BASE_STEPS;
 
+    // Per-track snare stability: shift/skip/flam disabilitabili
+    const allowShift = trackSnare?.shift !== false;
+    const allowSkip  = trackSnare?.skip  !== false;
+    const allowFlam  = trackSnare?.flam  !== false;
+
     for (const baseStep of snareSteps) {
       // Determine actual step for this hit (may shift ±1)
       let actualStep = baseStep;
-      if (Math.random() < SNARE_SHIFT_PROB) {
+      if (allowShift && Math.random() < SNARE_SHIFT_PROB) {
         actualStep = baseStep + (Math.random() < 0.5 ? -1 : 1);
         if (actualStep < 0) actualStep = 0;
         if (actualStep > 15) actualStep = 15;
@@ -159,7 +183,7 @@ function _tick() {
 
       if (_step === actualStep) {
         // Skip this hit entirely sometimes
-        if (Math.random() < SNARE_SKIP_PROB) break;
+        if (allowSkip && Math.random() < SNARE_SKIP_PROB) break;
 
         const rawVel = 50 + density * 35 + (Math.random() * 10 - 5);
         const vel    = Math.min(Math.round(rawVel), ceiling);
@@ -168,12 +192,29 @@ function _tick() {
       }
 
       // Ghost flam: soft hit 1 step before the snare
-      if (_step === actualStep - 1 && Math.random() < SNARE_FLAM_PROB) {
+      if (allowFlam && _step === actualStep - 1 && Math.random() < SNARE_FLAM_PROB) {
         const flamVel = Math.round(22 + Math.random() * 10);
         sendMIDINote(CH_PERC, SNARE, flamVel, stepMs * 0.4);
         addMidiNote(CH_PERC, SNARE / 127, flamVel / 127);
       }
     }
+  }
+
+  // ── Conga pattern (per-track, TEMPESTA) ──
+  let congaStep, congaPat2;
+  if (worldState.encoreMode && trackDef.encoreCongaPattern) {
+    congaStep = worldState.globalTick % trackDef.encoreCongaPattern.length;
+    congaPat2 = trackDef.encoreCongaPattern;
+  } else {
+    congaStep = _step;
+    congaPat2 = trackDef.congaPattern && trackDef.congaPattern[phase];
+  }
+  if (congaPat2 && congaPat2[congaStep] === 1 && density > 0.3) {
+    const stepMs  = (60 / worldState.bpm / 4) * 1000;
+    const rawVel  = 35 + density * 30 + (Math.random() * 8 - 4);
+    const vel     = Math.min(Math.round(rawVel), Math.round(ceiling * 0.6));
+    sendMIDINote(CH_PERC, CONGA_LO, vel, stepMs * 0.7);
+    addMidiNote(CH_PERC, CONGA_LO / 127, vel / 127);
   }
 
   // ── V3 STRUCTURAL: Floor-kick offset (CH1 pad 41) + Burial timing scatter ──
@@ -182,7 +223,9 @@ function _tick() {
   // on upbeat ghost positions (step 7 = "and of 2", step 15 = "and of 4"),
   // only when main kick is silent there. Probability 30%, velocity 75% of ceiling.
   // Burial-style timing scatter: always late 15-45ms, pulsazione "slurred" fuori pocket.
-  if (CFG.MUSIC_STRUCTURAL && (phase === 'densita' || phase === 'rottura')) {
+  // Skip floor-kick scatter su biomi con griglia solida (TEMPESTA = picco dance)
+  const allowFloorScatter = worldState.track !== 'TEMPESTA';
+  if (allowFloorScatter && CFG.MUSIC_STRUCTURAL && (phase === 'densita' || phase === 'rottura')) {
     const isUpbeatGhost = (_step === 7 || _step === 15);
     if (isUpbeatGhost && !hasKick && Math.random() < 0.30) {
       const stepMs   = (60 / worldState.bpm / 4) * 1000;
