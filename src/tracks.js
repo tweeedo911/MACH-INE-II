@@ -675,20 +675,21 @@ export const TRACKS = {
   },
 
   ENCORE: {
-    scale: SCALES.octatonic_halfWhole,
-    modeHint: null,
+    scale: SCALES.octatonic_halfWhole,  // default, switched live via Q/W/R
+    modeHint: null,  // octatonic is symmetric — no modal characteristic
     root: 48,   // C3
     bpm: 132,
     kickNote: 36,  // C2
 
-    density: { rhythm: 0.8, harmony: 0.6, bass: 0.8, melody: 0.7, texture: 0.1 },
+    // Densities set dynamically by director3 canon engine per brick
+    density: { rhythm: 0.8, harmony: 0, bass: 0, melody: 0, texture: 0 },
 
     register: {
-      bass:   [36, 55],
-      melody: [67, 84],
-      lead:   [0, 0],
-      chords: [48, 72],
-      arp:    [60, 82],
+      bass:   [36, 55],   // C2–G3
+      melody: [67, 84],   // G4–C6 (voice)
+      lead:   [62, 81],   // D4–A5
+      chords: [48, 72],   // C3–C5
+      arp:    [60, 82],   // C4–Bb5
     },
     velocityCeiling: {
       rhythm:  120,
@@ -698,29 +699,21 @@ export const TRACKS = {
       texture: 40,
     },
 
+    // Rhythm: unchanged from v1 — polimetric kick/hat/snare
     rhythmGrid: [1,0,0,0, 1,0,0,0, 1,0,0,0, 1,0,0,0],
-    // Snare sincopato — step 3, 7, 11 (mai sul backbeat, mai prevedibile)
     snare: { enabled: true, steps: [3, 7, 11], shift: false, skip: false, flam: false },
-
     encoreHatPattern: [1,0,1,0,0, 1,0,1,0,0],
     encoreOpenHatSteps: [4, 8],
     encoreCongaPattern: [1,0,0,1,0,0,1],
 
-    bassPattern: [60,0,0,0, 0,0,48,0, 0,55,0,0],
-    bassPatternRelative: true,
-
-    encoreArpPattern: [1,0,1,0,0, 1,0,1,0,0, 1,0,1,0,0, 1,0,1,0,0, 1,0],
-    encoreVoicePattern: [1,0,0,0,0,0, 1,0,0,0,0,0, 1,0,0,0,0,0, 0,0,1,0,0,0, 0,0],
-
-    chords: null,
-    barsPerChord: { germoglio: 1, pulsazione: 1, densita: 1, rottura: 1, dissoluzione: 1 },
-
+    // No fixed bass/arp/voice/chord patterns — canon engine generates notes
+    // Phases mapped to escalation bricks (director3 manages internally)
     phases: {
-      germoglio:    8,
-      pulsazione:   56,
-      densita:      60,
-      rottura:      32,
-      dissoluzione: 56,
+      germoglio:    16,    // heartbeat
+      pulsazione:   68,    // bricks 1-2 (arp+bass)
+      densita:      60,    // bricks 3-5 (hat/snare+voice+lead)
+      rottura:      20,    // bricks 6-7 (chord+conga)
+      dissoluzione: 32,    // plateau (no dissoluzione — hard cut)
     },
 
     palette: { bg: '#000000', dot: '#FFFFFF', accent: '#FF0000' },
