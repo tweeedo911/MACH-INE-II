@@ -84,6 +84,7 @@ export const worldState = {
 
   // ── ENCORE mode ──
   encoreMode: false,       // true when ENCORE track is active
+  encoreBrick: -1,         // -1 = not in encore; 0=heartbeat, 1-6=bricks, 7=plateau, 8=teardown
   encoreScale: 'halfWhole', // 'halfWhole' | 'wholeHalf' | 'prometheus'
   // Per-module cycle lengths (in 16th-note steps). 16 = normal 4/4.
   // Only read when encoreMode is true; normal tracks always use 16.

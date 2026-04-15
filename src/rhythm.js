@@ -131,17 +131,22 @@ function _tick() {
   }
 
   // ── CH1 HAT ──
+  // ENCORE: hat enters at brick 2 (+hat)
   let hatStep, hatPat;
-  if (worldState.encoreMode && trackDef.encoreHatPattern) {
+  if (worldState.encoreMode && trackDef.encoreHatPattern && worldState.encoreBrick >= 2) {
     const hatCycle = worldState.encoreCycleLens.hat;  // 10
     hatStep = worldState.globalTick % hatCycle;
     hatPat = trackDef.encoreHatPattern;
-  } else {
+  } else if (!worldState.encoreMode) {
     hatStep = _step;
     const customHat = trackDef.hatPatterns && trackDef.hatPatterns[phase];
     hatPat = customHat || HAT_PATTERNS[phase] || HAT_PATTERNS.germoglio;
+  } else {
+    // ENCORE brick < 2: no hat yet
+    hatStep = 0;
+    hatPat = null;
   }
-  const hasHat = hatPat[hatStep] === 1;
+  const hasHat = hatPat && hatPat[hatStep] === 1;
   let hatSent   = false;
 
   if (hasHat) {
@@ -162,7 +167,10 @@ function _tick() {
   // ── CH1 SNARE — variable backbeat (V3.5: per-track config) ──
   const trackSnare = TRACKS[worldState.track]?.snare;
   const snareEnabled = trackSnare?.enabled !== undefined ? trackSnare.enabled : true;
-  const snarePhase = phase === 'densita' || phase === 'rottura';
+  // ENCORE: snare fires from brick 1 onward, bypassing phase check
+  const snarePhase = worldState.encoreMode
+    ? (worldState.encoreBrick >= 1)
+    : (phase === 'densita' || phase === 'rottura');
   if (snareEnabled && snarePhase && density > 0.5) {
     const stepMs = (60 / worldState.bpm / 4) * 1000;
     const snareSteps = trackSnare?.steps ?? SNARE_BASE_STEPS;
@@ -202,7 +210,8 @@ function _tick() {
 
   // ── Conga pattern (per-track, TEMPESTA) ──
   let congaStep, congaPat2;
-  if (worldState.encoreMode && trackDef.encoreCongaPattern) {
+  // ENCORE: conga enters at plateau (brick >= 7)
+  if (worldState.encoreMode && trackDef.encoreCongaPattern && worldState.encoreBrick >= 7) {
     congaStep = worldState.globalTick % trackDef.encoreCongaPattern.length;
     congaPat2 = trackDef.encoreCongaPattern;
   } else {

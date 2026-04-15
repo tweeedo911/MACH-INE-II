@@ -91,8 +91,8 @@ function _tick() {
   // ── ENCORE: chord cycles every chordCycle steps, octatonic progressions ──
   if (worldState.encoreMode) {
     const encoreChords = ENCORE_CHORDS[worldState.encoreScale] || ENCORE_CHORDS.halfWhole;
-    // Chord changes every cycle (step 0 of the 14-step cycle)
-    if (_step === 0 && _bar !== _lastChordBar) {
+    // Chord enters at brick 4 (+chord)
+    if (worldState.encoreBrick >= 4 && _step === 0 && _bar !== _lastChordBar) {
       _lastChordBar = _bar;
       _chordIdx = (_chordIdx + 1) % encoreChords.length;
       const chord = encoreChords[_chordIdx];
@@ -106,8 +106,9 @@ function _tick() {
         }
       }
     }
-    // Drone: hold root, no pitch drift
-    if (_step === 0 && _bar % 4 === 0 && _bar !== _lastDroneBar && density >= 0.08) {
+    // Drone: hold root, no pitch drift. Low gate in encore (drone enters early)
+    const droneGate = worldState.encoreBrick >= 0 ? 0.02 : 0.08;
+    if (_step === 0 && _bar % 4 === 0 && _bar !== _lastDroneBar && density >= droneGate) {
       _lastDroneBar = _bar;
       const droneVel = Math.min(Math.round(25 + density * 20), velCeil);
       sendMIDINote(CH_DRONE, root, droneVel, Math.round(beatMs * 15));

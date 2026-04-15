@@ -89,10 +89,10 @@ let _encoreBrickBar = 0;    // bars elapsed in current brick
 
 // Each brick: name, duration in bars, module densities to set
 const ENCORE_BRICKS = [
-  { name: 'heartbeat', bars: 8, mods: { rhythm: 0.8, harmony: 0, bass: 0, melody: 0, texture: 0 } },
-  { name: 'kick+snare', bars: 32, mods: { rhythm: 0.8, harmony: 0, bass: 0, melody: 0, texture: 0.1 } },
-  { name: '+hat', bars: 24, mods: { rhythm: 0.9, harmony: 0, bass: 0, melody: 0, texture: 0.1 } },
-  { name: '+bass', bars: 24, mods: { rhythm: 0.9, harmony: 0, bass: 0.8, melody: 0, texture: 0.1 } },
+  { name: 'heartbeat', bars: 8, mods: { rhythm: 0.8, harmony: 0.05, bass: 0, melody: 0, texture: 0 } },
+  { name: 'kick+snare', bars: 32, mods: { rhythm: 0.8, harmony: 0.05, bass: 0, melody: 0, texture: 0.1 } },
+  { name: '+hat', bars: 24, mods: { rhythm: 0.9, harmony: 0.05, bass: 0, melody: 0, texture: 0.1 } },
+  { name: '+bass', bars: 24, mods: { rhythm: 0.9, harmony: 0.05, bass: 0.8, melody: 0, texture: 0.1 } },
   { name: '+chord', bars: 20, mods: { rhythm: 0.9, harmony: 0.6, bass: 0.8, melody: 0, texture: 0.1 } },
   { name: '+arp', bars: 16, mods: { rhythm: 0.9, harmony: 0.6, bass: 0.8, melody: 0.5, texture: 0.1 } },
   { name: '+voice', bars: 16, mods: { rhythm: 1.0, harmony: 0.7, bass: 0.9, melody: 0.8, texture: 0.15 } },
@@ -922,6 +922,7 @@ export function launchEncore() {
   _encoreActive = true;
   _encoreBrick = 0;
   _encoreBrickBar = 0;
+  worldState.encoreBrick = 0;
 
   // Load ENCORE track via normal init
   initDirector3('ENCORE');
@@ -970,17 +971,20 @@ function _updateEncore(dt) {
     barAdvanced = true;
   }
 
+  // ── Heartbeat: exponential BPM ramp (every frame, not just bar boundaries) ──
+  if (_encoreBrick === 0) {
+    const brick0 = ENCORE_BRICKS[0];
+    // Use phaseTime for smooth interpolation (not bar count which is discrete)
+    const totalHeartbeatSec = brick0.bars * 240 / CFG.ENCORE_BPM_START;  // rough estimate at start BPM
+    const progress = Math.min(1, _phaseTime / totalHeartbeatSec);
+    worldState.bpm = CFG.ENCORE_BPM_START * Math.pow(CFG.ENCORE_BPM_TARGET / CFG.ENCORE_BPM_START, progress);
+    worldState.velocityCeiling.rhythm = Math.round(40 + progress * 70);
+  }
+
   if (!barAdvanced) return;
 
   const brick = ENCORE_BRICKS[_encoreBrick];
   if (!brick) { _endEncore(); return; }
-
-  // ── Heartbeat: exponential BPM ramp ──
-  if (_encoreBrick === 0) {
-    const progress = Math.min(1, _encoreBrickBar / brick.bars);
-    worldState.bpm = CFG.ENCORE_BPM_START * Math.pow(CFG.ENCORE_BPM_TARGET / CFG.ENCORE_BPM_START, progress);
-    worldState.velocityCeiling.rhythm = Math.round(40 + progress * 70);
-  }
 
   // ── Teardown: fade modules in reverse order ──
   if (_encoreBrick === 8) {
@@ -1018,6 +1022,7 @@ function _updateEncore(dt) {
   if (_encoreBrickBar >= brick.bars) {
     _encoreBrick++;
     _encoreBrickBar = 0;
+    worldState.encoreBrick = _encoreBrick;
 
     const next = ENCORE_BRICKS[_encoreBrick];
     if (!next) { _endEncore(); return; }
@@ -1058,6 +1063,7 @@ function _endEncore() {
   _encoreActive = false;
   _paused = true;
   worldState.encoreMode = false;
+  worldState.encoreBrick = -1;
   worldState.bpm = null;
   sendMIDIAllNotesOff();
   sendNornsDroneStop();
