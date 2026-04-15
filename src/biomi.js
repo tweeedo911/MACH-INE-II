@@ -1583,14 +1583,36 @@ const ENCORE = {
         }
       };
     }
-    // Kick: RIGA INTERA flash — visualizer da evento
+    // Kick: DOPPIO GESTO — riga flash bianca + erosione negativa su TUTTI gli altri ruoli
+    // Il kick buca il campo: per un istante vedi il bianco, poi il buco nel colore.
+    // Alterna: 70% flash positivo, 30% erosione negativa (non troppo)
     function kickFlash(fields, particles, note127, vel127, h) {
-      const field = fields.kick;
       const f = (vel127 / 127) * 0.8;
       const cy = Math.floor(Math.random() * h.CELLS_Y);
-      h.depositRow(field, cy, f);
-      // seconda riga adiacente per spessore
-      if (cy + 1 < h.CELLS_Y) h.depositRow(field, cy + 1, f * 0.5);
+      const W = h.CELLS_X;
+      const negative = Math.random() < 0.30;
+      if (negative) {
+        // Erosione: sottrai materia da TUTTI i ruoli su 3 righe
+        const erodeF = f * 0.35;  // non troppo aggressivo
+        const roles = ['drone', 'bass', 'chord', 'arp', 'voice', 'percussion'];
+        for (const r of roles) {
+          const fld = fields[r];
+          for (let dy = -1; dy <= 1; dy++) {
+            const row = cy + dy;
+            if (row < 0 || row >= h.CELLS_Y) continue;
+            for (let x = 0; x < W; x++) {
+              const idx = row * W + x;
+              fld[idx] = Math.max(0, fld[idx] - erodeF);
+            }
+          }
+        }
+        // Flash bianco sottile sulla riga centrale
+        h.depositRow(fields.kick, cy, f * 0.4);
+      } else {
+        // Flash positivo normale — riga bianca piena
+        h.depositRow(fields.kick, cy, f);
+        if (cy + 1 < h.CELLS_Y) h.depositRow(fields.kick, cy + 1, f * 0.5);
+      }
     }
     // Bass: blob grosso in posizione random — senti il peso
     function bassBlob(fields, particles, note127, vel127, h) {
