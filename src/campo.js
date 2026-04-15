@@ -26,6 +26,7 @@ import { worldState, phaseState } from './world-state.js';
 const _PLANET_NOISE_RES = 256;
 let _planetNoise = null;     // Float32Array[256] — offsets -1..1
 let _planetNoiseFrame = 0;
+let _rLUT = null;            // Float32Array[256] — raggio per angolo (riusato ogni frame)
 
 function _buildPlanetNoise() {
   // 3 ottave di sin sovrapposti → contorno organico, non circolare
@@ -48,9 +49,45 @@ function _planetRadiusAt(angleDeg, baseR, noiseAmount) {
   return baseR * (1 + _planetNoise[idx] * noiseAmount);
 }
 
-// ── Bayer 4×4 ──
+// ── Bayer 4×4 con threshold variabile (anti-tappezzeria continua) ──
 const BAYER4 = [0,8,2,10, 12,4,14,6, 3,11,1,9, 15,7,13,5];
-function bayer(px, py) { return BAYER4[(py % 4) * 4 + (px % 4)] / 16; }
+// Pre-normalizzata: evita /16 nel loop interno
+const BAYER4N = new Float32Array(16);
+for (let i = 0; i < 16; i++) BAYER4N[i] = BAYER4[i] / 16;
+let _renderFrame = 0;
+
+// ── Noise 2D non-separabile per rompere il pattern Bayer ──
+// Hash intero (px,py,frame) → rumore pseudo-casuale in [-amp, +amp].
+// NON separabile: evita il pattern tartan che sin(x)+sin(y) produceva.
+// LUT statica 256×256 riciclata con offset temporale (zero alloc/frame).
+const _NOISE_SZ = 256;
+const _noiseLUT = new Float32Array(_NOISE_SZ * _NOISE_SZ);
+{
+  // Riempi con hash deterministico — distribuzione uniforme -1..1
+  // Mulberry32-style: veloce, buona distribuzione, nessun artefatto visibile
+  let s = 0x9E3779B9;
+  for (let i = 0; i < _NOISE_SZ * _NOISE_SZ; i++) {
+    s = (s + 0x6D2B79F5) | 0;
+    let t = Math.imul(s ^ (s >>> 15), 1 | s);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    _noiseLUT[i] = ((t ^ (t >>> 14)) >>> 0) / 0xFFFFFFFF * 2 - 1;
+  }
+}
+let _noiseOffX = 0, _noiseOffY = 0;  // offset temporale (cambia ogni frame)
+
+function _rebuildDriftLUT() {
+  // Offset lento nel tempo — il noise si muove, non si ripete identico
+  _noiseOffX = (_renderFrame * 3) & (_NOISE_SZ - 1);
+  _noiseOffY = (_renderFrame * 7) & (_NOISE_SZ - 1);
+}
+
+const _DRIFT_AMP = 0.12;  // ampiezza noise (era 0.03+0.02 separabile, ora 0.12 2D)
+
+function bayer(px, py) {
+  const nx = (px + _noiseOffX) & (_NOISE_SZ - 1);
+  const ny = (py + _noiseOffY) & (_NOISE_SZ - 1);
+  return BAYER4N[(py & 3) * 4 + (px & 3)] + _noiseLUT[ny * _NOISE_SZ + nx] * _DRIFT_AMP;
+}
 
 // ── Phase-aware multipliers ──
 // Modula force e decay in base alla fase corrente
@@ -81,6 +118,7 @@ const CH_ROLE = ['kick','percussion','drone','bass','chord','voice','lead','arp'
 
 // ── Stato ──
 let _fields = null;
+let _lastDeposit = null;  // Uint16Array per ruolo: frame dell'ultimo deposito significativo
 let _bioma  = null;
 let _cellsX = 96;
 let _cellsY = 54;
@@ -95,8 +133,21 @@ let _morphOldBg   = null;    // [r,g,b] del bioma uscente
 let _morphOldColors = null;  // { role: [r,g,b], ... } del bioma uscente
 let _morphOldDecay  = null;  // { role: decayValue, ... } del bioma uscente
 
+// ── V3.10: Transizione gestuale — depositFn uscente usata con peso decrescente ──
+let _morphOldDepositFn = null;  // depositFn{} del bioma uscente
+let _morphOldForce = null;      // force{} del bioma uscente
+
 // particles con fisica propria
 const _particles = { chord: [], arp: [], voice: [], lead: [] };
+
+// Shimmer LUT — riusate ogni frame (evita allocazioni per frame)
+let _shimmerX = null, _shimmerY = null, _shimmerD = null;
+
+// ── Geologia per RITORNO ──
+// Snapshot dei field al momento dell'ingresso in RITORNO:
+// la geologia di 55 minuti visibile sotto il contenuto vivo.
+let _geoSnapshot = null;        // { role: Float32Array } — copia dei field
+let _geoSnapshotColors = null;  // { role: [r,g,b] } — colori del bioma al momento dello snap
 
 // Solidification layer A: silence frames per role
 const _silenceFrames = {};
@@ -105,6 +156,7 @@ for (const r of ROLES) _silenceFrames[r] = 0;
 // Offscreen canvas — Bayer renderizza qui, poi drawImage upscalato
 let _off = null, _offCtx = null;
 let _imgData = null, _imgBuf = null;
+let _imgBuf32 = null;   // Uint32Array view per BG fill veloce
 
 // ── Helpers esposti alle depositFn ──
 function clamp(v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }
@@ -121,11 +173,16 @@ function localPitchToCell(note, lo, hi) {
   return Math.round(margin + (1 - t) * usable); // t=1 (acuto) → top
 }
 
+let _activeRole = null;  // settato da feedNote, letto da depositPoint per aging
 function depositPoint(field, cx, cy, force) {
   if (cx < 0 || cx >= _cellsX || cy < 0 || cy >= _cellsY) return;
   const i = idx(cx, cy);
   const v = field[i] + force;
   field[i] = v > 1 ? 1 : v < 0 ? 0 : v;
+  // marca timestamp deposito per aging (solo se deposito significativo)
+  if (force > 0.01 && _activeRole && _lastDeposit) {
+    _lastDeposit[_activeRole][i] = _renderFrame & 0xFFFF;
+  }
 }
 
 function depositRow(field, cy, force) {
@@ -160,13 +217,19 @@ const HELPERS = {
   get phaseProgress() { return phaseState.duration > 0 ? phaseState.elapsed / phaseState.duration : 0; },
   get rupture()       { return worldState.rupture; },
   get audioEnergy()   { return worldState.audioEnergy || 0; },
+  get frameCount()    { return _renderFrame; },
 };
 
 // ── Init / resize ──
 function _ensureBuffers() {
   if (_fields) return;
   _fields = {};
-  for (const r of ROLES) _fields[r] = new Float32Array(_cellsX * _cellsY);
+  _lastDeposit = {};
+  const size = _cellsX * _cellsY;
+  for (const r of ROLES) {
+    _fields[r] = new Float32Array(size);
+    _lastDeposit[r] = new Uint16Array(size);  // frame dell'ultimo deposito
+  }
 }
 
 function _ensureOffscreen() {
@@ -181,6 +244,7 @@ function _ensureOffscreen() {
   _offCtx = _off.getContext('2d');
   _imgData = _offCtx.createImageData(_W, _H);
   _imgBuf  = _imgData.data;
+  _imgBuf32 = new Uint32Array(_imgData.data.buffer);
 }
 
 // ── API pubblica ──
@@ -204,17 +268,34 @@ export function setBiome(trackName) {
       _morphOldColors[r] = [..._bioma.colors[r]];
       _morphOldDecay[r] = _bioma.decay[r];
     }
+    // V3.10: cattura gesti uscenti per transizione gestuale
+    _morphOldDepositFn = _bioma.depositFn || null;
+    _morphOldForce = _bioma.force ? { ..._bioma.force } : null;
     _morphTimer = 0;
   }
   _bioma = getBiome(trackName);
   // non resettiamo i fields: il palimpsesto è il punto, il nuovo bioma
   // applica solo nuove forze sopra lo stato esistente
+
+  // RITORNO: scatta snapshot geologia (la storia di tutti i biomi precedenti)
+  if (trackName === 'RITORNO' && _fields) {
+    _geoSnapshot = {};
+    _geoSnapshotColors = {};
+    const size = _cellsX * _cellsY;
+    for (const r of ROLES) {
+      _geoSnapshot[r] = new Float32Array(size);
+      _geoSnapshot[r].set(_fields[r]);
+      // colori del bioma USCENTE (morphOld) — la geologia ha i colori del passato
+      _geoSnapshotColors[r] = _morphOldColors ? [..._morphOldColors[r]] : [..._bioma.colors[r]];
+    }
+  }
 }
 
 export function clearAll() {
   if (!_fields) return;
   for (const r of ROLES) {
     _fields[r].fill(0);
+    if (_lastDeposit) _lastDeposit[r].fill(0);
     _silenceFrames[r] = 0;
   }
   _particles.chord.length = 0;
@@ -245,11 +326,44 @@ export function feedNote(ch, note127, vel127) {
   // Phase-aware force multiplier
   const phaseMult = PHASE_FORCE_MULT[HELPERS.phase] ?? 1.0;
 
+  _activeRole = role;  // per aging tracking in depositPoint
+
+  // V3.10: transizione gestuale — durante morph, alcune note usano la depositFn vecchia
+  // Probabilità: 30% all'inizio del morph → 0% alla fine
+  if (_morphOldDepositFn && _morphOldDepositFn[role] && _morphTimer < MORPH_DURATION) {
+    const morphWeight = 0.30 * (1 - _morphTimer / MORPH_DURATION);
+    if (Math.random() < morphWeight) {
+      const scaledVel = Math.round(vel127 * phaseMult);
+      _morphOldDepositFn[role](_fields, _particles, note127, scaledVel, HELPERS);
+      _activeRole = null;
+      return;
+    }
+  }
+
+  // ── ENCORE heartbeat: deposit in growing centered circle ──
+  if (worldState.encoreMode && worldState.phase === 'germoglio') {
+    const beat = Math.floor(phaseState.progress * 8);
+    const radius = Math.max(1, Math.floor((beat + 1) * (_cellsX / 16)));
+    const cx = Math.floor(_cellsX / 2);
+    const cy = Math.floor(_cellsY / 2);
+    const dx = Math.floor(Math.random() * radius * 2) - radius;
+    const dy = Math.floor(Math.random() * radius * 2) - radius;
+    if (dx * dx + dy * dy <= radius * radius) {
+      const px = Math.max(0, Math.min(_cellsX - 1, cx + dx));
+      const py = Math.max(0, Math.min(_cellsY - 1, cy + dy));
+      const biomeForce = (_bioma.force && _bioma.force[role]) || 0.15;
+      _fields[role][py * _cellsX + px] = Math.min(1, _fields[role][py * _cellsX + px] + biomeForce);
+    }
+    _activeRole = null;
+    return;
+  }
+
   const custom = _bioma.depositFn && _bioma.depositFn[role];
   if (custom) {
     // Scala vel127 con phase multiplier prima di passare alla depositFn
     const scaledVel = Math.round(vel127 * phaseMult);
     custom(_fields, _particles, note127, scaledVel, HELPERS);
+    _activeRole = null;
     return;
   }
 
@@ -258,6 +372,7 @@ export function feedNote(ch, note127, vel127) {
   const cx = Math.floor(_cellsX / 2);
   const f  = (vel127 / 127) * _bioma.force[role] * phaseMult;
   depositPoint(_fields[role], cx, cy, f);
+  _activeRole = null;
 }
 
 // Chiamata ogni frame dopo feedNote
@@ -272,6 +387,8 @@ export function updateCampo(dt, audioEnergy = 0) {
       _morphOldBg = null;
       _morphOldColors = null;
       _morphOldDecay = null;
+      _morphOldDepositFn = null;
+      _morphOldForce = null;
     }
   }
 
@@ -283,7 +400,7 @@ export function updateCampo(dt, audioEnergy = 0) {
     _bioma.audioReact(_fields, audioEnergy, HELPERS);
   }
 
-  const shimmer = CFG.VISUAL?.campo?.shimmer ?? 0.05;
+  const shimmer = (CFG.VISUAL?.campo?.shimmer ?? 0.05) * (_bioma.shimmerScale || 1.0);
   const cfg = CFG.VISUAL?.campo ?? {};
   const freezeCfg = _bioma.freeze || {};
 
@@ -382,6 +499,15 @@ export function updateCampo(dt, audioEnergy = 0) {
     }
   }
 
+  // ── Shimmer LUT (pre-calcolate una volta per frame, non per cella×ruolo) ──
+  const _shimmerT = _renderFrame * 0.017;
+  if (!_shimmerX || _shimmerX.length !== _cellsX) _shimmerX = new Float32Array(_cellsX);
+  if (!_shimmerY || _shimmerY.length !== _cellsY) _shimmerY = new Float32Array(_cellsY);
+  if (!_shimmerD || _shimmerD.length !== _cellsX) _shimmerD = new Float32Array(_cellsX);
+  for (let cx = 0; cx < _cellsX; cx++) _shimmerX[cx] = Math.sin(cx * 0.21 + _shimmerT) * 0.4;
+  for (let cy = 0; cy < _cellsY; cy++) _shimmerY[cy] = Math.sin(cy * 0.17 + _shimmerT * 0.7) * 0.35;
+  for (let d = 0; d < _cellsX; d++)    _shimmerD[d]   = Math.sin(d  * 0.13 + _shimmerT * 1.3) * 0.25;
+
   // ── Phase-aware decay offset ──
   const phaseDecayOff = PHASE_DECAY_OFFSET[HELPERS.phase] ?? 0;
 
@@ -446,10 +572,42 @@ export function updateCampo(dt, audioEnergy = 0) {
 
       f[i] = f[i] * dr - capPenalty;
 
-      // Shimmer
-      if (f[i] > 0.01) f[i] += (Math.random() * 2 - 1) * shimmer * f[i];
+      // Shimmer spazialmente coerente — onde lente, non rumore bianco
+      // LUT pre-calcolate sopra il loop ruoli (shimmerX/Y/D)
+      if (f[i] > 0.01) {
+        const cx = i % _cellsX, cy = (i / _cellsX) | 0;
+        const wave = _shimmerX[cx] + _shimmerY[cy] + _shimmerD[((cx + cy) % _cellsX)];
+        f[i] += wave * shimmer * f[i];
+      }
       if (f[i] < 0) f[i] = 0;
       if (f[i] > 1) f[i] = 1;
+    }
+  }
+
+  // ── Erosione morfologica in dissoluzione ──
+  // Le celle di bordo (con almeno 1 vicino vuoto) perdono materia
+  // progressivamente. Il campo si sgretola, non si spegne e basta.
+  if (HELPERS.phase === 'dissoluzione') {
+    const pp = HELPERS.phaseProgress;
+    const erosionRate = 0.005 + pp * 0.025;  // cresce durante la dissoluzione
+    for (const r of ROLES) {
+      const f = _fields[r];
+      for (let cy = 1; cy < _cellsY - 1; cy++) {
+        for (let cx = 1; cx < _cellsX - 1; cx++) {
+          const i = cy * _cellsX + cx;
+          if (f[i] < 0.02) continue;
+          // conta vicini vuoti (4-connected)
+          let emptyN = 0;
+          if (f[i - 1] < 0.01) emptyN++;            // sinistra
+          if (f[i + 1] < 0.01) emptyN++;            // destra
+          if (f[i - _cellsX] < 0.01) emptyN++;      // sopra
+          if (f[i + _cellsX] < 0.01) emptyN++;      // sotto
+          if (emptyN > 0) {
+            f[i] -= erosionRate * emptyN;
+            if (f[i] < 0) f[i] = 0;
+          }
+        }
+      }
     }
   }
 }
@@ -472,6 +630,9 @@ export function renderCampo(ctx, W, H) {
   _ensureBuffers();
   _ensureOffscreen();
   if (!_bioma) _bioma = getBiome('GENERIC');
+
+  _renderFrame++;
+  _rebuildDriftLUT();
 
   const data = _imgBuf;
 
@@ -500,15 +661,62 @@ export function renderCampo(ctx, W, H) {
     }
   }
 
-  // BG fill offscreen
-  for (let i = 0; i < data.length; i += 4) {
-    data[i]   = bgR;
-    data[i+1] = bgG;
-    data[i+2] = bgB;
-    data[i+3] = 255;
+  // BG fill offscreen — Uint32Array fill (4× faster than byte-by-byte)
+  const bgPixel32 = (255 << 24) | (bgB << 16) | (bgG << 8) | bgR;  // little-endian ABGR
+  _imgBuf32.fill(bgPixel32);
+
+  // BPM pulsation — leggero respiro di luminosità sul battito
+  const bpm = worldState.bpm || 0;
+  let _bpmPulse = 1.0;  // moltiplicatore luminosità (0.96 – 1.04)
+  if (bpm > 0) {
+    const beatHz = bpm / 60;
+    const beatPhase = (_renderFrame / 60 * beatHz) % 1.0;  // 0→1 nel beat
+    // impulso breve all'inizio del beat (sin² con picco a fase 0)
+    _bpmPulse = 1.0 + Math.pow(Math.sin(beatPhase * Math.PI), 2) * 0.04 - 0.02;
   }
 
   const defaultRoleCpx = CFG.VISUAL?.campo?.roleCellPx ?? {};
+
+  // ── Geologia RITORNO: render snapshot sotto il contenuto vivo ──
+  // I colori dello snapshot sbiadiscono al 40% — il passato è tenue
+  if (_geoSnapshot && _bioma.planetMask) {
+    const geoAlpha = 0.40;
+    for (const role of ZORDER) {
+      const snap = _geoSnapshot[role];
+      const [gsR, gsG, gsB] = _geoSnapshotColors[role] || [0, 0, 0];
+      if (gsR === 0 && gsG === 0 && gsB === 0) continue;
+      const sR = (gsR / 255) * geoAlpha;
+      const sG = (gsG / 255) * geoAlpha;
+      const sB = (gsB / 255) * geoAlpha;
+      const cpx = defaultRoleCpx[role] ?? _cellPx;
+      const halfCpx = Math.floor(cpx / 2);
+
+      for (let cy = 0; cy < _cellsY; cy++) {
+        for (let cx = 0; cx < _cellsX; cx++) {
+          const d = snap[cy * _cellsX + cx];
+          if (d < 0.01) continue;
+          const centerX = Math.floor((cx + 0.5) * _W / _cellsX);
+          const centerY = Math.floor((cy + 0.5) * _H / _cellsY);
+          const x0 = Math.max(0, centerX - halfCpx);
+          const y0 = Math.max(0, centerY - halfCpx);
+          const x1 = Math.min(_W, centerX - halfCpx + cpx);
+          const y1 = Math.min(_H, centerY - halfCpx + cpx);
+          const giR = (sR * 255 + 0.5) | 0;
+          const giG = (sG * 255 + 0.5) | 0;
+          const giB = (sB * 255 + 0.5) | 0;
+          for (let py = y0; py < y1; py++) {
+            for (let px = x0; px < x1; px++) {
+              if (d < bayer(px, py)) continue;
+              const pi = (py * _W + px) * 4;
+              data[pi]   = data[pi]   + ((giR * (255 - data[pi]))   >> 8) | 0;
+              data[pi+1] = data[pi+1] + ((giG * (255 - data[pi+1])) >> 8) | 0;
+              data[pi+2] = data[pi+2] + ((giB * (255 - data[pi+2])) >> 8) | 0;
+            }
+          }
+        }
+      }
+    }
+  }
 
   // Z-order rendering — one pass per role with its own cellPx
   for (const role of ZORDER) {
@@ -542,9 +750,9 @@ export function renderCampo(ctx, W, H) {
 
     if (rC === 0 && gC === 0 && bC === 0) continue;
 
-    const srcR = rC / 255;
-    const srcG = gC / 255;
-    const srcB = bC / 255;
+    const srcR = Math.min(1, (rC / 255) * _bpmPulse);
+    const srcG = Math.min(1, (gC / 255) * _bpmPulse);
+    const srcB = Math.min(1, (bC / 255) * _bpmPulse);
 
     // cellPx per role: biome override > config default > fallback
     const cpx = (_bioma.cellPx && _bioma.cellPx[role])
@@ -552,10 +760,32 @@ export function renderCampo(ctx, W, H) {
              ?? _cellPx;
     const halfCpx = Math.floor(cpx / 2);
 
+    // Aging buffer per questo ruolo
+    const ageMap = _lastDeposit ? _lastDeposit[role] : null;
+    const curFrame16 = _renderFrame & 0xFFFF;
+
     for (let cy = 0; cy < _cellsY; cy++) {
       for (let cx = 0; cx < _cellsX; cx++) {
-        const density = field[cy * _cellsX + cx];
+        const cellIdx = cy * _cellsX + cx;
+        const density = field[cellIdx];
         if (density < 0.003) continue;
+
+        // Aging: materia fresca = luminosa, vecchia = tenue
+        // age in frame (wrapping a 16 bit), max 600 frame (~10s) per saturazione
+        let ageFactor = 1.0;
+        if (ageMap) {
+          const depositFrame = ageMap[cellIdx];
+          const age = ((curFrame16 - depositFrame) & 0xFFFF);
+          const ageFrac = Math.min(age, 600) / 600;
+          // agingInverted: new=bright (1.0), old=fades (0.55) — ENCORE
+          // normal: old=bright (1.0), new=dim (0.55)
+          ageFactor = (_bioma.agingInverted)
+            ? 1.0 - ageFrac * 0.45
+            : 0.55 + ageFrac * 0.45;
+        }
+        const aR = srcR * ageFactor;
+        const aG = srcG * ageFactor;
+        const aB = srcB * ageFactor;
 
         // Proportional position on offscreen
         const centerX = Math.floor((cx + 0.5) * _W / _cellsX);
@@ -567,14 +797,65 @@ export function renderCampo(ctx, W, H) {
         const x1 = Math.min(_W, centerX - halfCpx + cpx);
         const y1 = Math.min(_H, centerY - halfCpx + cpx);
 
+        // screen(a,b) = a + b*(1-a) → data[i] + src*(255 - data[i])
+        // Pre-scala src in 0-255 per integer math (elimina /255 nel loop interno)
+        const iR = (aR * 255 + 0.5) | 0;
+        const iG = (aG * 255 + 0.5) | 0;
+        const iB = (aB * 255 + 0.5) | 0;
+
         for (let py = y0; py < y1; py++) {
           for (let px = x0; px < x1; px++) {
             if (density < bayer(px, py)) continue;
             const pi = (py * _W + px) * 4;
-            // screen blend
-            data[pi]   = ((1 - (1 - srcR) * (1 - data[pi]   / 255)) * 255) | 0;
-            data[pi+1] = ((1 - (1 - srcG) * (1 - data[pi+1] / 255)) * 255) | 0;
-            data[pi+2] = ((1 - (1 - srcB) * (1 - data[pi+2] / 255)) * 255) | 0;
+            // screen blend intero: d + src*(255-d)/255 ≈ d + (src*(255-d)+127)/255
+            data[pi]   = data[pi]   + ((iR * (255 - data[pi]))   >> 8) | 0;
+            data[pi+1] = data[pi+1] + ((iG * (255 - data[pi+1])) >> 8) | 0;
+            data[pi+2] = data[pi+2] + ((iB * (255 - data[pi+2])) >> 8) | 0;
+          }
+        }
+      }
+    }
+  }
+
+  // ── Bloom pass: voice/lead/kick sanguinano nei pixel adiacenti ──
+  // Un pass leggero: ogni pixel con luminosità > soglia deposita un alone
+  // attenuato nei 4 vicini cardinali. Dà gerarchia visiva ai ruoli acuti.
+  {
+    const bloomRoles = ['voice', 'lead', 'kick'];
+    const bloomStr = 0.35;     // intensità alone (0-1)
+    const bloomThresh = 0.45;  // soglia densità
+    for (const role of bloomRoles) {
+      const field = _fields[role];
+      const cpx = (_bioma.cellPx && _bioma.cellPx[role])
+               ?? defaultRoleCpx[role]
+               ?? _cellPx;
+      const [bR, bG, bB] = _bioma.colors[role];
+      if (bR === 0 && bG === 0 && bB === 0) continue;
+      // Pre-calcola: glow base × 255 per additive blend intero
+      const bloomScale = bloomStr / (1 - bloomThresh);
+      const ox4 = [-cpx, cpx, 0, 0];
+      const oy4 = [0, 0, -cpx, cpx];
+
+      for (let cy = 1; cy < _cellsY - 1; cy++) {
+        for (let cx = 1; cx < _cellsX - 1; cx++) {
+          const d = field[cy * _cellsX + cx];
+          if (d < bloomThresh) continue;
+          const glow = (d - bloomThresh) * bloomScale;
+          const glR = bR * glow;
+          const glG = bG * glow;
+          const glB = bB * glow;
+
+          const centerX = ((cx + 0.5) * _W / _cellsX) | 0;
+          const centerY = ((cy + 0.5) * _H / _cellsY) | 0;
+
+          for (let oi = 0; oi < 4; oi++) {
+            const gpx = centerX + ox4[oi];
+            const gpy = centerY + oy4[oi];
+            if (gpx < 0 || gpx >= _W || gpy < 0 || gpy >= _H) continue;
+            const gi = (gpy * _W + gpx) * 4;
+            data[gi]   = Math.min(255, data[gi]   + glR);
+            data[gi+1] = Math.min(255, data[gi+1] + glG);
+            data[gi+2] = Math.min(255, data[gi+2] + glB);
           }
         }
       }
@@ -591,49 +872,144 @@ export function renderCampo(ctx, W, H) {
     }
 
     // Calcola raggio base dalla fase:
-    // germoglio: cresce 0→0.70, pulsazione/densità: stabile 0.70, dissoluzione: 0.70→0
+    // germoglio: 0→1.0 (nasce come schermo intero)
+    // pulsazione: 1.0→0.65 (si restringe — il nero appare intorno)
+    // densita: 0.65→0.40 (il pianeta è già un disco che si allontana)
+    // rottura: 0.40→0.25 (la frattura lo comprime ancora)
+    // dissoluzione: 0.25→0 (scompare nel buio)
     const phase = worldState.phase || 'germoglio';
     const progress = phaseState.duration > 0 ? Math.min(1, phaseState.elapsed / phaseState.duration) : 0;
-    let radiusNorm = 0.70;  // 70% del raggio minore offscreen
-    if (phase === 'germoglio') {
-      radiusNorm = progress * 0.70;
-    } else if (phase === 'dissoluzione') {
-      radiusNorm = 0.70 * (1 - progress);
-    }
+    let radiusNorm;
+    if (phase === 'germoglio')         radiusNorm = progress * 1.0;           // 0→1.0
+    else if (phase === 'pulsazione')   radiusNorm = 1.0 - progress * 0.35;    // 1.0→0.65
+    else if (phase === 'densita')      radiusNorm = 0.65 - progress * 0.25;   // 0.65→0.40
+    else if (phase === 'rottura')      radiusNorm = 0.40 - progress * 0.15;   // 0.40→0.25
+    else /* dissoluzione */            radiusNorm = 0.25 * (1 - progress);     // 0.25→0
 
     const centerPx = _W / 2;
     const centerPy = _H / 2;
     const maxR = Math.min(_W, _H) / 2;
     const noiseAmount = 0.12;  // 12% di irregolarità sul bordo
 
-    // Pixel fuori dalla maschera → bg nero
+    // Scanline planet mask — elimina sqrt+atan2 per pixel.
+    // Fast-path: distanza² per il corpo, sqrt+atan2 solo sulla fascia di bordo.
+    const baseR = radiusNorm * maxR;
+    const maxNoiseFactor = 1 + noiseAmount;
+    const minNoiseFactor = 1 - noiseAmount;
+    const outerR  = baseR * maxNoiseFactor + 2;  // +2px per bordo sfumato
+    const outerR2 = outerR * outerR;
+    const innerR  = Math.max(0, baseR * minNoiseFactor - 2);  // -2px margine sicuro
+    const innerR2 = innerR * innerR;
+
+    // Pre-calcola raggio per angolo (256 entries, non 518K)
+    if (!_rLUT || _rLUT.length !== _PLANET_NOISE_RES) _rLUT = new Float32Array(_PLANET_NOISE_RES);
+    for (let a = 0; a < _PLANET_NOISE_RES; a++) {
+      _rLUT[a] = _planetRadiusAt(a, baseR, noiseAmount);
+    }
+
+    const invTwoPi = _PLANET_NOISE_RES / (Math.PI * 2);
+    const black32 = 255 << 24;  // alpha=255, RGB=0
+
     for (let py = 0; py < _H; py++) {
+      const dy = py - centerPy;
+      const dy2 = dy * dy;
+      const rowOff = py * _W;
+
+      // Riga fuori dal cerchio massimo → tutta nera via Uint32Array (4× vs byte)
+      if (dy2 > outerR2) {
+        _imgBuf32.fill(black32, rowOff, rowOff + _W);
+        continue;
+      }
+
       for (let px = 0; px < _W; px++) {
         const dx = px - centerPx;
-        const dy = py - centerPy;
-        const dist = Math.sqrt(dx * dx + dy * dy);
+        const dist2 = dx * dx + dy2;
 
-        // Angolo → indice noise
+        // Sicuramente dentro → nessun calcolo
+        if (dist2 < innerR2) continue;
+
+        // Sicuramente fuori → nero
+        if (dist2 > outerR2) {
+          const pi = (rowOff + px) * 4;
+          data[pi] = 0; data[pi+1] = 0; data[pi+2] = 0;
+          continue;
+        }
+
+        // Fascia di bordo: calcola angolo e raggio esatto
         const angle = Math.atan2(dy, dx);
-        const angleIdx = Math.floor(((angle + Math.PI) / (Math.PI * 2)) * _PLANET_NOISE_RES);
-        const r = _planetRadiusAt(angleIdx, radiusNorm * maxR, noiseAmount);
+        const angleIdx = ((angle + Math.PI) * invTwoPi) | 0;
+        const r = _rLUT[angleIdx < _PLANET_NOISE_RES ? angleIdx : 0];
+        const dist = Math.sqrt(dist2);
 
         if (dist > r) {
-          const pi = (py * _W + px) * 4;
+          const pi = (rowOff + px) * 4;
           data[pi] = 0; data[pi+1] = 0; data[pi+2] = 0;
         } else if (dist > r - 2) {
-          // Bordo sfumato di 2px — antialiasing naturale
           const fade = (r - dist) / 2;
-          const pi = (py * _W + px) * 4;
-          data[pi]   = Math.round(data[pi]   * fade);
-          data[pi+1] = Math.round(data[pi+1] * fade);
-          data[pi+2] = Math.round(data[pi+2] * fade);
+          const pi = (rowOff + px) * 4;
+          data[pi]   = (data[pi]   * fade) | 0;
+          data[pi+1] = (data[pi+1] * fade) | 0;
+          data[pi+2] = (data[pi+2] * fade) | 0;
         }
       }
     }
   }
 
   _offCtx.putImageData(_imgData, 0, 0);
+
+  // ── Glyph layer: glifi ASCII sparse per ruoli con identità ──
+  // Dopo putImageData, prima della camera. fillText sull'offscreen ctx.
+  // Solo celle ad alta densità → sparse, non tappezzeria.
+  // Set caratteri dall'era MATRICE: ▲▼◆○□▸∙01
+  {
+    const glyphCfg = _bioma.glyphs;
+    if (glyphCfg) {
+      const chars = glyphCfg.chars || '▲▼◆○□▸∙01';
+      const thresh = glyphCfg.threshold || 0.55;   // densità minima per glifo
+      const roles = glyphCfg.roles || ['voice', 'lead', 'kick'];
+      const opacity = glyphCfg.opacity || 0.85;
+
+      // Colore glyph dal bioma: glyphs.color override, altrimenti auto-contrasto
+      const glyphColor = glyphCfg.color;  // [r,g,b] opzionale dal bioma
+
+      for (const role of roles) {
+        const field = _fields[role];
+        const [rC, gC, bC] = _bioma.colors[role];
+        if (rC === 0 && gC === 0 && bC === 0) continue;
+
+        // Colore: override bioma > auto-contrasto (chiaro su scuro, scuro su chiaro)
+        let gR, gG, gB;
+        if (glyphColor) {
+          [gR, gG, gB] = glyphColor;
+        } else {
+          const lum = rC * 0.299 + gC * 0.587 + bC * 0.114;
+          if (lum > 128) { gR = 0; gG = 0; gB = 0; }          // glyph nero su ruolo chiaro
+          else           { gR = 240; gG = 235; gB = 220; }     // glyph crema su ruolo scuro
+        }
+
+        const cpx = (_bioma.cellPx && _bioma.cellPx[role])
+                  ?? defaultRoleCpx[role]
+                  ?? _cellPx;
+        const fontSize = Math.max(8, cpx);
+        _offCtx.font = `${fontSize}px 'Courier New',monospace`;
+        _offCtx.textAlign = 'center';
+        _offCtx.textBaseline = 'middle';
+
+        for (let cy = 0; cy < _cellsY; cy++) {
+          for (let cx = 0; cx < _cellsX; cx++) {
+            const d = field[cy * _cellsX + cx];
+            if (d < thresh) continue;
+            const ci = (cx * 7 + cy * 13 + ((_renderFrame >> 4) & 0xFF)) % chars.length;
+            const px = ((cx + 0.5) * _W / _cellsX) | 0;
+            const py = ((cy + 0.5) * _H / _cellsY) | 0;
+            const a = Math.min(1, (d - thresh) / 0.15) * opacity;
+            _offCtx.fillStyle = `rgba(${gR},${gG},${gB},${a})`;
+            _offCtx.fillText(chars[ci], px, py);
+          }
+        }
+      }
+    }
+  }
 
   // ── Camera transform: macro / orbita / normale ──
   const cam = worldState.camera;
