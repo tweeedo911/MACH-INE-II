@@ -84,18 +84,24 @@ export const worldState = {
 
   // ── ENCORE mode ──
   encoreMode: false,       // true when ENCORE track is active
-  encoreBrick: -1,         // -1 = not in encore; 0=heartbeat, 1-6=bricks, 7=plateau, 8=teardown
-  encoreInvert: false,     // true = invert all colors this frame (kick strobe)
+  encoreBrick: -1,         // -1 = inactive; 0=heartbeat, 1-8=escalation strati, 9=plateau
   encoreScale: 'halfWhole', // 'halfWhole' | 'wholeHalf' | 'prometheus'
-  // Per-module cycle lengths (in 16th-note steps). 16 = normal 4/4.
-  // Only read when encoreMode is true; normal tracks always use 16.
+  // Canon engine state (written by director3, read by musical modules)
+  encoreCanon: {
+    phrase: [],             // current phrase: array of MIDI note numbers (7-13 notes)
+    // Per-voice state: position in phrase, current note, active flag
+    bass:  { pos: 0, note: 0, active: false },  // 1× original
+    chord: { pos: 0, note: 0, active: false },  // 1× offset ⅓
+    arp:   { pos: 0, note: 0, active: false },  // 3× inverted
+    voice: { pos: 0, note: 0, active: false },  // ½× retrograde
+    lead:  { pos: 0, note: 0, active: false },  // 2× original
+    convergence: false,     // true when ≥3 voices land on same note (mod 12)
+    phraseAge: 0,           // bars since last phrase change
+  },
+  // Per-module cycle lengths (unchanged — rhythm polimetry stays)
   encoreCycleLens: {
     rhythm: 16,   // kick+snare always 4/4
     hat: 10,      // 5/8
-    bass: 12,     // 3/4
-    harmony: 14,  // 7/8
-    arp: 22,      // 11/16
-    voice: 26,    // 13/16
   },
 };
 
