@@ -6,6 +6,273 @@
 
 ---
 
+## 2026-04-16 (sessione 25) — ENCORE v2: Canon Machine (v3.15.0)
+
+**Obiettivo:** Redesign completo dell'encore — da polimetria a pattern fissi verso
+Canon Machine con 5 voci canoniche, visual geometriche Ikeda-style, taglio netto.
+
+**Fatto — v2 Canon Machine (redesign completo rispetto a v1 polimetrica):**
+- **Canon engine** in director3.js: generatore di frasi (7-13 note, regole contorno melodico),
+  5 voci canoniche (bass 1×, chord 1× sfasata ⅓, arp 3× invertita, voice ½× retrograda,
+  lead 2× originale), convergence detection (≥3 voci su stessa pitch class)
+- **Escalation a compressione**: 9 brick (heartbeat → arp → bass → hat/snare → voice → lead →
+  chord/drone → conga → plateau), durate decrescenti (36→32→24→20→16→12→8 bar)
+- **Taglio netto**: nessuno smontaggio — il pezzo si spegne istantaneamente dopo il plateau
+- **Visual geometriche Ikeda-style** in biomi.js: kick=riga, bass=metà schermo,
+  arp=diagonale, voice=arco, lead=croce, chord=quadrante, convergence=flash fullscreen
+- **B/N dominante + RGB raro**: colori bianco di default, colorsStrong (giallo/ciano/verde/blu/magenta)
+  emerge solo a density>0.7 tramite blend in campo.js
+- **Campo helpers geometrici**: depositDiagonal, depositQuadrant, depositArc, depositCross,
+  depositHalf, depositFlash
+- **worldState.encoreCanon**: frase corrente + 5 voci con pos/note/active + convergence flag
+- **Traccia semplificata**: rimossi pattern fissi, il canon engine genera tutto
+- **3 scale switchabili live** (Q/W/R) — al cambio la frase viene rigenerata sulla nuova scala
+
+**File toccati:** `world-state.js`, `config.js`, `tracks.js`, `biomi.js`, `director3.js`,
+`harmony.js`, `bass-v3.js`, `melody-v3.js`, `campo.js`, `VERSION.js`
+**Decisioni:** #024 (aggiornata), #025
+**Prossimo:** Test live ENCORE v2. Calibrare: velocity per voce, timing frase, visual geometriche.
+
+---
+
+## 2026-04-15 (sessione 24) — Anti-tartan + glyph layer + phaseColors estesi (v3.13.0)
+
+**Obiettivo:** Eliminare effetto tappezzeria scozzese sullo sfondo, reintrodurre varietà visiva
+delle prime versioni, estendere evoluzione cromatica per fase.
+
+**Diagnosi:**
+- Il drift Bayer era separabile (`sin(x) + sin(y)` = pattern a croce = tartan)
+- Ampiezza microscopica (0.03+0.02 su range 0-1) → pattern visibile su density uniformi
+- RESPIRO peggiore perché audioReact riempie tutto il drone a density quasi uniforme
+- Screenshots v0.8 mostravano vocabolario visivo ricco (▲◆□01) perso nel campo attuale
+
+**Fatto:**
+- **Noise 2D non-separabile** in campo.js: LUT 256×256 hash Mulberry32, ampiezza 0.12 (4×),
+  offset temporale per movimento, zero alloc/frame
+- **Glyph layer** post-Bayer: fillText sparse per ruoli ad alta densità, 7 vocabolari
+  (SOLCO `|!∙:;▼`, NEBBIA `∙·○`, TESSUTO `—|+×:`, RESPIRO `○◦∘·`,
+  MACCHINA `01▸▪□×`, TEMPESTA `▲▼▸◆!`, RITORNO `∙·*○∞`)
+- **phaseColors estesi** a SOLCO (bass scalda→raffredda), TESSUTO (chord chartreuse evolve),
+  TEMPESTA (aurora viola→incandescente→buio). Ora 5/7 biomi.
+- **Colori corretti**: TEMPESTA (3 bianchi→differenziati), NEBBIA drone [30,35,75],
+  TESSUTO bass [140,55,120] ≠ drone, RITORNO tutti più saturi
+- Versione → v3.13.0
+
+**File toccati:** `campo.js`, `biomi.js`, `VERSION.js`
+**Decisioni:** #023
+**Prossimo:** Calibrare live: threshold glifi, opacity, ampiezza noise, colori phaseColors.
+
+---
+
+## 2026-04-15 (sessione 24) — Audit generale + calibrazione post-test live (v3.13.0)
+
+**Obiettivo:** Audit pre-live completo + fix da primo test live con musica reale.
+
+**Audit (4 agenti paralleli):**
+- 2 bug critici: ghost bass DJ su CH3 modulare, Wall of Sound su CH5 modulare
+- 3 bug medi: no cleanup MIDI su beforeunload, splice O(n) particelle, chord particles morto
+- Coerenza artistica: 7/7 biomi distinti, arco narrativo coerente, nessun bioma generico
+
+**Fix da audit:**
+- C1: ghost bass DJ rimosso (il crossfade regge con chord+drone+conga)
+- C2: Wall of Sound `[2,4,5]`→`[2,4]` (CH5 modulare tolto)
+- M1: `beforeunload` → `sendMIDIAllNotesOff()` + `sendMIDIStop()`
+- B1: `sendMIDIStop` importato e wired
+- B3: commento MIDI_ROLES corretto + nota canali modulari
+
+**Fix da test live — Camera:**
+- baseZoom abbassato su tutti i biomi (SOLCO da 4.0 a 1.5!)
+- focusDrift e centerPull alzati — più movimento, meno fissità
+- curiosityWeight ridotto — meno tuffi in zoom
+
+**Fix da test live — Visual:**
+- NEBBIA: drone più luminoso [40,45,95], force 0.025, lead scie corte (maxAge dimezzata)
+- NEBBIA dissoluzione: mantiene nebbia (count 14, force 0.05)
+- SOLCO: banda nera in fondo eliminata (drone arriva fino all'ultima riga)
+- RESPIRO anti-tovaglia: drone più scuro [90,105,155], target abbassato, noise spaziale ×2
+- RITORNO: colori +20-30 luminosità, forze +30%
+- Glyphs: auto-contrasto (crema su scuro, nero su chiaro), threshold 0.30-0.35, fontSize min 8px, alpha satura a +0.15
+
+**Fix da test live — Musica:**
+- MACCHINA germoglio: texture density 0.15→0.45 — arp ticchetta prima di pulsazione
+- SOLCO/tutti: bass germoglio skip 0.08, gate 2.5× (più costante e tenuto)
+- Bass ghost fill phase-aware: zero in germoglio, cresce con le fasi
+- TESSUTO bass: bassGrid [0,0,0,1,0,0,0,0,0,0,1,0,0,0,0,0] — step 3,10 complementare a chordGrid, nota dall'accordo, ipnotico
+- TEMPESTA bass: pattern 3 hit spaziati (più melodico)
+- TEMPESTA chord: aggiunto chordGrid staccato
+- TEMPESTA: harmony 0.45, melody 1.0 (rottura = lead+voice esplodono)
+
+**File toccati:** `config.js`, `biomi.js`, `tracks.js`, `bass-v3.js`, `campo.js`, `director3.js`, `main.js`, `midi.js`, `VERSION.js`
+**Decisioni:** —
+**Prossimo:** Secondo test live completo con tutte le modifiche. Calibrare TEMPESTA rottura, glyphs densità, camera movement.
+
+---
+
+## 2026-04-15 (sessione 23) — Ottimizzazione render: clock starvation fix (v3.12.1)
+
+**Obiettivo:** Risolvere rallentamento clock MIDI causato da renderCampo() che bloccava il main thread.
+
+**Diagnosi:**
+- Aggiunto monitor latenza worker→main in main.js
+- Misurato: avg=631ms, max=1207ms di lag tra worker e main thread
+- Causa: renderCampo() costava >600ms/frame (budget=16ms)
+- Hotspot: bayer() con Math.sin per pixel (~2M sin/frame), planet mask con sqrt+atan2
+  su tutti i 518K pixel, screen blend float per pixel
+
+**Fatto:**
+- **Bayer drift LUT:** driftX[960] + driftY[540] pre-calcolati 1×/frame → da ~2M a 1500 sin()
+- **BAYER4N pre-normalizzato** + index con `& 3` (vs `% 4`)
+- **Planet mask scanline:** innerR²/outerR² fast-path, Uint32Array.fill righe fuori,
+  sqrt+atan2 solo su fascia di bordo (~5% pixel)
+- **Screen blend integer:** `d + (src*(255-d)) >> 8` (vs 3× float div+mul)
+- **Shimmer LUT:** 3× Float32Array pre-calcolate a livello modulo (0 allocazioni/frame)
+- **Bloom hoist:** offsets e scale fuori dal loop celle, glow pre-moltiplicato
+- **Zero GC pressure:** tutte le LUT allocate una volta, riusate ogni frame
+- Versione → v3.12.1
+
+**File toccati:** `campo.js`, `main.js`, `VERSION.js`
+**Decisioni:** #021 (ottimizzazione render + clock starvation)
+**Prossimo:** Testare che il lag sia sceso sotto 20ms. Se resta alto: spostare moduli musicali nel worker.
+
+---
+
+## 2026-04-15 (sessione 22) — TEMPESTA redesign + crossfade DJ MACCHINA→TEMPESTA (v3.12.0)
+
+**Obiettivo:** TEMPESTA suonava "fuori griglia" e indistinguibile da MACCHINA (stesso BPM, stesso groove). Redesign completo del carattere musicale + transizione DJ crossfade.
+
+**Fatto:**
+- **Bass fix globale:** octave-transpose in registro (era clamp → tutte le note collassavano su regHi). Fix su tutti i pattern-based tracks (SOLCO, MACCHINA, TEMPESTA).
+- **TEMPESTA redesign completo** — identità distinta da MACCHINA:
+  - Hat: 8th note con open hat su step 6,14 (≠ MACCHINA 16th pieni)
+  - Conga pattern per fase: sincopature step 3,11,13 (calore tribale/latino)
+  - Bass: registro più basso [24,43], velocity ceiling 110, pump pesante
+  - Voice protagonista: frasi 6-10 note ogni 2 bar, stile cantabile (≠ MACCHINA dove arp comanda)
+  - Lead: response con prob 0.7 (dialogo costante)
+  - Arp: 8th note (≠ MACCHINA 16th), vel 0.35 — texture sottile, non compete col hat
+  - Harmony: velocity ceiling 75 (bII frigio deve farsi sentire)
+- **Crossfade DJ MACCHINA→TEMPESTA (32 bar ≈ 60s):**
+  - Exit MACCHINA estesa: arp bar -32, harmony bar -24, bass bar -20, melody bar -16. Kick resta.
+  - Ghost esteso (TRANSITION_BARS = 24): drone E bar -22, chord frigio bar -12, bass E bar -12, conga bar -8
+  - No CC123 allo switch (kick continuo)
+  - `initRhythm(seamless=true)`: nessun grace period → kick parte senza gap
+  - TEMPESTA germoglio: rhythm density floor 0.7, bass floor 0.5 (continuità dal crossfade)
+  - Degradation disabilitata su MACCHINA dissoluzione (griglia pulita per il mix)
+- **Rhythm.js nuove feature:**
+  - Open hat per-track (`openHatSteps` array)
+  - Conga pattern per-track per fase (`congaPattern`)
+  - Snare shift/skip/flam disabilitabili per-track (TEMPESTA: tutto false → backbeat granitico)
+  - Floor-kick scatter disabilitato su TEMPESTA
+- **SOLCO germoglio:** bass density floor 0.55 (giro di basso solido prima della drum)
+- **Audit transizioni tutte le tracce:**
+  - MACCHINA→TEMPESTA: harmony exit allineata a ghost entrance (bar -24 ≠ -16)
+  - RESPIRO→MACCHINA: bass vive fino a bar -2 (era -4, buco di 2 bar)
+
+**File toccati:** `tracks.js`, `rhythm.js`, `director3.js`, `bass.js`
+**Decisioni:** #021 (TEMPESTA redesign + crossfade DJ)
+**Prossimo:** Test live completo MACCHINA→TEMPESTA crossfade; calibrare conga velocity, open hat timing; validare voice come protagonista
+
+---
+
+## 2026-04-13 (sessione 19) — Audit transizioni musicali + bass depth (v3.11.0)
+
+**Obiettivo:** Risolvere tutti i problemi nelle transizioni tra tracce e migliorare il modulo basso.
+
+**Fatto:**
+- Audit completo del sistema transizioni (director3 + 5 moduli + ghost entrance)
+- **6 bug transizione corretti:**
+  - Ghost entrance usava scala vecchia → `nextTrack.scale`
+  - CC123 troncava ghost a 800ms → delay dinamico ≥ 1 bar
+  - Blip ritmico al cambio traccia → mezzo step grazia in rhythm.js
+  - BPM ramp calcolato col BPM destinazione → `prevBpm`
+  - Commento germoglio ramp corretto
+  - `barsLeft` disambiguato in `degradBarsLeft`
+- **8 fix density/exit logic:**
+  - bass-v3/v2/v1: density gate su follow-harmony (ignorava density per anchor)
+  - TESSUTO: bass mute anticipato a bar -7 (era -3, ghost SOLCO entra a bar -6)
+  - harmony.js: drone density gate ≥ 0.08, accordi density gate ≥ 0.08
+  - NEBBIA exit logic aggiunta (harmony+melody → 0 a bar -2)
+  - SOLCO exit: harmony fade a bar -7 per ghost RESPIRO CH4
+  - MACCHINA exit: harmony fade a bar -2 per ghost TEMPESTA CH4
+  - TEMPESTA exit: harmony stessa curva del bass (bar -3) per ghost RITORNO CH4
+  - Ghost TESSUTO secondary CH1 (perc!) → CH2 (drone)
+  - Doppio init rimosso da main.js
+- **Ghost modulare ridisegnati:**
+  - Scoperto: CH3/CH5/CH6/CH7 = modulare, velocity ignorata → note a palla
+  - Rimossi tutti i ghost su canali modulari
+  - Ghost ora solo su CH0 kick (fixedNote), CH2 drone, CH4 chords
+  - SOLCO ghost: kick lontano (vel 20, fixedNote 38), no bass
+- **4 migliorie bass depth (bass-v3.js):**
+  - Skip probability phase-aware (germoglio 20%, densità 3%, dissoluzione 25%)
+  - Gate duration phase-aware (staccato ×1.5 → legato ×5.0 → staccatissimo ×1.2)
+  - TESSUTO: bass segue chordGrid (4 hit sincopati/bar) invece di 1 nota/accordo
+  - Degradation dissoluzione: probabilità muting progressiva 0→60%
+- Versione → v3.11.0
+
+**File toccati:** `director3.js`, `harmony.js`, `rhythm.js`, `bass-v3.js`, `bass.js`, `bass-v2.js`, `main.js`, `VERSION.js`
+**Decisioni:** #020 (audit transizioni + bass depth + ghost modulare)
+**Prossimo:** Fine tuning colori restanti biomi (TESSUTO/SOLCO/MACCHINA/TEMPESTA) con test live; validare soglie density gate con musica reale
+
+---
+
+## 2026-04-13 (sessione 18) — 10 miglioramenti visivi (v3.10.0)
+
+**Obiettivo:** Analisi approfondita del sistema visuale e implementazione di tutte le migliorie identificate per rendere il campo più vivo, profondo e narrativo.
+
+**Fatto:**
+- Analisi completa: campo.js, biomi.js, camera.js, field.js, firma.js, render.js, config.js
+- **Wave 1 — low-complexity, indipendenti:**
+  - Uint32Array BG fill (~4× più veloce del loop byte-by-byte)
+  - Bayer offset variabile: shift ogni ~0.75s rompe periodicità visiva
+  - Shimmer spazialmente coerente: 3 sinusoidi lente sostituiscono Math.random()
+  - Micro-drift camera: vibrazione ±0.5% con 2 sinusoidi (1.7Hz + 0.7Hz)
+  - BPM pulsation: luminosità ±4% sul battito (sin² impulso breve)
+- **Wave 2 — medium-complexity:**
+  - Aging per cella: Uint16Array[96×54] per ruolo traccia frame ultimo deposito, render modula luminosità 55%→100% su ~10s
+  - Bloom pass: voice/lead/kick con densità >0.45 sanguinano nei 4 vicini cardinali (additive blend)
+  - Erosione morfologica in dissoluzione: celle di bordo (con vicini vuoti) si sgretolano progressivamente
+- **Wave 3 — high-complexity:**
+  - Snapshot geologia RITORNO: al cambio bioma scatta copia Float32Array, render al 40% sotto il contenuto vivo con colori del bioma uscente
+  - Transizione gestuale: durante morph (3s), 30%→0% delle note usa la depositFn del bioma uscente
+- Versione → v3.10.0
+
+**File toccati:** `campo.js` (+244 LOC), `camera.js` (+10 LOC), `VERSION.js`
+**Decisioni:** #019 (10 miglioramenti visivi)
+**Prossimo:** Calibrazione live di tutti i nuovi parametri (erosionRate, bloomThresh, ageFactor, shimmer sinusoidi). Test RITORNO con geologia accumulata. Fine tuning colori TESSUTO/SOLCO/MACCHINA/TEMPESTA.
+
+---
+
+## 2026-04-13 (sessione 17) — Unificazione palette + phaseColors + calibrazione live
+
+**Obiettivo:** Unificare il sistema dual-palette (A/B) su una versione unica, aggiungere colori che evolvono con le fasi, primo giro di calibrazione live.
+
+**Fatto:**
+- Audit completo palette A vs B per i 7 biomi — B superiore su tutta la linea
+- Sostituiti tutti i colori inline dei 7 biomi con B modificata:
+  - SOLCO voice fredda [170,195,230], TESSUTO bg [6,4,10], MACCHINA lead magenta [180,40,110]
+  - NEBBIA: bg nero puro, drone [25,28,60] coltre di nebbia (polvere sparsa, phase-aware, audioReact bidirezionale)
+  - RESPIRO: phaseColors (drone scuro→sage→luminoso→spento) + audioReact phase-aware (target 0.35→0.80→0.20)
+  - RITORNO: colori luminosi all'inizio → phaseColors che sbiadiscono progressivamente
+  - TEMPESTA: palette viola (drone/chord/arp)
+- Infrastruttura phaseColors in campo.js (~15 LOC): bg + colori ruolo interpolati per fase
+- Rimosso PALETTE_B, _paletteA, setPaletteMode/getPaletteMode, toggle A/B da main.js (~130 LOC)
+- **NEBBIA calibrazione live:**
+  - Drone: depositFn phase-aware (germoglio 6-20 punti, crescita 20-30, climax 30)
+  - Drone: force 0.015, maxDensity 0.65, audioReact grow raddoppiato (cap 0.55) — coltre densa
+  - Chord: phase-aware (germoglio skip 50%, velature corte e deboli, poi cresce)
+- **RITORNO planetMask phase-aware:**
+  - radiusNorm: germoglio 0→1.0 (fullscreen), crescita 1.0→0.65, climax 0.65→0.40, dissoluzione 0.40→0
+  - Il pianeta nasce come mondo intero e pian piano si perde nel nero
+- **Dissoluzione fade progressivo (director3.js):**
+  - Velocity ceiling scende da 0.60→~0.10 con curva quadratica durante dissoluzione
+  - Tutte le tracce svaniscono gradualmente — no più stacco netto tra NEBBIA e TESSUTO
+- Versione → v3.9.0
+
+**File toccati:** `biomi.js`, `campo.js`, `main.js`, `VERSION.js`, `director3.js`
+**Decisioni:** #018 (palette unificata + phaseColors)
+**Prossimo:** Fine tuning colori restanti biomi (TESSUTO/SOLCO/MACCHINA/TEMPESTA) con test live
+
+---
+
 ## 2026-04-13 (sessione 16) — Calibrazione personalità camera per bioma
 
 **Obiettivo:** Differenziare il comportamento camera tra biomi — i movimenti erano troppo uniformi.
