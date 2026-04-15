@@ -1533,27 +1533,27 @@ const ENCORE = {
     lead:       [0,     0,   0],   // non usato
   },
   decay: {
-    drone: 0.9999, bass: 0.993, chord: 0.996,
-    kick: 0.500, percussion: 0.600,       // kick/perc più flash, meno persistente
-    arp: 0.980, voice: 0.992, lead: 1.000,
+    drone: 0.9999, bass: 0.996, chord: 0.997,
+    kick: 0.400, percussion: 0.500,       // flash brevissimo — stroboscopico
+    arp: 0.985, voice: 0.994, lead: 1.000,
   },
   force: {
-    drone: 0.04, bass: 1.00, chord: 1.00,
+    drone: 0.06, bass: 1.00, chord: 1.00,
     kick: 1.00, percussion: 1.00,
-    arp: 1.00, voice: 1.00, lead: 0,      // tutto al massimo — visualizer
+    arp: 1.00, voice: 1.00, lead: 0,      // TUTTO AL MASSIMO
   },
   maxDensity: {
-    drone: 0.95, bass: 0.95, chord: 0.95,
-    kick: 0.95, percussion: 0.95,
-    arp: 0.95, voice: 0.95, lead: 0,
+    drone: 1.00, bass: 1.00, chord: 1.00,
+    kick: 1.00, percussion: 1.00,
+    arp: 1.00, voice: 1.00, lead: 0,      // nessun cap — satura tutto
   },
   cellPx: {
-    drone: 10, bass: 12, chord: 10,       // grossi — blocchi di colore pieni
-    kick: 8, percussion: 8,               // anche kick/perc grandi
-    arp: 8, voice: 10, lead: 4,
+    drone: 14, bass: 16, chord: 14,       // GROSSI — blocchi di colore massicci
+    kick: 10, percussion: 10,
+    arp: 10, voice: 14, lead: 4,
   },
   agingInverted: true,
-  shimmerScale: 3.0,     // shimmer aggressivo — pulsazione da evento
+  shimmerScale: 4.0,     // shimmer ESTREMO — pulsazione stroboscopica
   glyphs: {
     roles: ['kick', 'bass', 'chord', 'arp', 'voice', 'percussion'],
     chars: '█▓▒░■□●○◆◇▲▼',
@@ -1566,7 +1566,7 @@ const ENCORE = {
     function makeScatter(role, count, spread) {
       return function(fields, particles, note127, vel127, h) {
         const field = fields[role];
-        const f = (vel127 / 127) * 0.7;
+        const f = (vel127 / 127) * 1.0;  // forza massima — satura
         const n = count + Math.floor(vel127 / 25);
         const W = h.CELLS_X, H = h.CELLS_Y;
         // spread: 0 = tutto il canvas, >0 = cluster intorno a un centro random
@@ -1590,14 +1590,14 @@ const ENCORE = {
       const f = (vel127 / 127) * 0.8;
       const cy = Math.floor(Math.random() * h.CELLS_Y);
       const W = h.CELLS_X;
-      const negative = Math.random() < 0.30;
+      const negative = Math.random() < 0.40;
       if (negative) {
-        // Erosione: sottrai materia da TUTTI i ruoli su 3 righe
-        const erodeF = f * 0.35;  // non troppo aggressivo
+        // Erosione: sottrai materia da TUTTI i ruoli su 5 righe
+        const erodeF = f * 0.50;  // aggressivo
         const roles = ['drone', 'bass', 'chord', 'arp', 'voice', 'percussion'];
         for (const r of roles) {
           const fld = fields[r];
-          for (let dy = -1; dy <= 1; dy++) {
+          for (let dy = -2; dy <= 2; dy++) {
             const row = cy + dy;
             if (row < 0 || row >= h.CELLS_Y) continue;
             for (let x = 0; x < W; x++) {
@@ -1614,28 +1614,28 @@ const ENCORE = {
         if (cy + 1 < h.CELLS_Y) h.depositRow(fields.kick, cy + 1, f * 0.5);
       }
     }
-    // Bass: blob grosso in posizione random — senti il peso
+    // Bass: blob ENORME — senti il peso nel petto
     function bassBlob(fields, particles, note127, vel127, h) {
       const field = fields.bass;
-      const f = (vel127 / 127) * 0.9;
+      const f = (vel127 / 127) * 1.0;
       const cx = Math.floor(Math.random() * h.CELLS_X);
-      const cy = Math.floor(h.CELLS_Y * 0.5 + Math.random() * h.CELLS_Y * 0.5);
-      h.depositBlob(fields, cx, cy, 6, 4, f);  // blob largo
-      // + punti sparsi intorno
-      for (let i = 0; i < 5; i++) {
-        const dx = Math.floor((Math.random() - 0.5) * 20);
-        const dy = Math.floor((Math.random() - 0.5) * 10);
-        h.depositPoint(field, h.clamp(cx + dx, 0, h.CELLS_X - 1), h.clamp(cy + dy, 0, h.CELLS_Y - 1), f * 0.3);
+      const cy = Math.floor(h.CELLS_Y * 0.3 + Math.random() * h.CELLS_Y * 0.7);
+      h.depositBlob(fields, cx, cy, 10, 6, f);  // blob enorme
+      // esplosione di punti intorno
+      for (let i = 0; i < 12; i++) {
+        const dx = Math.floor((Math.random() - 0.5) * 30);
+        const dy = Math.floor((Math.random() - 0.5) * 15);
+        h.depositPoint(field, h.clamp(cx + dx, 0, h.CELLS_X - 1), h.clamp(cy + dy, 0, h.CELLS_Y - 1), f * 0.4);
       }
     }
     return {
-      drone: makeScatter('drone', 4, 0),              // sparso ovunque
-      bass: bassBlob,                                   // blob pesante
-      chord: makeScatter('chord', 6, 15),              // cluster (spread 15)
-      kick: kickFlash,                                  // riga intera
-      percussion: makeScatter('percussion', 5, 10),    // cluster piccolo
-      arp: makeScatter('arp', 8, 0),                   // sparso, tanti punti
-      voice: makeScatter('voice', 5, 12),              // cluster medio
+      drone: makeScatter('drone', 8, 0),               // sparso ovunque, più denso
+      bass: bassBlob,                                    // blob enorme
+      chord: makeScatter('chord', 12, 20),              // cluster grandi
+      kick: kickFlash,                                   // riga + erosione
+      percussion: makeScatter('percussion', 10, 15),    // cluster
+      arp: makeScatter('arp', 15, 0),                   // TANTI punti sparsi
+      voice: makeScatter('voice', 10, 18),              // cluster larghi
     };
   })(),
 };
