@@ -1,10 +1,10 @@
 // ═══════════════════════════════════════════════════════════
-//  MACH:INE III — Camera Osservatore Narrativo
+//  MACH:INE III — Camera come Sguardo
 //
-//  La camera è un agente autonomo che osserva il campo.
-//  Percepisce i POI (punti d'interesse per densità),
-//  sceglie gesti cinematografici per bioma/fase,
-//  e interpola zoom/focus con easing naturale.
+//  Modello fisico di attenzione. Nessun shot, nessuna grammatica.
+//  Lo sguardo è attratto dalla materia (con bonus freshness),
+//  lo zoom è l'equilibrio tra curiosità locale e respiro globale,
+//  l'allerta modula la reattività in base a eventi sonori.
 //
 //  Letta da: director3 (personality, phase)
 //  Scrive a: worldState.camera (zoom, focusX, focusY)
@@ -15,293 +15,273 @@ import { CFG } from './config.js';
 import { worldState } from './world-state.js';
 import { getCampoDensityBlocks, getCampoAvgDensity } from './campo.js';
 
-// ── Easing ──
-function smoothstep(t) { return t * t * (3 - 2 * t); }
-function lerp(a, b, t) { return a + (b - a) * t; }
+// ── Helpers ──
+function clamp(v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }
 
 // ── State ──
-let _shot = null;          // shot corrente { type, fromZoom, fromX, fromY, toZoom, toX, toY, duration, elapsed, easing }
-let _pois = [];            // POI correnti [{ x, y, density, dominantRole }]
-let _poiFrame = 0;         // frame counter per scansione POI
-let _lastPoi = null;       // ultimo POI osservato (per evitare ripetizioni)
-let _ritornoMaxZoom = 1.0; // RITORNO: tetto zoom che cala monotonicamente
+let _focusX = 0.5;
+let _focusY = 0.5;
+let _zoom   = 1.0;
+let _alertness = 0;
+
+// Block scanning + freshness
+let _blocks = [];              // latest density blocks from campo
+let _prevDensities = null;     // Map<string, number> — previous scan
+let _freshness = null;         // Map<string, number> — deposit freshness
+let _scanFrame = 0;
+
+// Event detection
+let _prevPhase = null;
+let _prevAudioEnergy = 0;
+
+// RITORNO: monotonic pull-away
+let _ritornoT = 0;
+
+// Micro-drift: vibrazione impercettibile che dà vita allo sguardo
+let _driftTime = 0;
+
+// Snake patrol (MACCHINA): muove su un asse alla volta, poi gira
+let _snakeAxis = 0;       // 0 = orizzontale, 1 = verticale
+let _snakeDir  = 1;       // +1 o -1
+let _snakeX    = 0.5;
+let _snakeY    = 0.5;
 
 // ── Init ──
 export function initCamera() {
-  _shot = null;
-  _pois = [];
-  _poiFrame = 0;
-  _lastPoi = null;
-  _ritornoMaxZoom = 1.0;
+  _focusX = 0.5;
+  _focusY = 0.5;
+  _zoom   = 1.0;
+  _alertness = 0;
+  _blocks = [];
+  _prevDensities = null;
+  _freshness = null;
+  _scanFrame = 0;
+  _prevPhase = null;
+  _prevAudioEnergy = 0;
+  _ritornoT = 0;
 }
 
-// ── Scansione POI ──
-function _scanPOIs() {
+// ── Scan blocks + compute freshness (delta from previous scan) ──
+function _scan() {
   const camCfg = CFG.VISUAL?.campo?.camera ?? {};
   const blockSize = camCfg.poiBlockSize ?? 8;
-  const maxCount = camCfg.poiMaxCount ?? 5;
 
-  const blocks = getCampoDensityBlocks(blockSize);
-  // Ordina per densità decrescente, prendi i top N
-  blocks.sort((a, b) => b.density - a.density);
-  _pois = blocks.slice(0, maxCount).filter(p => p.density > 0.01);
+  _blocks = getCampoDensityBlocks(blockSize);
+
+  const newDens = new Map();
+  const newFresh = new Map();
+
+  for (const b of _blocks) {
+    const k = b.bx * 100 + b.by;  // cheap int key
+    newDens.set(k, b.density);
+
+    const prev = _prevDensities ? (_prevDensities.get(k) || 0) : 0;
+    const delta = Math.max(0, b.density - prev);  // solo nuovi depositi
+    const oldF  = _freshness ? (_freshness.get(k) || 0) : 0;
+    newFresh.set(k, delta + oldF * 0.82);          // freshness decade tra scan
+  }
+
+  _prevDensities = newDens;
+  _freshness = newFresh;
 }
 
-// ── Scegli un POI diverso dall'ultimo ──
-function _pickPOI() {
-  if (_pois.length === 0) return { x: 0.5, y: 0.5 };
-  // Preferisci un POI diverso dall'ultimo osservato
-  const candidates = _pois.filter(p =>
-    !_lastPoi || Math.abs(p.x - _lastPoi.x) > 0.1 || Math.abs(p.y - _lastPoi.y) > 0.1
-  );
-  const pick = candidates.length > 0 ? candidates[0] : _pois[0];
-  _lastPoi = pick;
-  return pick;
-}
-
-// ── Random in range ──
-function _rand(min, max) { return min + Math.random() * (max - min); }
-
-// ── Applica easing ──
-function _ease(t, type) {
-  if (type === 'snap') return t < 0.15 ? 0 : 1;
-  if (type === 'linear') return t;
-  return smoothstep(t);   // 'smooth' default
-}
-
-// ── Weighted random pick da oggetto { key: weight, ... } ──
-function _pickWeighted(weights) {
-  const entries = Object.entries(weights);
-  const total = entries.reduce((s, [, w]) => s + w, 0);
-  if (total <= 0) return 'travel';  // fallback sicuro
-  let r = Math.random() * total;
-  for (const [key, w] of entries) {
-    r -= w;
-    if (r <= 0) return key;
-  }
-  return entries[entries.length - 1][0];
-}
-
-// ── Crea uno shot ──
-function _makeShot(type, toZoom, toX, toY, duration, easing) {
-  const cam = worldState.camera;
-  return {
-    type,
-    fromZoom: cam.zoom,
-    fromX: cam.focusX,
-    fromY: cam.focusY,
-    toZoom, toX, toY,
-    duration,
-    elapsed: 0,
-    easing: easing || 'smooth',
-  };
-}
-
-// ── Scelta prossimo shot per bioma ──
-function _nextShot() {
-  const cam = worldState.camera;
-  const personality = cam.personality;
-  const camCfg = CFG.VISUAL?.campo?.camera ?? {};
-  const biomeCfg = camCfg.biomes?.[personality];
-
-  // Fallback: se non c'è personalità o config, STARE a zoom 1.0
-  if (!biomeCfg) {
-    return _makeShot('STARE', 1.0, 0.5, 0.5, 5, 'smooth');
-  }
-
-  const [zMin, zMax] = biomeCfg.zoomRange;
-  const [hMin, hMax] = biomeCfg.holdRange;
-  const speed = biomeCfg.speed ?? 0.5;
-  const easing = biomeCfg.easing ?? 'smooth';
-  const zoomFloor = biomeCfg.zoomFloor ?? 1.0;
-
-  const avgDens = getCampoAvgDensity();
-  const fieldEmpty = avgDens < 0.001;
-
-  // ── RITORNO: logica speciale — allontanamento progressivo ──
-  if (personality === 'RITORNO') {
-    return _nextShotRitorno(biomeCfg, easing);
-  }
-
-  // ── Tutti gli altri biomi ──
-  const prevType = _shot ? _shot.type : null;
-  const poi = _pois.length > 0 ? _pickPOI()
-    : { x: 0.15 + Math.random() * 0.7, y: 0.15 + Math.random() * 0.7 };
-
-  // ── Ingresso (nessun shot precedente) o dopo SOLLEVARE → TUFFO ──
-  if (!prevType || prevType === 'SOLLEVARE') {
-    if (fieldEmpty) {
-      return _makeShot('STARE', 1.0, 0.5, 0.5, _rand(2, 4), easing);
-    }
-    const z = _rand(zMin, zMax);
-    return _makeShot('TUFFO', z, poi.x, poi.y, _rand(4, 6) / speed, easing);
-  }
-
-  // ── Dopo TUFFO → osserva ──
-  if (prevType === 'TUFFO') {
-    return _makeShot('STARE', cam.zoom, cam.focusX, cam.focusY, _rand(hMin, hMax), easing);
-  }
-
-  // ── Dopo STARE → grammatica per bioma (weighted pick) ──
-  if (prevType === 'STARE') {
-    const weights = biomeCfg.afterStare ?? { travel: 0.6, lift: 0.4 };
-    const action = _pickWeighted(weights);
-    return _shotFromAction(action, biomeCfg, poi, speed, easing, zoomFloor);
-  }
-
-  // ── Dopo VIAGGIARE / SCANSIONE → osserva dove sei ──
-  if (prevType === 'VIAGGIARE' || prevType === 'SCANSIONE') {
-    return _makeShot('STARE', cam.zoom, cam.focusX, cam.focusY, _rand(hMin, hMax), easing);
-  }
-
-  // Default
-  if (!fieldEmpty) {
-    const z = _rand(zMin, zMax);
-    return _makeShot('TUFFO', z, poi.x, poi.y, _rand(4, 6) / speed, easing);
-  }
-  return _makeShot('STARE', 1.0, 0.5, 0.5, _rand(hMin, hMax), easing);
-}
-
-// ── Risolvi azione grammaticale in shot concreto ──
-function _shotFromAction(action, cfg, poi, speed, easing, zoomFloor) {
-  const cam = worldState.camera;
-  const [zMin, zMax] = cfg.zoomRange;
-  const [hMin, hMax] = cfg.holdRange;
-
-  switch (action) {
-
-    // — riposa ancora (contemplazione, NEBBIA) —
-    case 'stare':
-      return _makeShot('STARE', cam.zoom, cam.focusX, cam.focusY, _rand(hMin, hMax), easing);
-
-    // — viaggia verso nuovo POI —
-    case 'travel':
-      return _makeShot('VIAGGIARE', cam.zoom, poi.x, poi.y, _rand(4, 8) / speed, easing);
-
-    // — allontanamento totale —
-    case 'lift':
-      return _makeShot('SOLLEVARE', zoomFloor, 0.5, 0.5, _rand(4, 8) / speed, easing);
-
-    // — scansione (H per TESSUTO, V per TEMPESTA) —
-    case 'scan': {
-      const dir = cfg.scanDir ?? 'H';
-      const scanDist = 0.2 + Math.random() * 0.3;
-      const sign = Math.random() < 0.5 ? 1 : -1;
-      const toX = dir === 'H' ? Math.min(1, Math.max(0, cam.focusX + sign * scanDist)) : cam.focusX;
-      const toY = dir === 'V' ? Math.min(1, Math.max(0, cam.focusY + sign * scanDist)) : cam.focusY;
-      return _makeShot('SCANSIONE', cam.zoom, toX, toY, _rand(6, 12) / speed, easing);
-    }
-
-    // — inseguimento eco dub: pan a destra (SOLCO) —
-    case 'echoChase': {
-      const echoDist = 0.15 + Math.random() * 0.15;   // 15-30% del campo verso destra
-      const toX = Math.min(1, cam.focusX + echoDist);
-      return _makeShot('SCANSIONE', cam.zoom, toX, cam.focusY, _rand(3, 5) / speed, easing);
-    }
-
-    // — respiro: zoom indietro parziale poi si rituffa (RESPIRO) —
-    case 'breathe': {
-      // espira: zoom indietro del 40%, poi il prossimo ciclo sarà TUFFO → STARE
-      const exhaleZoom = Math.max(zoomFloor, cam.zoom * 0.6);
-      // leggero spostamento laterale (la membrana si muove)
-      const driftX = cam.focusX + _rand(-0.08, 0.08);
-      const driftY = cam.focusY + _rand(-0.05, 0.05);
-      return _makeShot('SOLLEVARE', exhaleZoom, Math.min(1, Math.max(0, driftX)), Math.min(1, Math.max(0, driftY)), _rand(4, 7) / speed, easing);
-    }
-
-    // — salto discreto a nuova posizione (MACCHINA) —
-    case 'snapJump': {
-      const z = _rand(zMin, zMax);
-      return _makeShot('TUFFO', z, poi.x, poi.y, _rand(2, 3) / speed, 'snap');
-    }
-
-    default:
-      return _makeShot('VIAGGIARE', cam.zoom, poi.x, poi.y, _rand(4, 8) / speed, easing);
-  }
-}
-
-// ── RITORNO: allontanamento progressivo monotono ──
-function _nextShotRitorno(cfg, easing) {
-  const [zMin, zMax] = cfg.zoomRange;   // [1, 6]
-  const [hMin, hMax] = cfg.holdRange;   // [3, 8]
-  const speed = cfg.speed;
-  const poi = _pickPOI();
-
-  const prevType = _shot ? _shot.type : null;
-
-  if (!prevType) {
-    // Primo shot: il mondo è intero, zoom 1.0 fullscreen
-    return _makeShot('STARE', 1.0, 0.5, 0.5, _rand(3, 5), easing);
-  }
-
-  if (_ritornoMaxZoom > 0.8) {
-    // Fase iniziale: può ancora tuffarsi per un ultimo dettaglio
-    if (prevType === 'STARE' && _ritornoMaxZoom > 1.5) {
-      // Un tuffo intimo su una scintilla
-      const z = Math.min(_ritornoMaxZoom, _rand(3, zMax));
-      _ritornoMaxZoom = z;   // il prossimo non potrà zoomare di più
-      return _makeShot('TUFFO', z, poi.x, poi.y, _rand(4, 6) / speed, easing);
-    }
-    if (prevType === 'TUFFO') {
-      return _makeShot('STARE', worldState.camera.zoom, worldState.camera.focusX, worldState.camera.focusY, _rand(hMin, hMax), easing);
-    }
-    // Inizia ad allontanarsi
-    _ritornoMaxZoom *= 0.7;  // calo monotono
-    const newZoom = Math.max(0.15, _ritornoMaxZoom);
-    return _makeShot('SOLLEVARE', newZoom, 0.5, 0.5, _rand(4, 8) / speed, easing);
-  }
-
-  // Fase finale: il mondo si allontana e scompare
-  _ritornoMaxZoom *= 0.65;
-  const newZoom = Math.max(0.15, _ritornoMaxZoom);
-  if (newZoom <= 0.15) {
-    // Ultimo shot: puntino che svanisce, hold lungo
-    return _makeShot('STARE', 0.15, 0.5, 0.5, 20, easing);
-  }
-  return _makeShot('SOLLEVARE', newZoom, 0.5, 0.5, _rand(5, 10) / speed, easing);
-}
-
-// ── Update (chiamato ogni frame dal game loop) ──
+// ── Update (ogni frame dal game loop) ──
 export function updateCamera(dt) {
-  const cam = worldState.camera;
-  if (!cam.personality) return;  // nessun bioma attivo
-
-  // Scansione POI periodica
-  const camCfg = CFG.VISUAL?.campo?.camera ?? {};
-  const scanInterval = camCfg.poiScanInterval ?? 15;
-  _poiFrame++;
-  if (_poiFrame >= scanInterval) {
-    _poiFrame = 0;
-    _scanPOIs();
+  // ENCORE: camera fissa, nessun movimento
+  if (worldState.encoreMode) {
+    worldState.camera.zoom = 1.0;
+    worldState.camera.focusX = 0.5;
+    worldState.camera.focusY = 0.5;
+    return;
   }
 
-  // Cambio traccia → SOLLEVARE naturale verso 1.0, poi camera riprende autonomamente
+  const cam = worldState.camera;
+  if (!cam.personality) return;
+
+  const camCfg = CFG.VISUAL?.campo?.camera ?? {};
+  const bio = camCfg.biomes?.[cam.personality];
+  if (!bio) return;
+
+  // ── Track changed: soft reset ──
   if (cam._trackChanged) {
     cam._trackChanged = false;
-    _lastPoi = null;
-    _ritornoMaxZoom = 1.0;
-    // Se siamo già vicini a 1.0, solo un breve settle; altrimenti SOLLEVARE lento
-    const dist = Math.abs(cam.zoom - 1.0);
-    const dur = dist > 0.5 ? _rand(3, 5) : _rand(1.5, 2.5);
-    _shot = _makeShot('SOLLEVARE', 1.0, 0.5, 0.5, dur, 'smooth');
+    _alertness = 0.4;           // breve boost per raggiungere nuova quota
+    _prevPhase = null;
+    _ritornoT = 0;
+    _prevDensities = null;
+    _freshness = null;
   }
 
-  // Se non c'è shot corrente, creane uno
-  if (!_shot) {
-    _shot = _nextShot();
+  // ── Scan periodico ──
+  const scanInterval = camCfg.poiScanInterval ?? 15;
+  _scanFrame++;
+  if (_scanFrame >= scanInterval) {
+    _scanFrame = 0;
+    _scan();
   }
 
-  // Avanza lo shot
-  _shot.elapsed += dt;
-  const t = Math.min(1, _shot.elapsed / _shot.duration);
-  const e = _ease(t, _shot.easing);
+  // ═══════════════════════════════════════════════
+  //  1. ALLERTA — reagisce a eventi sonori/narrativi
+  // ═══════════════════════════════════════════════
 
-  cam.zoom   = lerp(_shot.fromZoom, _shot.toZoom, e);
-  cam.focusX = lerp(_shot.fromX,    _shot.toX,    e);
-  cam.focusY = lerp(_shot.fromY,    _shot.toY,    e);
-
-  // Shot finito → prossimo
-  if (t >= 1) {
-    _shot = _nextShot();
+  // Cambio fase
+  const curPhase = cam.phase;
+  const _phaseJustChanged = _prevPhase && curPhase !== _prevPhase;
+  if (_phaseJustChanged) {
+    _alertness = Math.min(1, _alertness + 0.25);
   }
+  _prevPhase = curPhase;
+
+  // Spike audio
+  const audioE = worldState.audioEnergy || 0;
+  const spike  = Math.max(0, audioE - _prevAudioEnergy - 0.08);
+  _alertness = Math.min(1, _alertness + spike * 0.8);
+  _prevAudioEnergy = audioE;
+
+  // Rupture: spinta continua leggera
+  const ruptureI = worldState.rupture?.intensity ?? 0;
+  _alertness = Math.min(1, _alertness + ruptureI * 0.03);
+
+  // Decay (~2s dimezzamento a 60fps)
+  _alertness *= 1 - 1.5 * dt;
+  _alertness = clamp(_alertness, 0, 1);
+
+  // ═══════════════════════════════════════════════
+  //  2. FOCUS — centro di massa pesato per densità+freshness
+  // ═══════════════════════════════════════════════
+
+  const freshW = bio.freshnessWeight ?? 3.0;
+  let sumWX = 0, sumWY = 0, sumW = 0;
+
+  for (const b of _blocks) {
+    const k = b.bx * 100 + b.by;
+    const fresh = _freshness ? (_freshness.get(k) || 0) : 0;
+    const w = b.density + fresh * freshW;
+    if (w < 0.001) continue;
+    sumWX += b.x * w;
+    sumWY += b.y * w;
+    sumW  += w;
+  }
+
+  // Target: centro di massa dell'attività, con bias verso centro
+  const centerPull = bio.centerPull ?? 0.02;
+  let targetX, targetY;
+  if (sumW > 0.01) {
+    targetX = sumWX / sumW;
+    targetY = sumWY / sumW;
+  } else {
+    // Nessuna attività: deriva dolce verso centro
+    targetX = 0.5;
+    targetY = 0.5;
+  }
+
+  // CenterPull: blend verso 0.5
+  targetX = targetX + (0.5 - targetX) * centerPull;
+  targetY = targetY + (0.5 - targetY) * centerPull;
+
+  // Snake patrol — muove su un asse alla volta, scrittura diretta (no lerp diagonale)
+  const snakeSpeed = bio.snakeSpeed ?? 0;
+  if (snakeSpeed > 0) {
+    const step = snakeSpeed * dt;
+    if (_snakeAxis === 0) {
+      _snakeX += step * _snakeDir;
+      if (_snakeX > 0.88 || _snakeX < 0.12) {
+        _snakeDir *= -1;
+        _snakeAxis = 1;
+      }
+    } else {
+      _snakeY += step * _snakeDir;
+      if (_snakeY > 0.88 || _snakeY < 0.12) {
+        _snakeDir *= -1;
+        _snakeAxis = 0;
+      }
+    }
+    _snakeX = clamp(_snakeX, 0.08, 0.92);
+    _snakeY = clamp(_snakeY, 0.08, 0.92);
+    // Scrivi diretto — l'asse fermo non si muove → niente diagonale
+    _focusX = _snakeX;
+    _focusY = _snakeY;
+  } else {
+    // Drift verso target (modulato da allerta) — biomi normali
+    const baseDrift = bio.focusDrift ?? 0.2;
+    const drift = baseDrift * (1 + _alertness * 1.2) * dt;
+
+    _focusX += (targetX - _focusX) * drift;
+    _focusY += (targetY - _focusY) * drift;
+  }
+  _focusX = clamp(_focusX, 0.05, 0.95);
+  _focusY = clamp(_focusY, 0.05, 0.95);
+
+  // ═══════════════════════════════════════════════
+  //  3. ZOOM — phase-aware, narrativo
+  //  phaseZoom detta la quota; curiosità/respiro modulano ±0.15 max
+  // ═══════════════════════════════════════════════
+
+  let targetZoom;
+
+  if (cam.personality === 'RITORNO') {
+    // Allontanamento monotono: esponenziale da phaseZoom a 0.15
+    _ritornoT += dt;
+    const base = (bio.phaseZoom && bio.phaseZoom[curPhase]) ?? 1.0;
+    const decay = bio.ritornoDecay ?? 0.007;
+    targetZoom = 0.15 + (base - 0.15) * Math.exp(-decay * _ritornoT);
+  } else {
+    // Phase zoom: la quota narrativa per questa fase
+    const baseZoom = (bio.phaseZoom && bio.phaseZoom[curPhase]) ?? 1.0;
+
+    const curiosityW = bio.curiosityWeight ?? 0.1;
+    const breathW    = bio.breathWeight ?? 0.05;
+
+    // Densità locale: blocchi vicini al focus
+    let localD = 0, localN = 0;
+    for (const b of _blocks) {
+      const dx = b.x - _focusX;
+      const dy = b.y - _focusY;
+      if (dx * dx + dy * dy < 0.025) {
+        localD += b.density;
+        localN++;
+      }
+    }
+    localD = localN > 0 ? localD / localN : 0;
+
+    // Densità globale
+    const globalD = getCampoAvgDensity();
+
+    // Modulazione leggera: curiosità IN (+), respiro OUT (-)
+    // Max ±0.15 — il phaseZoom fa il lavoro grosso
+    const modulation = localD * curiosityW - globalD * breathW;
+    targetZoom = baseZoom + clamp(modulation, -0.15, 0.15);
+    targetZoom = clamp(targetZoom, 0.85, 2.2);
+  }
+
+  // Zoom drift (modulato da allerta)
+  // snapPhaseZoom: MACCHINA cambia zoom di colpo al cambio fase
+  const snap = bio.snapPhaseZoom && _phaseJustChanged;
+  if (snap) {
+    _zoom = targetZoom;  // istantaneo
+  }
+  const baseZoomDrift = bio.zoomDrift ?? 0.10;
+  const zDrift = baseZoomDrift * (1 + _alertness * 0.6) * dt;
+  _zoom += (targetZoom - _zoom) * zDrift;
+
+  // Micro-punch su onset forte
+  if (spike > 0.25) {
+    _zoom *= 1 + spike * 0.03;
+  }
+
+  // ═══════════════════════════════════════════════
+  //  4. MICRO-DRIFT — sguardo vivo anche da fermo
+  // ═══════════════════════════════════════════════
+  _driftTime += dt;
+  // 2 sinusoidi a frequenze basse → respiro impercettibile
+  const microX = Math.sin(_driftTime * 0.41) * 0.0012 + Math.sin(_driftTime * 0.17) * 0.0008;
+  const microY = Math.sin(_driftTime * 0.31 + 1.0) * 0.0012 + Math.cos(_driftTime * 0.13) * 0.0008;
+
+  // ═══════════════════════════════════════════════
+  //  5. SCRIVI su worldState
+  // ═══════════════════════════════════════════════
+
+  cam.zoom   = _zoom;
+  cam.focusX = _focusX + microX;
+  cam.focusY = _focusY + microY;
 }
