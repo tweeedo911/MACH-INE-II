@@ -81,6 +81,20 @@ export const worldState = {
     personality: null,   // bioma attivo — scritto da director3
     phase: null,         // fase corrente — scritta da director3
   },
+
+  // ── ENCORE mode ──
+  encoreMode: false,       // true when ENCORE track is active
+  encoreScale: 'halfWhole', // 'halfWhole' | 'wholeHalf' | 'prometheus'
+  // Per-module cycle lengths (in 16th-note steps). 16 = normal 4/4.
+  // Only read when encoreMode is true; normal tracks always use 16.
+  encoreCycleLens: {
+    rhythm: 16,   // kick+snare always 4/4
+    hat: 10,      // 5/8
+    bass: 12,     // 3/4
+    harmony: 14,  // 7/8
+    arp: 22,      // 11/16
+    voice: 26,    // 13/16
+  },
 };
 
 // ── Phase time tracking (internal to director3, exposed for HUD) ──
