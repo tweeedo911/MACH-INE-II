@@ -906,25 +906,23 @@ export function jumpToTrack(trackName) {
 export function launchEncore() {
   if (_encoreActive) return;
 
-  // Stop current playback cleanly
-  if (!_paused) {
-    _paused = true;
-    sendMIDIAllNotesOff();
-    sendNornsDroneStop();
-  }
+  // ── HARD RESET: ferma tutto, pulisci stato, a prescindere da cosa stava succedendo ──
+  _paused = true;
+  sendMIDIAllNotesOff();
+  sendNornsDroneStop();
 
-  // Set encore mode in worldState
+  // Set encore mode BEFORE initDirector3 so modules know we're in encore
   worldState.encoreMode = true;
   worldState.encoreScale = 'halfWhole';
   worldState.scale = ENCORE_SCALES.halfWhole;
 
-  // Activate
+  // Activate encore state machine
   _encoreActive = true;
   _encoreBrick = 0;
   _encoreBrickBar = 0;
   worldState.encoreBrick = 0;
 
-  // Load ENCORE track via normal init
+  // Load ENCORE track — this resets all modules, _phaseTime, _barAcc, etc.
   initDirector3('ENCORE');
 
   // Override BPM for heartbeat start
@@ -937,12 +935,19 @@ export function launchEncore() {
     worldState.density[mod] = val;
   }
 
+  // Explicitly set velocity ceilings for heartbeat (override _applyPhase scaling)
+  worldState.velocityCeiling.rhythm  = 40;  // will ramp up in _updateEncore
+  worldState.velocityCeiling.harmony = TRACKS.ENCORE.velocityCeiling.harmony;
+  worldState.velocityCeiling.bass    = TRACKS.ENCORE.velocityCeiling.bass;
+  worldState.velocityCeiling.melody  = TRACKS.ENCORE.velocityCeiling.melody;
+  worldState.velocityCeiling.texture = TRACKS.ENCORE.velocityCeiling.texture;
+
   // Start playing
   _paused = false;
   sendNornsBiome(TRACK_ORDER.indexOf('ENCORE'));
   sendNornsDroneStart();
 
-  console.log('[DIR3] ENCORE launched — heartbeat starting');
+  console.log(`[DIR3] ENCORE launched — density.rhythm=${worldState.density.rhythm} bpm=${worldState.bpm} ceiling=${worldState.velocityCeiling.rhythm} grid=${worldState.rhythmGrid}`);
 }
 
 // ── ENCORE: switch scale on the fly ──
