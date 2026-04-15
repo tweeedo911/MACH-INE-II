@@ -18,6 +18,27 @@ import { sendMIDINote } from './midi.js';
 import { addMidiNote } from './field.js';
 import { TRACKS } from './tracks.js';
 
+// ── Phase-aware skip probability (A) ──
+// Il dub vive di buchi. Germoglio sparso, densità pieno, dissoluzione consumato.
+const _BASS_SKIP_PROB = {
+  germoglio:    0.08,   // il basso prepara: quasi costante, fonda il groove
+  pulsazione:   0.05,   // quasi completo, qualche respiro
+  densita:      0.03,   // groove pieno, skip rarissimo
+  rottura:      0.05,   // solido ma con crepe
+  dissoluzione: 0.25,   // si sfilaccia (+ degradation sopra)
+};
+
+// ── Phase-aware gate duration multiplier (B) ──
+// Sul modulare il gate è l'unico parametro espressivo.
+// Valori = moltiplicatore di stepMs (~130ms a 129BPM)
+const _BASS_DUR_MUL = {
+  germoglio:    2.5,    // medio — il basso tiene, fonda il groove
+  pulsazione:   3.0,    // medio — groove leggibile
+  densita:      5.0,    // legato — groove pieno, note che si toccano
+  rottura:      4.0,    // legato ma meno — tensione
+  dissoluzione: 1.2,    // staccatissimo — il basso si ritira
+};
+
 // Reads master clock from worldState.globalTick (written by rhythm.js).
 let _step = 0;
 let _bar = 0;
@@ -112,8 +133,14 @@ export function updateBass(dt) {
   // Catch up to master clock (rhythm.js owns the only stepAcc)
   while (_lastTick < worldState.globalTick) {
     _lastTick++;
-    _step = _lastTick % 16;
-    _bar  = Math.floor(_lastTick / 16);
+    if (worldState.encoreMode) {
+      const bassCycle = worldState.encoreCycleLens.bass;  // 12
+      _step = _lastTick % bassCycle;
+      _bar  = Math.floor(_lastTick / bassCycle);
+    } else {
+      _step = _lastTick % 16;
+      _bar  = Math.floor(_lastTick / 16);
+    }
     _tick();
   }
 }
@@ -121,6 +148,33 @@ export function updateBass(dt) {
 function _tick() {
   const track = TRACKS[worldState.track];
   if (!track) return;
+
+  // ── ENCORE: bass pattern on 12-step cycle ──
+  if (worldState.encoreMode && track.bassPattern) {
+    const noteVal = track.bassPattern[_step];
+    if (!noteVal) return;  // 0 = rest
+
+    const density = worldState.density.bass;
+    const ceiling = worldState.velocityCeiling.bass;
+    const [regLo, regHi] = worldState.register.bass;
+    const bpm = worldState.bpm || 132;
+    const stepMs = (60 / bpm / 4) * 1000;
+
+    // Transpose by chord root relative to C3 (MIDI 48)
+    const chordRoot = (worldState.currentChord && worldState.currentChord[0]) || 48;
+    const offset = chordRoot - 48;
+    let note = noteVal + offset;
+    while (note < regLo) note += 12;
+    while (note > regHi) note -= 12;
+
+    const rawVel = 60 + density * 40 + (Math.random() * 8 - 4);
+    const vel = Math.min(Math.round(rawVel), ceiling);
+    const dur = Math.round(stepMs * 3.0);
+
+    sendMIDINote(3, note, vel, dur);  // CH3
+    addMidiNote(3, note / 127, vel / 127);
+    return;  // skip normal bass logic
+  }
 
   const pattern = track.bassPattern;
   const root    = worldState.root;
@@ -143,9 +197,37 @@ function _tick() {
     if (!worldState.currentChord || worldState.currentChord.length === 0) return;
 
     if (CFG.MUSIC_STRUCTURAL) {
-      // V3 (N attivo): anchor sul cambio accordo (root, sempre) +
-      // movimento interno ogni 2 bar con prob density-aware (raro a bassa density).
-      // Durata 0.75 bar — articolato, non drone.
+      // ── Mode A.1: Rhythmic follow — basso su griglia propria, nota dall'accordo ──
+      // bassGrid = ritmo proprio (complementare a chordGrid), chordGrid = fallback
+      const bassGrid = track.bassGrid || track.chordGrid;
+      if (bassGrid && bassGrid[_step]) {
+        if (density < 0.10) return;  // gate dissoluzione
+
+        // Phase-aware skip — stessa logica del Mode B
+        const phase = worldState.phase || 'germoglio';
+        const skipProb = _BASS_SKIP_PROB[phase] ?? 0.05;
+        if (skipProb > 0 && Math.random() < skipProb) return;
+
+        const sorted = [...worldState.currentChord].sort((a, b) => a - b);
+        // Root quasi sempre, 5a occasionale per movimento
+        let bassNote = sorted[0];
+        if (sorted.length > 2 && Math.random() < 0.15) bassNote = sorted[2];  // 5a, 15%
+        while (bassNote > regHi) bassNote -= 12;
+        while (bassNote < regLo) bassNote += 12;
+        if (bassNote < regLo || bassNote > regHi) bassNote = root;
+
+        const baseVel = (50 + density * 30) * _velSweep;
+        const humanize = (Math.random() * 6) - 3;
+        const vel = Math.round(Math.max(1, Math.min(ceiling, baseVel + humanize)));
+        // Gate corto: staccato come gli accordi ritmici sopra
+        const durMul = _BASS_DUR_MUL[phase] ?? 3;
+        const dur = Math.round(stepMs * Math.min(durMul, 2.5));
+        sendMIDINote(3, bassNote, vel, dur);
+        addMidiNote(3, bassNote / 127, vel / 127);
+        return;
+      }
+
+      // ── Mode A.2: Anchor follow — 1 nota su cambio accordo (RESPIRO, RITORNO) ──
       if (_step !== 0) return;
       if (_bar === _lastFollowBar) return;
 
@@ -155,21 +237,24 @@ function _tick() {
       let isMovement = false;
 
       if (!chordChanged) {
-        // Nessun cambio accordo: movimento interno ogni 2 bar, solo se density lo giustifica
         if (barsSince < 2 || barsSince % 2 !== 0) return;
         if (Math.random() > density * 0.7) return;
         isMovement = true;
       }
 
+      // Density gate dissoluzione
+      if (!chordChanged && density < 0.15) return;
+      if (chordChanged && density < 0.10) return;
+
       if (chordChanged) _lastFollowChord = chordStr;
       _lastFollowBar = _bar;
 
       const sorted = [...worldState.currentChord].sort((a, b) => a - b);
-      let noteIdx = 0;  // root (anchor)
+      let noteIdx = 0;
       if (isMovement) {
         const roll = Math.random();
-        if (roll > 0.55 && sorted.length > 1) noteIdx = 1;  // terza
-        if (roll > 0.80 && sorted.length > 2) noteIdx = 2;  // quinta
+        if (roll > 0.55 && sorted.length > 1) noteIdx = 1;
+        if (roll > 0.80 && sorted.length > 2) noteIdx = 2;
       }
       const velMul = isMovement ? 0.75 : 1.0;
 
@@ -181,7 +266,7 @@ function _tick() {
       const baseVel = (42 + density * 28) * _velSweep * velMul;
       const humanize = (Math.random() * 6) - 3;
       const vel = Math.round(Math.max(1, Math.min(ceiling, baseVel + humanize)));
-      const dur = Math.round(beatMs * 4 * 0.75);  // 0.75 bar — articolato
+      const dur = Math.round(beatMs * 4 * 0.75);
       sendMIDINote(3, bassNote, vel, dur);
       addMidiNote(3, bassNote / 127, vel / 127);
 
@@ -231,23 +316,68 @@ function _tick() {
   }
 
   const offset = activePattern[_step];
+  const ornament = track.bassOrnament;
+  const phase = worldState.phase || 'germoglio';
 
   if (offset > 0) {
+    // ── A: Skip probability phase-aware ──
+    const skipProb = _BASS_SKIP_PROB[phase] ?? 0.05;
+    if (skipProb > 0 && Math.random() < skipProb) return;
+
+    // ── D: Degradation in dissoluzione ──
+    if (phase === 'dissoluzione') {
+      const dissolveDur = track.phases?.dissoluzione || 16;
+      const dissolveProg = Math.min(1, _bar / dissolveDur);
+      const degradeAmount = dissolveProg * 0.6;
+      if (Math.random() < degradeAmount) return;
+    }
+
     let note = root + offset;
     while (note > regHi) note -= 12;
     while (note < regLo) note += 12;
     if (note < regLo || note > regHi) note = regLo;
 
+    // V3.11: octave jump — sorpresa controllata, dub classico
+    if (ornament?.octaveProb > 0 && Math.random() < ornament.octaveProb) {
+      const up = note + 12;
+      if (up <= regHi) note = up;
+    }
+
     const baseVel = (50 + density * 40) * _velSweep;
     const humanize = (Math.random() * 8) - 4;
     const vel = Math.round(Math.max(1, Math.min(ceiling, baseVel + humanize)));
-    const dur = stepMs * 3;
+
+    // ── B: Durata phase-aware ──
+    const durMul = _BASS_DUR_MUL[phase] ?? 3;
+    const dur = Math.round(stepMs * durMul);
 
     sendMIDINote(3, note, vel, dur);
     addMidiNote(3, note / 127, vel / 127);
     _lastNote = _step;
 
-    // 5th doubling e ghost notes rimossi — bass va su modulare (gate+note),
-    // note extra fuori pattern creano gate imprevisti
+  // Ghost fill phase-aware: zero in germoglio (il basso è solo, deve essere pulito),
+  // cresce con le fasi quando c'è un ritmo che contestualizza i ghost
+  } else if (ornament?.ghostProb > 0) {
+    const ghostPhaseScale = { germoglio: 0, pulsazione: 0.4, densita: 1.0, rottura: 0.8, dissoluzione: 0.2 };
+    const effectiveGhostProb = ornament.ghostProb * (ghostPhaseScale[phase] ?? 0.5);
+    if (effectiveGhostProb <= 0 || Math.random() >= effectiveGhostProb) return;
+
+    // V3.11: ghost fill — nota fantasma su step vuoto, velocity bassa
+    // Usa l'offset più basso del pattern (tipicamente la root)
+    const positives = pattern.filter(n => n > 0);
+    if (positives.length === 0) return;
+    const ghostOffset = positives[0];  // offset più piccolo = root-like
+
+    let note = root + ghostOffset;
+    while (note > regHi) note -= 12;
+    while (note < regLo) note += 12;
+    if (note < regLo || note > regHi) return;
+
+    const ghostVel = Math.round(Math.max(1, Math.min(ceiling, (20 + density * 15) * _velSweep)));
+    const durMul = _BASS_DUR_MUL[phase] ?? 3;
+    const dur = Math.round(stepMs * Math.min(durMul, 2));  // ghost più corto
+
+    sendMIDINote(3, note, ghostVel, dur);
+    addMidiNote(3, note / 127, ghostVel / 127);
   }
 }
