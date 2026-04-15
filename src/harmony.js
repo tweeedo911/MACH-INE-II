@@ -8,7 +8,7 @@ import { CFG } from './config.js';
 import { worldState } from './world-state.js';
 import { sendMIDINote, sendMIDIPitchBend } from './midi.js';
 import { addMidiNote } from './field.js';
-import { TRACKS } from './tracks.js';
+import { TRACKS, ENCORE_CHORDS } from './tracks.js';
 
 // ── Channel assignments ──
 const CH_DRONE  = 2;  // CH2 = DRONE (sustained harmonic root)
@@ -64,8 +64,14 @@ export function updateHarmony(dt) {
   // Catch up to master clock — typically advances 0 or 1 tick per frame.
   while (_lastTick < worldState.globalTick) {
     _lastTick++;
-    _step = _lastTick % 16;
-    _bar  = Math.floor(_lastTick / 16);
+    if (worldState.encoreMode) {
+      const chordCycle = worldState.encoreCycleLens.harmony;  // 14
+      _step = _lastTick % chordCycle;
+      _bar  = Math.floor(_lastTick / chordCycle);
+    } else {
+      _step = _lastTick % 16;
+      _bar  = Math.floor(_lastTick / 16);
+    }
     _tick();
   }
 }
@@ -81,6 +87,34 @@ function _tick() {
 
   // ── Velocity ceiling guard ──
   const velCeil  = worldState.velocityCeiling.harmony || 127;
+
+  // ── ENCORE: chord cycles every chordCycle steps, octatonic progressions ──
+  if (worldState.encoreMode) {
+    const encoreChords = ENCORE_CHORDS[worldState.encoreScale] || ENCORE_CHORDS.halfWhole;
+    // Chord changes every cycle (step 0 of the 14-step cycle)
+    if (_step === 0 && _bar !== _lastChordBar) {
+      _lastChordBar = _bar;
+      _chordIdx = (_chordIdx + 1) % encoreChords.length;
+      const chord = encoreChords[_chordIdx];
+      worldState.currentChord = chord;
+      const chordVel = Math.min(Math.round(50 + density * 40), velCeil);
+      const chordDur = Math.round(beatMs * 3);
+      for (const note of chord) {
+        if (note >= regLo && note <= regHi) {
+          sendMIDINote(CH_CHORDS, note, chordVel, chordDur);
+          addMidiNote(CH_CHORDS, note / 127, chordVel / 127);
+        }
+      }
+    }
+    // Drone: hold root, no pitch drift
+    if (_step === 0 && _bar % 4 === 0 && _bar !== _lastDroneBar && density >= 0.08) {
+      _lastDroneBar = _bar;
+      const droneVel = Math.min(Math.round(25 + density * 20), velCeil);
+      sendMIDINote(CH_DRONE, root, droneVel, Math.round(beatMs * 15));
+      addMidiNote(CH_DRONE, root / 127, droneVel / 127);
+    }
+    return;  // skip normal harmony logic
+  }
 
   // ──────────────────────────────────────────────
   //  V3: CH2 drone pitch drift (Sakamoto §A.5)
@@ -103,8 +137,9 @@ function _tick() {
 
   // ──────────────────────────────────────────────
   //  CH2 DRONE — every 4 bars, on step 0
+  //  Density gate: sotto 0.08 il drone tace (fade dissoluzione)
   // ──────────────────────────────────────────────
-  if (_step === 0 && _bar % 4 === 0 && _bar !== _lastDroneBar) {
+  if (_step === 0 && _bar % 4 === 0 && _bar !== _lastDroneBar && density >= 0.08) {
     _lastDroneBar = _bar;
 
     const droneVel  = Math.min(Math.round(35 + density * 25), velCeil);
@@ -170,16 +205,27 @@ function _tick() {
   // alle note di accordo che cadono su quell'intervallo.
   const charBoost = _modeCharacteristicBoost(root);
 
+  // Density gate per accordi: sotto 0.08 tacciono (fade dissoluzione)
+  if (density < 0.08) {
+    // Aggiorna currentChord per il ponte modale anche senza suonare
+    if (_step === 0 && _bar === _lastChordBar) worldState.currentChord = [...chord];
+    return;
+  }
+
   if (chordGrid) {
     // ── Rhythmic chords: staccato hits on grid pattern ──
-    if (chordGrid[_step]) {
+    // V3.11: ghost hit — probabilità di suonare l'accordo piano su step vuoti adiacenti
+    const ghostProb = trackData?.chordGridGhostProb ?? 0;
+    const isGhost = !chordGrid[_step] && ghostProb > 0 && Math.random() < ghostProb;
+
+    if (chordGrid[_step] || isGhost) {
       const stepMs = (60 / bpm / 4) * 1000;
-      const chordDur = Math.round(stepMs * 2.5);  // short — staccato
-      const baseVel = Math.round(40 + density * 35);
+      const chordDur = Math.round(stepMs * (isGhost ? 1.5 : 2.5));  // ghost più corto
+      const baseVel = Math.round((isGhost ? 22 : 40) + density * (isGhost ? 15 : 35));
 
       chord.forEach(note => {
         const humanize = Math.round((Math.random() * 6) - 3);
-        const boost = (charBoost && (note % 12) === charBoost.pitchClass) ? charBoost.amount : 0;
+        const boost = (!isGhost && charBoost && (note % 12) === charBoost.pitchClass) ? charBoost.amount : 0;
         const vel = Math.min(Math.max(baseVel + humanize + boost, 1), velCeil);
         sendMIDINote(CH_CHORDS, note, vel, chordDur);
         addMidiNote(CH_CHORDS, note / 127, vel / 127);
