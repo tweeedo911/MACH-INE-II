@@ -84,36 +84,28 @@ let _paused = true;     // starts paused — performer presses Space to begin
 
 // ── ENCORE state machine ──
 let _encoreActive = false;
-let _encoreBrick  = 0;      // 0=heartbeat, 1-6=bricks, 7=plateau, 8=teardown
-let _encoreBrickBar = 0;    // bars elapsed in current brick
+let _encoreBrick  = 0;
+let _encoreBrickBar = 0;
 
-// Each brick: name, duration in bars, module densities to set
-// Ordine: kick → voice → hat → chord → arp → snare → BASS (ultimo = drop)
-// Brick gates in modules: voice>=2, hat>=3, chord>=4, arp>=5, snare>=6, bass>=7, conga>=8(plateau)
-const ENCORE_BRICKS = [
-  /* 0 */ { name: 'heartbeat', bars: 8, mods: { rhythm: 0.8, harmony: 0.05, bass: 0, melody: 0, texture: 0 } },
-  /* 1 */ { name: 'kick', bars: 32, mods: { rhythm: 0.8, harmony: 0.05, bass: 0, melody: 0, texture: 0.1 } },
-  /* 2 */ { name: '+voice', bars: 24, mods: { rhythm: 0.8, harmony: 0.05, bass: 0, melody: 0.7, texture: 0.1 } },
-  /* 3 */ { name: '+hat', bars: 24, mods: { rhythm: 0.9, harmony: 0.05, bass: 0, melody: 0.7, texture: 0.1 } },
-  /* 4 */ { name: '+chord', bars: 20, mods: { rhythm: 0.9, harmony: 0.6, bass: 0, melody: 0.7, texture: 0.1 } },
-  /* 5 */ { name: '+arp', bars: 16, mods: { rhythm: 0.9, harmony: 0.6, bass: 0, melody: 0.9, texture: 0.1 } },
-  /* 6 */ { name: '+snare', bars: 16, mods: { rhythm: 1.0, harmony: 0.7, bass: 0, melody: 0.9, texture: 0.15 } },
-  /* 7 */ { name: '+BASS', bars: 16, mods: { rhythm: 1.0, harmony: 0.8, bass: 1.0, melody: 1.0, texture: 0.15 } },
-  /* 8 */ { name: 'plateau', bars: 16, mods: { rhythm: 1.0, harmony: 0.8, bass: 1.0, melody: 1.0, texture: 0.2 } },
-  /* 9 */ { name: 'teardown', bars: 56, mods: null },
+// ── ENCORE v2: Canon Machine ──
+const ENCORE_BRICK_NAMES = [
+  'heartbeat',    // 0: kick + polvere percussiva, BPM 60→132
+  '+arp',         // 1: arp 3× invertita (acuto)
+  '+bass',        // 2: bass 1× originale (grave)
+  '+hat/snare',   // 3: hat 5/8 + snare sincopato
+  '+voice',       // 4: voice ½× retrograda
+  '+lead',        // 5: lead 2× originale
+  '+chord/drone', // 6: chord 1× sfasata + drone
+  '+conga',       // 7: ultimo pezzo tetris ritmico
+  'plateau',      // 8: tutto, frase nuova ogni 4 bar
 ];
 
-// Teardown: reverse order — bass out first, kick last.
-// Arp/voice share velocityCeiling.melody, so we use encoreBrick demotion to gate them independently.
-const ENCORE_TEARDOWN = [
-  { bar: 0,  target: 'bass',    ceil: 110 },    // bass out
-  { bar: 8,  target: 'snare',   fade: true },   // snare out (density drops below 0.5)
-  { bar: 16, target: 'arp-off' },               // arp off via brick demotion (brick < 5)
-  { bar: 24, target: 'harmony', ceil: 100 },    // chord out
-  { bar: 32, target: 'rhythm',  fade: true },   // hat+conga out
-  { bar: 40, target: 'voice-off' },             // voice off via brick demotion (brick < 2)
-  { bar: 48, target: 'decel' },                 // kick decelerates 132→60
-];
+let _canonPhrase = [];
+let _canonPhraseRetro = [];
+let _canonPhraseInv = [];
+let _canonTickAcc = 0;
+let _canonBaseInterval = 0;
+let _canonPhraseAge = 0;
 
 // V3: base densities computed by _applyPhase, then modulated each frame
 // by tension waves (RESEARCH-V4 §B.1) when MUSIC_STRUCTURAL is on.
@@ -906,52 +898,140 @@ export function jumpToTrack(trackName) {
   }
 }
 
+// ── Phrase generator ──
+function _generatePhrase(scale, len) {
+  const pool = scale.filter(n => n >= 48 && n <= 72);
+  if (pool.length < 4) return pool.slice(0, len);
+
+  const phrase = [];
+  const startIdx = Math.floor(pool.length / 3) + Math.floor(Math.random() * Math.floor(pool.length / 3));
+  phrase.push(pool[startIdx]);
+
+  const ascending = Math.random() < 0.5;
+  let leapUsed = false;
+  let lastDirection = ascending ? 1 : -1;
+
+  for (let i = 1; i < len; i++) {
+    const lastNote = phrase[i - 1];
+    const lastIdx = pool.indexOf(lastNote);
+    if (lastIdx < 0) { phrase.push(pool[Math.floor(Math.random() * pool.length)]); continue; }
+
+    const roll = Math.random();
+    let interval, direction;
+
+    if (roll < CFG.ENCORE_CONTOUR_STEP) {
+      interval = 1;
+      direction = Math.random() < 0.7 ? (ascending ? 1 : -1) : (ascending ? -1 : 1);
+    } else if (roll < CFG.ENCORE_CONTOUR_STEP + CFG.ENCORE_CONTOUR_SKIP) {
+      interval = 2 + Math.floor(Math.random() * 2);
+      direction = lastDirection;
+    } else {
+      if (leapUsed) { interval = 1; direction = lastDirection; }
+      else { interval = 4 + Math.floor(Math.random() * 2); direction = ascending ? 1 : -1; leapUsed = true; }
+    }
+
+    let newIdx = lastIdx + interval * direction;
+    newIdx = Math.max(0, Math.min(pool.length - 1, newIdx));
+    phrase.push(pool[newIdx]);
+    lastDirection = direction;
+  }
+
+  // Closure
+  const first = phrase[0];
+  const closureTargets = pool.filter(n => {
+    const iv = Math.abs(n - first) % 12;
+    return iv === 0 || iv === 3 || iv === 4 || iv === 7 || iv === 8;
+  });
+  if (closureTargets.length > 0) {
+    const last = phrase[phrase.length - 1];
+    closureTargets.sort((a, b) => Math.abs(a - last) - Math.abs(b - last));
+    phrase[phrase.length - 1] = closureTargets[0];
+  }
+
+  return phrase;
+}
+
+function _invertPhrase(phrase, pivotNote) {
+  return phrase.map(n => pivotNote + (pivotNote - n));
+}
+
+function _retrogradePhrase(phrase) {
+  return [...phrase].reverse();
+}
+
+function _fitToRegister(note, lo, hi) {
+  let n = note;
+  while (n < lo) n += 12;
+  while (n > hi) n -= 12;
+  if (n < lo) n = lo;
+  return n;
+}
+
+function _checkConvergence(canon) {
+  const pitchClasses = {};
+  const voices = ['bass', 'chord', 'arp', 'voice', 'lead'];
+  let activeCount = 0;
+  for (const v of voices) {
+    if (!canon[v].active) continue;
+    activeCount++;
+    const pc = canon[v].note % 12;
+    pitchClasses[pc] = (pitchClasses[pc] || 0) + 1;
+  }
+  if (activeCount < 3) return false;
+  for (const count of Object.values(pitchClasses)) {
+    if (count >= 3) return true;
+  }
+  return false;
+}
+
 // ── ENCORE: launch the encore sequence ──
 export function launchEncore() {
   if (_encoreActive) return;
 
-  // ── HARD RESET: ferma tutto, pulisci stato, a prescindere da cosa stava succedendo ──
   _paused = true;
   sendMIDIAllNotesOff();
   sendNornsDroneStop();
 
-  // Set encore mode BEFORE initDirector3 so modules know we're in encore
   worldState.encoreMode = true;
   worldState.encoreScale = 'halfWhole';
   worldState.scale = ENCORE_SCALES.halfWhole;
 
-  // Activate encore state machine
   _encoreActive = true;
   _encoreBrick = 0;
   _encoreBrickBar = 0;
   worldState.encoreBrick = 0;
 
-  // Load ENCORE track — this resets all modules, _phaseTime, _barAcc, etc.
+  const canon = worldState.encoreCanon;
+  canon.phrase = [];
+  canon.phraseAge = 0;
+  for (const v of ['bass', 'chord', 'arp', 'voice', 'lead']) {
+    canon[v].pos = 0; canon[v].note = 0; canon[v].active = false;
+  }
+  canon.convergence = false;
+  _canonPhrase = [];
+  _canonPhraseRetro = [];
+  _canonPhraseInv = [];
+  _canonTickAcc = 0;
+  _canonPhraseAge = 0;
+
   initDirector3('ENCORE');
 
-  // Override BPM for heartbeat start
-  worldState.bpm = CFG.ENCORE_BPM_START;  // 60
+  worldState.bpm = CFG.ENCORE_BPM_START;
   worldState.phase = 'germoglio';
 
-  // Apply first brick densities
-  const brick0 = ENCORE_BRICKS[0];
-  for (const [mod, val] of Object.entries(brick0.mods)) {
-    worldState.density[mod] = val;
-  }
+  worldState.density.rhythm = 0.8;
+  worldState.density.harmony = 0;
+  worldState.density.bass = 0;
+  worldState.density.melody = 0;
+  worldState.density.texture = 0;
 
-  // Explicitly set velocity ceilings for heartbeat (override _applyPhase scaling)
-  worldState.velocityCeiling.rhythm  = 40;  // will ramp up in _updateEncore
-  worldState.velocityCeiling.harmony = TRACKS.ENCORE.velocityCeiling.harmony;
-  worldState.velocityCeiling.bass    = TRACKS.ENCORE.velocityCeiling.bass;
-  worldState.velocityCeiling.melody  = TRACKS.ENCORE.velocityCeiling.melody;
-  worldState.velocityCeiling.texture = TRACKS.ENCORE.velocityCeiling.texture;
+  worldState.velocityCeiling.rhythm = 40;
 
-  // Start playing
   _paused = false;
   sendNornsBiome(TRACK_ORDER.indexOf('ENCORE'));
   sendNornsDroneStart();
 
-  console.log(`[DIR3] ENCORE launched — density.rhythm=${worldState.density.rhythm} bpm=${worldState.bpm} ceiling=${worldState.velocityCeiling.rhythm} grid=${worldState.rhythmGrid}`);
+  console.log('[DIR3] ENCORE v2 launched — Canon Machine');
 }
 
 // ── ENCORE: switch scale on the fly ──
@@ -963,13 +1043,14 @@ export function switchEncoreScale(scaleName) {
   console.log(`[DIR3] ENCORE scale → ${scaleName}`);
 }
 
-// ── ENCORE: per-tick update ──
+// ── ENCORE v2: per-tick update — Canon Machine ──
 function _updateEncore(dt) {
   _phaseTime += dt;
   _totalTime += dt;
 
   const bpm = worldState.bpm || CFG.ENCORE_BPM_TARGET;
   const barDuration = 240 / bpm;
+  const canon = worldState.encoreCanon;
 
   _barAcc += dt;
   let barAdvanced = false;
@@ -977,101 +1058,149 @@ function _updateEncore(dt) {
     _barAcc -= barDuration;
     _phaseBars++;
     _encoreBrickBar++;
+    _canonPhraseAge++;
     barAdvanced = true;
   }
 
-  // ── Heartbeat: linear BPM ramp con interpolazione intra-bar ──
-  // _encoreBrickBar = bar completate, _barAcc/barDuration = posizione nella bar corrente
-  // Insieme danno un progress fluido frame-by-frame.
+  // Heartbeat: BPM ramp
   if (_encoreBrick === 0) {
-    const brick0 = ENCORE_BRICKS[0];
     const intraBar = barDuration > 0 ? _barAcc / barDuration : 0;
-    const progress = Math.min(1, (_encoreBrickBar + intraBar) / brick0.bars);
+    const progress = Math.min(1, (_encoreBrickBar + intraBar) / CFG.ENCORE_HEARTBEAT_BARS);
     worldState.bpm = CFG.ENCORE_BPM_START + (CFG.ENCORE_BPM_TARGET - CFG.ENCORE_BPM_START) * progress;
     worldState.velocityCeiling.rhythm = Math.round(40 + progress * 70);
   }
 
-  if (!barAdvanced) return;
+  // Canon engine: advance voice positions on bar boundary
+  if (canon.phrase.length > 0 && barAdvanced) {
+    const speeds = [
+      { key: 'bass',  speed: CFG.ENCORE_SPEED_BASS },
+      { key: 'chord', speed: CFG.ENCORE_SPEED_CHORD },
+      { key: 'arp',   speed: CFG.ENCORE_SPEED_ARP },
+      { key: 'voice', speed: CFG.ENCORE_SPEED_VOICE },
+      { key: 'lead',  speed: CFG.ENCORE_SPEED_LEAD },
+    ];
 
-  const brick = ENCORE_BRICKS[_encoreBrick];
-  if (!brick) { _endEncore(); return; }
+    const phraseLen = canon.phrase.length;
+    for (const { key, speed } of speeds) {
+      if (!canon[key].active) continue;
+      canon[key].pos = (canon[key].pos + speed) % phraseLen;
+      const posIdx = Math.floor(Math.abs(canon[key].pos)) % phraseLen;
 
-  // ── Teardown: fade modules in reverse order ──
-  if (_encoreBrick === 9) {
-    const fadeBars = CFG.ENCORE_TEARDOWN_FADE_BARS;  // 4
-    for (const td of ENCORE_TEARDOWN) {
-      const barInTd = _encoreBrickBar - td.bar;
-      if (barInTd < 0 || barInTd >= fadeBars + 1) continue;
+      let note;
+      if (key === 'arp') {
+        note = _canonPhraseInv[posIdx] ?? canon.phrase[posIdx];
+      } else if (key === 'voice') {
+        note = _canonPhraseRetro[posIdx] ?? canon.phrase[posIdx];
+      } else if (key === 'chord') {
+        const offsetIdx = (posIdx + Math.floor(phraseLen * CFG.ENCORE_CHORD_OFFSET)) % phraseLen;
+        note = canon.phrase[offsetIdx];
+      } else {
+        note = canon.phrase[posIdx];
+      }
 
-      if (td.target === 'arp-off') {
-        // Demote encoreBrick below arp gate (5) — arp stops, voice stays
-        if (barInTd === 0) { worldState.encoreBrick = 4; }
-      } else if (td.target === 'voice-off') {
-        // Demote encoreBrick below voice gate (2) — voice stops
-        if (barInTd === 0) { worldState.encoreBrick = 1; }
-      } else if (td.target === 'decel') {
-        // Kick deceleration (bar 48-56): 132 → 60 BPM
-        const decelBars = brick.bars - td.bar;  // 8
-        const p = Math.min(1, barInTd / decelBars);
-        worldState.bpm = CFG.ENCORE_BPM_TARGET * Math.pow(CFG.ENCORE_BPM_START / CFG.ENCORE_BPM_TARGET, p);
-        worldState.velocityCeiling.rhythm = Math.round(110 * (1 - p));
-      } else if (td.target === 'snare') {
-        // Reduce density to kill snare but keep kick
-        const p = Math.min(1, barInTd / fadeBars);
-        worldState.density.rhythm = Math.max(0.3, 1.0 - p * 0.7);
-      } else if (td.fade) {
-        // Generic density fade (hat/conga)
-        const p = Math.min(1, barInTd / fadeBars);
-        worldState.density.rhythm = Math.max(0.4, worldState.density.rhythm * (1 - p * 0.5));
-      } else if (td.ceil !== undefined) {
-        // Velocity ceiling fade
-        const p = Math.min(1, barInTd / fadeBars);
-        const mod = td.target;
-        worldState.velocityCeiling[mod] = Math.round(td.ceil * (1 - p));
-        // Also fade density for complete silence
-        if (p >= 1) worldState.density[mod] = 0;
+      const reg = worldState.register;
+      if (key === 'bass')  note = _fitToRegister(note, reg.bass[0], reg.bass[1]);
+      if (key === 'chord') note = _fitToRegister(note, reg.chords[0], reg.chords[1]);
+      if (key === 'arp')   note = _fitToRegister(note, reg.arp[0], reg.arp[1]);
+      if (key === 'voice') note = _fitToRegister(note, reg.melody[0], reg.melody[1]);
+      if (key === 'lead')  note = _fitToRegister(note, reg.lead[0], reg.lead[1]);
+
+      canon[key].note = note;
+    }
+
+    // Contrapuntal constraints: no unisons
+    const activeVoices = ['bass', 'chord', 'arp', 'voice', 'lead'].filter(v => canon[v].active);
+    for (let i = 0; i < activeVoices.length; i++) {
+      for (let j = i + 1; j < activeVoices.length; j++) {
+        if (canon[activeVoices[i]].note === canon[activeVoices[j]].note) {
+          const scale = worldState.scale || [];
+          const n = canon[activeVoices[j]].note;
+          const upper = scale.find(s => s > n && s <= n + 5);
+          if (upper) canon[activeVoices[j]].note = upper;
+        }
       }
     }
+
+    canon.convergence = _checkConvergence(canon);
   }
 
-  // ── Brick transition ──
-  if (_encoreBrickBar >= brick.bars) {
+  if (!barAdvanced) return;
+
+  // Phrase change
+  const brickBars = CFG.ENCORE_BRICK_BARS[_encoreBrick] || 32;
+  const needNewPhrase = (
+    (canon.phrase.length === 0 && _encoreBrick >= 1) ||
+    (_encoreBrick === 8 && _canonPhraseAge >= 4)
+  );
+  if (needNewPhrase) {
+    const phraseLen = _encoreBrick === 8
+      ? CFG.ENCORE_PHRASE_LEN_PLATEAU
+      : CFG.ENCORE_PHRASE_LEN_MIN + Math.floor(Math.random() * (CFG.ENCORE_PHRASE_LEN_MAX - CFG.ENCORE_PHRASE_LEN_MIN + 1));
+    _canonPhrase = _generatePhrase(worldState.scale, phraseLen);
+    canon.phrase = _canonPhrase;
+    _canonPhraseRetro = _retrogradePhrase(_canonPhrase);
+    _canonPhraseInv = _invertPhrase(_canonPhrase, worldState.root || 48);
+    _canonPhraseAge = 0;
+    canon.phraseAge = 0;
+
+    for (const v of ['bass', 'chord', 'arp', 'voice', 'lead']) {
+      if (canon[v].active) {
+        canon[v].pos = 0;
+        canon[v].note = worldState.root || 48;
+      }
+    }
+    canon.convergence = true;
+
+    console.log(`[DIR3] ENCORE new phrase (${phraseLen} notes): ${_canonPhrase.join(',')}`);
+  }
+
+  // Brick transition
+  if (_encoreBrickBar >= brickBars) {
     _encoreBrick++;
     _encoreBrickBar = 0;
     worldState.encoreBrick = _encoreBrick;
 
-    const next = ENCORE_BRICKS[_encoreBrick];
-    if (!next) { _endEncore(); return; }
-
-    // Apply module densities
-    if (next.mods) {
-      for (const mod of ['rhythm', 'harmony', 'bass', 'melody', 'texture']) {
-        worldState.density[mod] = next.mods[mod] ?? 0;
-      }
+    if (_encoreBrick > 8) {
+      _endEncore();
+      return;
     }
 
-    // Lock BPM after heartbeat
+    if (_encoreBrick >= 1) canon.arp.active = true;
+    if (_encoreBrick >= 2) canon.bass.active = true;
+    if (_encoreBrick >= 4) canon.voice.active = true;
+    if (_encoreBrick >= 5) canon.lead.active = true;
+    if (_encoreBrick >= 6) canon.chord.active = true;
+
+    const densityMap = {
+      0: { rhythm: 0.8, harmony: 0,    bass: 0,   melody: 0,   texture: 0 },
+      1: { rhythm: 0.8, harmony: 0,    bass: 0,   melody: 0.7, texture: 0.1 },
+      2: { rhythm: 0.8, harmony: 0,    bass: 0.8, melody: 0.7, texture: 0.1 },
+      3: { rhythm: 0.9, harmony: 0,    bass: 0.8, melody: 0.7, texture: 0.1 },
+      4: { rhythm: 0.9, harmony: 0,    bass: 0.8, melody: 0.9, texture: 0.1 },
+      5: { rhythm: 0.9, harmony: 0,    bass: 0.8, melody: 0.9, texture: 0.15 },
+      6: { rhythm: 1.0, harmony: 0.7,  bass: 0.9, melody: 1.0, texture: 0.15 },
+      7: { rhythm: 1.0, harmony: 0.8,  bass: 1.0, melody: 1.0, texture: 0.2 },
+      8: { rhythm: 1.0, harmony: 0.9,  bass: 1.0, melody: 1.0, texture: 0.2 },
+    };
+    const d = densityMap[_encoreBrick] || densityMap[8];
+    for (const [mod, val] of Object.entries(d)) worldState.density[mod] = val;
+
     if (_encoreBrick >= 1) worldState.bpm = CFG.ENCORE_BPM_TARGET;
 
-    // Restore velocity ceilings for new brick
-    if (next.mods) {
-      const track = TRACKS.ENCORE;
-      worldState.velocityCeiling.rhythm  = track.velocityCeiling.rhythm;
-      worldState.velocityCeiling.harmony = track.velocityCeiling.harmony;
-      worldState.velocityCeiling.bass    = track.velocityCeiling.bass;
-      worldState.velocityCeiling.melody  = track.velocityCeiling.melody;
-      worldState.velocityCeiling.texture = track.velocityCeiling.texture;
+    const track = TRACKS.ENCORE;
+    for (const mod of ['rhythm', 'harmony', 'bass', 'melody', 'texture']) {
+      worldState.velocityCeiling[mod] = track.velocityCeiling[mod];
     }
 
-    // Update phase label (10 bricks: 0=heartbeat, 1-3=pulsazione, 4-6=densita, 7-8=rottura, 9=teardown)
-    if (_encoreBrick <= 3) worldState.phase = 'pulsazione';
-    else if (_encoreBrick <= 6) worldState.phase = 'densita';
-    else if (_encoreBrick <= 8) worldState.phase = 'rottura';
-    else worldState.phase = 'dissoluzione';
-
+    if (_encoreBrick <= 2)      worldState.phase = 'pulsazione';
+    else if (_encoreBrick <= 5) worldState.phase = 'densita';
+    else if (_encoreBrick <= 7) worldState.phase = 'rottura';
+    else                        worldState.phase = 'dissoluzione';
     worldState.camera.phase = worldState.phase;
 
-    console.log(`[DIR3] ENCORE brick ${_encoreBrick}: ${next.name}`);
+    _canonPhraseAge = 999;  // force new phrase on next bar
+
+    console.log(`[DIR3] ENCORE brick ${_encoreBrick}: ${ENCORE_BRICK_NAMES[_encoreBrick]}`);
   }
 }
 
@@ -1081,9 +1210,15 @@ function _endEncore() {
   worldState.encoreMode = false;
   worldState.encoreBrick = -1;
   worldState.bpm = null;
+  const canon = worldState.encoreCanon;
+  canon.phrase = [];
+  for (const v of ['bass', 'chord', 'arp', 'voice', 'lead']) {
+    canon[v].active = false; canon[v].pos = 0; canon[v].note = 0;
+  }
+  canon.convergence = false;
   sendMIDIAllNotesOff();
   sendNornsDroneStop();
-  console.log('[DIR3] ENCORE ended');
+  console.log('[DIR3] ENCORE ended — hard cut');
 }
 
 export function getDirector3Status() {
