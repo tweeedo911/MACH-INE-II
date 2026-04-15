@@ -1306,10 +1306,11 @@ export const CFG = {
       onset:      null,      // onset audio generico: usa dot
     },
 
-    // ── ENCORE ──
-    ENCORE_BPM_START: 60,
-    ENCORE_BPM_TARGET: 132,
-    ENCORE_HEARTBEAT_BARS: 8,
-    ENCORE_TEARDOWN_FADE_BARS: 4,
   },
+
+  // ── ENCORE ──
+  ENCORE_BPM_START: 60,
+  ENCORE_BPM_TARGET: 132,
+  ENCORE_HEARTBEAT_BARS: 8,
+  ENCORE_TEARDOWN_FADE_BARS: 4,
 };
