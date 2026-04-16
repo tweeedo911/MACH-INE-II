@@ -30,6 +30,13 @@ import { initMelody as initMelodyV2, updateMelody as updateMelodyV2 } from './me
 import { initMelody as initMelodyV3, updateMelody as updateMelodyV3 } from './melody-v3.js';
 import { initTexture, updateTexture } from './texture.js';
 
+// ── Modalità LOW per hardware lento: ?low nell'URL ──
+if (location.search.includes('low')) {
+  CFG.VISUAL.campo.cellsX = 64;
+  CFG.VISUAL.campo.cellsY = 36;
+  console.log('[III] LOW mode: griglia 64×36');
+}
+
 // ── A/B/C selector — STRUCTURAL takes priority over EXPERIMENT for bass/melody ──
 const initBass = (...a) => {
   if (CFG.MUSIC_STRUCTURAL) return initBassV3(...a);

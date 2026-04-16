@@ -18,6 +18,13 @@ import { getCampoDensityBlocks, getCampoAvgDensity } from './campo.js';
 // ── Helpers ──
 function clamp(v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }
 
+// Phase-aware param: accepts { germoglio: 0.1, pulsazione: 0.2, ... } or scalar
+function phaseVal(param, phase, fallback) {
+  if (param == null) return fallback;
+  if (typeof param === 'number') return param;
+  return param[phase] ?? param._default ?? fallback;
+}
+
 // ── State ──
 let _focusX = 0.5;
 let _focusY = 0.5;
@@ -164,7 +171,7 @@ export function updateCamera(dt) {
   }
 
   // Target: centro di massa dell'attività, con bias verso centro
-  const centerPull = bio.centerPull ?? 0.02;
+  const centerPull = phaseVal(bio.centerPull, curPhase, 0.02);
   let targetX, targetY;
   if (sumW > 0.01) {
     targetX = sumWX / sumW;
@@ -180,7 +187,7 @@ export function updateCamera(dt) {
   targetY = targetY + (0.5 - targetY) * centerPull;
 
   // Snake patrol — muove su un asse alla volta, scrittura diretta (no lerp diagonale)
-  const snakeSpeed = bio.snakeSpeed ?? 0;
+  const snakeSpeed = phaseVal(bio.snakeSpeed, curPhase, 0);
   if (snakeSpeed > 0) {
     const step = snakeSpeed * dt;
     if (_snakeAxis === 0) {
@@ -203,7 +210,7 @@ export function updateCamera(dt) {
     _focusY = _snakeY;
   } else {
     // Drift verso target (modulato da allerta) — biomi normali
-    const baseDrift = bio.focusDrift ?? 0.2;
+    const baseDrift = phaseVal(bio.focusDrift, curPhase, 0.2);
     const drift = baseDrift * (1 + _alertness * 1.2) * dt;
 
     _focusX += (targetX - _focusX) * drift;
@@ -247,10 +254,10 @@ export function updateCamera(dt) {
     // Densità globale
     const globalD = getCampoAvgDensity();
 
-    // Modulazione leggera: curiosità IN (+), respiro OUT (-)
-    // Max ±0.15 — il phaseZoom fa il lavoro grosso
+    // Modulazione espressiva: curiosità IN (+), respiro OUT (-)
+    // ±0.25 max — il phaseZoom guida, la densità colora
     const modulation = localD * curiosityW - globalD * breathW;
-    targetZoom = baseZoom + clamp(modulation, -0.15, 0.15);
+    targetZoom = baseZoom + clamp(modulation, -0.25, 0.25);
     targetZoom = clamp(targetZoom, 0.85, 2.2);
   }
 
@@ -260,7 +267,7 @@ export function updateCamera(dt) {
   if (snap) {
     _zoom = targetZoom;  // istantaneo
   }
-  const baseZoomDrift = bio.zoomDrift ?? 0.10;
+  const baseZoomDrift = phaseVal(bio.zoomDrift, curPhase, 0.10);
   const zDrift = baseZoomDrift * (1 + _alertness * 0.6) * dt;
   _zoom += (targetZoom - _zoom) * zDrift;
 

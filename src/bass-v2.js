@@ -61,7 +61,8 @@ function _tick() {
   // ═══ Mode A: Follow harmony — long notes on chord changes ═══
   if (!pattern) {
     const chordStr = worldState.currentChord ? worldState.currentChord.join(',') : '';
-    if (chordStr && chordStr !== _lastFollowChord && _step === 0) {
+    // Density gate: sotto 0.10 il basso tace (evita note fantasma durante fade-out dissoluzione)
+    if (chordStr && chordStr !== _lastFollowChord && _step === 0 && density >= 0.10) {
       _lastFollowChord = chordStr;
 
       let bassNote = Math.min(...worldState.currentChord);

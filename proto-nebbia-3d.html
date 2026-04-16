@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>NEBBIA — 3D materia prototype</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #000; overflow: hidden; font-family: monospace; }
+    canvas { display: block; }
+    #hud {
+      position: fixed; bottom: 8px; right: 12px;
+      color: #333; font-size: 10px; text-align: right;
+      pointer-events: none; line-height: 1.5;
+    }
+    #hud .bright { color: #556; }
+  </style>
+</head>
+<body>
+<div id="hud">
+  <div>D=drone  V=voice  C=chord  L=lead</div>
+  <div>1/2/3/0=fase  SPACE=random  F=focus near/far</div>
+  <div class="bright">particles: <span id="pcount">0</span> | phase: <span id="pphase">germoglio</span></div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+// ═══════════════════════════════════════════════════════════════════
+//  NEBBIA — 3D materia prototype
+//
+//  Le particelle sono MATERIA, non luce.
+//  Quadrate (DNA Bayer di MACH:INE). Opache. Nessun bloom.
+//  La profondità è reale: parallasse, occlusione, fog atmosferico.
+//  L'aging è migrazione in Z — la materia affonda e sedimenta.
+//
+//  Nessun effetto speciale. Solo spazio, densità, tempo.
+// ═══════════════════════════════════════════════════════════════════
+
+import * as THREE from 'three';
+
+// ─── constants ───────────────────────────────────────────────────
+const MAX_PARTICLES = 50000;
+const PHASE_NAMES = ['germoglio', 'densità', 'rottura', 'dissoluzione'];
+
+// NEBBIA palette — colori freddi, materia su nero
+const COLORS = {
+  drone:  { r: 25/255, g: 28/255, b: 60/255 },
+  chord:  { r: 100/255, g: 115/255, b: 138/255 },
+  voice:  { r: 180/255, g: 188/255, b: 200/255 },
+  lead:   { r: 140/255, g: 125/255, b: 175/255 },
+};
+
+// colore residuale — verso cui invecchiano tutti
+const RESIDUAL = { r: 18/255, g: 20/255, b: 30/255 };
+
+// profondità per ruolo
+const Z_LAYERS = {
+  voice: { base: 4, spread: 5 },     // primo piano
+  lead:  { base: 5, spread: 4 },
+  chord: { base: 10, spread: 6 },    // corpo
+  drone: { base: 16, spread: 8 },    // fondale
+};
+
+// ─── state ───────────────────────────────────────────────────────
+let phase = 0;
+const particles = [];
+let time = 0;
+let focusMode = 0; // 0=auto, 1=near, 2=far
+
+// ─── renderer — no antialias, crisp pixels ──────────────────────
+const renderer = new THREE.WebGLRenderer({ antialias: false, alpha: false });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(1); // 1:1 pixel — nitido, niente smoothing
+renderer.setClearColor(0x000000);
+renderer.sortObjects = false;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+
+const camera = new THREE.PerspectiveCamera(
+  45, window.innerWidth / window.innerHeight, 0.1, 120
+);
+camera.position.set(0, 0, 0);
+
+// ─── Bayer 4×4 texture for particle dithering ───────────────────
+const bayerData = new Uint8Array([
+    0, 128,  32, 160,
+  192,  64, 224,  96,
+   48, 176,  16, 144,
+  240, 112, 208,  80,
+]);
+const bayerTex = new THREE.DataTexture(bayerData, 4, 4, THREE.RedFormat);
+bayerTex.magFilter = THREE.NearestFilter;
+bayerTex.minFilter = THREE.NearestFilter;
+bayerTex.wrapS = THREE.RepeatWrapping;
+bayerTex.wrapT = THREE.RepeatWrapping;
+bayerTex.needsUpdate = true;
+
+// ─── particle buffers ───────────────────────────────────────────
+const geometry = new THREE.BufferGeometry();
+const positions = new Float32Array(MAX_PARTICLES * 3);
+const colors    = new Float32Array(MAX_PARTICLES * 3);
+const sizes     = new Float32Array(MAX_PARTICLES);
+const alphas    = new Float32Array(MAX_PARTICLES);
+
+geometry.setAttribute('position',    new THREE.BufferAttribute(positions, 3));
+geometry.setAttribute('customColor', new THREE.BufferAttribute(colors, 3));
+geometry.setAttribute('size',        new THREE.BufferAttribute(sizes, 1));
+geometry.setAttribute('alpha',       new THREE.BufferAttribute(alphas, 1));
+
+// ─── shader — materia opaca, quadrata, Bayer dithered ───────────
+const material = new THREE.ShaderMaterial({
+  uniforms: {
+    uBayer: { value: bayerTex },
+    uTime:  { value: 0 },
+    uFogNear: { value: 2.0 },
+    uFogFar:  { value: 40.0 },
+  },
+  vertexShader: `
+    attribute float size;
+    attribute float alpha;
+    attribute vec3 customColor;
+
+    varying vec3 vColor;
+    varying float vAlpha;
+    varying float vDepth;
+
+    void main() {
+      vColor = customColor;
+      vAlpha = alpha;
+
+      vec4 mvPos = modelViewMatrix * vec4(position, 1.0);
+      vDepth = -mvPos.z;
+
+      // size attenuation — closer = bigger, but clamped small
+      gl_PointSize = size * (150.0 / max(-mvPos.z, 0.5));
+      gl_PointSize = clamp(gl_PointSize, 1.0, 24.0);
+
+      gl_Position = projectionMatrix * mvPos;
+    }
+  `,
+  fragmentShader: `
+    uniform sampler2D uBayer;
+    uniform float uFogNear;
+    uniform float uFogFar;
+
+    varying vec3 vColor;
+    varying float vAlpha;
+    varying float vDepth;
+
+    void main() {
+      // QUADRATO — niente discard circolare. I pixel sono quadrati.
+
+      // fog lineare — la materia lontana si fonde col nero
+      float fogFactor = 1.0 - smoothstep(uFogNear, uFogFar, vDepth);
+
+      // Bayer dithering: threshold dalla posizione schermo
+      vec2 screenUV = gl_FragCoord.xy / 4.0;
+      float threshold = texture2D(uBayer, screenUV).r;
+
+      // alpha finale
+      float a = vAlpha * fogFactor;
+
+      // dither: se alpha < threshold, scarta
+      // questo crea il pattern Bayer caratteristico di MACH:INE
+      if (a < threshold / 255.0 + 0.05) discard;
+
+      // colore con attenuazione fog (verso nero, non verso grigio)
+      vec3 col = vColor * fogFactor;
+
+      // le particelle vicine sono leggermente più luminose
+      float nearBoost = smoothstep(8.0, 2.0, vDepth) * 0.15;
+      col += nearBoost;
+
+      gl_FragColor = vec4(col, 1.0); // opaco — la materia non è trasparente
+    }
+  `,
+  transparent: false,   // OPACO — la materia non è trasparente
+  depthWrite: true,     // occlude ciò che sta dietro
+  depthTest: true,
+});
+
+const points = new THREE.Points(geometry, material);
+scene.add(points);
+
+// ─── grain overlay (rumore statico sottile, come grana pellicola) ─
+const grainMaterial = new THREE.ShaderMaterial({
+  uniforms: { uTime: { value: 0 } },
+  vertexShader: `
+    varying vec2 vUv;
+    void main() {
+      vUv = uv;
+      gl_Position = vec4(position, 1.0);
+    }
+  `,
+  fragmentShader: `
+    uniform float uTime;
+    varying vec2 vUv;
+
+    // simple hash
+    float hash(vec2 p) {
+      return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+    }
+
+    void main() {
+      float grain = hash(gl_FragCoord.xy + uTime * 100.0);
+      // sottilissimo — solo per rompere il nero perfetto
+      float intensity = grain * 0.012;
+      gl_FragColor = vec4(vec3(intensity), 1.0);
+    }
+  `,
+  transparent: true,
+  blending: THREE.AdditiveBlending,
+  depthTest: false,
+  depthWrite: false,
+});
+const grainQuad = new THREE.Mesh(
+  new THREE.PlaneGeometry(2, 2),
+  grainMaterial
+);
+const grainScene = new THREE.Scene();
+const grainCamera = new THREE.Camera();
+grainScene.add(grainQuad);
+
+// ─── particle ───────────────────────────────────────────────────
+class Particle {
+  constructor(role, x, y, z, vx, vy, vz) {
+    this.role = role;
+    this.x = x; this.y = y; this.z = z;
+    this.vx = vx; this.vy = vy; this.vz = vz;
+    this.age = 0;
+    this.maxAge = this._lifespan();
+    this.baseSize = this._size();
+    this.alive = true;
+
+    const c = COLORS[role];
+    this.r = c.r; this.g = c.g; this.b = c.b;
+  }
+
+  _lifespan() {
+    switch (this.role) {
+      case 'drone': return 800 + Math.random() * 600;
+      case 'chord': return 250 + Math.random() * 250;
+      case 'voice': return 150 + Math.random() * 200;
+      case 'lead':  return 60 + Math.random() * 80;
+    }
+  }
+
+  _size() {
+    switch (this.role) {
+      case 'drone': return 0.06 + Math.random() * 0.03;
+      case 'chord': return 0.08 + Math.random() * 0.04;
+      case 'voice': return 0.10 + Math.random() * 0.08;
+      case 'lead':  return 0.07 + Math.random() * 0.04;
+    }
+  }
+
+  update() {
+    this.age++;
+    if (this.age >= this.maxAge) { this.alive = false; return; }
+
+    const t = this.age / this.maxAge;
+
+    // invecchiando affonda in Z (sedimenta)
+    this.z += 0.002 + t * 0.004;
+
+    // invecchiando il colore migra verso il residuale
+    const ageFade = t * t * 0.6;
+    this.r = COLORS[this.role].r * (1 - ageFade) + RESIDUAL.r * ageFade;
+    this.g = COLORS[this.role].g * (1 - ageFade) + RESIDUAL.g * ageFade;
+    this.b = COLORS[this.role].b * (1 - ageFade) + RESIDUAL.b * ageFade;
+
+    // fisica per ruolo
+    switch (this.role) {
+      case 'drone':
+        this.x += this.vx * 0.08;
+        this.y += this.vy * 0.08;
+        break;
+      case 'voice':
+        const exp = 1.0 - t * 0.7;
+        this.x += this.vx * exp;
+        this.y += this.vy * exp;
+        this.z += this.vz * exp * 0.3;
+        break;
+      case 'chord':
+        this.x += this.vx * 0.25;
+        this.y += this.vy * 0.12;
+        break;
+      case 'lead':
+        const dec = Math.max(0, 1.0 - t * 2.5);
+        this.x += this.vx * dec;
+        this.y += this.vy * dec;
+        this.z += this.vz * dec;
+        break;
+    }
+
+    // phase
+    if (phase === 0) {
+      this.vx *= 0.998; this.vy *= 0.998;
+    } else if (phase === 2) {
+      this.vx *= 1.0003; this.vy *= 1.0003;
+    } else if (phase === 3) {
+      this.vx *= 0.994; this.vy *= 0.994;
+      this.z += 0.008;
+    }
+  }
+
+  get computedSize() {
+    const t = this.age / this.maxAge;
+    // neonata piccola → cresce → fossile = grana grossa (come Bayer di MACH:INE)
+    const growth = t < 0.2 ? t / 0.2 : 1.0;
+    const fossilGrowth = t > 0.5 ? 1.0 + (t - 0.5) * 0.8 : 1.0; // i fossili ingrossano
+    return this.baseSize * (0.4 + growth * 0.6) * fossilGrowth;
+  }
+
+  get computedAlpha() {
+    const t = this.age / this.maxAge;
+    const fadeIn = Math.min(1, t * 10);
+    // nessun fade out — la materia non scompare, diventa residuale scura
+    // solo alla fine si sgretola
+    const fadeOut = t > 0.9 ? (1.0 - t) / 0.1 : 1.0;
+    const phaseK = phase === 3 ? 0.4 : (phase === 0 ? 0.6 : 1.0);
+    return fadeIn * fadeOut * phaseK;
+  }
+}
+
+// ─── spawners ───────────────────────────────────────────────────
+
+function spawnVoice() {
+  // nebulosa: cluster sferico da un punto
+  const cx = (Math.random() - 0.5) * 14;
+  const cy = (Math.random() - 0.5) * 9;
+  const zBase = Z_LAYERS.voice.base + Math.random() * Z_LAYERS.voice.spread;
+  const count = phase === 2 ? 180 : (phase === 0 ? 40 : 100);
+
+  for (let i = 0; i < count && particles.length < MAX_PARTICLES; i++) {
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(2 * Math.random() - 1);
+    const speed = 0.008 + Math.random() * 0.025;
+    particles.push(new Particle('voice',
+      cx + (Math.random() - 0.5) * 0.3,
+      cy + (Math.random() - 0.5) * 0.3,
+      zBase,
+      Math.sin(phi) * Math.cos(theta) * speed,
+      Math.sin(phi) * Math.sin(theta) * speed,
+      Math.cos(phi) * speed * 0.4,
+    ));
+  }
+}
+
+function spawnDrone() {
+  const count = phase === 0 ? 4 : (phase === 2 ? 12 : 6);
+  for (let i = 0; i < count && particles.length < MAX_PARTICLES; i++) {
+    particles.push(new Particle('drone',
+      (Math.random() - 0.5) * 24,
+      (Math.random() - 0.5) * 16,
+      Z_LAYERS.drone.base + Math.random() * Z_LAYERS.drone.spread,
+      (Math.random() - 0.5) * 0.001,
+      (Math.random() - 0.5) * 0.001,
+      0,
+    ));
+  }
+}
+
+function spawnChord() {
+  // fascia orizzontale — le note dell'accordo sono Y
+  const cy = (Math.random() - 0.5) * 7;
+  const zBase = Z_LAYERS.chord.base + Math.random() * Z_LAYERS.chord.spread;
+  const count = phase === 0 ? 20 : 50;
+
+  for (let i = 0; i < count && particles.length < MAX_PARTICLES; i++) {
+    particles.push(new Particle('chord',
+      (Math.random() - 0.5) * 18,
+      cy + (Math.random() - 0.5) * 1.5,
+      zBase + (Math.random() - 0.5) * 2,
+      (Math.random() - 0.5) * 0.004,
+      (Math.random() - 0.5) * 0.001,
+      0,
+    ));
+  }
+}
+
+function spawnLead() {
+  const cx = (Math.random() - 0.5) * 10;
+  const cy = (Math.random() - 0.5) * 6;
+  const zBase = Z_LAYERS.lead.base + Math.random() * Z_LAYERS.lead.spread;
+  const angle = Math.random() * Math.PI * 2;
+  const speed = 0.05 + Math.random() * 0.03;
+  const count = 6 + Math.floor(Math.random() * 10);
+
+  for (let i = 0; i < count && particles.length < MAX_PARTICLES; i++) {
+    const spread = 0.1;
+    particles.push(new Particle('lead',
+      cx + (Math.random() - 0.5) * 0.3,
+      cy + (Math.random() - 0.5) * 0.3,
+      zBase,
+      Math.cos(angle) * speed + (Math.random() - 0.5) * spread,
+      Math.sin(angle) * speed + (Math.random() - 0.5) * spread,
+      (Math.random() - 0.5) * 0.015,
+    ));
+  }
+}
+
+// ─── auto events ────────────────────────────────────────────────
+const timers = { drone: 0, voice: 0, chord: 0, lead: 0 };
+
+function autoEvents() {
+  if (--timers.drone <= 0) {
+    spawnDrone();
+    timers.drone = 100 + Math.random() * 200;
+  }
+  if (--timers.voice <= 0) {
+    spawnVoice();
+    timers.voice = [280, 130, 50, 220][phase] * (0.8 + Math.random() * 0.4);
+  }
+  if (--timers.chord <= 0) {
+    spawnChord();
+    timers.chord = 180 + Math.random() * 280;
+  }
+  if (--timers.lead <= 0) {
+    spawnLead();
+    timers.lead = [450, 220, 80, 360][phase] * (0.8 + Math.random() * 0.4);
+  }
+}
+
+// ─── camera — osservatore, non pilota ───────────────────────────
+const cam = {
+  tx: 0, ty: 0,
+  focusZ: 10,
+  drift: 0,
+  gestTimer: 0,
+  gest: 'stare',
+};
+
+function updateCamera(dt) {
+  cam.drift += dt * 0.25;
+
+  // micro-drift: 3 sinusoidi (come camera.js di MACH:INE)
+  const dx = Math.sin(cam.drift * 0.67) * 0.06
+           + Math.sin(cam.drift * 1.23) * 0.03
+           + Math.sin(cam.drift * 0.31) * 0.02;
+  const dy = Math.cos(cam.drift * 0.53) * 0.05
+           + Math.sin(cam.drift * 0.97) * 0.025;
+
+  // gesti
+  cam.gestTimer -= dt;
+  if (cam.gestTimer <= 0) {
+    // NEBBIA: contemplativa — 50% stare prolungato
+    const r = Math.random();
+    if (r < 0.5) {
+      cam.gest = 'stare';
+      cam.gestTimer = 8 + Math.random() * 14;
+    } else if (r < 0.8) {
+      cam.gest = 'travel';
+      cam.tx = (Math.random() - 0.5) * 5;
+      cam.ty = (Math.random() - 0.5) * 3;
+      cam.gestTimer = 5 + Math.random() * 7;
+    } else {
+      cam.gest = 'dive';
+      cam.focusZ = 4 + Math.random() * 4;
+      cam.gestTimer = 4 + Math.random() * 5;
+    }
+  }
+
+  // focus mode override
+  if (focusMode === 1) cam.focusZ = 4;
+  else if (focusMode === 2) cam.focusZ = 20;
+
+  // ritorno lento a Z default
+  cam.focusZ += (10 - cam.focusZ) * 0.003;
+
+  // smooth
+  camera.position.x += (cam.tx + dx - camera.position.x) * 0.015;
+  camera.position.y += (cam.ty + dy - camera.position.y) * 0.015;
+  camera.lookAt(camera.position.x * 0.3, camera.position.y * 0.3, cam.focusZ);
+}
+
+// ─── sync buffers ───────────────────────────────────────────────
+function syncBuffers() {
+  const posA = geometry.getAttribute('position').array;
+  const colA = geometry.getAttribute('customColor').array;
+  const sizA = geometry.getAttribute('size').array;
+  const alpA = geometry.getAttribute('alpha').array;
+
+  let n = 0;
+  for (let i = 0; i < particles.length; i++) {
+    const p = particles[i];
+    if (!p.alive) continue;
+    const j = n * 3;
+    posA[j]   = p.x;
+    posA[j+1] = p.y;
+    posA[j+2] = p.z;
+    colA[j]   = p.r;
+    colA[j+1] = p.g;
+    colA[j+2] = p.b;
+    sizA[n]   = p.computedSize;
+    alpA[n]   = p.computedAlpha;
+    n++;
+  }
+
+  // azzerare i residui
+  for (let i = n; i < n + 50 && i < MAX_PARTICLES; i++) {
+    sizA[i] = 0; alpA[i] = 0;
+  }
+
+  geometry.getAttribute('position').needsUpdate = true;
+  geometry.getAttribute('customColor').needsUpdate = true;
+  geometry.getAttribute('size').needsUpdate = true;
+  geometry.getAttribute('alpha').needsUpdate = true;
+  geometry.setDrawRange(0, n);
+  return n;
+}
+
+// ─── loop ───────────────────────────────────────────────────────
+let lastTime = performance.now();
+
+function loop(now) {
+  requestAnimationFrame(loop);
+  const dt = Math.min((now - lastTime) / 1000, 0.05);
+  lastTime = now;
+  time += dt;
+
+  material.uniforms.uTime.value = time;
+  grainMaterial.uniforms.uTime.value = time;
+
+  autoEvents();
+
+  // update + cull
+  for (let i = particles.length - 1; i >= 0; i--) {
+    particles[i].update();
+    if (!particles[i].alive) {
+      particles[i] = particles[particles.length - 1];
+      particles.pop();
+    }
+  }
+
+  updateCamera(dt);
+  const alive = syncBuffers();
+
+  // render materia
+  renderer.autoClear = true;
+  renderer.render(scene, camera);
+
+  // grain overlay — sottilissimo, rompe il nero digitale
+  renderer.autoClear = false;
+  renderer.render(grainScene, grainCamera);
+
+  document.getElementById('pcount').textContent = alive;
+  document.getElementById('pphase').textContent = PHASE_NAMES[phase];
+}
+
+requestAnimationFrame(loop);
+
+// ─── keyboard ───────────────────────────────────────────────────
+document.addEventListener('keydown', (e) => {
+  switch (e.key) {
+    case 'd': spawnDrone(); break;
+    case 'v': spawnVoice(); break;
+    case 'c': spawnChord(); break;
+    case 'l': spawnLead(); break;
+    case '1': phase = 0; break;
+    case '2': phase = 1; break;
+    case '3': phase = 2; break;
+    case '0': phase = 3; break;
+    case 'f': case 'F':
+      focusMode = (focusMode + 1) % 3;
+      break;
+    case ' ':
+      e.preventDefault();
+      [spawnVoice, spawnDrone, spawnChord, spawnLead][Math.floor(Math.random() * 4)]();
+      break;
+  }
+});
+
+// ─── resize ─────────────────────────────────────────────────────
+window.addEventListener('resize', () => {
+  const w = window.innerWidth, h = window.innerHeight;
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+  renderer.setSize(w, h);
+});
+
+</script>
+</body>
+</html>

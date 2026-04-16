@@ -7,7 +7,8 @@ import { CFG } from './config.js';
 import { recordMIDI } from './session-recorder.js';
 
 // ── MIDI role channels (0-indexed internally) ──
-// Ch 0=PULSE, Ch 1=GRAIN, Ch 2=DRONE, Ch 3=BASS, Ch 4=CHORDS, Ch 5=VOICE, Ch 6=LEAD, Ch 7=ARP
+// Ch 0=KICK, Ch 1=PERC, Ch 2=DRONE, Ch 3=BASS, Ch 4=CHORDS, Ch 5=VOICE, Ch 6=LEAD, Ch 7=ARP
+// CH3/CH5/CH6/CH7 = modulare (no velocity control) — ghost solo su CH0/CH2/CH4
 export const MIDI_ROLES = ['KICK', 'PERC', 'DRONE', 'BASS', 'CHORDS', 'VOICE', 'LEAD', 'ARP'];
 
 // ── Public state ──
@@ -34,6 +35,43 @@ export const midi = {
 let noteTimestamps = []; // for density calculation
 let W = window.innerWidth;
 let midiOut = null;
+
+// ── Norns OSC bridge (WebSocket → norns-bridge.py → OSC) ──
+// Duplica eventi CH2 (drone) verso Norns Shield via bridge locale
+let _nornsBridge = null;
+let _nornsBridgeRetry = null;
+let _nornsLastNote = 48;  // ultima nota CH2 per baseNote nel pitchbend
+
+function _nornsConnect() {
+  try {
+    _nornsBridge = new WebSocket('ws://localhost:9876');
+    _nornsBridge.onopen = () => console.log('[NORNS] bridge connesso');
+    _nornsBridge.onclose = () => {
+      _nornsBridge = null;
+      // riprova ogni 5s
+      if (!_nornsBridgeRetry) {
+        _nornsBridgeRetry = setTimeout(() => { _nornsBridgeRetry = null; _nornsConnect(); }, 5000);
+      }
+    };
+    _nornsBridge.onerror = () => {}; // onclose gestisce il retry
+  } catch(e) { /* bridge non disponibile, ignora */ }
+}
+_nornsConnect();
+
+function _nornsSend(msg) {
+  if (_nornsBridge && _nornsBridge.readyState === WebSocket.OPEN) {
+    _nornsBridge.send(JSON.stringify(msg));
+  }
+}
+
+// Notifica cambio bioma al Norns (chiamata da director3)
+export function sendNornsBiome(trackIndex) {
+  _nornsSend({ type: 'biome', index: trackIndex });
+}
+
+// Start/stop drone (chiamata da toggleDirector3)
+export function sendNornsDroneStart() { _nornsSend({ type: 'start' }); }
+export function sendNornsDroneStop()  { _nornsSend({ type: 'stop' }); }
 
 // ── MIDI Clock (24 ppqn sync for Ableton / DAWs) ──
 // Lookahead scheduling: pre-schedule ticks with hardware timestamps.
@@ -145,10 +183,13 @@ export function updateMIDI() {
 // eliminando il drift del setTimeout sul main thread.
 export function sendMIDINote(ch, note, vel, durationMs = 200) {
   recordMIDI(ch, note, vel, durationMs);  // session recorder hook (no-op if not recording)
+  if (ch === 2) { _nornsLastNote = note; _nornsSend({ type: 'note', note, vel }); }  // drone → Norns
   if (!midiOut) return;
   const chByte = ch & 0x0F;
-  midiOut.send([0x90 | chByte, note, vel]);
-  midiOut.send([0x80 | chByte, note, 0], performance.now() + durationMs);
+  const safeNote = Math.max(0, Math.min(127, note | 0));
+  const safeVel = Math.max(0, Math.min(127, vel | 0));
+  midiOut.send([0x90 | chByte, safeNote, safeVel]);
+  midiOut.send([0x80 | chByte, safeNote, 0], performance.now() + durationMs);
 }
 
 export function sendMIDIAllNotesOff() {
@@ -157,6 +198,7 @@ export function sendMIDIAllNotesOff() {
 }
 
 export function sendMIDICC(ch, cc, value) {
+  if (ch === 2) _nornsSend({ type: 'cc', cc, value });  // drone CC → Norns
   if (!midiOut) return;
   midiOut.send([0xB0 | (ch & 0x0F), cc & 0x7F, value & 0x7F]);
 }
@@ -164,6 +206,7 @@ export function sendMIDICC(ch, cc, value) {
 // 14-bit pitch bend. value14bit: 0..16383, center = 8192 (no bend).
 // Standard pitch bend range = ±2 semitones, so ±15 cents ≈ ±614 from center.
 export function sendMIDIPitchBend(ch, value14bit) {
+  // CH2 pitchbend NON va al Norns — il drone ha il suo drift LFO interno (evita doppio drift)
   if (!midiOut) return;
   const v = Math.max(0, Math.min(16383, value14bit | 0));
   midiOut.send([0xE0 | (ch & 0x0F), v & 0x7F, (v >> 7) & 0x7F]);
