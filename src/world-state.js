@@ -89,6 +89,8 @@ export const worldState = {
   // Canon engine state (written by director3, read by musical modules)
   encoreCanon: {
     phrase: [],             // current phrase: array of MIDI note numbers (7-13 notes)
+    phraseInv: [],          // inverted phrase (for arp)
+    phraseRetro: [],        // retrograded phrase (for voice)
     // Per-voice state: position in phrase, current note, active flag
     bass:  { pos: 0, note: 0, active: false },  // 1× original
     chord: { pos: 0, note: 0, active: false },  // 1× offset ⅓
