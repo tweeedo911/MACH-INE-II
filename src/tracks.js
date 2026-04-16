@@ -686,7 +686,7 @@ export const TRACKS = {
 
     register: {
       bass:   [36, 55],   // C2–G3
-      melody: [67, 84],   // G4–C6 (voice)
+      melody: [55, 72],   // G3–C5 (voice — abbassata, registro narrativo)
       lead:   [62, 81],   // D4–A5
       chords: [48, 72],   // C3–C5
       arp:    [60, 82],   // C4–Bb5
@@ -708,12 +708,13 @@ export const TRACKS = {
 
     // No fixed bass/arp/voice/chord patterns — canon engine generates notes
     // Phases mapped to escalation bricks (director3 manages internally)
+    // V2.2: 8 brick, chord anticipato, plateau doppio. Total 216 bar.
     phases: {
-      germoglio:    16,    // heartbeat
-      pulsazione:   68,    // bricks 1-2 (arp+bass)
-      densita:      60,    // bricks 3-5 (hat/snare+voice+lead)
-      rottura:      20,    // bricks 6-7 (chord+conga)
-      dissoluzione: 32,    // plateau (no dissoluzione — hard cut)
+      germoglio:    16,    // brick 0 — heartbeat
+      pulsazione:   68,    // brick 1-2 (arp+bass)
+      densita:      44,    // brick 3-4 (hat/snare/chord+drone, voice)
+      rottura:      24,    // brick 5-6 (lead, conga)
+      dissoluzione: 64,    // brick 7 — plateau (doppio, poi taglio netto)
     },
 
     palette: { bg: '#000000', dot: '#FFFFFF', accent: '#FF0000' },

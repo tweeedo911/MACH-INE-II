@@ -1361,9 +1361,9 @@ export const CFG = {
   // Chord voice offset (fraction of phrase length)
   ENCORE_CHORD_OFFSET: 1/3,
   // Escalation: bars per brick (index = brick number)
-  // brick 0=heartbeat, 1=+arp, 2=+bass, 3=+hat/snare, 4=+voice, 5=+lead, 6=+chord/drone, 7=+conga, 8=plateau
-  ENCORE_BRICK_BARS: [16, 36, 32, 24, 20, 16, 12, 8, 32],
-  // Total: 196 bars ≈ 5m56s at 132 BPM
+  // brick 0=heartbeat, 1=+arp, 2=+bass, 3=+hat/snare+chord, 4=+voice, 5=+lead, 6=+conga, 7=plateau (doppio)
+  ENCORE_BRICK_BARS: [16, 36, 32, 24, 20, 16, 8, 64],
+  // Total: 216 bars ≈ 6m32s at 132 BPM (plateau raddoppiato)
 
   // ── V2.1: patterns ritmici per voce (16-step, 1 = hit) ──
   // Ogni hit avanza la posizione della voce nel canon → senti il movimento melodico
