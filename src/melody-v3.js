@@ -20,6 +20,7 @@ import { worldState, phaseState } from './world-state.js';
 import { sendMIDINote } from './midi.js';
 import { addMidiNote } from './field.js';
 import { TRACKS } from './tracks.js';
+import { advanceCanonVoice } from './director3.js';
 
 // ── Channel assignments ──
 const CH_VOICE = 5;
@@ -495,16 +496,19 @@ function _tick() {
   if (worldState.encoreMode && !worldState.encoreCanon.voice.active) {
     // Voice not yet active — skip
   } else if (worldState.encoreMode && worldState.encoreCanon.voice.active) {
-    // ── ENCORE v2: voice reads from canon (½× retrograde) ──
-    const canon = worldState.encoreCanon;
-    const note = canon.voice.note;
-    if (note > 0 && _step % 4 === 0 && density > 0.1) {
-      const rawVel = 40 + density * 40 + (Math.random() * 10 - 5);
-      const vel = Math.min(Math.round(rawVel), velCeil);
-      const stepMs2 = (60 / (worldState.bpm || 132) / 4) * 1000;
-      const dur = Math.round(stepMs2 * 8);
-      sendMIDINote(CH_VOICE, note, vel, dur);
-      addMidiNote(CH_VOICE, note / 127, vel / 127);
+    // ── ENCORE v2.1: voice pattern ritmico → avanza canon (½× retrograda) ──
+    const pattern = CFG.ENCORE_PATTERN_VOICE;
+    if (pattern[_step] === 1) {
+      const note = advanceCanonVoice('voice');
+      if (note > 0) {
+        // Velocity alzata — il problema v2 era voice troppo bassa
+        const rawVel = 78 + density * 20 + (Math.random() * 8 - 4);
+        const vel = Math.min(Math.round(rawVel), velCeil);
+        const stepMs2 = (60 / (worldState.bpm || 132) / 4) * 1000;
+        const dur = Math.round(stepMs2 * 8);  // gate lungo — voice sostenuta
+        sendMIDINote(CH_VOICE, note, vel, dur);
+        addMidiNote(CH_VOICE, note / 127, vel / 127);
+      }
     }
   } else if (voiceEnabled) {
     const voiceRate = VOICE_RATE[phase] ?? VOICE_RATE_DEFAULT;
@@ -611,16 +615,20 @@ function _tick() {
   }
 
   // ── CH6 LEAD ──
-  // ── ENCORE v2: lead reads from canon (2× original) ──
+  // ── ENCORE v2.1: lead pattern ritmico (contrattempo, 4 hit per bar) → avanza canon (2×) ──
   if (worldState.encoreMode) {
     const canon = worldState.encoreCanon;
-    if (canon.lead.active && canon.lead.note > 0 && _step % 2 === 0 && density > 0.15) {
-      const rawVel = 45 + density * 35 + (Math.random() * 8 - 4);
-      const vel = Math.min(Math.round(rawVel), velCeil);
-      const stepMs2 = (60 / (worldState.bpm || 132) / 4) * 1000;
-      const dur = Math.round(stepMs2 * 3);
-      sendMIDINote(CH_LEAD, canon.lead.note, vel, dur);
-      addMidiNote(CH_LEAD, canon.lead.note / 127, vel / 127);
+    const pattern = CFG.ENCORE_PATTERN_LEAD;
+    if (canon.lead.active && pattern[_step] === 1 && density > 0.15) {
+      const note = advanceCanonVoice('lead');
+      if (note > 0) {
+        const rawVel = 70 + density * 25 + (Math.random() * 8 - 4);
+        const vel = Math.min(Math.round(rawVel), velCeil);
+        const stepMs2 = (60 / (worldState.bpm || 132) / 4) * 1000;
+        const dur = Math.round(stepMs2 * 2);  // staccato breve, contrattempo punteggiato
+        sendMIDINote(CH_LEAD, note, vel, dur);
+        addMidiNote(CH_LEAD, note / 127, vel / 127);
+      }
     }
     // Skip normal lead logic during encore
   } else

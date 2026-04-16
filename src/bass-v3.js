@@ -17,6 +17,7 @@ import { worldState } from './world-state.js';
 import { sendMIDINote } from './midi.js';
 import { addMidiNote } from './field.js';
 import { TRACKS } from './tracks.js';
+import { advanceCanonVoice } from './director3.js';
 
 // ── Phase-aware skip probability (A) ──
 // Il dub vive di buchi. Germoglio sparso, densità pieno, dissoluzione consumato.
@@ -154,10 +155,12 @@ function _tick() {
     const canon = worldState.encoreCanon;
     if (!canon.bass.active) return;
 
-    // Play bass note from canon — one note per bar on beat 0
-    if (_step !== 0) return;
+    // V2.1: pattern ritmico 16-step (groove dub asimmetrico, 6 hit per bar)
+    const pattern = CFG.ENCORE_PATTERN_BASS;
+    if (!pattern[_step]) return;
 
-    const note = canon.bass.note;
+    // Avanza posizione nel canon → recupera la nota trasformata
+    const note = advanceCanonVoice('bass');
     if (note <= 0) return;
 
     const density = worldState.density.bass;
@@ -165,9 +168,13 @@ function _tick() {
     const bpm = worldState.bpm || 132;
     const stepMs = (60 / bpm / 4) * 1000;
 
-    const rawVel = 55 + density * 45 + (Math.random() * 8 - 4);
+    // Accent sul step 0, ghost sugli altri hit
+    const isAccent = _step === 0 || _step === 8;
+    const rawVel = isAccent
+      ? 85 + density * 25 + (Math.random() * 6 - 3)
+      : 60 + density * 30 + (Math.random() * 8 - 4);
     const vel = Math.min(Math.round(rawVel), ceiling);
-    const dur = Math.round(stepMs * 6);  // long gate — sustained bass
+    const dur = Math.round(stepMs * (isAccent ? 3 : 1.8));  // gate variabile
 
     sendMIDINote(3, note, vel, dur);
     addMidiNote(3, note / 127, vel / 127);
