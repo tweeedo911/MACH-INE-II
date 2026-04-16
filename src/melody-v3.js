@@ -714,17 +714,21 @@ function _tick() {
   if (worldState.encoreMode && !worldState.encoreCanon.arp.active) {
     // Arp not yet active — skip
   } else if (worldState.encoreMode && worldState.encoreCanon.arp.active) {
-    // ── ENCORE v2: arp reads from canon (3× inverted) ──
-    const canon = worldState.encoreCanon;
-    const note = canon.arp.note;
-    if (note > 0 && density >= 0.15) {
-      const arpVelMul = strat.arpVelScale ?? 0.8;
-      const rawVel = (50 + density * 40) * arpVelMul;
-      const arpVel = Math.min(Math.max(Math.round(rawVel), 1), velCeil);
-      const stepMs2 = (60 / (worldState.bpm || 132) / 4) * 1000;
-      const arpDur = Math.round(stepMs2 * 1.5);
-      sendMIDINote(CH_ARP, note, arpVel, arpDur);
-      addMidiNote(CH_ARP, note / 127, arpVel / 127);
+    // ── ENCORE v2.1: arp pattern ritmico (ottavi densi) → avanza canon (inversione) ──
+    const pattern = CFG.ENCORE_PATTERN_ARP;
+    if (pattern[_step] === 1 && density >= 0.15) {
+      const note = advanceCanonVoice('arp');
+      if (note > 0) {
+        const arpVelMul = strat.arpVelScale ?? 0.85;
+        // Accent su beat forti (step 0, 4, 8, 12), ghost sugli altri
+        const isAccent = (_step % 4 === 0);
+        const rawVel = ((isAccent ? 65 : 50) + density * 35) * arpVelMul;
+        const arpVel = Math.min(Math.max(Math.round(rawVel), 1), velCeil);
+        const stepMs2 = (60 / (worldState.bpm || 132) / 4) * 1000;
+        const arpDur = Math.round(stepMs2 * 1.3);  // breve, staccato
+        sendMIDINote(CH_ARP, note, arpVel, arpDur);
+        addMidiNote(CH_ARP, note / 127, arpVel / 127);
+      }
     }
   } else {
   const arpInGermoglio = arpRole === 'protagonist';

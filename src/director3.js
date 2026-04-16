@@ -1122,17 +1122,8 @@ function _updateEncore(dt) {
   }
 
   // Canon engine: advance voice positions on bar boundary
-  // V2.1: bass/chord/voice/lead avanzano dai moduli via advanceCanonVoice() quando i pattern firmano.
-  // Qui avanziamo SOLO l'arp al bar boundary (mantiene speed 3× ogni bar, già musicale).
-  if (canon.phrase.length > 0 && barAdvanced && canon.arp.active) {
-    const phraseLen = canon.phrase.length;
-    canon.arp.pos = (canon.arp.pos + CFG.ENCORE_SPEED_ARP) % phraseLen;
-    const posIdx = Math.floor(Math.abs(canon.arp.pos)) % phraseLen;
-    let note = _canonPhraseInv[posIdx] ?? canon.phrase[posIdx];
-    note = _fitToRegister(note, worldState.register.arp[0], worldState.register.arp[1]);
-    canon.arp.note = note;
-    canon.convergence = _checkConvergence(canon);
-  }
+  // V2.1: tutte le voci (bass/chord/voice/lead/arp) avanzano dai moduli via advanceCanonVoice().
+  // Qui niente — solo phrase gen + brick transition.
 
   if (!barAdvanced) return;
 
