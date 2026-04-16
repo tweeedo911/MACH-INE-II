@@ -1004,8 +1004,10 @@ export function advanceCanonVoice(voiceKey) {
   const speed = speedMap[voiceKey] ?? 1;
   const phraseLen = phrase.length;
 
-  canon[voiceKey].pos = (canon[voiceKey].pos + speed) % phraseLen;
+  // Leggi PRIMA la posizione corrente, poi avanzi per la prossima chiamata.
+  // Così la prima chiamata dopo reset (pos=0) ritorna la prima nota della frase.
   const posIdx = Math.floor(Math.abs(canon[voiceKey].pos)) % phraseLen;
+  canon[voiceKey].pos = (canon[voiceKey].pos + speed) % phraseLen;
 
   let note;
   if (voiceKey === 'arp') {
