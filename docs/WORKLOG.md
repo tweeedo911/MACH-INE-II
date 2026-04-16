@@ -6,6 +6,45 @@
 
 ---
 
+## 2026-04-16 (sessione 26) — Audit visivo: perf + RITORNO luminoso + stop pre-encore (v3.15.1)
+
+**Obiettivo:** Analisi profonda sistema visuale (3 agenti paralleli: perf campo, pipeline,
+qualità registica). Applicare 3 fix P0/P1 nel campo + 2 modifiche di regia.
+
+**Fatto — perf campo.js (−3ms/frame stimati in scena densa):**
+- **Glyph fillStyle:** sostituita stringa `rgba(r,g,b,a)` allocata per ogni glifo con
+  `fillStyle = rgb(r,g,b)` 1× per ruolo + `globalAlpha` per cella. Ripristino `globalAlpha=1`
+  dopo il pass. Stima guadagno: −2/3ms/frame con densità alta (~1000 glifi/frame).
+- **Decay loop nested:** convertito flat `for(let i...)` in nested `for(let cy...){for(let cx...)}`.
+  Elimina 2× divmod per cella (era `cy = (i/_cellsX)|0` ripetuto in decay e shimmer) e estrae
+  `freezeC` + `shimmerY` fuori dal loop interno. Stima: −0.5ms/frame.
+- **LUT `_centerXLUT/_centerYLUT`** (Int32Array) pre-calcolate in `_ensureOffscreen`.
+  Sostituiscono `((cx+0.5)*_W/_cellsX)|0` in 4 callsite (bayer bloom, bloom pass,
+  glyph pass, campo.js:793 Math.floor). Stima: −0.3ms/frame.
+
+**Fatto — regia:**
+- **RITORNO più luminoso** (biomi.js:1330-1350): base colors alzati +20/30 (drone 200→230,
+  lead 235→250, bass 220→240), phaseColors ~+30-50% (dissoluzione drone 45→85, voice 130→185,
+  lead 75→120). Il pianeta resta leggibile in proiezione durante lo spegnimento.
+- **Stop dopo RITORNO** (director3.js:648-660): `_advanceTrack()` intercetta
+  `nextTrack === 'ENCORE'` → `_paused=true`, densità a 0, `sendMIDIAllNotesOff()` dopo 1 bar.
+  La suite si chiude a RITORNO. ENCORE resta lanciabile manualmente con `E`.
+  Log console: `[DIR3] Suite finita. ENCORE pronto (premi E).`
+
+**Audit: bug aperti (da fix in sessioni future):**
+- C1: `midi-clock.worker.js:17` — `postMessage` senza transferable → ~4-8 MB/min GC churn
+- C2: devicePixelRatio non gestito (retina = 4× lavoro non mitigato) — config.js:14-15
+- M1: camera `spike * 0.03` (camera.js:275) micro-punch impercettibile (alzare a 0.08-0.12)
+- M2: camera `_scan()` ogni frame (camera.js:72) → throttle 1/4 frame per −1.5ms
+
+**File toccati:** `campo.js`, `biomi.js`, `director3.js`, `VERSION.js`, `WORKLOG.md`, `STATUS.md`
+**Decisioni:** —
+**Prossimo:** Test live v3.15.1: verificare glyphs ancora visibili + alpha corretta, bloom
+voice/lead/kick invariato, decay/shimmer biomi fluido, RITORNO più leggibile, stop a fine
+RITORNO senza glitch. Poi attaccare C1/C2 se serve. Seguire calibrazioni di regia M1/M2.
+
+---
+
 ## 2026-04-16 (sessione 25) — ENCORE v2: Canon Machine (v3.15.0)
 
 **Obiettivo:** Redesign completo dell'encore — da polimetria a pattern fissi verso

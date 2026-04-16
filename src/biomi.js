@@ -1328,25 +1328,26 @@ const RITORNO = {
   bg: [0, 0, 0],                    // nero PURO — lo spazio intorno al pianeta
   planetMask: true,                 // flag per campo.js: applica maschera circolare
   colors: {
-    drone:      [200, 200, 205],   // bianco freddo — sedimento pallido
-    bass:       [220, 70, 60],     // rosso corallo — unico accento
-    chord:      [230, 230, 235],   // bianco appena azzurrato
-    kick:       [250, 248, 245],   // bianco caldo
-    percussion: [180, 178, 175],   // grigio chiaro
-    arp:        [210, 208, 212],   // grigio perla
-    voice:      [255, 252, 250],   // bianco puro — protagonista
-    lead:       [235, 80, 70],     // rosso corallo chiaro — eco del bass
+    drone:      [230, 230, 235],   // bianco freddo brillante — sedimento luminoso
+    bass:       [240, 90, 75],     // rosso corallo acceso — accento caldo
+    chord:      [245, 245, 250],   // bianco quasi puro
+    kick:       [255, 253, 250],   // bianco caldo pieno
+    percussion: [210, 208, 205],   // grigio chiaro luminoso
+    arp:        [235, 232, 238],   // grigio perla acceso
+    voice:      [255, 254, 252],   // bianco puro — protagonista
+    lead:       [250, 100, 85],    // rosso corallo brillante — eco caldo del bass
   },
-  // Colori che sbiadiscono: bianco → grigio, corallo → cenere
+  // Colori che sbiadiscono ma restano visibili: il pianeta si spegne lentamente
+  // (alzati ~30-50% per restare leggibili in proiezione)
   phaseColors: {
-    pulsazione:   { drone: [160, 158, 162], bass: [190, 60, 50], chord: [190, 188, 192],
-                    voice: [245, 242, 240], lead: [200, 68, 58] },
-    densita:      { drone: [120, 118, 122], bass: [160, 50, 42], chord: [155, 152, 158],
-                    voice: [230, 225, 222], lead: [170, 55, 48] },
-    rottura:      { drone: [80, 78, 82], bass: [120, 40, 35], chord: [110, 108, 112],
-                    voice: [200, 195, 190], lead: [130, 42, 38] },
-    dissoluzione: { drone: [45, 44, 46], bass: [70, 25, 22], chord: [60, 58, 62],
-                    kick: [80, 78, 76], voice: [130, 125, 120], lead: [75, 28, 25] },
+    pulsazione:   { drone: [200, 198, 202], bass: [215, 78, 65], chord: [220, 218, 222],
+                    voice: [252, 249, 247], lead: [225, 88, 75] },
+    densita:      { drone: [165, 163, 167], bass: [195, 65, 55], chord: [190, 188, 192],
+                    voice: [245, 240, 237], lead: [205, 72, 62] },
+    rottura:      { drone: [125, 122, 127], bass: [165, 55, 48], chord: [150, 148, 152],
+                    voice: [225, 220, 215], lead: [170, 58, 50] },
+    dissoluzione: { drone: [85, 83, 87], bass: [115, 42, 35], chord: [100, 98, 102],
+                    kick: [130, 128, 125], voice: [185, 178, 172], lead: [120, 45, 38] },
   },
   decay: {
     drone:      0.998,

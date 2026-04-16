@@ -142,6 +142,7 @@ const _particles = { chord: [], arp: [], voice: [], lead: [] };
 
 // Shimmer LUT — riusate ogni frame (evita allocazioni per frame)
 let _shimmerX = null, _shimmerY = null, _shimmerD = null;
+let _centerXLUT = null, _centerYLUT = null;  // pixel centers per cella — pre-calc 1× per resize
 
 // ── Geologia per RITORNO ──
 // Snapshot dei field al momento dell'ingresso in RITORNO:
@@ -332,6 +333,11 @@ function _ensureOffscreen() {
   _imgData = _offCtx.createImageData(_W, _H);
   _imgBuf  = _imgData.data;
   _imgBuf32 = new Uint32Array(_imgData.data.buffer);
+  // LUT pixel-centers per cella: usati da bayer, bloom, glyph, planetMask
+  _centerXLUT = new Int32Array(_cellsX);
+  _centerYLUT = new Int32Array(_cellsY);
+  for (let cx = 0; cx < _cellsX; cx++) _centerXLUT[cx] = ((cx + 0.5) * _W / _cellsX) | 0;
+  for (let cy = 0; cy < _cellsY; cy++) _centerYLUT[cy] = ((cy + 0.5) * _H / _cellsY) | 0;
 }
 
 // ── API pubblica ──
@@ -638,44 +644,44 @@ export function updateCampo(dt, audioEnergy = 0) {
     // Phase-adjusted base decay (clamp to valid range 0..0.9999)
     const phaseDr = Math.min(0.9999, Math.max(0.5, baseDr + phaseDecayOff));
 
-    for (let i = 0; i < f.length; i++) {
-      const density = f[i];
-      if (density < 0.001) { f[i] = 0; continue; }
-
-      // Density cap: accelera decay se sopra il tetto
-      let capPenalty = 0;
-      if (density > roleCap) {
-        capPenalty = (density - roleCap) * 0.5;  // forte spinta verso il cap
-      }
-
-      // Layer B: high density stabilizes
-      const freezeB = freezeDensityEnabled
-        ? smoothstep(fdLo, fdHi, density)
-        : 0;
-
-      // Layer C: lower part sediments
-      const cy = (i / _cellsX) | 0;
-      const freezeC = freezeSpatialEnabled
+    // Nested loop: cy/cx pre-calcolati una volta — niente divmod per cella
+    // (era: cy=(i/_cellsX)|0 calcolato 2× per cella in flat loop)
+    for (let cy = 0; cy < _cellsY; cy++) {
+      const freezeCRow = freezeSpatialEnabled
         ? smoothstep(fsLo, fsHi, cy / _cellsY)
         : 0;
+      const sY = _shimmerY[cy];
+      const rowBase = cy * _cellsX;
+      for (let cx = 0; cx < _cellsX; cx++) {
+        const i = rowBase + cx;
+        const density = f[i];
+        if (density < 0.001) { f[i] = 0; continue; }
 
-      // Compose: max of 3 layers + global
-      const freezeTotal = Math.max(freezeA, freezeB, freezeC, globalFreeze);
+        // Density cap: accelera decay se sopra il tetto
+        let capPenalty = 0;
+        if (density > roleCap) {
+          capPenalty = (density - roleCap) * 0.5;
+        }
 
-      // effectiveDecay: 1.0 = permanent, phaseDr = phase-adjusted decay
-      const dr = phaseDr + (1.0 - phaseDr) * freezeTotal;
+        // Layer B: high density stabilizes
+        const freezeB = freezeDensityEnabled
+          ? smoothstep(fdLo, fdHi, density)
+          : 0;
 
-      f[i] = f[i] * dr - capPenalty;
+        // Compose: max of 3 layers + global
+        const freezeTotal = Math.max(freezeA, freezeB, freezeCRow, globalFreeze);
+        const dr = phaseDr + (1.0 - phaseDr) * freezeTotal;
 
-      // Shimmer spazialmente coerente — onde lente, non rumore bianco
-      // LUT pre-calcolate sopra il loop ruoli (shimmerX/Y/D)
-      if (f[i] > 0.01) {
-        const cx = i % _cellsX, cy = (i / _cellsX) | 0;
-        const wave = _shimmerX[cx] + _shimmerY[cy] + _shimmerD[((cx + cy) % _cellsX)];
-        f[i] += wave * shimmer * f[i];
+        f[i] = f[i] * dr - capPenalty;
+
+        // Shimmer spazialmente coerente — LUT shimmerX/Y/D
+        if (f[i] > 0.01) {
+          const wave = _shimmerX[cx] + sY + _shimmerD[((cx + cy) % _cellsX)];
+          f[i] += wave * shimmer * f[i];
+        }
+        if (f[i] < 0) f[i] = 0;
+        if (f[i] > 1) f[i] = 1;
       }
-      if (f[i] < 0) f[i] = 0;
-      if (f[i] > 1) f[i] = 1;
     }
   }
 
@@ -790,8 +796,8 @@ export function renderCampo(ctx, W, H) {
         for (let cx = 0; cx < _cellsX; cx++) {
           const d = snap[cy * _cellsX + cx];
           if (d < 0.01) continue;
-          const centerX = Math.floor((cx + 0.5) * _W / _cellsX);
-          const centerY = Math.floor((cy + 0.5) * _H / _cellsY);
+          const centerX = _centerXLUT[cx];
+          const centerY = _centerYLUT[cy];
           const x0 = Math.max(0, centerX - halfCpx);
           const y0 = Math.max(0, centerY - halfCpx);
           const x1 = Math.min(_W, centerX - halfCpx + cpx);
@@ -894,8 +900,8 @@ export function renderCampo(ctx, W, H) {
         }
 
         // Proportional position on offscreen
-        const centerX = Math.floor((cx + 0.5) * _W / _cellsX);
-        const centerY = Math.floor((cy + 0.5) * _H / _cellsY);
+        const centerX = _centerXLUT[cx];
+        const centerY = _centerYLUT[cy];
 
         // Pixel area cpx × cpx centered on position
         const x0 = Math.max(0, centerX - halfCpx);
@@ -951,8 +957,8 @@ export function renderCampo(ctx, W, H) {
           const glG = bG * glow;
           const glB = bB * glow;
 
-          const centerX = ((cx + 0.5) * _W / _cellsX) | 0;
-          const centerY = ((cy + 0.5) * _H / _cellsY) | 0;
+          const centerX = _centerXLUT[cx];
+          const centerY = _centerYLUT[cy];
 
           for (let oi = 0; oi < 4; oi++) {
             const gpx = centerX + ox4[oi];
@@ -1109,20 +1115,24 @@ export function renderCampo(ctx, W, H) {
         _offCtx.font = `${fontSize}px 'Courier New',monospace`;
         _offCtx.textAlign = 'center';
         _offCtx.textBaseline = 'middle';
+        // fillStyle settato 1× per ruolo, alpha modulata via globalAlpha
+        // (era: stringa rgba allocata per ogni glifo — ~1000 alloc/frame in densità alta)
+        _offCtx.fillStyle = `rgb(${gR},${gG},${gB})`;
+        const framePhase = (_renderFrame >> 4) & 0xFF;
 
         for (let cy = 0; cy < _cellsY; cy++) {
+          const py = _centerYLUT[cy];
+          const cyRow = cy * _cellsX;
           for (let cx = 0; cx < _cellsX; cx++) {
-            const d = field[cy * _cellsX + cx];
+            const d = field[cyRow + cx];
             if (d < thresh) continue;
-            const ci = (cx * 7 + cy * 13 + ((_renderFrame >> 4) & 0xFF)) % chars.length;
-            const px = ((cx + 0.5) * _W / _cellsX) | 0;
-            const py = ((cy + 0.5) * _H / _cellsY) | 0;
-            const a = Math.min(1, (d - thresh) / 0.15) * opacity;
-            _offCtx.fillStyle = `rgba(${gR},${gG},${gB},${a})`;
-            _offCtx.fillText(chars[ci], px, py);
+            const ci = (cx * 7 + cy * 13 + framePhase) % chars.length;
+            _offCtx.globalAlpha = Math.min(1, (d - thresh) / 0.15) * opacity;
+            _offCtx.fillText(chars[ci], _centerXLUT[cx], py);
           }
         }
       }
+      _offCtx.globalAlpha = 1;  // ripristina default per pass successivi
     }
   }
 
