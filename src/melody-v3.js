@@ -16,6 +16,7 @@
 //  Reads worldState. Never writes it.
 // ═══════════════════════════════════════════════════════════
 
+import { CFG } from './config.js';
 import { worldState, phaseState } from './world-state.js';
 import { sendMIDINote } from './midi.js';
 import { addMidiNote } from './field.js';
@@ -716,7 +717,7 @@ function _tick() {
   } else if (worldState.encoreMode && worldState.encoreCanon.arp.active) {
     // ── ENCORE v2.1: arp pattern ritmico (ottavi densi) → avanza canon (inversione) ──
     const pattern = CFG.ENCORE_PATTERN_ARP;
-    if (pattern[_step] === 1 && density >= 0.15) {
+    if (pattern && pattern[_step] === 1 && density >= 0.15) {
       const note = advanceCanonVoice('arp');
       if (note > 0) {
         const arpVelMul = strat.arpVelScale ?? 0.85;
