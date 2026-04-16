@@ -103,29 +103,39 @@ function _tick() {
       return;
     }
 
-    // V2.1: chord pattern ritmico (2 hit per bar — step 0 e 10, sincopato)
-    const pattern = CFG.ENCORE_PATTERN_CHORD;
-    if (pattern[_step] === 1) {
+    // V2.2: chord lento — 1 hit ogni 2 bar (step 0 su bar pari), voicing APERTO
+    // Voicing aperto (root + 10a + 12a) evita cluster ottatonici → suona tonale
+    if (_step === 0 && _bar % 2 === 0) {
       const note = advanceCanonVoice('chord');
       if (note > 0 && note >= regLo && note <= regHi) {
-        // Build triad from current scale
         const scale = worldState.scale || [];
-        const triad = [note];
-        const third = scale.find(n => n > note && n <= note + 5);
-        if (third) triad.push(third);
-        const fifth = scale.find(n => n > note + 5 && n <= note + 9);
-        if (fifth) triad.push(fifth);
+        // Root al registro chord, 10a (3a + ottava), 12a (5a + ottava)
+        // Gradi dalla scala ma separati da almeno un'ottava → voicing aperto, respira
+        const root = note;
+        // Trova 3a (2 gradi sopra root nella scala)
+        const rootIdx = scale.indexOf(root);
+        let third, fifth;
+        if (rootIdx >= 0) {
+          third = scale[rootIdx + 2] !== undefined ? scale[rootIdx + 2] + 12 : root + 16;  // +10a
+          fifth = scale[rootIdx + 4] !== undefined ? scale[rootIdx + 4] + 12 : root + 19;  // +12a
+        } else {
+          third = root + 16;  // fallback: 10a maggiore
+          fifth = root + 19;  // fallback: 12a
+        }
+        // Clamp nel registro, scarta note fuori scala
+        const voicing = [root];
+        if (third <= regHi) voicing.push(third);
+        if (fifth <= regHi) voicing.push(fifth);
 
-        const isAccent = _step === 0;
-        const chordVel = Math.min(Math.round((isAccent ? 75 : 55) + density * 25), velCeil);
-        const chordDur = Math.round(beatMs * (isAccent ? 2.5 : 1.2));  // staccato su sincope
-        for (const n of triad) {
+        const chordVel = Math.min(Math.round(70 + density * 25), velCeil);
+        const chordDur = Math.round(beatMs * 6);  // sustain lungo (~6 battiti = 1.5 bar)
+        for (const n of voicing) {
           if (n >= regLo && n <= regHi) {
             sendMIDINote(CH_CHORDS, n, chordVel, chordDur);
             addMidiNote(CH_CHORDS, n / 127, chordVel / 127);
           }
         }
-        worldState.currentChord = triad;
+        worldState.currentChord = voicing;
       }
     }
 
