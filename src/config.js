@@ -1363,4 +1363,17 @@ export const CFG = {
   // brick 0=heartbeat, 1=+arp, 2=+bass, 3=+hat/snare, 4=+voice, 5=+lead, 6=+chord/drone, 7=+conga, 8=plateau
   ENCORE_BRICK_BARS: [16, 36, 32, 24, 20, 16, 12, 8, 32],
   // Total: 196 bars ≈ 5m56s at 132 BPM
+
+  // ── V2.1: patterns ritmici per voce (16-step, 1 = hit) ──
+  // Ogni hit avanza la posizione della voce nel canon → senti il movimento melodico
+  // Patterns distinti per voce → polimetria percepibile, incastro ritmico + armonico
+  // Bass: groove dub asimmetrico (6 hit: 1, 4, 6, 9, 12, 14)
+  ENCORE_PATTERN_BASS:  [1,0,0,1, 0,1,0,0, 1,0,0,1, 0,1,0,0],
+  // Voice: lenta, 3 gesti per bar (½× retrograda, frasi lunghe)
+  ENCORE_PATTERN_VOICE: [1,0,0,0, 0,0,1,0, 0,0,0,0, 1,0,0,0],
+  // Lead: contrattempo, 4 hit sul 3° 16esimo di ogni beat
+  ENCORE_PATTERN_LEAD:  [0,0,1,0, 0,0,1,0, 0,0,1,0, 0,0,1,0],
+  // Chord: staccato, 2 hit per bar (1 e 11, sincopato)
+  ENCORE_PATTERN_CHORD: [1,0,0,0, 0,0,0,0, 0,0,1,0, 0,0,0,0],
+  // Arp: resta gestito dal canon engine (3× più veloce, ogni bar)
 };

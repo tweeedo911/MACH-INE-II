@@ -9,6 +9,7 @@ import { worldState } from './world-state.js';
 import { sendMIDINote, sendMIDIPitchBend } from './midi.js';
 import { addMidiNote } from './field.js';
 import { TRACKS } from './tracks.js';
+import { advanceCanonVoice } from './director3.js';
 
 // ── Channel assignments ──
 const CH_DRONE  = 2;  // CH2 = DRONE (sustained harmonic root)
@@ -102,9 +103,10 @@ function _tick() {
       return;
     }
 
-    // Play chord note from canon on beat 0 of each bar
-    if (_step === 0) {
-      const note = canon.chord.note;
+    // V2.1: chord pattern ritmico (2 hit per bar — step 0 e 10, sincopato)
+    const pattern = CFG.ENCORE_PATTERN_CHORD;
+    if (pattern[_step] === 1) {
+      const note = advanceCanonVoice('chord');
       if (note > 0 && note >= regLo && note <= regHi) {
         // Build triad from current scale
         const scale = worldState.scale || [];
@@ -114,8 +116,9 @@ function _tick() {
         const fifth = scale.find(n => n > note + 5 && n <= note + 9);
         if (fifth) triad.push(fifth);
 
-        const chordVel = Math.min(Math.round(55 + density * 35), velCeil);
-        const chordDur = Math.round(beatMs * 3);
+        const isAccent = _step === 0;
+        const chordVel = Math.min(Math.round((isAccent ? 75 : 55) + density * 25), velCeil);
+        const chordDur = Math.round(beatMs * (isAccent ? 2.5 : 1.2));  // staccato su sincope
         for (const n of triad) {
           if (n >= regLo && n <= regHi) {
             sendMIDINote(CH_CHORDS, n, chordVel, chordDur);
