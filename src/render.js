@@ -31,15 +31,19 @@ export function setProjectorWindow(win) { _projectorWin = win; }
 export function initRender(cvs) {
   canvas = cvs;
   ctx = canvas.getContext('2d');
-  resize();
+  // Risoluzione interna fissa — CSS scala per display
+  W = canvas.width  = CFG.renderW;
+  H = canvas.height = CFG.renderH;
+  canvas.style.width  = '100%';
+  canvas.style.height = '100%';
+  canvas.style.objectFit = 'contain';
   initLayers(W, H);
-  window.addEventListener('resize', resize);
+  // resize non serve più per il canvas, ma riposiziona CSS se necessario
 }
 
 export function resize() {
-  W = canvas.width = window.innerWidth;
-  H = canvas.height = window.innerHeight;
-  resizeLayers(W, H);
+  // Canvas resolution resta fissa — solo CSS layout si adatta
+  // (W e H invariati, nessun riallocazione buffer)
 }
 
 export function setHUDElements(minimal, debug, seq) {

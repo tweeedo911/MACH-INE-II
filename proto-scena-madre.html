@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>MACH:INE — scena madre</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #000; overflow: hidden; font-family: monospace; }
+    canvas { display: block; }
+    #hud {
+      position: fixed; bottom: 8px; right: 12px;
+      color: #282420; font-size: 9px; text-align: right;
+      pointer-events: none; line-height: 1.4;
+    }
+  </style>
+</head>
+<body>
+<div id="hud">
+  <div>K=kick B=bass C=chord D=drone V=voice A=arp</div>
+  <div>1-4=fase G=camera R=rupture</div>
+  <div id="info">...</div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+// ═══════════════════════════════════════════════════════════════════
+//  SCENA MADRE — il sistema prima dei capitoli
+//
+//  "Costruire immagini che non mostrano la musica,
+//   ma la sua memoria mentre si trasforma in spazio."
+//
+//  Il campo Float32Array 96×54 è lo stato interno della macchina.
+//  Il 3D lo rende come DENSITÀ VOLUMETRICA — polvere sospesa,
+//  membrane, soglie, residui — distribuiti su 3 piani di profondità.
+//
+//  Il suono non muove oggetti. Cambia pressione, viscosità, apertura.
+//  La camera è lenta, inevitabile, musicale.
+//
+//  Materie: polvere viva, membrana, soglia, residuo.
+//  Nessun effetto speciale. Nessuna illustrazione del suono.
+// ═══════════════════════════════════════════════════════════════════
+
+import * as THREE from 'three';
+
+// ─── CAMPO (identico a campo.js) ────────────────────────────────
+const CX = 96, CY = 54, N = CX * CY;
+const ROLES = ['drone','bass','chord','kick','arp','voice'];
+
+const fields = {};
+const lastDep = {};
+for (const r of ROLES) {
+  fields[r] = new Float32Array(N);
+  lastDep[r] = new Uint16Array(N);
+}
+
+let phase = 0, rupture = 0, frame = 0;
+const PNAMES = ['germoglio','pulsazione','densità','dissoluzione'];
+const P_FORCE = [0.35, 0.65, 1.0, 0.40];
+const P_DECAY = [+0.002, 0, 0, -0.008];
+const BPM = 129, BEAT_S = 60/BPM;
+
+// SOLCO palette
+const COL = {
+  drone:[55,50,85], bass:[255,140,40], chord:[90,120,170],
+  kick:[245,235,210], arp:[175,200,135], voice:[190,215,245],
+};
+const BG = [12, 8, 6];
+const DECAY = { drone:.9997, bass:.985, chord:.993, kick:.550, arp:.870, voice:.990 };
+const FORCE = { drone:.005, bass:.85, chord:.15, kick:.90, arp:.25, voice:.55 };
+
+function dep(field, cx, cy, force, role) {
+  if (cx<0||cx>=CX||cy<0||cy>=CY) return;
+  const i = cy*CX+cx;
+  field[i] = Math.min(1, Math.max(0, field[i]+force));
+  if (force > 0.01) lastDep[role][i] = frame & 0xFFFF;
+}
+
+// ── deposit functions (SOLCO — identiche a biomi.js) ────────────
+function depositBass() {
+  const f = FORCE.bass * P_FORCE[phase];
+  const cx = Math.floor(Math.random()*(CX-4));
+  const cw = 2+Math.floor(Math.random()*3);
+  const yT = Math.floor(CY*(0.15+Math.random()*0.10));
+  const yB = Math.floor(CY*(0.80+Math.random()*0.10));
+  for (let y=yT;y<=yB;y++) {
+    if (rupture>0.3&&Math.random()<rupture*0.4) continue;
+    const p=(y-yT)/(yB-yT);
+    const xS=Math.round(Math.sin(y*0.3)*rupture*3);
+    for (let dx=0;dx<cw;dx++) dep(fields.bass,cx+dx+xS,y,f*(0.15+p*0.85),'bass');
+  }
+  for (let dx=-5;dx<=cw+5;dx++){
+    const d=dx<0?-dx:(dx>=cw?dx-cw+1:0);
+    if(d>0) dep(fields.bass,cx+dx,yB,f*0.4/d,'bass');
+  }
+  const nE=2+Math.floor(Math.random()*2)+Math.floor(rupture*4);
+  for(let e=0;e<nE;e++){
+    const eX=cx+(e+1)*(6+Math.floor(Math.random()*4));
+    const eF=f*(0.35/(e+1));
+    const eW=Math.max(1,cw-Math.min(e,cw-1));
+    for(let y=yT+(e+1)*3;y<=yB;y++){
+      const p=(y-(yT+(e+1)*3))/(yB-(yT+(e+1)*3));
+      for(let dx=0;dx<eW;dx++) dep(fields.bass,eX+dx,y,eF*(0.2+p*0.8),'bass');
+    }
+  }
+}
+function depositKick(){
+  const fx=Math.floor(Math.random()*CX);
+  const fw=1+Math.floor(Math.random()*2);
+  const yB=Math.floor(CY*0.90),yT=Math.floor(CY*(0.20+Math.random()*0.15));
+  for(let y=yB;y>=yT;y--){
+    const p=(yB-y)/(yB-yT),f=0.85*(1-p*0.6)*P_FORCE[phase];
+    const w=Math.round(Math.sin(y*0.5)*1.5);
+    for(let dx=-fw;dx<=fw;dx++) dep(fields.kick,fx+dx+w,y,f*(1-Math.abs(dx)/(fw+1)),'kick');
+  }
+}
+function depositChord(){
+  const cx=Math.floor(Math.random()*CX),f=FORCE.chord*P_FORCE[phase];
+  for(let y=Math.floor(CY*0.05);y<Math.floor(CY*0.50);y++){
+    const d=(y/CY-0.05)/0.45;
+    if(Math.random()<d*0.4) dep(fields.chord,cx+Math.floor((Math.random()-0.5)*4),y,f*(0.3+d*0.7),'chord');
+  }
+  const hY=Math.floor(CY*0.48);
+  for(let dx=-2;dx<=2;dx++){dep(fields.chord,cx+dx,hY,f*0.6,'chord');dep(fields.chord,cx+dx,hY+1,f*0.35,'chord');}
+}
+function depositArp(){
+  const cx=Math.floor(Math.random()*CX),y=Math.floor(CY*(0.05+Math.random()*0.20));
+  const f=FORCE.arp*P_FORCE[phase];
+  for(let j=0;j<3;j++) dep(fields.arp,cx+Math.floor((Math.random()-0.5)*6),y+Math.floor((Math.random()-0.5)*4),f,'arp');
+}
+function depositVoice(){
+  const cx=Math.floor(Math.random()*CX),f=FORCE.voice*P_FORCE[phase]*(1+rupture*0.5);
+  const yT=Math.floor(CY*0.05),yB=Math.floor(CY*(0.45+Math.random()*0.15));
+  for(let y=yT;y<=yB;y++){
+    const w=Math.round(Math.sin(y*0.8)*(1+rupture*3));
+    dep(fields.voice,cx+w,y,f*(0.5+Math.random()*0.5),'voice');
+  }
+}
+function depositDrone(){
+  const my=Math.floor(CY*0.55),cy=my+Math.floor(Math.random()*(CY-my-2));
+  const cx=Math.floor(Math.random()*CX);
+  for(let dy=0;dy<2;dy++) for(let dx=-3;dx<=3;dx++) dep(fields.drone,cx+dx,cy+dy,0.005*P_FORCE[phase],'drone');
+}
+
+// ── campo update ────────────────────────────────────────────────
+function updateCampo(){
+  frame++;
+  const pdo=P_DECAY[phase];
+  for(const r of ROLES){
+    const bd=DECAY[r]; if(bd>=1)continue;
+    const dr=Math.min(0.9999,Math.max(0.5,bd+pdo));
+    const f=fields[r];
+    for(let i=0;i<f.length;i++){
+      if(f[i]<0.001){f[i]=0;continue;}
+      f[i]*=dr;
+      if(f[i]>0.01){
+        const cx=i%CX,cy=(i/CX)|0,t=frame*0.017;
+        const w=Math.sin(cx*0.21+t)*0.4+Math.sin(cy*0.17+t*0.7)*0.35+Math.sin((cx+cy)*0.13+t*1.3)*0.25;
+        f[i]+=w*0.05*f[i];
+      }
+      if(f[i]<0)f[i]=0; if(f[i]>1)f[i]=1;
+    }
+  }
+  if(phase===3){
+    for(const r of ROLES){const f=fields[r];
+      for(let cy=1;cy<CY-1;cy++) for(let cx=1;cx<CX-1;cx++){
+        const i=cy*CX+cx; if(f[i]<0.02)continue;
+        let e=0;if(f[i-1]<0.01)e++;if(f[i+1]<0.01)e++;if(f[i-CX]<0.01)e++;if(f[i+CX]<0.01)e++;
+        if(e>0){f[i]-=0.012*e;if(f[i]<0)f[i]=0;}
+      }
+    }
+  }
+}
+
+// ─── THREE.JS ───────────────────────────────────────────────────
+const renderer = new THREE.WebGLRenderer({ antialias: false, alpha: false });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(1);
+renderer.setClearColor(new THREE.Color(BG[0]/255, BG[1]/255, BG[2]/255));
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(40, window.innerWidth/window.innerHeight, 0.1, 200);
+
+// ─── 3 PIANI DI PROFONDITÀ ─────────────────────────────────────
+// Piano 0 (vicino): voice, kick — apparizioni, dettaglio sensibile
+// Piano 1 (medio):  chord, arp — trama, connessione
+// Piano 2 (fondo):  bass, drone — massa, pressione atmosferica
+
+const PLANE_Z = [0, 12, 28];      // profondità dei 3 piani
+const PLANE_W = 19.2, PLANE_H = 10.8;
+
+// Ogni piano è un quad fullscreen con il campo come texture
+// Il fragment shader rende la densità come materia:
+// polvere (bassa densità), membrana (media), massa (alta)
+
+const fieldData = [
+  new Float32Array(N * 4),  // piano 0: voice(R), kick(G), 0, 0
+  new Float32Array(N * 4),  // piano 1: chord(R), arp(G), 0, 0
+  new Float32Array(N * 4),  // piano 2: bass(R), drone(G), 0, 0
+];
+const fieldTex = fieldData.map(d => {
+  const t = new THREE.DataTexture(d, CX, CY, THREE.RGBAFormat, THREE.FloatType);
+  t.magFilter = THREE.LinearFilter;  // interpolazione — la materia è continua
+  t.minFilter = THREE.LinearFilter;
+  t.needsUpdate = true;
+  return t;
+});
+
+function syncFields() {
+  for (let i = 0; i < N; i++) {
+    const j = i * 4;
+    // piano 0: voice, kick
+    fieldData[0][j]   = fields.voice[i];
+    fieldData[0][j+1] = fields.kick[i];
+    // piano 1: chord, arp
+    fieldData[1][j]   = fields.chord[i];
+    fieldData[1][j+1] = fields.arp[i];
+    // piano 2: bass, drone
+    fieldData[2][j]   = fields.bass[i];
+    fieldData[2][j+1] = fields.drone[i];
+  }
+  fieldTex.forEach(t => t.needsUpdate = true);
+}
+
+// ─── material shader — materia che vive ─────────────────────────
+// Nessun effetto. La densità diventa opacità, colore, grana.
+// Le zone a bassa densità sono polvere (quasi trasparenti).
+// Le zone ad alta densità sono massa (opache, interne).
+// La luce viene DA DENTRO la materia — sorgente interna.
+
+function makePlaneMat(planeIdx, colA, colB) {
+  return new THREE.ShaderMaterial({
+    uniforms: {
+      uField:   { value: fieldTex[planeIdx] },
+      uTime:    { value: 0 },
+      uColorA:  { value: new THREE.Vector3(colA[0]/255, colA[1]/255, colA[2]/255) },
+      uColorB:  { value: new THREE.Vector3(colB[0]/255, colB[1]/255, colB[2]/255) },
+      uBg:      { value: new THREE.Vector3(BG[0]/255, BG[1]/255, BG[2]/255) },
+      uDepth:   { value: planeIdx },  // 0=vicino, 2=fondo
+    },
+    vertexShader: `
+      varying vec2 vUv;
+      void main() {
+        vUv = uv;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: `
+      uniform sampler2D uField;
+      uniform float uTime;
+      uniform vec3 uColorA;
+      uniform vec3 uColorB;
+      uniform vec3 uBg;
+      uniform float uDepth;
+
+      varying vec2 vUv;
+
+      // Bayer 4×4
+      float bayer4(vec2 p) {
+        int x = int(mod(p.x, 4.0));
+        int y = int(mod(p.y, 4.0));
+        int idx = y * 4 + x;
+        // lookup
+        float b[16];
+        b[0]=0.0; b[1]=8.0; b[2]=2.0; b[3]=10.0;
+        b[4]=12.0; b[5]=4.0; b[6]=14.0; b[7]=6.0;
+        b[8]=3.0; b[9]=11.0; b[10]=1.0; b[11]=9.0;
+        b[12]=15.0; b[13]=7.0; b[14]=13.0; b[15]=5.0;
+        // manual lookup (GLSL arrays need constant index in some drivers)
+        float val = 0.0;
+        for (int i = 0; i < 16; i++) {
+          if (i == idx) val = b[i];
+        }
+        return val / 16.0;
+      }
+
+      void main() {
+        vec4 f = texture2D(uField, vUv);
+        float dA = f.r;  // role A density
+        float dB = f.g;  // role B density
+
+        // densità combinata
+        float total = dA + dB;
+        if (total < 0.005) discard;  // il vuoto è vuoto
+
+        // colore: mix pesato dei due ruoli
+        vec3 col = (uColorA * dA + uColorB * dB) / max(total, 0.001);
+
+        // Bayer dithering — la grana della materia
+        vec2 cellPos = vUv * vec2(96.0, 54.0);
+        float bayerT = bayer4(cellPos);
+        // drift anti-tappezzeria
+        bayerT += sin(cellPos.x * 0.11 + uTime * 0.3) * 0.03
+                + sin(cellPos.y * 0.13 + uTime * 0.42) * 0.02;
+
+        // la materia: sotto soglia Bayer → trasparente (polvere)
+        // la soglia è modulata dalla densità — alta densità = più opaco
+        float opacity = total;
+
+        // il piano di fondo è più tenue (atmosfera)
+        if (uDepth > 1.5) opacity *= 0.5;
+        // il piano medio è intermedio
+        else if (uDepth > 0.5) opacity *= 0.7;
+
+        // Bayer gate: la polvere è fatta di punti discreti
+        if (opacity < bayerT * 0.8 + 0.02) discard;
+
+        // la luce viene da dentro — le zone dense sono più luminose al centro
+        // gradiente locale come sorgente interna
+        float gx = dFdx(total);
+        float gy = dFdy(total);
+        float edge = length(vec2(gx, gy));
+        // i bordi della zona sono leggermente più luminosi (luce radente interna)
+        col += edge * 0.4;
+
+        // il piano vicino è più contrastato, il fondo è morbido
+        float contrast = uDepth > 1.5 ? 0.6 : (uDepth > 0.5 ? 0.8 : 1.0);
+        col *= contrast;
+
+        // opacità finale — la polvere non è mai completamente opaca
+        float alpha = smoothstep(0.0, 0.3, opacity);
+        // il piano di fondo è più trasparente
+        if (uDepth > 1.5) alpha *= 0.4;
+        else if (uDepth > 0.5) alpha *= 0.65;
+
+        gl_FragColor = vec4(col, alpha);
+      }
+    `,
+    transparent: true,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+    extensions: { derivatives: true },
+  });
+}
+
+// piano 0 (vicino): voice + kick
+const mat0 = makePlaneMat(0, COL.voice, COL.kick);
+// piano 1 (medio): chord + arp
+const mat1 = makePlaneMat(1, COL.chord, COL.arp);
+// piano 2 (fondo): bass + drone
+const mat2 = makePlaneMat(2, COL.bass, COL.drone);
+
+const planeGeo = new THREE.PlaneGeometry(PLANE_W, PLANE_H, 1, 1);
+
+// fondo prima
+const mesh2 = new THREE.Mesh(planeGeo, mat2);
+mesh2.position.z = PLANE_Z[2];
+scene.add(mesh2);
+
+const mesh1 = new THREE.Mesh(planeGeo, mat1);
+mesh1.position.z = PLANE_Z[1];
+scene.add(mesh1);
+
+const mesh0 = new THREE.Mesh(planeGeo, mat0);
+mesh0.position.z = PLANE_Z[0];
+scene.add(mesh0);
+
+// ─── camera: lenta, inevitabile ─────────────────────────────────
+let camMode = 0;
+const CAM_MODES = [
+  { name: 'wide',   pos: [0, 0, -14], look: [0, 0, 14] },
+  { name: 'medium', pos: [0, 0, -8],  look: [0, 0, 14] },
+  { name: 'macro',  pos: [0, 0, -3],  look: [0, 0, 8] },
+  { name: 'drift',  pos: [2, 1, -10], look: [-1, -0.5, 14] },
+];
+
+const camState = { drift: 0, tx: 0, ty: 0 };
+
+function updateCamera(dt) {
+  camState.drift += dt * 0.08;  // lentissimo
+
+  const m = CAM_MODES[camMode];
+
+  // micro-parallax costante (da camera.js — 3 sinusoidi)
+  const mx = Math.sin(camState.drift * 0.41) * 0.08
+           + Math.sin(camState.drift * 0.17) * 0.05;
+  const my = Math.sin(camState.drift * 0.31 + 1.0) * 0.06
+           + Math.cos(camState.drift * 0.13) * 0.04;
+
+  // smooth follow — la camera non scatta mai
+  const s = 0.008;  // lentissima
+  camera.position.x += (m.pos[0] + mx - camera.position.x) * s;
+  camera.position.y += (m.pos[1] + my - camera.position.y) * s;
+  camera.position.z += (m.pos[2] - camera.position.z) * s;
+
+  camera.lookAt(
+    m.look[0] + mx * 0.3,
+    m.look[1] + my * 0.3,
+    m.look[2]
+  );
+}
+
+camera.position.set(0, 0, -14);
+
+// ─── auto events ────────────────────────────────────────────────
+let beatClock = 0, lastBeat = -1, barCount = 0;
+
+function autoEvents() {
+  const beat = Math.floor(beatClock / BEAT_S) % 16;
+  if (beat === lastBeat) return;
+  lastBeat = beat;
+  if (beat === 0) barCount++;
+
+  const kG = [1,0,0,0,1,0,0,1,1,0,0,0,0,1,0,0];
+  if (kG[beat] && phase >= 1) depositKick();
+
+  const bG = [0,0,0,1,0,1,0,0,0,0,1,0,1,0,0,0];
+  if (bG[beat] || (phase === 0 && beat % 4 === 0)) depositBass();
+
+  if (beat % 8 === 0) depositChord();
+  if (beat % 4 === 2 && phase >= 2) depositArp();
+  if (beat === 0 && barCount % 4 === 0 && phase >= 2) depositVoice();
+  if (beat === 0) depositDrone();
+}
+
+// seed
+for (let i = 0; i < 8; i++) depositDrone();
+depositBass();
+depositChord();
+
+// ─── loop ───────────────────────────────────────────────────────
+let lastTime = performance.now();
+let time = 0;
+
+function loop(now) {
+  requestAnimationFrame(loop);
+  const dt = Math.min((now - lastTime) / 1000, 0.05);
+  lastTime = now;
+  time += dt;
+  beatClock += dt;
+  rupture *= 0.997;
+
+  // uniforms
+  [mat0, mat1, mat2].forEach(m => m.uniforms.uTime.value = time);
+
+  updateCampo();
+  autoEvents();
+  syncFields();
+  updateCamera(dt);
+
+  renderer.render(scene, camera);
+
+  document.getElementById('info').textContent =
+    `${PNAMES[phase]} | rupt ${rupture.toFixed(2)} | ${CAM_MODES[camMode].name}`;
+}
+
+requestAnimationFrame(loop);
+
+// ─── keyboard ───────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  switch (e.key) {
+    case 'k': case 'K': depositKick(); break;
+    case 'b': case 'B': depositBass(); break;
+    case 'c': case 'C': depositChord(); break;
+    case 'a': case 'A': depositArp(); break;
+    case 'v': case 'V': depositVoice(); break;
+    case 'd': case 'D': depositDrone(); break;
+    case '1': phase = 0; break;
+    case '2': phase = 1; break;
+    case '3': phase = 2; break;
+    case '0': phase = 3; break;
+    case 'r': case 'R': rupture = Math.min(1, rupture + 0.3); break;
+    case 'g': case 'G': camMode = (camMode + 1) % CAM_MODES.length; break;
+    case ' ':
+      e.preventDefault();
+      [depositBass,depositKick,depositChord,depositArp,depositVoice,depositDrone]
+        [Math.floor(Math.random()*6)]();
+      break;
+  }
+});
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+</script>
+</body>
+</html>
