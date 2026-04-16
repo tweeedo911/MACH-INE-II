@@ -984,58 +984,7 @@ function _checkConvergence(canon) {
   return false;
 }
 
-// ── V2.1: advance canon voice on hit — called by musical modules when their pattern fires ──
-// Each hit advances the voice's position in the phrase → melodic movement audible
-// Returns the new note (already trasposed + register-fit), or 0 if voice inactive or phrase empty
-export function advanceCanonVoice(voiceKey) {
-  if (!_encoreActive) return 0;
-  const canon = worldState.encoreCanon;
-  if (!canon[voiceKey] || !canon[voiceKey].active) return 0;
-  const phrase = canon.phrase;
-  if (!phrase || phrase.length === 0) return 0;
-
-  const speedMap = {
-    bass:  CFG.ENCORE_SPEED_BASS,
-    chord: CFG.ENCORE_SPEED_CHORD,
-    voice: CFG.ENCORE_SPEED_VOICE,
-    lead:  CFG.ENCORE_SPEED_LEAD,
-    arp:   CFG.ENCORE_SPEED_ARP,
-  };
-  const speed = speedMap[voiceKey] ?? 1;
-  const phraseLen = phrase.length;
-
-  // Leggi PRIMA la posizione corrente, poi avanzi per la prossima chiamata.
-  // Così la prima chiamata dopo reset (pos=0) ritorna la prima nota della frase.
-  const posIdx = Math.floor(Math.abs(canon[voiceKey].pos)) % phraseLen;
-  canon[voiceKey].pos = (canon[voiceKey].pos + speed) % phraseLen;
-
-  let note;
-  if (voiceKey === 'arp') {
-    note = _canonPhraseInv[posIdx] ?? phrase[posIdx];
-  } else if (voiceKey === 'voice') {
-    note = _canonPhraseRetro[posIdx] ?? phrase[posIdx];
-  } else if (voiceKey === 'chord') {
-    const offsetIdx = (posIdx + Math.floor(phraseLen * CFG.ENCORE_CHORD_OFFSET)) % phraseLen;
-    note = phrase[offsetIdx];
-  } else {
-    note = phrase[posIdx];  // bass, lead
-  }
-
-  // Register fit — bass forzato in registro grave (corregge problema v2: bass alto)
-  const reg = worldState.register;
-  if (voiceKey === 'bass')  note = _fitToRegister(note, 36, 52);  // C2-E3 forzato
-  if (voiceKey === 'chord') note = _fitToRegister(note, reg.chords[0], reg.chords[1]);
-  if (voiceKey === 'arp')   note = _fitToRegister(note, reg.arp[0], reg.arp[1]);
-  if (voiceKey === 'voice') note = _fitToRegister(note, reg.melody[0], reg.melody[1]);
-  if (voiceKey === 'lead')  note = _fitToRegister(note, reg.lead[0], reg.lead[1]);
-
-  canon[voiceKey].note = note;
-
-  // Update convergence after any voice advance
-  canon.convergence = _checkConvergence(canon);
-
-  return note;
-}
+// advanceCanonVoice è stato estratto in encore-canon.js per evitare dipendenze circolari.
 
 // ── ENCORE: launch the encore sequence ──
 export function launchEncore() {
@@ -1056,6 +1005,8 @@ export function launchEncore() {
 
   const canon = worldState.encoreCanon;
   canon.phrase = [];
+  canon.phraseInv = [];
+  canon.phraseRetro = [];
   canon.phraseAge = 0;
   for (const v of ['bass', 'chord', 'arp', 'voice', 'lead']) {
     canon[v].pos = 0; canon[v].note = 0; canon[v].active = false;
@@ -1143,6 +1094,9 @@ function _updateEncore(dt) {
     canon.phrase = _canonPhrase;
     _canonPhraseRetro = _retrogradePhrase(_canonPhrase);
     _canonPhraseInv = _invertPhrase(_canonPhrase, worldState.root || 48);
+    // Espone le trasformazioni su worldState per encore-canon.js
+    canon.phraseRetro = _canonPhraseRetro;
+    canon.phraseInv = _canonPhraseInv;
     _canonPhraseAge = 0;
     canon.phraseAge = 0;
 
@@ -1215,6 +1169,8 @@ function _endEncore() {
   worldState.bpm = null;
   const canon = worldState.encoreCanon;
   canon.phrase = [];
+  canon.phraseInv = [];
+  canon.phraseRetro = [];
   for (const v of ['bass', 'chord', 'arp', 'voice', 'lead']) {
     canon[v].active = false; canon[v].pos = 0; canon[v].note = 0;
   }

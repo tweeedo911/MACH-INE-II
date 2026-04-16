@@ -20,7 +20,7 @@ import { worldState, phaseState } from './world-state.js';
 import { sendMIDINote } from './midi.js';
 import { addMidiNote } from './field.js';
 import { TRACKS } from './tracks.js';
-import { advanceCanonVoice } from './director3.js';
+import { advanceCanonVoice } from './encore-canon.js';
 
 // ── Channel assignments ──
 const CH_VOICE = 5;

@@ -9,7 +9,7 @@ import { worldState } from './world-state.js';
 import { sendMIDINote, sendMIDIPitchBend } from './midi.js';
 import { addMidiNote } from './field.js';
 import { TRACKS } from './tracks.js';
-import { advanceCanonVoice } from './director3.js';
+import { advanceCanonVoice } from './encore-canon.js';
 
 // ── Channel assignments ──
 const CH_DRONE  = 2;  // CH2 = DRONE (sustained harmonic root)

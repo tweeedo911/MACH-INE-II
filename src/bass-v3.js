@@ -17,7 +17,7 @@ import { worldState } from './world-state.js';
 import { sendMIDINote } from './midi.js';
 import { addMidiNote } from './field.js';
 import { TRACKS } from './tracks.js';
-import { advanceCanonVoice } from './director3.js';
+import { advanceCanonVoice } from './encore-canon.js';
 
 // ── Phase-aware skip probability (A) ──
 // Il dub vive di buchi. Germoglio sparso, densità pieno, dissoluzione consumato.
