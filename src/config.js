@@ -1351,12 +1351,13 @@ export const CFG = {
   ENCORE_CONTOUR_STEP: 0.70,      // stepwise motion (2nd)
   ENCORE_CONTOUR_SKIP: 0.20,      // skip (3rd or 4th), compensated
   ENCORE_CONTOUR_LEAP: 0.10,      // leap (5th or 6th), max 1 per phrase
-  // Voice speeds (multiplier on base tick rate)
+  // Voice speeds — ora tutte 1 (advance per hit). Differenziazione via pattern ritmici.
+  // Arp/voice/lead si distinguono per pattern (densità) + trasformazione.
   ENCORE_SPEED_BASS:  1,
-  ENCORE_SPEED_CHORD: 1,    // same speed, offset start
-  ENCORE_SPEED_ARP:   3,
-  ENCORE_SPEED_VOICE: 0.5,
-  ENCORE_SPEED_LEAD:  2,
+  ENCORE_SPEED_CHORD: 1,    // offset start via ENCORE_CHORD_OFFSET
+  ENCORE_SPEED_ARP:   1,    // era 3 — troppo salto con advance-per-hit
+  ENCORE_SPEED_VOICE: 1,    // era 0.5 — ora pattern rado fa il lavoro
+  ENCORE_SPEED_LEAD:  1,    // era 2 — pattern contrattempo fa il lavoro
   // Chord voice offset (fraction of phrase length)
   ENCORE_CHORD_OFFSET: 1/3,
   // Escalation: bars per brick (index = brick number)
@@ -1375,5 +1376,6 @@ export const CFG = {
   ENCORE_PATTERN_LEAD:  [0,0,1,0, 0,0,1,0, 0,0,1,0, 0,0,1,0],
   // Chord: staccato, 2 hit per bar (1 e 11, sincopato)
   ENCORE_PATTERN_CHORD: [1,0,0,0, 0,0,0,0, 0,0,1,0, 0,0,0,0],
-  // Arp: resta gestito dal canon engine (3× più veloce, ogni bar)
+  // Arp: ottavi densi (8 hit per bar) — la voce più veloce, frase invertita
+  ENCORE_PATTERN_ARP:   [1,0,1,0, 1,0,1,0, 1,0,1,0, 1,0,1,0],
 };
