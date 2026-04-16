@@ -56,7 +56,11 @@ function _nornsConnect() {
     _nornsBridge.onerror = () => {}; // onclose gestisce il retry
   } catch(e) { /* bridge non disponibile, ignora */ }
 }
-_nornsConnect();
+// Norns bridge disattivato: non usato in performance attuale.
+// Per riattivare (live con Norns Shield + norns-bridge.py): togliere il commento.
+// Tutta l'infrastruttura (_nornsConnect, _nornsSend, sendNornsBiome/DroneStart/Stop,
+// hook in director3.js) resta intatta — basta questa riga per ripristinare.
+// _nornsConnect();
 
 function _nornsSend(msg) {
   if (_nornsBridge && _nornsBridge.readyState === WebSocket.OPEN) {
