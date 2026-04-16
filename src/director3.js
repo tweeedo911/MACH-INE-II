@@ -87,7 +87,7 @@ let _encoreActive = false;
 let _encoreBrick  = 0;
 let _encoreBrickBar = 0;
 
-// ── ENCORE v2.2: Canon Machine — 8 brick (da 9), chord anticipato ──
+// ── ENCORE v2.3: Canon Machine — 9 brick, coda melodica finale ──
 const ENCORE_BRICK_NAMES = [
   'heartbeat',          // 0: kick + polvere percussiva, BPM 60→132
   '+arp',               // 1: arp invertita (acuto)
@@ -97,6 +97,7 @@ const ENCORE_BRICK_NAMES = [
   '+lead',              // 5: lead originale
   '+conga',             // 6: ultimo pezzo tetris ritmico
   'plateau',            // 7: tutto, frase nuova ogni 4 bar — durata doppia
+  'coda',               // 8: solo arp + voice + lead, 16 bar, poi taglio netto
 ];
 
 let _canonPhrase = [];
@@ -1116,7 +1117,7 @@ function _updateEncore(dt) {
     _encoreBrickBar = 0;
     worldState.encoreBrick = _encoreBrick;
 
-    if (_encoreBrick > 7) {
+    if (_encoreBrick > 8) {
       _endEncore();
       return;
     }
@@ -1127,7 +1128,15 @@ function _updateEncore(dt) {
     if (_encoreBrick >= 4) canon.voice.active = true;
     if (_encoreBrick >= 5) canon.lead.active = true;
 
-    // V2.2 — 8 brick: chord anticipato al 3, brick 6 rimosso, plateau raddoppiato
+    // Coda (brick 8): disattiva bass + chord, restano arp + voice + lead
+    if (_encoreBrick === 8) {
+      canon.bass.active = false;
+      canon.chord.active = false;
+      // Spegni eventuali note in volo su bass/chord/drone via all-notes-off sui canali
+      sendMIDIAllNotesOff();
+    }
+
+    // V2.3 — 9 brick: chord anticipato al 3, plateau doppio, coda melodica finale
     const densityMap = {
       0: { rhythm: 0.8, harmony: 0,    bass: 0,   melody: 0,   texture: 0 },
       1: { rhythm: 0.8, harmony: 0,    bass: 0,   melody: 0.7, texture: 0.1 },
@@ -1137,8 +1146,9 @@ function _updateEncore(dt) {
       5: { rhythm: 0.9, harmony: 0.8,  bass: 0.9, melody: 0.95, texture: 0.15 }, // + lead
       6: { rhythm: 1.0, harmony: 0.85, bass: 1.0, melody: 1.0, texture: 0.2 },   // + conga
       7: { rhythm: 1.0, harmony: 0.9,  bass: 1.0, melody: 1.0, texture: 0.2 },   // plateau
+      8: { rhythm: 0,   harmony: 0,    bass: 0,   melody: 1.0, texture: 0 },     // coda: solo arp+voice+lead
     };
-    const d = densityMap[_encoreBrick] || densityMap[7];
+    const d = densityMap[_encoreBrick] || densityMap[8];
     for (const [mod, val] of Object.entries(d)) worldState.density[mod] = val;
 
     if (_encoreBrick >= 1) worldState.bpm = CFG.ENCORE_BPM_TARGET;
@@ -1151,7 +1161,7 @@ function _updateEncore(dt) {
     if (_encoreBrick <= 2)      worldState.phase = 'pulsazione';
     else if (_encoreBrick <= 4) worldState.phase = 'densita';
     else if (_encoreBrick <= 6) worldState.phase = 'rottura';
-    else                        worldState.phase = 'dissoluzione';  // brick 7 = plateau
+    else                        worldState.phase = 'dissoluzione';  // brick 7 plateau + 8 coda
     worldState.camera.phase = worldState.phase;
 
     _canonPhraseAge = 999;  // force new phrase on next bar
