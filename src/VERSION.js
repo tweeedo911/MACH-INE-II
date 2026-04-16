@@ -6,6 +6,6 @@
 //  devono allinearsi a APP_VERSION. Bump qui = bump ovunque.
 // ═══════════════════════════════════════════════════════════
 
-export const APP_VERSION = 'v3.15.0';
+export const APP_VERSION = 'v3.15.1';
 export const APP_NAME    = 'MACH:INE III';
 export const APP_TITLE   = `${APP_NAME} ${APP_VERSION}`;

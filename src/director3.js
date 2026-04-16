@@ -646,6 +646,19 @@ function _advanceTrack() {
   }
 
   const nextTrack = TRACK_ORDER[nextIdx];
+
+  // ENCORE non parte automaticamente: la suite si chiude dopo RITORNO.
+  // L'encore resta lanciabile a mano con tasto `E` (vedi launchEncore in main.js).
+  if (nextTrack === 'ENCORE') {
+    _paused = true;
+    for (const mod of ['rhythm', 'harmony', 'bass', 'melody', 'texture']) {
+      worldState.density[mod] = 0;
+    }
+    const _barMsOff = Math.round((240 / (worldState.bpm || 60)) * 1000);
+    setTimeout(() => sendMIDIAllNotesOff(), Math.max(800, _barMsOff + 200));
+    console.log('[DIR3] Suite finita. ENCORE pronto (premi E).');
+    return;
+  }
   if (!TRACKS[nextTrack]) {
     // Track not yet defined — skip to next available
     console.warn(`[DIR3] Track "${nextTrack}" not defined, skipping`);

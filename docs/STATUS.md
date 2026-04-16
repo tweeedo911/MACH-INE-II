@@ -1,11 +1,11 @@
 # STATUS — MACH:INE III
 
 > Snapshot vivo. Rigenerato a fine sessione. Punto di entrata di ogni nuova sessione.
-> **Last updated:** 2026-04-16 (sessione 25: ENCORE v2 — Canon Machine)
+> **Last updated:** 2026-04-16 (sessione 26: audit visivo + perf campo + RITORNO luminoso)
 
 ## Versione
 
-**v3.15.0** — single source: `src/VERSION.js` (`APP_VERSION`)
+**v3.15.1** — single source: `src/VERSION.js` (`APP_VERSION`)
 
 Tag git: `v3.4.2` su `ccbbb13` (ultimo tag stabile).
 Branch attivo: `machine-iii`.
@@ -182,7 +182,7 @@ Pass post-Bayer: `fillText` sparse su celle ad alta densità. Configurabile per 
 
 ---
 
-## Ottimizzazione render (v3.12.1)
+## Ottimizzazione render (v3.12.1 → v3.15.1)
 
 | Fix | Impatto |
 |---|---|
@@ -193,6 +193,9 @@ Pass post-Bayer: `fillText` sparse su celle ad alta densità. Configurabile per 
 | Shimmer LUT (modulo-level) | ~124K sin → ~250 sin + 0 alloc |
 | Bloom hoist + pre-scale | 0 alloc per cella |
 | Monitor latenza worker→main | `[CLOCK LAG]` in console ogni ~4s |
+| **v3.15.1 — Glyph globalAlpha** | fillStyle 1×/ruolo, era stringa rgba/glifo: −2/3ms densità alta |
+| **v3.15.1 — Decay nested loop** | cy/cx pre-calc, niente divmod: −0.5ms/frame |
+| **v3.15.1 — centerX/Y LUT** | Int32Array in `_ensureOffscreen`, riuso in 4 pass: −0.3ms |
 
 ## ENCORE v2 — Canon Machine (v3.15.0)
 
@@ -223,6 +226,9 @@ Pezzo opzionale post-suite, attivato con tasto `E`. Autocontenuto: non modifica 
 | `R` | Scala Prometheus |
 | `Space` | Stop forzato |
 
+> **v3.15.1:** la suite si ferma automaticamente alla fine di RITORNO. ENCORE NON parte
+> più da solo — solo via tasto `E`. Vedi `_advanceTrack()` in director3.js:648-660.
+
 ---
 
 ## Limiti noti
@@ -238,7 +244,24 @@ Pezzo opzionale post-suite, attivato con tasto `E`. Autocontenuto: non modifica 
 
 ## Prossimo (priorità top→bottom)
 
-### P0 — Test live ENCORE v2
+### P0 — Test live v3.15.1
+
+Verificare le modifiche della sessione 26:
+- Glyphs ancora visibili con alpha corretta (no regressione dopo passaggio a globalAlpha)
+- Bloom voice/lead/kick invariato (dopo LUT centerX/Y)
+- Decay + shimmer biomi fluido (dopo conversione nested loop)
+- RITORNO: pianeta più leggibile in proiezione durante dissoluzione
+- Stop a fine RITORNO: no glitch audio, ENCORE lanciabile a mano con `E`
+- [CLOCK LAG] ridotto: recupero ~3ms/frame stimato
+
+### Bug aperti da audit (sessione 26) — da fix se servono
+
+- **C1**: `midi-clock.worker.js:17` — postMessage senza transferable → ~4-8 MB/min GC churn (set 45+ min)
+- **C2**: devicePixelRatio non gestito — su retina display render fisico raddoppiato
+- **M1**: camera micro-punch `spike*0.03` impercettibile (alzare a 0.08-0.12)
+- **M2**: camera scan ogni frame — throttle 1/4 per −1.5ms/frame
+
+### P1 — Test live ENCORE v2
 
 Primo test Canon Machine con musica reale. Verificare:
 - Heartbeat: kick + polvere percussiva, BPM 60→132
