@@ -201,7 +201,12 @@ export function sendMIDINote(ch, note, vel, durationMs = 200) {
     }
     return;
   }
-  _midiOutWarnLogged = false;  // re-armed on successful send path
+  // D3: re-arm warn flag and dispatch 'midi-available' exactly once per recovery.
+  // Edge detection: only fire when we were previously in the warned state.
+  if (_midiOutWarnLogged) {
+    _midiOutWarnLogged = false;
+    try { window.dispatchEvent(new CustomEvent('midi-available')); } catch (_) {}
+  }
   const chByte = ch & 0x0F;
   const safeNote = Math.max(0, Math.min(127, note | 0));
   const safeVel = Math.max(0, Math.min(127, vel | 0));
