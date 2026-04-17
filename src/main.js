@@ -30,7 +30,7 @@ if (_seedParam !== null) {
 
 // ── MACH:INE III modules ──
 import { worldState } from './world-state.js';
-import { initDirector3, updateDirector3, skipPhase, jumpToPhase, jumpToTrack, toggleDirector3, isDirector3Playing, getDirector3Status, launchEncore, switchEncoreScale } from './director3.js';
+import { initDirector3, updateDirector3, skipPhase, jumpToPhase, jumpToTrack, toggleDirector3, isDirector3Playing, getDirector3Status, launchEncore, switchEncoreScale, setRitornoVariant, startPreSuite, endPreSuite, resetDramaturgyState } from './director3.js';
 import { initRhythm, updateRhythm } from './rhythm.js';
 import { initHarmony, updateHarmony } from './harmony.js';
 import { initBass as initBassV1, updateBass as updateBassV1 } from './bass.js';
@@ -161,6 +161,16 @@ startScreen.addEventListener('click', async () => {
   snapPalette();
   console.log('[III] Director + 5 modules initialized');
 
+  // ── Wave 2C: Pre-suite auto-start via ?presuite URL param ──
+  // Baseline invariato: senza il param, flow identico. Con ?presuite parte il drone
+  // C2 a velocity 25 e si attende tasto 0 o timeout 90s prima di entrare in NEBBIA.
+  if (location.search.includes('presuite')) {
+    startPreSuite();
+    setPreSuiteHud(true);
+    // Anche il MIDI clock deve partire per il drone
+    if (!_clockStarted) { sendMIDIStart(); startMidiClock(); _clockStarted = true; }
+  }
+
   startScreen.style.display = 'none';
   hudMinimal.style.display = 'block';
 
@@ -170,6 +180,35 @@ startScreen.addEventListener('click', async () => {
   requestAnimationFrame(loop);
 });
 
+// ── HUD gesture flash (Wave 2C) ──
+// Overlay minimo in alto a destra per feedback hotkey performer.
+const _gestureHud = document.createElement('div');
+_gestureHud.id = 'hud-gesture';
+_gestureHud.style.cssText = 'position:fixed;top:8px;right:8px;font:11px monospace;padding:4px 8px;border-radius:2px;pointer-events:none;z-index:9999;letter-spacing:0.5px;background:rgba(0,0,0,0.6);color:#CDD71D;display:none;';
+document.body.appendChild(_gestureHud);
+let _gestureHudTimer = null;
+function flashGesture(msg, persistent = false) {
+  _gestureHud.textContent = msg;
+  _gestureHud.style.display = 'block';
+  if (_gestureHudTimer) clearTimeout(_gestureHudTimer);
+  if (!persistent) {
+    _gestureHudTimer = setTimeout(() => {
+      _gestureHud.style.display = 'none';
+      _gestureHudTimer = null;
+    }, CFG.HUD_GESTURE_FLASH_MS || 1000);
+  }
+}
+
+// ── Pre-suite HUD overlay (basso centro, discreto) ──
+const _preSuiteHud = document.createElement('div');
+_preSuiteHud.id = 'hud-presuite';
+_preSuiteHud.style.cssText = 'position:fixed;bottom:16px;left:50%;transform:translateX(-50%);font:11px monospace;padding:4px 10px;border-radius:2px;pointer-events:none;z-index:9998;letter-spacing:0.8px;color:#fff;opacity:0.3;display:none;';
+_preSuiteHud.textContent = 'PRE-SUITE (press 0 to start)';
+document.body.appendChild(_preSuiteHud);
+function setPreSuiteHud(visible) {
+  _preSuiteHud.style.display = visible ? 'block' : 'none';
+}
+
 // ── Keyboard ──
 document.addEventListener('keydown', (e) => {
   if (!running) return;
@@ -177,6 +216,105 @@ document.addEventListener('keydown', (e) => {
   // Gain audio input — BracketLeft=è (diminuisce) / BracketRight=+ (aumenta)
   if (e.code === 'BracketLeft')  { e.preventDefault(); setAudioGain(getAudioGain() - CFG.audioInputGainStep); return; }
   if (e.code === 'BracketRight') { e.preventDefault(); setAudioGain(getAudioGain() + CFG.audioInputGainStep); return; }
+
+  // ── Wave 2C: Nodo ternario TEMPESTA→RITORNO (tasti 1/2/3 durante TEMPESTA) ──
+  // Si attiva SOLO durante la traccia TEMPESTA nelle fasi densita/rottura/dissoluzione,
+  // e SOLO se non stiamo facendo jumpToTrack (no shift, no ctrl).
+  if (!e.shiftKey && !e.ctrlKey && worldState.track === 'TEMPESTA' && !worldState.encoreMode) {
+    const phase = worldState.phase;
+    const tempestaWindow = phase === 'densita' || phase === 'rottura' || phase === 'dissoluzione';
+    if (tempestaWindow && (e.code === 'Digit1' || e.code === 'Digit2' || e.code === 'Digit3')) {
+      e.preventDefault();
+      const map = { Digit1: 'default', Digit2: 'phrygianHold', Digit3: 'silenceThenAeolian' };
+      const labels = { default: 'default', phrygianHold: 'phrygian hold', silenceThenAeolian: 'silence→aeolian' };
+      const variant = map[e.code];
+      setRitornoVariant(variant);
+      flashGesture(`RITORNO: ${labels[variant]}`, true);
+      // Tieni il feedback visibile finché TEMPESTA dura
+      setTimeout(() => {
+        if (worldState.track !== 'TEMPESTA') {
+          _gestureHud.style.display = 'none';
+        }
+      }, 5000);
+      return;
+    }
+  }
+
+  // ── Wave 2C: Pre-suite skip (tasto 0) ──
+  if (e.code === 'Digit0' && !e.shiftKey && !e.ctrlKey && worldState.preSuiteActive) {
+    e.preventDefault();
+    endPreSuite();
+    setPreSuiteHud(false);
+    flashGesture('PRE-SUITE END → NEBBIA');
+    return;
+  }
+  // ── Wave 2C: Pre-suite manual start (Shift+0) ──
+  // Utile se non hai avviato col param ?presuite. Attiva solo se suite non è già partita.
+  if (e.code === 'Digit0' && e.shiftKey && !worldState.preSuiteActive && !isDirector3Playing()) {
+    e.preventDefault();
+    startPreSuite();
+    setPreSuiteHud(true);
+    if (!_clockStarted) { sendMIDIStart(); startMidiClock(); _clockStarted = true; }
+    flashGesture('PRE-SUITE START');
+    return;
+  }
+
+  // ── Wave 2C: Octave transpose (ArrowLeft/Right) ──
+  // Nota: sostituisce il vecchio skipPhase su arrow (spostato su Comma/Period).
+  if (e.code === 'ArrowLeft' && !e.shiftKey) {
+    e.preventDefault();
+    const step = CFG.OCTAVE_OFFSET_STEP || 12;
+    worldState.rootOffset = Math.max(-24, (worldState.rootOffset || 0) - step);
+    const oct = Math.round(worldState.rootOffset / 12);
+    flashGesture(`OCTAVE ${oct >= 0 ? '+' : ''}${oct}`);
+    return;
+  }
+  if (e.code === 'ArrowRight' && !e.shiftKey) {
+    e.preventDefault();
+    const step = CFG.OCTAVE_OFFSET_STEP || 12;
+    worldState.rootOffset = Math.min(24, (worldState.rootOffset || 0) + step);
+    const oct = Math.round(worldState.rootOffset / 12);
+    flashGesture(`OCTAVE ${oct >= 0 ? '+' : ''}${oct}`);
+    return;
+  }
+
+  // ── Wave 2C: Density multiplier (ArrowUp/Down) ──
+  if (e.code === 'ArrowUp' && !e.shiftKey) {
+    e.preventDefault();
+    const step = CFG.DENSITY_MULT_STEP || 0.1;
+    worldState.densityMultiplier = Math.min(CFG.DENSITY_MULT_MAX || 2.0,
+                                            (worldState.densityMultiplier || 1.0) + step);
+    flashGesture(`DENSITY ${Math.round(worldState.densityMultiplier * 100)}%`);
+    return;
+  }
+  if (e.code === 'ArrowDown' && !e.shiftKey) {
+    e.preventDefault();
+    const step = CFG.DENSITY_MULT_STEP || 0.1;
+    worldState.densityMultiplier = Math.max(CFG.DENSITY_MULT_MIN || 0.3,
+                                            (worldState.densityMultiplier || 1.0) - step);
+    flashGesture(`DENSITY ${Math.round(worldState.densityMultiplier * 100)}%`);
+    return;
+  }
+
+  // ── Wave 2C: Melody mute (M) / Bass mute (N) per N bar ──
+  if (e.code === 'KeyM' && !e.shiftKey && !e.ctrlKey) {
+    e.preventDefault();
+    const bars = CFG.MELODY_MUTE_BARS || 8;
+    worldState.meloMuteBars = bars;
+    flashGesture(`MELODY MUTE ${bars}BAR`);
+    return;
+  }
+  if (e.code === 'KeyN' && !e.shiftKey && !e.ctrlKey) {
+    e.preventDefault();
+    const bars = CFG.BASS_MUTE_BARS || 8;
+    worldState.bassMuteBars = bars;
+    flashGesture(`BASS MUTE ${bars}BAR`);
+    return;
+  }
+
+  // ── skipPhase legacy: rimappato da Arrow a Comma/Period (frame-step convention) ──
+  if (e.code === 'Comma'  && !e.shiftKey) { e.preventDefault(); skipPhase(-1); return; }
+  if (e.code === 'Period' && !e.shiftKey) { e.preventDefault(); skipPhase(+1); return; }
 
   // ── ENCORE launcher (E key) ──
   if (e.code === 'KeyE' && !e.shiftKey) {
@@ -216,8 +354,7 @@ document.addEventListener('keydown', (e) => {
     if (nowPlaying && !_clockStarted) { sendMIDIStart(); startMidiClock(); _clockStarted = true; }
     return;
   }
-  if (e.code === 'ArrowRight') { skipPhase(+1); return; }
-  if (e.code === 'ArrowLeft')  { skipPhase(-1); return; }
+  // (ArrowLeft/Right rimappati su octave transpose sopra — skipPhase su Comma/Period)
   // Session recorder: Shift+L = start/stop, Shift+D = download, Shift+K = screenshot
   if (e.code === 'KeyL' && e.shiftKey) {
     if (isRecording()) stopRecording();
@@ -400,6 +537,9 @@ document.addEventListener('keydown', (e) => {
         for (const k in worldState.density) worldState.density[k] = 0;
       }
     } catch (_) {}
+    // Wave 2C: azzera stati drammaturgia (octave, density mult, mute, variante RITORNO, pre-suite)
+    try { resetDramaturgyState(); } catch (_) {}
+    try { setPreSuiteHud(false); _gestureHud.style.display = 'none'; } catch (_) {}
     const hud = document.getElementById('hud-warnings');
     if (hud) {
       const prevText = hud.textContent;

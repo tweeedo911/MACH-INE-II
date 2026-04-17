@@ -73,6 +73,20 @@ export const CFG = {
   RUNTIME_FLUX_HISTORY_CAPACITY: 64,
   // HUD panic flash duration after Shift+Z reset
   RUNTIME_PANIC_HUD_MS: 2000,
+
+  // ── Wave 2C: Drammaturgia ──
+  PRE_SUITE_DURATION_MS: 90000,       // 90s — pre-suite auto-skip se nessun tasto
+  PRE_SUITE_DRONE_NOTE:  36,          // C2 — drone molto basso
+  PRE_SUITE_DRONE_VEL:   25,          // velocity minima
+  PRE_SUITE_DRONE_MS:    4000,        // durata ogni nota drone (loop)
+  RITORNO_SILENCE_DURATION_MS: 90000, // 90s di silenzio assoluto per variante 3
+  MELODY_MUTE_BARS:      8,           // M key: 8 bar di silenzio melody
+  BASS_MUTE_BARS:        8,           // N key: 8 bar di silenzio bass
+  DENSITY_MULT_STEP:     0.1,         // ↑↓ step density override
+  DENSITY_MULT_MIN:      0.3,
+  DENSITY_MULT_MAX:      2.0,
+  OCTAVE_OFFSET_STEP:    12,          // ←→ step octave transpose
+  HUD_GESTURE_FLASH_MS:  1000,        // durata flash hotkey performer in HUD
   // Audio fail threshold — dispatch 'audio-unavailable' if ctx stays non-running >N ms
   RUNTIME_AUDIO_FAIL_MS: 2000,
   // Hidden tab MIDI safety — send AllNotesOff after N ms of continuous hidden state

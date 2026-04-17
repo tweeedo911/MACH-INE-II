@@ -198,7 +198,8 @@ function _tick() {
   }
 
   const pattern = track.bassPattern;
-  const root    = worldState.root;
+  // Wave 2C: rootOffset (default 0 = nessuna transposizione)
+  const root    = worldState.root + (worldState.rootOffset || 0);
   const density = worldState.density.bass;
   const ceiling = worldState.velocityCeiling.bass;
   const [regLo, regHi] = worldState.register.bass;
