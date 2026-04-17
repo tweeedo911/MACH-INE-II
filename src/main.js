@@ -77,37 +77,16 @@ import { initRecorder, startRecording, stopRecording, isRecording, recordSnapsho
 const canvas = document.getElementById('c');
 const startScreen = document.getElementById('start');
 const errorScreen = document.getElementById('error');
-const hudMinimal = document.getElementById('hud-minimal');
-const hudDebug   = document.getElementById('hud-debug');
-const hudSeq     = document.getElementById('seq-panel');
+const hudNavigator = document.getElementById('navigator');
+const hudDebug     = document.getElementById('hud-debug');
+const hotkeysPanel = document.getElementById('hotkeys');
 
 // ── Init render ──
 initRender(canvas);
-setHUDElements(hudMinimal, hudDebug, hudSeq);
+setHUDElements(hudNavigator, hudDebug, hotkeysPanel);
 initRecorder(canvas);
 
-// ── A/B/C indicator badge (bottom-right, minimal — shows v2 + v3 flags) ──
-const abBadge = document.createElement('div');
-abBadge.id = 'ab-badge';
-abBadge.style.cssText = 'position:fixed;bottom:8px;right:8px;font:10px monospace;padding:3px 6px;border-radius:2px;pointer-events:none;z-index:9999;letter-spacing:0.5px;display:flex;gap:4px;';
-document.body.appendChild(abBadge);
-
-const _badgeM = document.createElement('span');
-const _badgeN = document.createElement('span');
-_badgeM.style.cssText = 'padding:1px 4px;border-radius:2px;';
-_badgeN.style.cssText = 'padding:1px 4px;border-radius:2px;';
-abBadge.appendChild(_badgeM);
-abBadge.appendChild(_badgeN);
-
-function _refreshAbBadge() {
-  // badge dinamico da VERSION.js
-  _badgeM.textContent = APP_VERSION;
-  _badgeM.style.background = '#CDD71D';
-  _badgeM.style.color = '#000';
-  _badgeN.textContent = '';
-  _badgeN.style.background = 'transparent';
-}
-_refreshAbBadge();
+// Version badge rimosso: la versione è visibile sulla start screen + dentro Navigator.
 
 // ── Keep layout in sync ──
 window.addEventListener('resize', resize);
@@ -172,7 +151,8 @@ startScreen.addEventListener('click', async () => {
   }
 
   startScreen.style.display = 'none';
-  hudMinimal.style.display = 'block';
+  if (hudNavigator) hudNavigator.style.display = 'block';
+  if (hotkeysPanel) hotkeysPanel.style.display = 'block';
 
   running = true;
   lastTime = 0;
@@ -393,12 +373,7 @@ document.addEventListener('keydown', (e) => {
 
   // V3.9: palette unificata — toggle A/B rimosso
 
-  // Toggle version badge with HUD (H key)
-  if (e.code === 'KeyH') {
-    const vis = abBadge.style.display === 'none' ? 'flex' : 'none';
-    abBadge.style.display = vis;
-  }
-
+  // H è alias di K (toggle Navigator + Hotkeys) — gestito in render.handleKey
   const result = handleKey(e.code);
   if (result === 'REGEN') {
     resetEvents();
