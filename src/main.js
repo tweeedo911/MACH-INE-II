@@ -255,27 +255,36 @@ document.addEventListener('keydown', (e) => {
 });
 
 // ── MIDI clock — Web Worker (non throttolato quando il browser perde focus) ──
+// Sessione 27: worker manda solo performance.now() (primitivo, zero alloc).
+// dt viene calcolato qui come differenza tra tick consecutivi, capped a 50ms.
 const midiWorker = new Worker('./src/midi-clock.worker.js');
 
+let _prevWorkerNow = 0;
 let _workerLagMax = 0;
 let _workerLagSum = 0;
 let _workerLagN   = 0;
-midiWorker.onmessage = ({ data: { dt, now: workerNow } }) => {
+midiWorker.onmessage = ({ data: workerNow }) => {
   try {
     if (!running) return;
+
+    // dt dal delta tra tick consecutivi del worker (absolute time compensa drift)
+    const dt = _prevWorkerNow ? Math.min((workerNow - _prevWorkerNow) / 1000, 0.05) : 0;
+    _prevWorkerNow = workerNow;
 
     // Latenza worker→main: quanto tempo il messaggio ha atteso nella coda
     const lag = (performance.now() - workerNow) / 1000; // secondi
     if (lag > _workerLagMax) _workerLagMax = lag;
     _workerLagSum += lag;
     _workerLagN++;
-    // Log ogni 2000 messaggi (~4s): se avg>5ms o max>20ms c'è starvation
-    if (_workerLagN >= 2000) {
+    // Log ogni ~4s (~800 tick a 5ms): se avg>5ms o max>20ms c'è starvation
+    if (_workerLagN >= 800) {
       const avg = (_workerLagSum / _workerLagN * 1000).toFixed(1);
       const max = (_workerLagMax * 1000).toFixed(1);
       if (_workerLagMax > 0.020) console.warn(`[CLOCK LAG] avg=${avg}ms max=${max}ms — main thread saturo`);
       _workerLagMax = 0; _workerLagSum = 0; _workerLagN = 0;
     }
+
+    if (dt === 0) return;  // primo tick, skip update
 
     // Director reads clock → updates worldState
     updateDirector3(dt);

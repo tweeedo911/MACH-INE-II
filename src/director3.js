@@ -11,6 +11,7 @@ import { TRACKS, PHASE_DENSITY, PHASE_ENERGY, TRACK_ORDER, ENCORE_SCALES } from 
 import { audio } from './audio.js';
 import { state } from './state.js';
 import { sendMIDIAllNotesOff, sendMIDINote, sendNornsBiome, sendNornsDroneStart, sendNornsDroneStop } from './midi.js';
+import { sendOrchestraTrack, sendOrchestraPhase } from './orchestra-out.js';
 import { addMidiNote } from './field.js';
 import { initRhythm } from './rhythm.js';
 import { initHarmony } from './harmony.js';
@@ -187,6 +188,7 @@ export function initDirector3(trackName = 'SOLCO', { seamless = false } = {}) {
   initTexture();
 
   console.log(`[DIR3] Loaded track: ${trackName}, duration: ${_totalBars} bars`);
+  sendOrchestraTrack(trackName);  // SC orchestra (no-op se CFG.ORCHESTRA.enabled=false)
 }
 
 // ── Pause/play control ──
@@ -558,6 +560,7 @@ export function updateDirector3(dt) {
       _barAcc = 0;
       _applyPhase();
       console.log(`[DIR3] Phase: ${PHASE_ORDER[_phaseIdx]} (arc: ${worldState.arc.toFixed(2)})`);
+      sendOrchestraPhase(PHASE_ORDER[_phaseIdx]);  // SC orchestra (no-op se disabilitata)
     } else {
       // Dissoluzione finished — advance to next track
       _advanceTrack();

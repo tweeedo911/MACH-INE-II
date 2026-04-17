@@ -81,7 +81,7 @@ function _rebuildDriftLUT() {
   _noiseOffY = (_renderFrame * 7) & (_NOISE_SZ - 1);
 }
 
-const _DRIFT_AMP = 0.12;  // ampiezza noise (era 0.03+0.02 separabile, ora 0.12 2D)
+const _DRIFT_AMP = 0.07;  // ampiezza noise (v3.17: 0.12→0.05 era troppo poco → 0.07 compromise: crisp ma con dither sufficiente a rompere eventuali pattern residui)
 
 function bayer(px, py) {
   const nx = (px + _noiseOffX) & (_NOISE_SZ - 1);
@@ -935,7 +935,7 @@ export function renderCampo(ctx, W, H) {
   {
     const bloomRoles = ['voice', 'lead', 'kick'];
     const bloomStr = 0.35;     // intensità alone (0-1)
-    const bloomThresh = 0.45;  // soglia densità
+    const bloomThresh = 0.55;  // v3.17: 0.45→0.55 — alone solo su picchi veri, resto più asciutto
     for (const role of bloomRoles) {
       const field = _fields[role];
       const cpx = (_bioma.cellPx && _bioma.cellPx[role])
@@ -1118,7 +1118,8 @@ export function renderCampo(ctx, W, H) {
         // fillStyle settato 1× per ruolo, alpha modulata via globalAlpha
         // (era: stringa rgba allocata per ogni glifo — ~1000 alloc/frame in densità alta)
         _offCtx.fillStyle = `rgb(${gR},${gG},${gB})`;
-        const framePhase = (_renderFrame >> 4) & 0xFF;
+        // v3.17: cycling rallentato 16f→64f (~267ms → ~1s) per glifi più stabili, meno scintillio
+        const framePhase = (_renderFrame >> 6) & 0xFF;
 
         for (let cy = 0; cy < _cellsY; cy++) {
           const py = _centerYLUT[cy];
