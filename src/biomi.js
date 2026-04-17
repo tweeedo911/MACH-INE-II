@@ -1764,6 +1764,26 @@ const SOUNDCHECK = (() => {
       lead(f, p, n, v, h)       { bar(f, 'lead',       6, v, h); },
       arp(f, p, n, v, h)        { bar(f, 'arp',        7, v, h); },
     },
+    // Audio reactive: pulsa la base di ogni colonna quando arriva audio dal
+    // BlackHole. Se le barre pulsano, audio entra nel browser correttamente.
+    // Se NON pulsano mentre suona: audio routing non funziona (mic permission
+    // o BlackHole non configurato come default input).
+    audioReact(fields, energy, h) {
+      if (energy < 0.03) return;
+      const ROLES_BY_COL = ['kick','percussion','drone','bass','chord','voice','lead','arp'];
+      const pulseH = 2 + Math.floor(energy * 8);
+      const pulseF = 0.4 + energy * 0.6;
+      for (let col = 0; col < 8; col++) {
+        const role = ROLES_BY_COL[col];
+        const xMid = col * 12 + 5;
+        for (let dy = 0; dy < pulseH; dy++) {
+          const y = h.CELLS_Y - 1 - dy;
+          for (let dx = 0; dx < 3; dx++) {
+            h.depositPoint(fields[role], xMid + dx, y, pulseF);
+          }
+        }
+      }
+    },
   };
 })();
 
