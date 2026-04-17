@@ -242,6 +242,9 @@ export const TRACKS = {
     // NEBBIA: fragile — minima variazione velocity, timing perfetto (goccia pulita)
     humanize: { velocity: 2, timing: 0 },
 
+    // Wave 2C: sub drone tattile <40Hz (ottava -2 parallelo a CH2 drone, vel 20-30)
+    subDroneTactile: true,
+
     palette: { bg: '#0A0A0A', dot: '#EFE6DE', accent: null },
     visualRegime: { maxDensity: 0.25, minDotSize: 10, composition: 'VUOTO' },
   },
@@ -324,6 +327,9 @@ export const TRACKS = {
 
     // TESSUTO: inquieto — velocity media, leggero timing jitter
     humanize: { velocity: 5, timing: 2 },
+
+    // Wave 2C: sub drone tattile <40Hz (ottava -2 parallelo a CH2 drone, vel 20-30)
+    subDroneTactile: true,
 
     palette: { bg: '#20130D', dot: '#CDD71D', accent: '#EFE6DE' },
     visualRegime: { maxDensity: 0.45, minDotSize: 6, composition: 'GRIGLIA' },

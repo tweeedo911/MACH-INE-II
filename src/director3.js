@@ -88,6 +88,16 @@ let _encoreActive = false;
 let _encoreBrick  = 0;
 let _encoreBrickBar = 0;
 
+// ── Wave 2C: Drammaturgia — stato modulo ──
+// Pre-suite: drone CH2 root basso, nessun generatore musicale, fino a 90s o tasto 0.
+let _preSuiteAcc      = 0;    // accumulator secondi in pre-suite
+let _preSuiteDroneAcc = 0;    // secondi dall'ultima nota drone pre-suite
+// Silenzio post-TEMPESTA (variante silenceThenAeolian): 90s prima di entrare in RITORNO.
+let _silencePending   = false;
+let _silenceAcc       = 0;
+// Track ultimo bar per decrementare meloMuteBars/bassMuteBars una volta per bar
+let _lastMuteBarChecked = -1;
+
 // ── ENCORE v2.3: Canon Machine — 9 brick, coda melodica finale ──
 const ENCORE_BRICK_NAMES = [
   'heartbeat',          // 0: kick + polvere percussiva, BPM 60→132
@@ -209,8 +219,116 @@ export function isDirector3Playing() {
   return !_paused;
 }
 
+// ═══════════════════════════════════════════════════════════
+//  Wave 2C — Drammaturgia: API pubblica
+// ═══════════════════════════════════════════════════════════
+
+// Variante della transizione TEMPESTA→RITORNO.
+// 'default'              = comportamento baseline
+// 'phrygianHold'         = mantiene tonalità di TEMPESTA in RITORNO (no shift a A aeolian)
+// 'silenceThenAeolian'   = 90s di silenzio assoluto prima di entrare in RITORNO
+export function setRitornoVariant(variant) {
+  const valid = ['default', 'phrygianHold', 'silenceThenAeolian'];
+  if (!valid.includes(variant)) return;
+  worldState.ritornoVariant = variant;
+  console.log(`[DIR3] Ritorno variant → ${variant}`);
+}
+
+// Pre-suite: drone CH2 a ottava bassa. Tasto 0 chiude. Auto-skip dopo 90s.
+export function startPreSuite() {
+  if (worldState.preSuiteActive) return;
+  worldState.preSuiteActive = true;
+  _preSuiteAcc = 0;
+  _preSuiteDroneAcc = 0;
+  // Silenzia eventuali moduli
+  for (const mod of ['rhythm', 'harmony', 'bass', 'melody', 'texture']) {
+    worldState.density[mod] = 0;
+  }
+  _paused = true;  // nessun track attivo durante pre-suite
+  console.log('[DIR3] Pre-suite started (90s, press 0 to skip)');
+}
+
+export function endPreSuite() {
+  if (!worldState.preSuiteActive) return;
+  worldState.preSuiteActive = false;
+  _preSuiteAcc = 0;
+  _preSuiteDroneAcc = 0;
+  // Silenzia il drone C2 residuo (all-notes-off su CH2)
+  sendMIDIAllNotesOff();
+  // Lancia NEBBIA normalmente
+  initDirector3('NEBBIA');
+  _paused = false;
+  console.log('[DIR3] Pre-suite ended → NEBBIA');
+}
+
+// Reset di tutti gli stati Wave 2C — chiamato da panic handler (Shift+Z).
+export function resetDramaturgyState() {
+  worldState.rootOffset = 0;
+  worldState.densityMultiplier = 1.0;
+  worldState.meloMuteBars = 0;
+  worldState.bassMuteBars = 0;
+  worldState.ritornoVariant = 'default';
+  if (worldState.preSuiteActive) {
+    worldState.preSuiteActive = false;
+    _preSuiteAcc = 0;
+    _preSuiteDroneAcc = 0;
+  }
+  _silencePending = false;
+  _silenceAcc = 0;
+  _lastMuteBarChecked = -1;
+}
+
+// Getter per HUD/diagnostica
+export function getDramaturgyState() {
+  return {
+    rootOffset:        worldState.rootOffset,
+    densityMultiplier: worldState.densityMultiplier,
+    meloMuteBars:      worldState.meloMuteBars,
+    bassMuteBars:      worldState.bassMuteBars,
+    ritornoVariant:    worldState.ritornoVariant,
+    preSuiteActive:    worldState.preSuiteActive,
+    silencePending:    _silencePending,
+    silenceRemaining:  _silencePending ? Math.max(0, CFG.RITORNO_SILENCE_DURATION_MS - _silenceAcc * 1000) : 0,
+  };
+}
+
 // ── Update: called every MIDI clock tick (~2ms) ──
 export function updateDirector3(dt) {
+  // ── Wave 2C: Pre-suite (drone CH2 C2) ──
+  // Gira mentre _paused=true. Auto-skip dopo PRE_SUITE_DURATION_MS o tasto 0.
+  if (worldState.preSuiteActive) {
+    _preSuiteAcc += dt;
+    _preSuiteDroneAcc += dt;
+    const droneMs = CFG.PRE_SUITE_DRONE_MS || 4000;
+    if (_preSuiteDroneAcc >= droneMs / 1000) {
+      _preSuiteDroneAcc = 0;
+      sendMIDINote(2, CFG.PRE_SUITE_DRONE_NOTE || 36, CFG.PRE_SUITE_DRONE_VEL || 25, droneMs);
+    }
+    if (_preSuiteAcc * 1000 >= (CFG.PRE_SUITE_DURATION_MS || 90000)) {
+      endPreSuite();
+    }
+    return;
+  }
+
+  // ── Wave 2C: Silenzio assoluto post-TEMPESTA (variante silenceThenAeolian) ──
+  // Attivato in _advanceTrack() quando from=TEMPESTA e variante=silenceThenAeolian.
+  // Durante: density=0 per tutti i moduli, nessuna nota generata. Dopo N secondi:
+  // chiama initDirector3('RITORNO') e riprende.
+  if (_silencePending) {
+    _silenceAcc += dt;
+    for (const mod of ['rhythm', 'harmony', 'bass', 'melody', 'texture']) {
+      worldState.density[mod] = 0;
+    }
+    if (_silenceAcc * 1000 >= (CFG.RITORNO_SILENCE_DURATION_MS || 90000)) {
+      _silencePending = false;
+      _silenceAcc = 0;
+      console.log('[DIR3] silenceThenAeolian: silenzio finito → RITORNO');
+      initDirector3('RITORNO');
+      _paused = false;
+    }
+    return;
+  }
+
   if (_paused) {
     // Silence all modules while paused
     for (const mod of ['rhythm', 'harmony', 'bass', 'melody', 'texture']) {
@@ -403,6 +521,29 @@ export function updateDirector3(dt) {
         worldState.density.bass *= Math.max(0, (barsLeft - 3) / 7);  // 0 a bar -3
         worldState.density.harmony *= Math.max(0, (barsLeft - 3) / 7);  // 0 a bar -3
       }
+    }
+  }
+
+  // ── Wave 2C: Mute bars (M/N hotkey) — decrementa una volta per bar ──
+  if (_phaseBars !== _lastMuteBarChecked) {
+    _lastMuteBarChecked = _phaseBars;
+    if (worldState.meloMuteBars > 0) worldState.meloMuteBars--;
+    if (worldState.bassMuteBars > 0) worldState.bassMuteBars--;
+  }
+  if (worldState.meloMuteBars > 0) {
+    worldState.density.melody = 0;
+  }
+  if (worldState.bassMuteBars > 0) {
+    worldState.density.bass = 0;
+    worldState.density.rhythm *= 0.3;  // kick ridotto ma non azzerato (era "kick mantiene solo drone+chord")
+  }
+
+  // ── Wave 2C: Density multiplier globale (↑↓ hotkey) ──
+  // Applicato DOPO tutti gli altri moltiplicatori per dominare le decisioni di fase/exit.
+  const dMul = worldState.densityMultiplier ?? 1.0;
+  if (dMul !== 1.0) {
+    for (const mod of ['rhythm', 'harmony', 'bass', 'melody', 'texture']) {
+      worldState.density[mod] *= dMul;
     }
   }
 
@@ -662,6 +803,55 @@ function _advanceTrack() {
     console.log('[DIR3] Suite finita. ENCORE pronto (premi E).');
     return;
   }
+
+  // ── Wave 2C: Nodo ternario TEMPESTA→RITORNO ──
+  // Leggi la variante scelta dal performer (tasti 1/2/3 durante TEMPESTA).
+  const isTempestaToRitorno = worldState.track === 'TEMPESTA' && nextTrack === 'RITORNO';
+  if (isTempestaToRitorno) {
+    const variant = worldState.ritornoVariant || 'default';
+
+    if (variant === 'silenceThenAeolian') {
+      // Silenzio assoluto 90s, poi RITORNO normale.
+      _paused = true;
+      for (const mod of ['rhythm', 'harmony', 'bass', 'melody', 'texture']) {
+        worldState.density[mod] = 0;
+      }
+      sendMIDIAllNotesOff();
+      _silencePending = true;
+      _silenceAcc = 0;
+      // Reset variant a default dopo l'uso (one-shot)
+      worldState.ritornoVariant = 'default';
+      console.log(`[DIR3] TEMPESTA→RITORNO: silenceThenAeolian — ${CFG.RITORNO_SILENCE_DURATION_MS / 1000}s silenzio`);
+      return;
+    }
+
+    if (variant === 'phrygianHold') {
+      // Carica RITORNO ma override tonalità → mantiene E phrygian + root 52 di TEMPESTA.
+      const tempestaTrack = TRACKS.TEMPESTA;
+      const prevBpm = worldState.bpm || 60;
+      console.log('[DIR3] TEMPESTA→RITORNO: phrygianHold — mantiene E phrygian');
+      const _barMsForOffHold = Math.round((240 / prevBpm) * 1000);
+      setTimeout(() => sendMIDIAllNotesOff(), Math.max(800, _barMsForOffHold + 200));
+      initDirector3('RITORNO');
+      // Override: scale + root + modeHint di TEMPESTA
+      worldState.scale = tempestaTrack.scale;
+      worldState.root = tempestaTrack.root;
+      _paused = false;
+      // BPM ramp standard TEMPESTA→RITORNO (usa prevTrack TEMPESTA dalla tabella)
+      const newBpm = _track.bpm || 60;
+      if (prevBpm !== newBpm) {
+        const rampBars = BPM_RAMP_BARS_TABLE['TEMPESTA'] ?? BPM_RAMP_BARS_DEFAULT;
+        const rampDurationSec = (240 / prevBpm) * rampBars;
+        _bpmRamp = { from: prevBpm, to: newBpm, elapsed: 0, duration: rampDurationSec };
+        worldState.bpm = prevBpm;
+      }
+      // Reset variant a default dopo l'uso (one-shot)
+      worldState.ritornoVariant = 'default';
+      return;
+    }
+    // variant === 'default' → prosegue col flow standard sotto
+  }
+
   if (!TRACKS[nextTrack]) {
     // Track not yet defined — skip to next available
     console.warn(`[DIR3] Track "${nextTrack}" not defined, skipping`);
