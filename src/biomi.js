@@ -1714,7 +1714,10 @@ const SOUNDCHECK = (() => {
     const xStart = col * COL_W;
     const xEnd = Math.min(h.CELLS_X, xStart + COL_W);
     const velN = Math.max(0.1, vel127 / 127);
-    const barH = Math.max(4, Math.floor(velN * h.CELLS_Y));
+    // Altezza con gamma + pavimento: barre sempre alte almeno 70% dello schermo,
+    // differenza di velocity visibile alla punta (sqrt enfatizza parte bassa vel).
+    const heightFactor = Math.max(0.70, Math.sqrt(velN));
+    const barH = Math.max(16, Math.floor(heightFactor * h.CELLS_Y));
     const yTop = h.CELLS_Y - barH;
     for (let y = yTop; y < h.CELLS_Y; y++) {
       const intensity = 0.4 + ((y - yTop) / barH) * 0.5;
