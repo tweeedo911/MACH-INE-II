@@ -82,7 +82,7 @@ export const CFG = {
   RITORNO_SILENCE_DURATION_MS: 90000, // 90s di silenzio assoluto per variante 3
   MELODY_MUTE_BARS:      8,           // M key: 8 bar di silenzio melody
   BASS_MUTE_BARS:        8,           // N key: 8 bar di silenzio bass
-  DENSITY_MULT_STEP:     0.1,         // ↑↓ step density override
+  DENSITY_MULT_STEP:     0.15,        // ↑↓ step density override (0.1 era impercepibile a singola pressione)
   DENSITY_MULT_MIN:      0.3,
   DENSITY_MULT_MAX:      2.0,
   OCTAVE_OFFSET_STEP:    12,          // ←→ step octave transpose
