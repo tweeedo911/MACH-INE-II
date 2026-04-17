@@ -564,7 +564,8 @@ function _tick() {
         _phraseIdx++;
 
         const rawVel = VOICE_VEL_BASE + density * VOICE_VEL_RANGE * (0.6 + 0.4 * arc);
-        const humanize = Math.round((Math.random() * VOICE_HUMANIZE * 2) - VOICE_HUMANIZE);
+        const hvel = track?.humanize?.velocity ?? VOICE_HUMANIZE;
+        const humanize = Math.round((Math.random() * 2 - 1) * hvel);
         const vel = Math.min(Math.max(Math.round(rawVel + humanize), VOICE_VEL_FLOOR), velCeil);
         const dur = Math.round(stepMs * voiceRate * VOICE_DUR_RATIO);
 
@@ -674,7 +675,9 @@ function _tick() {
       _leadPhraseIdx++;
 
       const rawVel = VOICE_VEL_BASE + density * VOICE_VEL_RANGE * (0.55 + 0.45 * arc);
-      const humanize = Math.round((Math.random() * 4) - 2);
+      // Lead: humanize più contenuto del voice (scale 0.5×), fallback ±2
+      const hvel = (track?.humanize?.velocity ?? 2) * 0.5;
+      const humanize = Math.round((Math.random() * 2 - 1) * hvel);
       const vel = Math.min(Math.max(Math.round(rawVel + humanize), VOICE_VEL_FLOOR), velCeil);
       const dur = Math.round(stepMs * leadRate * LEAD_DUR_SCALE);
       sendMIDINote(CH_LEAD, note, vel, dur);
@@ -739,7 +742,9 @@ function _tick() {
 
     if (_step % arpStepInterval === 0) {
       // V3.11: rest probabilistico — il groove respira
-      const restProb = arpVar?.restProb ?? 0;
+      let restProb = arpVar?.restProb ?? 0;
+      // Rupture cablata: in takeover l'arp si ispessisce (meno respiri)
+      if (worldState?.rupture?.stage === 'takeover') restProb *= 0.5;
       if (restProb > 0 && Math.random() < restProb) {
         _advanceArpIdx(_arpPattern.length);
         // silenzio: avanziamo l'indice ma non suoniamo
@@ -762,7 +767,9 @@ function _tick() {
         // V3.11: nota di passaggio suona più piano
         const passingMul = (arpNote !== _arpPattern[(_arpIdx + _arpPattern.length - 1) % _arpPattern.length]) ? 1.0 : 1.0;
         const rawArpVel = (ARP_VEL_BASE + density * ARP_VEL_RANGE) * arpVelMul * duckMul * accentMul;
-        const arpHumanize = Math.round((Math.random() * ARP_HUMANIZE * 2) - ARP_HUMANIZE);
+        // Arp: humanize più contenuto (scale 0.6× del track humanize), fallback ±3
+        const arpHvel = (track?.humanize?.velocity ?? ARP_HUMANIZE) * 0.6;
+        const arpHumanize = Math.round((Math.random() * 2 - 1) * arpHvel);
         const arpVel = Math.min(Math.max(Math.round(rawArpVel + arpHumanize), 1), velCeil);
         const arpDur = Math.round(stepMs * arpStepInterval * ARP_DUR_RATIO);
 

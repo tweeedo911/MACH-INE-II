@@ -49,6 +49,22 @@ let _velSweep = 0;
 let _lastFollowChord = '';
 let _lastFollowBar   = -1;
 
+// Humanize timing jitter helper: fire immediate if timing=0, else ±timing ms
+function _sendWithJitter(ch, note, vel, dur, fieldNormNote, fieldNormVel, timingMs) {
+  if (timingMs > 0) {
+    const offset = (Math.random() * 2 - 1) * timingMs;
+    if (offset > 0) {
+      setTimeout(() => {
+        sendMIDINote(ch, note, vel, dur);
+        addMidiNote(ch, fieldNormNote, fieldNormVel);
+      }, offset);
+      return;
+    }
+  }
+  sendMIDINote(ch, note, vel, dur);
+  addMidiNote(ch, fieldNormNote, fieldNormVel);
+}
+
 // V3: cycle extension state
 let _cycleStage = 1;          // 1, 2, or 4 — current cycle length in bars
 let _stableBars = 0;          // bars elapsed at current stage with stable bass
@@ -222,10 +238,12 @@ function _tick() {
         if (bassNote < regLo || bassNote > regHi) bassNote = root;
 
         const baseVel = (50 + density * 30) * _velSweep;
-        const humanize = (Math.random() * 6) - 3;
+        const hvel = track?.humanize?.velocity ?? 3;
+        const humanize = (Math.random() * 2 - 1) * hvel;
         const vel = Math.round(Math.max(1, Math.min(ceiling, baseVel + humanize)));
         // Gate corto: staccato come gli accordi ritmici sopra
-        const durMul = _BASS_DUR_MUL[phase] ?? 3;
+        let durMul = _BASS_DUR_MUL[phase] ?? 3;
+        if (worldState?.rupture?.stage === 'takeover') durMul *= 0.7;
         const dur = Math.round(stepMs * Math.min(durMul, 2.5));
         sendMIDINote(3, bassNote, vel, dur);
         addMidiNote(3, bassNote / 127, vel / 127);
@@ -269,7 +287,8 @@ function _tick() {
       if (bassNote < regLo || bassNote > regHi) bassNote = root;
 
       const baseVel = (42 + density * 28) * _velSweep * velMul;
-      const humanize = (Math.random() * 6) - 3;
+      const hvel = track?.humanize?.velocity ?? 3;
+      const humanize = (Math.random() * 2 - 1) * hvel;
       const vel = Math.round(Math.max(1, Math.min(ceiling, baseVel + humanize)));
       const dur = Math.round(beatMs * 4 * 0.75);
       sendMIDINote(3, bassNote, vel, dur);
@@ -287,7 +306,8 @@ function _tick() {
       if (bassNote < regLo || bassNote > regHi) bassNote = root;
 
       const baseVel = (45 + density * 35) * _velSweep;
-      const humanize = (Math.random() * 6) - 3;
+      const hvel = track?.humanize?.velocity ?? 3;
+      const humanize = (Math.random() * 2 - 1) * hvel;
       const vel = Math.round(Math.max(1, Math.min(ceiling, baseVel + humanize)));
       const dur = Math.round(beatMs * 14);
       sendMIDINote(3, bassNote, vel, dur);
@@ -349,15 +369,20 @@ function _tick() {
     }
 
     const baseVel = (50 + density * 40) * _velSweep;
-    const humanize = (Math.random() * 8) - 4;
+    // Humanize per-traccia — fallback ±4 se non definito
+    const hvel = track?.humanize?.velocity ?? 4;
+    const humanize = (Math.random() * 2 - 1) * hvel;
     const vel = Math.round(Math.max(1, Math.min(ceiling, baseVel + humanize)));
 
     // ── B: Durata phase-aware ──
-    const durMul = _BASS_DUR_MUL[phase] ?? 3;
+    let durMul = _BASS_DUR_MUL[phase] ?? 3;
+    // Rupture cablata: in takeover il gate si stringe (percezione di tensione ristretta)
+    if (worldState?.rupture?.stage === 'takeover') durMul *= 0.7;
     const dur = Math.round(stepMs * durMul);
 
-    sendMIDINote(3, note, vel, dur);
-    addMidiNote(3, note / 127, vel / 127);
+    // Timing humanize per-traccia (cap 4ms per non rompere il groove)
+    const tms = Math.min(track?.humanize?.timing ?? 0, 4);
+    _sendWithJitter(3, note, vel, dur, note / 127, vel / 127, tms);
     _lastNote = _step;
 
   // Ghost fill phase-aware: zero in germoglio (il basso è solo, deve essere pulito),

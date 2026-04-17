@@ -157,7 +157,9 @@ function _tick() {
   if (CFG.MUSIC_STRUCTURAL && _step % 4 === 0) {
     const drift = trackData?.droneDrift;
     const driftPeriod = drift?.periodBars ?? PITCH_DRIFT_PERIOD_DEFAULT;
-    const driftAmp    = drift?.amplitude  ?? PITCH_DRIFT_AMP_DEFAULT;
+    let driftAmp      = drift?.amplitude  ?? PITCH_DRIFT_AMP_DEFAULT;
+    // Rupture cablata: in takeover il drone diventa instabile (Kali Malone micro-intonazione)
+    if (worldState?.rupture?.stage === 'takeover') driftAmp *= 2.5;
     const periodSteps = driftPeriod * 16;
     _pitchDriftStep = (_pitchDriftStep + 4) % periodSteps;
     const phaseRad = (_pitchDriftStep / periodSteps) * Math.PI * 2;
