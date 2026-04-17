@@ -1702,6 +1702,68 @@ const ENCORE = {
   })(),
 };
 
+// ══════════════════════════════════════════════════════════════
+//  SOUNDCHECK — bioma di test per i livelli audio (v3.18)
+//  8 colonne verticali colorate, una per canale MIDI.
+//  Ogni nota riempie una barra dal basso, altezza proporzionale a vel.
+//  Fuori dalla suite: non ha phaseColors, decay medio, nessun fancy.
+// ══════════════════════════════════════════════════════════════
+const SOUNDCHECK = (() => {
+  const COL_W = 12;           // 96/8 = 12 celle per colonna
+  function bar(fields, role, col, vel127, h) {
+    const xStart = col * COL_W;
+    const xEnd = Math.min(h.CELLS_X, xStart + COL_W);
+    const velN = Math.max(0.1, vel127 / 127);
+    const barH = Math.max(4, Math.floor(velN * h.CELLS_Y));
+    const yTop = h.CELLS_Y - barH;
+    for (let y = yTop; y < h.CELLS_Y; y++) {
+      const intensity = 0.4 + ((y - yTop) / barH) * 0.5;
+      for (let x = xStart; x < xEnd; x++) {
+        h.depositPoint(fields[role], x, y, intensity);
+      }
+    }
+    if (yTop >= 0 && yTop < h.CELLS_Y) {
+      for (let x = xStart + 1; x < xEnd - 1; x++) {
+        h.depositPoint(fields[role], x, yTop, 0.95);
+      }
+    }
+  }
+  return {
+    bg: [0, 0, 0],
+    colors: {
+      kick:       [255, 255, 255],
+      percussion: [170, 170, 170],
+      drone:      [ 70, 110, 220],
+      bass:       [230, 190,  40],
+      chord:      [ 80, 210, 120],
+      voice:      [230, 150,  80],
+      lead:       [ 80, 210, 230],
+      arp:        [225,  90, 190],
+    },
+    decay: {
+      kick: 0.93, percussion: 0.93, drone: 0.985,
+      bass: 0.95, chord: 0.965,  voice: 0.975,
+      lead: 0.97, arp: 0.95,
+    },
+    force: {
+      kick: 1, percussion: 1, drone: 1,
+      bass: 1, chord: 1, voice: 1,
+      lead: 1, arp: 1,
+    },
+    cellPx: { kick: 10, percussion: 10, drone: 10, bass: 10, chord: 10, voice: 10, lead: 10, arp: 10 },
+    depositFn: {
+      kick(f, p, n, v, h)       { bar(f, 'kick',       0, v, h); },
+      percussion(f, p, n, v, h) { bar(f, 'percussion', 1, v, h); },
+      drone(f, p, n, v, h)      { bar(f, 'drone',      2, v, h); },
+      bass(f, p, n, v, h)       { bar(f, 'bass',       3, v, h); },
+      chord(f, p, n, v, h)      { bar(f, 'chord',      4, v, h); },
+      voice(f, p, n, v, h)      { bar(f, 'voice',      5, v, h); },
+      lead(f, p, n, v, h)       { bar(f, 'lead',       6, v, h); },
+      arp(f, p, n, v, h)        { bar(f, 'arp',        7, v, h); },
+    },
+  };
+})();
+
 export const BIOMI = {
   GENERIC,
   NEBBIA,
@@ -1712,6 +1774,7 @@ export const BIOMI = {
   TEMPESTA,
   RITORNO,
   ENCORE,
+  SOUNDCHECK,
 };
 
 // V3.9: palette unificata — PALETTE_B/A rimossa, colori consolidati inline
