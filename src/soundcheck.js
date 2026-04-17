@@ -22,6 +22,8 @@ import { sendMIDINote, sendMIDIAllNotesOff } from './midi.js';
 import { addMidiNote } from './field.js';
 import { setBiome, clearAll as clearCampo } from './campo.js';
 import { worldState } from './world-state.js';
+import { initDirector3 } from './director3.js';
+import { initCamera } from './camera.js';
 
 // ── Config ──
 const BPM = 90;
@@ -75,8 +77,14 @@ export function startSoundcheck() {
 export function stopSoundcheck() {
   if (!_active) return;
   _active = false;
+  // Reset completo: nota pending spente, campo pulito, torno a NEBBIA dall'inizio
+  // (pronto per ripartire con Space, stato identico al boot iniziale).
   sendMIDIAllNotesOff();
-  console.log('[SOUNDCHECK] OFF');
+  clearCampo();
+  setBiome('NEBBIA');
+  initDirector3('NEBBIA');
+  initCamera();
+  console.log('[SOUNDCHECK] OFF — reset a NEBBIA inizio (Space per ripartire)');
 }
 
 export function toggleSoundcheck() {
