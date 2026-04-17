@@ -995,14 +995,71 @@ export function renderCampo(ctx, W, H) {
         const iG = (aG * 255 + 0.5) | 0;
         const iB = (aB * 255 + 0.5) | 0;
 
-        for (let py = y0; py < y1; py++) {
-          for (let px = x0; px < x1; px++) {
-            if (density < bayer(px, py)) continue;
-            const pi = (py * _W + px) * 4;
-            // screen blend intero: d + src*(255-d)/255 ≈ d + (src*(255-d)+127)/255
-            data[pi]   = data[pi]   + ((iR * (255 - data[pi]))   >> 8) | 0;
-            data[pi+1] = data[pi+1] + ((iG * (255 - data[pi+1])) >> 8) | 0;
-            data[pi+2] = data[pi+2] + ((iB * (255 - data[pi+2])) >> 8) | 0;
+        // ── Biome render mode per-cella: seleziona strategia threshold ──
+        // 0 = bayer standard, 1 = MACCHINA binario 0.5, 2 = TEMPESTA proj,
+        // 3 = NEBBIA radiale (solo voice)
+        let thresholdMode = 0;
+        let nebbiaRadialThresh = 0;
+        if (isMacchina) {
+          thresholdMode = 1;
+        } else if (isTempestaVector) {
+          thresholdMode = 2;
+        } else if (isNebbiaRadial && role === 'voice') {
+          // Onda radiale concentrica dal centro del campo (costo: 1 sqrt+1 sin per cella voice)
+          const dxr = cx - (_cellsX >> 1);
+          const dyr = cy - (_cellsY >> 1);
+          const r = Math.sqrt(dxr * dxr + dyr * dyr);
+          nebbiaRadialThresh = Math.sin(r * 0.6) * 0.2 + 0.5; // 0.3..0.7
+          thresholdMode = 3;
+        }
+
+        if (thresholdMode === 1) {
+          // MACCHINA: griglia pura — threshold 0.5 costante, no dither
+          if (density < 0.5) continue; // intera cella sotto soglia → skip
+          for (let py = y0; py < y1; py++) {
+            for (let px = x0; px < x1; px++) {
+              const pi = (py * _W + px) * 4;
+              data[pi]   = data[pi]   + ((iR * (255 - data[pi]))   >> 8) | 0;
+              data[pi+1] = data[pi+1] + ((iG * (255 - data[pi+1])) >> 8) | 0;
+              data[pi+2] = data[pi+2] + ((iB * (255 - data[pi+2])) >> 8) | 0;
+            }
+          }
+        } else if (thresholdMode === 2) {
+          // TEMPESTA: Bayer proiettato sull'angolo tempestaAngle (vector-dither)
+          // Forma economica: proj solo asse X, py libero su cy-index
+          for (let py = y0; py < y1; py++) {
+            for (let px = x0; px < x1; px++) {
+              const proj = (px * tCos + py * tSin) | 0;
+              const bi = ((proj & 3) << 2) | (py & 3);
+              if (density < BAYER4N[bi]) continue;
+              const pi = (py * _W + px) * 4;
+              data[pi]   = data[pi]   + ((iR * (255 - data[pi]))   >> 8) | 0;
+              data[pi+1] = data[pi+1] + ((iG * (255 - data[pi+1])) >> 8) | 0;
+              data[pi+2] = data[pi+2] + ((iB * (255 - data[pi+2])) >> 8) | 0;
+            }
+          }
+        } else if (thresholdMode === 3) {
+          // NEBBIA voice: threshold radiale concentrico (onda costante per cella)
+          if (density < nebbiaRadialThresh) continue;
+          for (let py = y0; py < y1; py++) {
+            for (let px = x0; px < x1; px++) {
+              const pi = (py * _W + px) * 4;
+              data[pi]   = data[pi]   + ((iR * (255 - data[pi]))   >> 8) | 0;
+              data[pi+1] = data[pi+1] + ((iG * (255 - data[pi+1])) >> 8) | 0;
+              data[pi+2] = data[pi+2] + ((iB * (255 - data[pi+2])) >> 8) | 0;
+            }
+          }
+        } else {
+          // Default: Bayer standard con noise drift
+          for (let py = y0; py < y1; py++) {
+            for (let px = x0; px < x1; px++) {
+              if (density < bayer(px, py)) continue;
+              const pi = (py * _W + px) * 4;
+              // screen blend intero: d + src*(255-d)/255 ≈ d + (src*(255-d)+127)/255
+              data[pi]   = data[pi]   + ((iR * (255 - data[pi]))   >> 8) | 0;
+              data[pi+1] = data[pi+1] + ((iG * (255 - data[pi+1])) >> 8) | 0;
+              data[pi+2] = data[pi+2] + ((iB * (255 - data[pi+2])) >> 8) | 0;
+            }
           }
         }
       }
@@ -1154,6 +1211,19 @@ export function renderCampo(ctx, W, H) {
       _imgBuf32[i] ^= 0x00FFFFFF;  // invert RGB, keep alpha
     }
     worldState.encoreInvert = false;  // reset — dura 1 solo frame
+  }
+
+  // ── Rupture omen: lerp cromatico verso inverso α=0.2 (presagio) ──
+  // Mescola ogni pixel con il suo inverso (204·c + 51·(255-c))>>8.
+  // Attivo solo durante lo stage 'omen' — ~0.2ms/frame, accettabile.
+  if (omenActive) {
+    const len = data.length;
+    for (let i = 0; i < len; i += 4) {
+      const r = data[i], g = data[i+1], b = data[i+2];
+      data[i]   = (r * 204 + (255 - r) * 51) >> 8;
+      data[i+1] = (g * 204 + (255 - g) * 51) >> 8;
+      data[i+2] = (b * 204 + (255 - b) * 51) >> 8;
+    }
   }
 
   _offCtx.putImageData(_imgData, 0, 0);
