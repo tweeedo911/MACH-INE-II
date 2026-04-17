@@ -1,11 +1,11 @@
 # STATUS — MACH:INE III
 
 > Snapshot vivo. Rigenerato a fine sessione. Punto di entrata di ogni nuova sessione.
-> **Last updated:** 2026-04-16 (sessione 26: audit visivo + perf campo + RITORNO luminoso)
+> **Last updated:** 2026-04-17 (sessione 27: clock/MIDI sync + worker zero-alloc + crispness pass + anti-tovaglia)
 
 ## Versione
 
-**v3.15.1** — single source: `src/VERSION.js` (`APP_VERSION`)
+**v3.17.1** — single source: `src/VERSION.js` (`APP_VERSION`)
 
 Tag git: `v3.4.2` su `ccbbb13` (ultimo tag stabile).
 Branch attivo: `machine-iii`.
@@ -182,7 +182,7 @@ Pass post-Bayer: `fillText` sparse su celle ad alta densità. Configurabile per 
 
 ---
 
-## Ottimizzazione render (v3.12.1 → v3.15.1)
+## Ottimizzazione render (v3.12.1 → v3.16.0)
 
 | Fix | Impatto |
 |---|---|
@@ -196,6 +196,25 @@ Pass post-Bayer: `fillText` sparse su celle ad alta densità. Configurabile per 
 | **v3.15.1 — Glyph globalAlpha** | fillStyle 1×/ruolo, era stringa rgba/glifo: −2/3ms densità alta |
 | **v3.15.1 — Decay nested loop** | cy/cx pre-calc, niente divmod: −0.5ms/frame |
 | **v3.15.1 — centerX/Y LUT** | Int32Array in `_ensureOffscreen`, riuso in 4 pass: −0.3ms |
+| **v3.16.0 — Worker 5ms + postMessage primitivo** | 500Hz→200Hz, zero alloc per tick, ~60% meno carico music pipeline su main |
+| **v3.16.0 — Norns bridge no-op** | elimina `{type,note,vel}` alloc per nota CH2 + check WebSocket |
+| **v3.17.0 — Crispness pass**: CSS `image-rendering: pixelated` (index+projector), `_DRIFT_AMP` 0.12→0.05, glyph cycling 16f→64f, bloom thresh 0.45→0.55 | halftone Bayer netto su retina/proiettore, meno sfrigolio granuloso, glifi più stabili, alone solo su picchi |
+| **v3.17.1 — Anti-tovaglia**: SOLCO `maxDensity` drone/bass/chord, TESSUTO drone probabilistico 45% + bass width 25-50% + maxDensity, RESPIRO baseTarget ancora più basso + spatial ±0.44 non-separabile, `_DRIFT_AMP` 0.05→0.07 | SOLCO/TESSUTO/RESPIRO smettono di essere "wallpaper uniforme", campo respira con vuoti reali |
+
+## Clock/MIDI sync (v3.16.0)
+
+| Elemento | Scheduling | Note |
+|---|---|---|
+| MIDI clock (0xF8) | lookahead 100ms | invariato — hardware-timed |
+| MIDI Start (0xFA) | lookahead 15ms | allineato al primo tick |
+| MIDI Stop (0xFC) | lookahead 15ms | coerente con note pending |
+| Note On/Off | **lookahead 15ms** ✅ v3.16 | era immediate → slittava con main saturo |
+| CC (es. CC123) | **lookahead 15ms** ✅ v3.16 | coerente con note |
+| Pitch Bend | **lookahead 15ms** ✅ v3.16 | coerente con note |
+| Worker tick | **5ms (200Hz)** ✅ v3.16 | era 2ms (500Hz), `postMessage(now)` primitivo |
+
+> Latenza costante 15ms su tutto l'output MIDI → sync fisso clock↔note anche
+> sotto spike di lag fino a 15ms. Compensabile in DAW se il monitoring lo richiede.
 
 ## ENCORE v2 — Canon Machine (v3.15.0)
 
@@ -244,22 +263,34 @@ Pezzo opzionale post-suite, attivato con tasto `E`. Autocontenuto: non modifica 
 
 ## Prossimo (priorità top→bottom)
 
-### P0 — Test live v3.15.1
+### P0 — Test live v3.16.0 (clock/MIDI sync fix)
 
-Verificare le modifiche della sessione 26:
-- Glyphs ancora visibili con alpha corretta (no regressione dopo passaggio a globalAlpha)
+Verificare con hardware attaccato (motivo originario della sessione 27):
+- **[CLOCK LAG]** in console Chrome: deve restare sotto 20ms avg/max anche
+  in MACCHINA/TEMPESTA/ENCORE e su set di 45+ min. Se supera, la music
+  pipeline va spostata nel worker (rimandato — vedi Prossimo P2).
+- **Sync griglia DAW ↔ note**: ascoltare attentamente — il ritardo percepito
+  tra clock e note dovrebbe essere COSTANTE (15ms fisso) e non più variabile.
+- **Latenza 15ms compensabile**: provare se il performer la nota o se è
+  trasparente. Se fastidiosa → valutare track-delay negativo nel DAW o
+  riduzione `NOTE_LOOKAHEAD_MS` (rischio: riappare il jitter).
+- **Norns silente**: nessun output verso bridge WebSocket durante il set.
+
+### P1 — Test live modifiche visive sessione 26 (v3.15.1)
+
+- Glyphs ancora visibili con alpha corretta (dopo globalAlpha)
 - Bloom voice/lead/kick invariato (dopo LUT centerX/Y)
 - Decay + shimmer biomi fluido (dopo conversione nested loop)
 - RITORNO: pianeta più leggibile in proiezione durante dissoluzione
-- Stop a fine RITORNO: no glitch audio, ENCORE lanciabile a mano con `E`
-- [CLOCK LAG] ridotto: recupero ~3ms/frame stimato
 
-### Bug aperti da audit (sessione 26) — da fix se servono
+### Bug aperti — da fix se servono
 
-- **C1**: `midi-clock.worker.js:17` — postMessage senza transferable → ~4-8 MB/min GC churn (set 45+ min)
+- **C1**: ~~`midi-clock.worker.js:17` — postMessage senza transferable~~ ✅ risolto v3.16.0
 - **C2**: devicePixelRatio non gestito — su retina display render fisico raddoppiato
+  (analisi sessione 27: falso positivo — canvas a risoluzione fissa 1920×1080,
+  DPR gestito da compositor GPU, non costa render extra)
 - **M1**: camera micro-punch `spike*0.03` impercettibile (alzare a 0.08-0.12)
-- **M2**: camera scan ogni frame — throttle 1/4 per −1.5ms/frame
+- **M2**: ~~camera scan ogni frame~~ già throttolata via `poiScanInterval=15` (~4Hz)
 
 ### P1 — Test live ENCORE v2
 

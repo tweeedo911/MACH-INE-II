@@ -200,6 +200,16 @@ export const CFG = {
     activeArcMax: 0.90,       // no oblique events in opening silence or final dissolve
   },
 
+  // ── Orchestra output (SuperCollider opzionale) ──
+  // Quando true: invia CC di stato (bioma/fase/energy/rupture) su CH15 al MIDI output.
+  // Richiede CFG.COMPOSER.midiOutputName impostato (tipicamente "IAC Driver Bus 1").
+  // L'orchestra SC gira come processo esterno (machine-orchestra/start.sh).
+  // Se false, tutto no-op: zero impatto su performance e flusso MIDI.
+  ORCHESTRA: {
+    enabled: false,
+    controlChannel: 15,
+  },
+
   // ── Composer 1 (TERRENO — D Dorian, dub lento) ──
   composer1Key: 'Digit4',
   COMPOSER: {

@@ -734,5 +734,152 @@ non capisci che si incastrano. Visual alla Ikeda: geometrie, contrasto, sul beat
 - ⚠️ Da calibrare: velocity per voce, lunghezza frasi, timing convergenze
 
 ---
+
+## #026 — Clock/MIDI sync: lookahead note + worker zero-alloc (v3.16.0)
+
+**Data:** 2026-04-17 (sessione 27)
+**Contesto:** Test live con hardware attaccato (sessione 26→27): rallentamenti e
+latenze variabili tra clock MIDI e note. Il clock (0xF8) era schedulato con
+lookahead 100ms (arriva sempre in orario), le note invece partivano immediate
+dal main thread — se il main era saturo (worker message handler che gira a 500Hz
++ campo.js pesante), le note slittavano mentre il clock restava stabile,
+creando desync percepibile tra griglia DAW e suono.
+
+Inoltre il worker `midi-clock.worker.js` faceva `postMessage({ dt, now })` ogni
+2ms = ~30k oggetti/min → pressione GC major su set lunghi (Sessione 23 aveva
+già registrato `[CLOCK LAG]` fino a 1.2s).
+
+**Scelta:**
+1. **Note/CC/PB con stesso lookahead del clock** (`NOTE_LOOKAHEAD_MS = 15ms`)
+   — timestamp hardware anche per le note. Assorbe jitter fino a 15ms senza
+   drift. 15ms sotto la soglia percettiva (~20ms), sopra il jitter tipico
+   del main thread.
+2. **Worker a 5ms invece di 2ms** (`TICK_MS=5`) — 60% meno carico sul main.
+   Il clock MIDI usa già lookahead, la precisione output è invariata.
+   Scheduling assoluto (`nextTick += 5`) per drift compensation.
+3. **postMessage primitivo** (`performance.now()` invece di `{ dt, now }`)
+   — zero allocazione per tick. dt calcolato in main come delta tra tick
+   consecutivi.
+4. **Norns bridge → no-op**: funzioni export restano per compat con
+   director3, ma il body è vuoto. Elimina `{type,note,vel}` allocato per
+   ogni nota CH2 e il check readyState WebSocket.
+5. **sendMIDIStart/Stop allineati**: anche il primo tick parte a T+15ms,
+   coerente con le prime note → DAW vede origine tempo unica.
+
+**Alternative scartate:**
+- **Spostare music pipeline nel worker**: richiederebbe serializzare
+  `worldState` avanti/indietro, forte refactor. Rimandato.
+- **SharedArrayBuffer per dt**: overkill, i primitive postMessage sono
+  già gratuiti.
+- **Lookahead più ampio (30-50ms)**: sopra soglia percettiva per musicista.
+
+**Conseguenze:**
+- ✅ Clock e note viaggiano con stesso offset → sync fisso tra griglia e
+  suono anche sotto spike di lag fino a 15ms.
+- ✅ Main thread alleggerito (~60% meno invocazioni `updateDirector3 + 5
+  moduli + updateMIDIClock`) → frame budget libero per rendering.
+- ✅ GC churn worker→main azzerato (da ~30k oggetti/min a 0).
+- ⚠️ Tutte le note hanno 15ms di latenza costante. Musicista in monitoring
+  la percepisce come offset fisso (compensabile in side-chain DAW o a mente).
+- ⚠️ Granularità tick handler ora 5ms invece di 2ms: quantizzazione delle
+  decisioni director3 a 5ms, inudibile (=8% di un 1/16 a 120BPM).
+
+---
+
+## #027 — Crispness pass: nearest-neighbor + drift ridotto (v3.17.0)
+
+**Data:** 2026-04-17 (sessione 27, fine)
+**Contesto:** Dopo i fix clock MIDI, richiesta di ottimizzare visivamente —
+rendere l'immagine più crisp e togliere il "noise che gira" su retina/proiettore.
+
+**Diagnosi:** quattro fonti di sfocatura/noise, in ordine di impatto:
+1. **Scaling browser bilinear**: canvas 1920×1080 interno + CSS `width:100%`
+   + `object-fit:contain` → il browser interpola con bilinear sull'upscale al
+   display fisico. Su retina/proiettore 4K i bordi dei pixel halftone Bayer
+   si sfumano. Fonte #1 di perdita di crispness.
+2. **`_DRIFT_AMP = 0.12`** nel noise 2D additivo al threshold Bayer: ogni
+   pixel ha la soglia vibrata del ±12% per frame. Era stato alzato per
+   rompere il pattern tartan, ma 0.12 genera sfrigolio granuloso.
+3. **Glyph char cycling** ogni 16 frame (~267ms): scintillio leggibile sui
+   glifi densi.
+4. **Bloom threshold 0.45**: alone voice/lead/kick parte a densità media,
+   "rende morbido" il campo denso anche quando non serve enfasi.
+
+**Scelta:**
+- **A — CSS `image-rendering: pixelated`** su canvas (index + projector) —
+  nearest-neighbor scaling. I pixel halftone restano crisp su qualsiasi
+  upscale (retina/proiettore). Zero costo render.
+- **B — `_DRIFT_AMP`: 0.12 → 0.05** — riduce il jitter di threshold senza
+  riaprire il tartan (il noise 2D è già non-separabile).
+- **C — Glyph cycling: `>> 4` → `>> 6`** — carattere cambia ogni ~1s invece
+  di 267ms: glifi più stabili, meno distrazione.
+- **D — Bloom threshold: 0.45 → 0.55** — alone solo su picchi (densità >0.55):
+  campo denso medio resta asciutto, gerarchia visiva più netta.
+
+**Alternative scartate:**
+- **DPR-aware canvas** (render fisico 3840×2160 su retina): 4× pixel/frame,
+  sforerebbe il budget main thread ricuperato con i fix clock. Il punto A
+  (CSS pixelated) dà il 90% del beneficio con 0 costo render.
+- **Azzerare `_DRIFT_AMP`**: rischio di riaffacciare artefatti di uniformità
+  su densità alte (il noise 2D serve come dither).
+- **Disabilitare shimmer**: è il "respiro" lento del campo, non il colpevole
+  del noise granuloso (quello era il drift).
+
+**Conseguenze:**
+- ✅ Pixel halftone crisp su retina/proiettore — estetica Ikeda/digital clean.
+- ✅ Meno sfrigolio granuloso nel campo medio — immagine più "ferma".
+- ✅ Glifi più leggibili — il carattere resta visibile abbastanza da essere
+  riconosciuto.
+- ✅ Alone più raro, usato come evento: pattern fitto del campo resta definito.
+- ⚠️ Da calibrare live: se `_DRIFT_AMP=0.05` produce visibili bande in zone
+  di gradiente (densità 0.3-0.5), alzare a 0.07-0.08.
+- ⚠️ Bloom threshold 0.55: se voice/lead sembrano "piatti" rispetto al resto,
+  abbassare a 0.50.
+
+---
+
+## #028 — Anti-tovaglia sistematica: density cap + depositFn probabilistici (v3.17.1)
+
+**Data:** 2026-04-17 (sessione 27, fine)
+**Contesto:** Screenshot v3.17.0 di tutti i biomi rivelano che SOLCO, TESSUTO e
+RESPIRO hanno la stessa patologia: il campo copre tutto lo schermo in modo
+uniforme. Dopo il crispness pass (pixelated + drift ridotto) il problema è
+più evidente, non nascosto più dal dither. MACCHINA, RITORNO, ENCORE OK.
+
+**Scelta:**
+- **SOLCO — density cap**: `maxDensity { drone: 0.45, bass: 0.65, chord: 0.55 }`.
+  Il sistema in campo.js (penalità progressiva sopra il cap) crea automaticamente
+  zone vuote e pause tra le colonne bass.
+- **TESSUTO — trama discontinua + density cap**:
+  - Drone depositato probabilisticamente (45% per cella) invece di riga continua
+    → tessuto vero invece di telaio solido.
+  - Bass width 50-80% → 25-50% per nota: fascia bassa non inonda.
+  - `maxDensity { lead: 0.95, bass: 0.55, drone: 0.35 }`.
+- **RESPIRO — target più bassi + spatial più ampia**:
+  - baseTarget pulsazione 0.35→0.25, densità 0.45→0.35.
+  - Spatial amp ±0.32 → ±0.44 (tutti termini non-separabili dal v3.17):
+    il baseTarget è solo pavimento, la spatial fa i contrasti reali.
+- **`_DRIFT_AMP: 0.05 → 0.07`**: compromise tra crisp e anti-pattern.
+
+**Alternative scartate:**
+- **Ridurre globalmente force**: peggiora la presenza visiva delle note.
+- **Decay più aggressivo**: perderebbe la persistenza narrativa (SOLCO=terreno
+  eterno, TESSUTO=trama permanente).
+- **Abbassare l'ampiezza spatial RESPIRO sotto 0.32**: senza target alto
+  significherebbe membrana piatta → peggio.
+
+**Conseguenze:**
+- ✅ SOLCO: metà inferiore con colonne staccate e zone vuote — il groove dub
+  si legge.
+- ✅ TESSUTO: trama discontinua del drone + fasce bass staccate → telaio vero.
+- ✅ RESPIRO: membrana con zone sottili (vuoti) e zone dense — i pori delle
+  note bass/chord/voice/lead tornano leggibili contro un fondo non uniforme.
+- ⚠️ Possibile regressione: se i cap sono troppo aggressivi, il campo sembra
+  "scarno" in certe fasi. Calibrare live se serve alzare i cap (SOLCO bass
+  0.65→0.75, TESSUTO bass 0.55→0.65).
+- ⚠️ TESSUTO drone al 45% di probabilità: in ambiente molto rarefatto il
+  telaio potrebbe diventare troppo invisibile. Monitorare; alzare al 60% se serve.
+
+---
 <!-- knowledge-graph links -->
 [[STATUS]] [[01-ARCHITECTURE]] [[WORKLOG]]

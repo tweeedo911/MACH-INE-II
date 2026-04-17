@@ -17,7 +17,13 @@
       font-family: 'Courier New', Courier, monospace;
     }
 
-    canvas { display: block; }
+    canvas {
+      display: block;
+      /* v3.17: nearest-neighbor scaling — halftone Bayer resta crisp su retina/proiettore
+         invece di essere sfumato dal bilinear default del browser. */
+      image-rendering: pixelated;
+      image-rendering: crisp-edges; /* fallback per Safari/Firefox legacy */
+    }
 
     /* ── Start screen ── */
     #start {

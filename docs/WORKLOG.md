@@ -6,6 +6,122 @@
 
 ---
 
+## 2026-04-17 (sessione 27) — Clock/MIDI + worker zero-alloc + crispness + anti-tovaglia (v3.16.0 → v3.17.1)
+
+**Obiettivo:** indagare "rallentamenti e latenze strane tra clock MIDI e audio"
+riportati dall'utente dopo test live con hardware attaccato. Poi, stessa sessione,
+crispness pass dell'immagine per ridurre noise e sfocatura su retina/proiettore.
+
+**Diagnosi (Phase 1 systematic-debugging):**
+- **Asimmetria scheduling**: clock MIDI `0xF8` schedulato con lookahead 100ms
+  (hardware-timed via `midiOut.send([...], t)`), **note MIDI `0x90/0x80`
+  inviate immediate** da main thread. Se main saturo → note in ritardo mentre
+  clock resta stabile → desync percepibile tra griglia DAW e suono.
+- **Worker GC churn**: `midi-clock.worker.js` postava `{dt, now}` ogni 2ms
+  = ~30k oggetti/min → pressione GC major (già rilevato sessione 23 con
+  `[CLOCK LAG]` fino a 1.2s).
+- **Main thread saturation**: worker a 500Hz eseguiva tutta la music pipeline
+  (director3 + 5 moduli + updateMIDIClock) su main thread. Su set lungo,
+  messaggi si accumulano in coda → lag cumulativo.
+
+**Fatto:**
+- **[src/midi.js]** `NOTE_LOOKAHEAD_MS = 15` applicato a `sendMIDINote`,
+  `sendMIDICC`, `sendMIDIPitchBend`, `sendMIDIAllNotesOff`, `sendMIDIStart`,
+  `sendMIDIStop`. Clock (primo tick) e note ora partono con stesso offset.
+- **[src/midi-clock.worker.js]** riscritto: `TICK_MS=5` (era 2ms), postMessage
+  primitivo `performance.now()` (era `{dt, now}`), scheduling assoluto con
+  drift compensation.
+- **[src/main.js]** handler `midiWorker.onmessage` aggiornato: riceve primitivo,
+  calcola `dt` come delta tra tick consecutivi. Monitor `[CLOCK LAG]` ora
+  campiona ogni ~800 tick (~4s) invece di 2000.
+- **[src/midi.js]** Norns bridge → no-op. `sendNornsBiome/DroneStart/Stop`
+  restano esportate (compat director3) ma body vuoto. `_nornsSend`,
+  `_nornsConnect`, `_nornsBridge`, `_nornsLastNote`, hook CH2 in
+  sendMIDINote/CC — tutti rimossi. Elimina allocazione `{type,note,vel}`
+  per ogni nota CH2.
+- **[VERSION.js]** v3.15.1 → v3.16.0
+
+**Perf stimata:**
+- Worker postMessage: 500/s → 200/s (−60%)
+- Allocazioni worker→main: ~30k/min → 0
+- Hot path CH2: `{type:"note",note,vel}` allocato per ogni nota → 0
+- Main thread libera ~60% del tempo speso in music pipeline → frame budget
+  rendering più ampio (win video implicito senza toccare campo.js).
+
+**File toccati:**
+- Modificati: `src/midi.js`, `src/midi-clock.worker.js`, `src/main.js`, `src/VERSION.js`
+- Doc: `docs/DECISIONS.md` (#026), `docs/STATUS.md`, `docs/WORKLOG.md`
+
+**Decisioni prese:** #026 — Clock/MIDI sync: lookahead note + worker zero-alloc,
+#027 — Crispness pass (v3.17.0).
+
+### Aggiunta fine sessione — Crispness pass (v3.17.0)
+
+**Diagnosi:** utente ha chiesto di rendere più crisp l'immagine e togliere un po'
+di noise. Quattro fonti identificate:
+1. [index.html:20](../index.html#L20) + [projector.html:9](../projector.html#L9) — canvas CSS senza `image-rendering` → browser usa bilinear su upscale retina/proiettore, sfuma i bordi Bayer.
+2. [campo.js:84](../src/campo.js#L84) — `_DRIFT_AMP = 0.12` aggiungeva noise hash al threshold Bayer del ±12% per pixel/frame → "sfrigolio granuloso" percepibile.
+3. [campo.js:1121](../src/campo.js#L1121) — glyph char cycling ogni 16 frame (~267ms) → scintillio leggibile sui glifi.
+4. [campo.js:938](../src/campo.js#L938) — bloom soglia 0.45 → alone partiva troppo presto su densità medie.
+
+**Fatto:**
+- **[index.html, projector.html]** `image-rendering: pixelated; image-rendering: crisp-edges;` sul canvas. Nearest-neighbor scaling — halftone Bayer resta netto su retina/proiettore.
+- **[src/campo.js]** `_DRIFT_AMP = 0.12 → 0.05`. Il noise 2D è già non-separabile, il tartan è rotto anche con ampiezza bassa. Meno sfrigolio visibile.
+- **[src/campo.js]** glyph cycling `_renderFrame >> 4 → >> 6` (~267ms → ~1s). Glifi più stabili.
+- **[src/campo.js]** bloom threshold `0.45 → 0.55`. Alone voice/lead/kick solo su picchi veri, il campo denso medio resta asciutto.
+- **[VERSION.js]** v3.16.0 → v3.17.0
+
+**File toccati (crispness):**
+- Modificati: `index.html`, `projector.html`, `src/campo.js`, `src/VERSION.js`
+- Doc: `docs/DECISIONS.md` (#027), `docs/STATUS.md`, `docs/WORKLOG.md`
+
+**Scartato:** DPR-aware canvas (render fisico 3840×2160 su retina = 4× pixel/frame,
+sforerebbe il budget del main thread appena ricuperato con i fix clock). Il punto #1
+(CSS pixelated) dà il 90% del beneficio con 0 costo.
+
+### Seconda aggiunta fine sessione — Anti-tovaglia pass (v3.17.1)
+
+**Contesto:** utente invia 8 screenshot v3.17.0 (uno per bioma). MACCHINA, RITORNO,
+ENCORE ottimi. NEBBIA ha glifi in fasce orizzontali (sospetto sin(y) separabile).
+TEMPESTA manca palette viola (da verificare). SOLCO, TESSUTO, RESPIRO sono
+"wallpaper": campo uniforme che copre tutto lo schermo.
+
+**Diagnosi:** tre biomi con patologia analoga:
+- **SOLCO**: drone decay quasi eterno + bass 0.85 con echi multipli + chord pioggia → metà inferiore saturata a quadretti regolari (Bayer leggibile).
+- **TESSUTO**: drone deposita UNA RIGA INTERA ad ogni nota + bass width 50-80% → bass magenta inonda fascia bassa, drone diventa tessuto pieno invece di trama discontinua.
+- **RESPIRO**: baseTarget 0.50-0.65 ancora troppo alto (fix v3.17 insufficiente) → membrana piena copre i pori delle note. Spatial amp ±0.32 troppo debole per creare zone vuote sopra il pavimento.
+
+**Fatto:**
+- **[biomi.js SOLCO]** `maxDensity: { drone: 0.45, bass: 0.65, chord: 0.55 }` — density cap progressivo del campo.js crea automaticamente pause e zone vuote.
+- **[biomi.js TESSUTO]** drone deposita a 45% di probabilità per cella (era riga continua), bass width 50-80% → 25-50%, `maxDensity: { lead: 0.95, bass: 0.55, drone: 0.35 }`.
+- **[biomi.js RESPIRO]** baseTarget pulsazione 0.35→0.25, densità 0.45→0.35. Spatial amp portata a ±0.44 (tutti termini non-separabili già dal v3.17).
+- **[campo.js]** `_DRIFT_AMP` 0.05→0.07 (compromise: crisp ma con dither sufficiente).
+- **[VERSION.js]** v3.17.0 → v3.17.1.
+
+**File toccati (anti-tovaglia):** `src/biomi.js`, `src/campo.js`, `src/VERSION.js`.
+
+**Decisioni prese (sessione 27 totale):**
+- #026 — Clock/MIDI sync: lookahead note + worker zero-alloc (v3.16.0)
+- #027 — Crispness pass: nearest-neighbor + drift ridotto (v3.17.0)
+- #028 implicito — Anti-tovaglia: density cap + depositFn probabilistici (v3.17.1)
+
+**Prossimo:**
+- **Test live v3.17.1 con hardware attaccato**: verificare `[CLOCK LAG]`
+  sotto 20ms anche in MACCHINA/TEMPESTA/ENCORE e su set lungo (45+ min).
+  Se ancora starvation → spostare music pipeline nel worker.
+- Latenza fissa 15ms: chiedere al performer se è compensabile via monitor
+  o se serve calibrazione (es. track-delay negativo sul DAW).
+- **Verificare anti-tovaglia in SOLCO/TESSUTO/RESPIRO** con screenshot fresche
+  dopo il pass v3.17.1. Se ancora uniformi, secondo giro:
+  `maxDensity` più aggressive o depositFn più sparsi.
+- **NEBBIA glifi fasce orizzontali**: investigare se deriva da `sin(y)`
+  separabile nel drone oppure dal placement allineato dei glifi.
+- **TEMPESTA palette viola**: verificare se in fase germoglio/pulsazione
+  la palette emerge, oppure se c'è bug nelle phaseColors.
+- Se sync + visual OK → aprire PR v3.17.1.
+
+---
+
 ## 2026-04-16 (sessione 26) — Audit visivo: perf + RITORNO luminoso + stop pre-encore (v3.15.1)
 
 **Obiettivo:** Analisi profonda sistema visuale (3 agenti paralleli: perf campo, pipeline,

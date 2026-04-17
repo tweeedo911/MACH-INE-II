@@ -242,6 +242,13 @@ const SOLCO = {
     },
   },
 
+  // v3.17.1: density cap contro tovaglia — il suolo SOLCO riempiva tutta la metà inferiore
+  maxDensity: {
+    drone: 0.45,   // terreno: sedimenta sparso, non una coperta uniforme
+    bass:  0.65,   // colonne visibili ma con pause tra una e l'altra
+    chord: 0.55,   // pioggia e orizzonte leggibili, non saturi
+  },
+
   // glifi dub: echi verticali, punti cadenti — il fulmine ha una voce ASCII
   glyphs: {
     roles: ['voice', 'kick'],
@@ -471,6 +478,7 @@ const TESSUTO = {
 
     // Drone: fibre permanenti sparse su TUTTO il campo (non cluster)
     // RUPTURE: le fibre ondeggiano — Y varia lungo X con ampiezza crescente
+    // v3.17.1: deposit PROBABILISTICO (non una riga continua) — evita il telaio pieno
     drone(fields, particles, note127, vel127, h) {
       const ri = h.rupture.intensity;
       // Mappa la nota su tutto il canvas (5-95%) — il telaio copre tutto
@@ -479,7 +487,9 @@ const TESSUTO = {
       const waveAmp = ri * 4;  // 0 → ±4 celle di ondulazione
       const waveFreq = 0.08 + Math.random() * 0.06;
       const wavePhase = Math.random() * Math.PI * 2;
+      // Probabilità 45% per cella: fibra discontinua, trama vera (non riga compatta)
       for (let cx = 0; cx < h.CELLS_X; cx++) {
+        if (Math.random() > 0.45) continue;
         const cy = h.clamp(baseY + Math.round(Math.sin(cx * waveFreq + wavePhase) * waveAmp), 0, h.CELLS_Y - 1);
         h.depositPoint(fields.drone, cx, cy, 0.004);
       }
@@ -585,12 +595,13 @@ const TESSUTO = {
     },
 
     // Bass: fascia SOTTO il kick (Y 78-95%) — fondamenta in fondo
+    // v3.17.1: larghezza ridotta (era 50-80% → 25-50%) — evita la fascia magenta uniforme
     bass(fields, particles, note127, vel127, h) {
       const t = h.clamp((note127 - 26) / (45 - 26), 0, 1);
       const baseY = Math.floor(h.CELLS_Y * (0.78 + (1 - t) * 0.15));
       const cy = h.clamp(baseY + Math.floor((Math.random() - 0.5) * 6), Math.floor(h.CELLS_Y * 0.76), h.CELLS_Y - 2);
       const f = (vel127 / 127) * 0.60;
-      const width = Math.floor(h.CELLS_X * (0.50 + Math.random() * 0.30));
+      const width = Math.floor(h.CELLS_X * (0.25 + Math.random() * 0.25));
       const start = Math.floor(Math.random() * (h.CELLS_X - width));
       for (let cx = start; cx < start + width; cx++) {
         h.depositPoint(fields.bass, cx, cy, f);
@@ -604,9 +615,11 @@ const TESSUTO = {
   cellPx: {
     lead: 12,
   },
-  // lead senza cap — striscia densa e piena
+  // v3.17.1: density cap completo — bass/drone non devono saturare le rispettive fasce
   maxDensity: {
-    lead: 0.95,
+    lead:  0.95,   // striscia densa e piena (invariato)
+    bass:  0.55,   // fondamenta leggibili, non fascia magenta compatta
+    drone: 0.35,   // telaio visibile ma sottile, non tovaglia aubergine
   },
   // glifi tessuto: trame e orditi — le fibre parlano
   glyphs: {
@@ -669,12 +682,14 @@ const RESPIRO = {
     const phase = h.phase;
 
     // target base per fase — la membrana non è mai uniformemente piena
+    // v3.17.1: target ancora più bassi (v3.17 era ancora wallpaper) — la spatial
+    // ±0.44 ora fa zone chiare/scure vere, il baseTarget è solo un pavimento.
     let baseTarget;
-    if (phase === 'germoglio')         baseTarget = 0.25 + pp * 0.25;  // 0.25→0.50
-    else if (phase === 'pulsazione')   baseTarget = 0.50 + pp * 0.15;  // 0.50→0.65
-    else if (phase === 'densita')      baseTarget = 0.65;               // piena ma non uniforme
-    else if (phase === 'rottura')      baseTarget = 0.65 - pp * 0.30;  // 0.65→0.35 — la frattura apre pori
-    else /* dissoluzione */            baseTarget = 0.35 - pp * 0.20;  // 0.35→0.15
+    if (phase === 'germoglio')         baseTarget = 0.15 + pp * 0.15;  // 0.15→0.30
+    else if (phase === 'pulsazione')   baseTarget = 0.25 + pp * 0.10;  // 0.25→0.35
+    else if (phase === 'densita')      baseTarget = 0.35;               // piena con pori veri
+    else if (phase === 'rottura')      baseTarget = 0.35 - pp * 0.20;  // 0.35→0.15 — frattura apre
+    else /* dissoluzione */            baseTarget = 0.20 - pp * 0.12;  // 0.20→0.08
 
     const heal = (0.004 + energy * 0.003) * (1 - ri * 0.85);
     const n = h.CELLS_X * h.CELLS_Y;
@@ -684,13 +699,13 @@ const RESPIRO = {
       const cx = i % h.CELLS_X;
       const cy = (i / h.CELLS_X) | 0;
       const xN = cx / h.CELLS_X, yN = cy / h.CELLS_Y;
-      // variazione organica: 4 ottave con frequenze irrazionali + drift temporale
-      // ampiezza ±0.15 — zone sottili e zone dense ben visibili
+      // v3.17.1: ampiezza portata a ±0.44 (era ±0.32) per creare zone chiare/scure
+      // vere sopra il baseTarget ridotto. Tutti termini non-separabili (niente tartan).
       const spatial =
-          Math.sin(xN * 4.7 + t * 0.3) * 0.12          // onda larga H — più contrasto
-        + Math.sin(yN * 3.3 + t * 0.2) * 0.10          // onda larga V
-        + Math.sin(xN * 11.1 + yN * 7.9 + t) * 0.06    // diagonale media
-        + Math.sin(xN * 19.3 - yN * 13.7 - t * 0.7) * 0.04; // grana fine
+          Math.sin(xN * 4.7 + yN * 1.3 + t * 0.3) * 0.16   // onda larga obliqua — contrasto principale
+        + Math.sin(xN * 1.9 + yN * 3.3 - t * 0.2) * 0.14   // onda larga trasversale
+        + Math.sin(xN * 11.1 + yN * 7.9 + t) * 0.08        // diagonale media
+        + Math.sin(xN * 19.3 - yN * 13.7 - t * 0.7) * 0.06;// grana fine
       // audio modula l'ampiezza: più energia = più contrasto nella membrana
       const amp = 1 + energy * 0.5;
       const target = Math.max(0, Math.min(1, baseTarget + spatial * amp));

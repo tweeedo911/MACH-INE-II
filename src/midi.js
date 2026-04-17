@@ -37,45 +37,15 @@ let W = window.innerWidth;
 let midiOut = null;
 
 // ── Norns OSC bridge (WebSocket → norns-bridge.py → OSC) ──
-// Duplica eventi CH2 (drone) verso Norns Shield via bridge locale
-let _nornsBridge = null;
-let _nornsBridgeRetry = null;
-let _nornsLastNote = 48;  // ultima nota CH2 per baseNote nel pitchbend
+// DISATTIVATO: sessione 27, cleanup hot path. Il bridge allocava oggetti
+// { type, note, vel } per ogni nota CH2 → pressione GC in performance live.
+// Le funzioni export restano come no-op per compatibilità con director3.js.
+// Per riattivare: rimettere NORNS_ENABLED=true e chiamare _nornsConnect().
+const NORNS_ENABLED = false;
 
-function _nornsConnect() {
-  try {
-    _nornsBridge = new WebSocket('ws://localhost:9876');
-    _nornsBridge.onopen = () => console.log('[NORNS] bridge connesso');
-    _nornsBridge.onclose = () => {
-      _nornsBridge = null;
-      // riprova ogni 5s
-      if (!_nornsBridgeRetry) {
-        _nornsBridgeRetry = setTimeout(() => { _nornsBridgeRetry = null; _nornsConnect(); }, 5000);
-      }
-    };
-    _nornsBridge.onerror = () => {}; // onclose gestisce il retry
-  } catch(e) { /* bridge non disponibile, ignora */ }
-}
-// Norns bridge disattivato: non usato in performance attuale.
-// Per riattivare (live con Norns Shield + norns-bridge.py): togliere il commento.
-// Tutta l'infrastruttura (_nornsConnect, _nornsSend, sendNornsBiome/DroneStart/Stop,
-// hook in director3.js) resta intatta — basta questa riga per ripristinare.
-// _nornsConnect();
-
-function _nornsSend(msg) {
-  if (_nornsBridge && _nornsBridge.readyState === WebSocket.OPEN) {
-    _nornsBridge.send(JSON.stringify(msg));
-  }
-}
-
-// Notifica cambio bioma al Norns (chiamata da director3)
-export function sendNornsBiome(trackIndex) {
-  _nornsSend({ type: 'biome', index: trackIndex });
-}
-
-// Start/stop drone (chiamata da toggleDirector3)
-export function sendNornsDroneStart() { _nornsSend({ type: 'start' }); }
-export function sendNornsDroneStop()  { _nornsSend({ type: 'stop' }); }
+export function sendNornsBiome(_trackIndex) { /* no-op */ }
+export function sendNornsDroneStart() { /* no-op */ }
+export function sendNornsDroneStop()  { /* no-op */ }
 
 // ── MIDI Clock (24 ppqn sync for Ableton / DAWs) ──
 // Lookahead scheduling: pre-schedule ticks with hardware timestamps.
@@ -85,6 +55,10 @@ let midiClockRunning = false;
 let clockBpm = 120;
 let nextTickTime = 0;       // performance.now() of next scheduled tick
 const CLOCK_LOOKAHEAD = 100; // schedule ticks up to 100ms ahead — 2× margin against V8 major GC pauses (~50ms max)
+// Tutte le note/CC/PB partono con questo offset. Deve essere > del jitter tipico
+// del main thread (5-10ms) e < della soglia percettiva (~20ms).
+// Sessione 27: introdotto per eliminare il drift clock↔note con hw attaccato.
+const NOTE_LOOKAHEAD_MS = 15;
 
 // Keep canvas width in sync
 export function setCanvasWidth(width) {
@@ -187,47 +161,54 @@ export function updateMIDI() {
 // eliminando il drift del setTimeout sul main thread.
 export function sendMIDINote(ch, note, vel, durationMs = 200) {
   recordMIDI(ch, note, vel, durationMs);  // session recorder hook (no-op if not recording)
-  if (ch === 2) { _nornsLastNote = note; _nornsSend({ type: 'note', note, vel }); }  // drone → Norns
   if (!midiOut) return;
   const chByte = ch & 0x0F;
   const safeNote = Math.max(0, Math.min(127, note | 0));
   const safeVel = Math.max(0, Math.min(127, vel | 0));
-  midiOut.send([0x90 | chByte, safeNote, safeVel]);
-  midiOut.send([0x80 | chByte, safeNote, 0], performance.now() + durationMs);
+  // Lookahead scheduling: tutte le note viaggiano con lo stesso buffer del clock.
+  // Assorbe jitter del main thread (fino a NOTE_LOOKAHEAD_MS) senza drift tra
+  // clock MIDI (hardware-timed) e note. Sessione 27.
+  const t = performance.now() + NOTE_LOOKAHEAD_MS;
+  midiOut.send([0x90 | chByte, safeNote, safeVel], t);
+  midiOut.send([0x80 | chByte, safeNote, 0], t + durationMs);
 }
 
 export function sendMIDIAllNotesOff() {
   if (!midiOut) return;
-  for (let c = 0; c < 8; c++) midiOut.send([0xB0 | c, 123, 0]);
+  // Lookahead coerente: arriva dopo eventuali note schedulate +15ms
+  const t = performance.now() + NOTE_LOOKAHEAD_MS;
+  for (let c = 0; c < 8; c++) midiOut.send([0xB0 | c, 123, 0], t);
 }
 
 export function sendMIDICC(ch, cc, value) {
-  if (ch === 2) _nornsSend({ type: 'cc', cc, value });  // drone CC → Norns
   if (!midiOut) return;
-  midiOut.send([0xB0 | (ch & 0x0F), cc & 0x7F, value & 0x7F]);
+  // Stesso lookahead del note-on per coerenza CC↔note (es. CC123 All Notes Off)
+  midiOut.send([0xB0 | (ch & 0x0F), cc & 0x7F, value & 0x7F], performance.now() + NOTE_LOOKAHEAD_MS);
 }
 
 // 14-bit pitch bend. value14bit: 0..16383, center = 8192 (no bend).
 // Standard pitch bend range = ±2 semitones, so ±15 cents ≈ ±614 from center.
 export function sendMIDIPitchBend(ch, value14bit) {
-  // CH2 pitchbend NON va al Norns — il drone ha il suo drift LFO interno (evita doppio drift)
   if (!midiOut) return;
   const v = Math.max(0, Math.min(16383, value14bit | 0));
-  midiOut.send([0xE0 | (ch & 0x0F), v & 0x7F, (v >> 7) & 0x7F]);
+  midiOut.send([0xE0 | (ch & 0x0F), v & 0x7F, (v >> 7) & 0x7F], performance.now() + NOTE_LOOKAHEAD_MS);
 }
 
 // ── MIDI Clock Output (24 ppqn) ──
 export function sendMIDIStart() {
   if (!midiOut) return;
-  midiOut.send([0xFA]); // MIDI Start
-  nextTickTime = performance.now();
+  // Allinea l'origine tempo del clock al lookahead delle note: così Start,
+  // primo tick e prime note partono tutti coerenti dopo NOTE_LOOKAHEAD_MS.
+  const t = performance.now() + NOTE_LOOKAHEAD_MS;
+  midiOut.send([0xFA], t); // MIDI Start
+  nextTickTime = t;
   midiClockRunning = true;
   console.log('[MIDI CLOCK] START');
 }
 
 export function sendMIDIStop() {
   if (!midiOut) return;
-  midiOut.send([0xFC]); // MIDI Stop
+  midiOut.send([0xFC], performance.now() + NOTE_LOOKAHEAD_MS); // MIDI Stop
   midiClockRunning = false;
   console.log('[MIDI CLOCK] STOP');
 }
