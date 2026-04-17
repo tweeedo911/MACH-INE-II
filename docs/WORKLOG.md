@@ -6,6 +6,55 @@
 
 ---
 
+## 2026-04-18 (sessione 27-bis) — Soundcheck loop autonomo (v3.17.2)
+
+**Obiettivo:** creare una traccia di test per il soundcheck pre-live che
+suoni tutti i canali insieme in loop, con visual test e reset pulito.
+
+**Fatto:**
+- **[src/soundcheck.js]** nuovo modulo ~250 LOC, loop autonomo (sequencer
+  interno + clock condiviso col worker MIDI) di 8 bar in D dorian 90 BPM.
+  Drum kit GM completo su CH1 distribuito in 8 bar:
+  - bar 0 normal (ride 2-4), bar 1 soft (ghost+open hat+side stick),
+    bar 2 loud (clap+tom fill), bar 3 medium (crash+ghost+open hat)
+  - bar 4 cymbals sampler (ride/ride bell/china/splash/crash2)
+  - bar 5 latin (bongos H/L, congas 3x, timbales H/L, maracas 16th)
+  - bar 6 woody (wood block H/L, claves 4/4)
+  - bar 7 break+tambourine 8th+cowbell offbeat+pedal hat+tom fill
+  Velocity cycle per bar: normal/soft/loud/medium × 2 → dynamic reference.
+- **[src/biomi.js]** bioma SOUNDCHECK: 8 colonne verticali colorate
+  (bianco/grigio/blu/giallo/verde/ambra/ciano/magenta) level-meter per
+  canale, barre alte almeno 70% (sqrt gamma), punta luminosa. `audioReact`
+  pulsa la base di ogni colonna quando arriva audio dal BlackHole (test
+  routing audio browser).
+- **[src/main.js]** import soundcheck + hotkey `T` (esclusivo con director:
+  pausa il director se in play, AllNotesOff per pulire note lookahead
+  pending, short-circuit nel worker handler). Stop con T ripremuto →
+  reset completo a NEBBIA inizio (clearCampo + setBiome NEBBIA +
+  initDirector3 NEBBIA + initCamera) → stato identico al boot.
+- **[machine-launch.command]** banner aggiornato con tasto T.
+- **[VERSION.js]** v3.17.1 → v3.17.2
+
+**File toccati:**
+- Nuovi: `src/soundcheck.js`
+- Modificati: `src/biomi.js` (+bioma SOUNDCHECK ~70 LOC), `src/main.js`
+  (+hotkey T + hook worker), `src/VERSION.js`, `machine-launch.command`
+- Doc: `docs/DECISIONS.md` (#029), `docs/STATUS.md`, `docs/WORKLOG.md`
+
+**Port su v3.18-experimental:** stessa feature committata su
+`v3.18-experimental` (commit `dc31ef7`, `7032127`, `9d77da5`, `71d66fe`)
+con bump versione → `v3.18.0-rc2-exp`.
+
+**Decisioni prese:** #029 — Soundcheck loop autonomo
+
+**Prossimo:**
+- Test live v3.17.2: verificare soundcheck → tutti i canali suonano,
+  barre pulsano con audio, reset T→T funziona pulito.
+- Test live v3.18-experimental con soundcheck: utente deciderà se v3.18
+  diventa definitiva (merge su machine-iii) o resta branch preview.
+
+---
+
 ## 2026-04-17 (sessione 27) — Clock/MIDI + worker zero-alloc + crispness + anti-tovaglia (v3.16.0 → v3.17.1)
 
 **Obiettivo:** indagare "rallentamenti e latenze strane tra clock MIDI e audio"

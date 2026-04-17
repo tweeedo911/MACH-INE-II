@@ -62,6 +62,9 @@ const updateMelody = (...a) => {
 // ── Session recorder ──
 import { initRecorder, startRecording, stopRecording, isRecording, recordSnapshot, recordPhaseCheck, downloadSession, captureScreenshotNow } from './session-recorder.js';
 
+// ── Soundcheck loop (test livelli/suoni) ──
+import { toggleSoundcheck, updateSoundcheck, isSoundcheckActive, stopSoundcheck } from './soundcheck.js';
+
 // ── DOM refs ──
 const canvas = document.getElementById('c');
 const startScreen = document.getElementById('start');
@@ -177,6 +180,17 @@ document.addEventListener('keydown', (e) => {
     return;
   }
 
+  // ── SOUNDCHECK toggle (T key) — loop 4 bar D dorian 90 BPM, tutti gli 8 canali ──
+  if (e.code === 'KeyT' && !e.shiftKey) {
+    e.preventDefault();
+    // Se il director è in play, mettilo in pausa prima di avviare il loop (evita overlap)
+    if (!isSoundcheckActive() && isDirector3Playing()) toggleDirector3();
+    // Start MIDI clock se non già partito
+    if (!_clockStarted) { sendMIDIStart(); startMidiClock(); _clockStarted = true; }
+    toggleSoundcheck();
+    return;
+  }
+
   // ── ENCORE scale switch (Q/W/R) — only during encore ──
   if (worldState.encoreMode) {
     if (e.code === 'KeyQ') { switchEncoreScale('halfWhole'); return; }
@@ -285,6 +299,14 @@ midiWorker.onmessage = ({ data: workerNow }) => {
     }
 
     if (dt === 0) return;  // primo tick, skip update
+
+    // Soundcheck loop: autonomo, scrive MIDI direttamente.
+    // Quando attivo blocca il director (il tasto T è un toggle esclusivo).
+    if (isSoundcheckActive()) {
+      updateSoundcheck(dt);
+      updateMIDIClock(worldState.bpm || 90);
+      return;
+    }
 
     // Director reads clock → updates worldState
     updateDirector3(dt);

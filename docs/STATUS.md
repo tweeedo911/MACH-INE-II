@@ -1,11 +1,11 @@
 # STATUS — MACH:INE III
 
 > Snapshot vivo. Rigenerato a fine sessione. Punto di entrata di ogni nuova sessione.
-> **Last updated:** 2026-04-17 (sessione 27: clock/MIDI sync + worker zero-alloc + crispness pass + anti-tovaglia)
+> **Last updated:** 2026-04-18 (sessione 27-bis: soundcheck loop con drum kit GM + audioReact + reset a NEBBIA)
 
 ## Versione
 
-**v3.17.1** — single source: `src/VERSION.js` (`APP_VERSION`)
+**v3.17.2** — single source: `src/VERSION.js` (`APP_VERSION`)
 
 Tag git: `v3.4.2` su `ccbbb13` (ultimo tag stabile).
 Branch attivo: `machine-iii`.
@@ -200,6 +200,7 @@ Pass post-Bayer: `fillText` sparse su celle ad alta densità. Configurabile per 
 | **v3.16.0 — Norns bridge no-op** | elimina `{type,note,vel}` alloc per nota CH2 + check WebSocket |
 | **v3.17.0 — Crispness pass**: CSS `image-rendering: pixelated` (index+projector), `_DRIFT_AMP` 0.12→0.05, glyph cycling 16f→64f, bloom thresh 0.45→0.55 | halftone Bayer netto su retina/proiettore, meno sfrigolio granuloso, glifi più stabili, alone solo su picchi |
 | **v3.17.1 — Anti-tovaglia**: SOLCO `maxDensity` drone/bass/chord, TESSUTO drone probabilistico 45% + bass width 25-50% + maxDensity, RESPIRO baseTarget ancora più basso + spatial ±0.44 non-separabile, `_DRIFT_AMP` 0.05→0.07 | SOLCO/TESSUTO/RESPIRO smettono di essere "wallpaper uniforme", campo respira con vuoti reali |
+| **v3.17.2 — Soundcheck loop**: nuovo modulo `src/soundcheck.js` + bioma SOUNDCHECK (8 colonne level-meter colorate, audioReact con pulse alla base), hotkey `T` toggle, loop 8 bar D dorian 90 BPM, drum kit GM completo su CH1, velocity cycle per test dinamico | tasto T per test livelli/suoni in soundcheck. Stop → reset completo a NEBBIA |
 
 ## Clock/MIDI sync (v3.16.0)
 
