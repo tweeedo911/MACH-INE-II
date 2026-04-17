@@ -6,6 +6,46 @@
 
 ---
 
+## 2026-04-18 (sessione 28-bis) — Soundcheck loop ported (v3.18.0-rc2-exp)
+
+**Obiettivo:** portare sul branch experimental il soundcheck loop sviluppato
+sul branch stabile (v3.17.2), mantenendo i due branch allineati sulla feature
+prima del test live che deciderà se v3.18 diventa definitiva.
+
+**Fatto:**
+- **4 commit su `v3.18-experimental`**:
+  - `dc31ef7` feat(soundcheck): scaffold base 4-bar
+  - `7032127` feat(soundcheck): loop 4-bar vario + percussioni GM + barre più alte
+  - `9d77da5` feat(soundcheck): loop 8 bar + drum kit GM completo + audioReact
+  - `71d66fe` feat(soundcheck): stop resetta a NEBBIA inizio
+- **[src/soundcheck.js]** nuovo — loop 8 bar D dorian 90 BPM, sequencer
+  interno + clock worker condiviso, drum kit GM su CH1 distribuito per bar
+  (normal/soft/loud/medium + cymbals/latin/woody/break).
+- **[src/biomi.js]** bioma SOUNDCHECK: 8 colonne level-meter con audioReact
+  (pulse base quando arriva energy dal BlackHole).
+- **[src/main.js]** import + hotkey `T` + hook worker handler con short-circuit.
+  Stop `T` ripremuto → reset completo a NEBBIA inizio (clearCampo +
+  setBiome + initDirector3 + initCamera).
+- **[VERSION.js]** v3.18.0-rc1-exp → v3.18.0-rc2-exp.
+
+**Nessun conflitto** con i fix della sessione 28 (Opus 4.7 audit). Soundcheck
+è feature indipendente: non tocca director3/rhythm/bass/melody/harmony/texture,
+non tocca camera né rupture. Compatibile con pre-suite, panic Shift+Z,
+octave transpose frecce, density ±.
+
+**Decisioni prese:** #029 — Soundcheck loop autonomo (stesso rationale del
+branch stabile, vedi DECISIONS.md).
+
+**Prossimo:**
+- **TEST LIVE V3.18-EXPERIMENTAL** — l'utente farà il test live completo
+  per decidere se v3.18 va mergiata su `machine-iii` (diventa stabile)
+  o tenuta come branch preview. Il soundcheck è il primo passo del test
+  (verifica routing audio, volumi, visual).
+- Se v3.18 PASSA: merge a `machine-iii`, bump a `v3.18.0`, tag `v3.18.0-stable`.
+- Se v3.18 FAIL: `git worktree remove` + branch preservato come archivio.
+
+---
+
 ## 2026-04-17 (sessione 28) — Audit Opus 4.7 + fix multi-agent 4 cluster (v3.17.1 → v3.18.0-rc1-exp)
 
 **Obiettivo:** audit completo e onesto del progetto dal punto di vista di Opus 4.7.

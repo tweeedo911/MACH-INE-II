@@ -927,5 +927,54 @@ mandato perf dentro ogni cluster) → Wave 1.5 perf trasversale → Wave 2 C dra
   convivenza pacifica finché sono su branch diversi
 
 ---
+
+## #029 — Soundcheck loop autonomo (v3.18.0-rc2-exp)
+
+**Data:** 2026-04-18 (sessione 28-bis)
+**Contesto:** Il performer ha bisogno di un loop di test per il soundcheck
+pre-live che suoni tutti i canali MIDI insieme in modo piacevole e
+prevedibile, con visual test del routing audio e reset pulito. La suite
+director3 non è adatta (arco narrativo, canali che entrano/escono).
+
+Il modulo è stato sviluppato prima sul branch stabile `machine-iii`
+(v3.17.2) e poi portato qui per mantenere allineate le due versioni
+prima del GATE 3 live test.
+
+**Scelta:**
+- **Modulo autonomo `src/soundcheck.js`**: sequencer interno (pattern
+  hardcoded) + clock condiviso col worker MIDI (single source of truth
+  — evita drift col MIDI Clock 0xF8 verso DAW). Scrive direttamente via
+  `sendMIDINote + addMidiNote`.
+- **Loop 8 bar D dorian 90 BPM** (~21.3s), tutti gli 8 canali insieme.
+  Progressione Dm-G-Am-F-Dm-C-G-A con melodie/arpeggi variati.
+- **Velocity cycle per bar**: normal/soft/loud/medium × 2 → reference
+  dinamico per il mixer.
+- **Drum kit GM completo su CH1** distribuito nei 8 bar (base + cymbals
+  sampler + latin + woody + break+tambourine/cowbell).
+- **Bioma SOUNDCHECK**: 8 colonne level-meter colorate (una per canale),
+  `audioReact` pulsa la base con energy → test diretto del routing audio.
+- **Hotkey `T`** toggle esclusivo col director. Stop ripremuto →
+  reset completo a NEBBIA inizio (stato boot).
+
+**Compatibilità con i fix sessione 28:** soundcheck NON tocca
+director3/moduli/camera/rupture/dramaturgy. Convive con pre-suite
+(`?presuite`), panic (`Shift+Z`), octave transpose (frecce), density
+(`↑/↓`), mute (`M/N`), skipPhase (`,/.`), ritorno variant (`1/2/3`).
+
+**Alternative scartate:**
+- Traccia SOUNDCHECK fake nel director: eredita arco narrativo.
+- Clock separato: drift col MIDI Clock emesso al DAW.
+- Random generator: manca prevedibilità utile al tecnico.
+
+**Conseguenze:**
+- ✅ Tecnico soundcheck ha un loop piacevole e prevedibile per tutti
+  gli 8 canali.
+- ✅ Visual test (pulse colonne) diagnostica routing audio in 2 secondi.
+- ✅ Reset T→T garantisce stato boot → no residui dopo il soundcheck.
+- ⚠️ Latenza 15ms del `NOTE_LOOKAHEAD_MS` si applica anche al loop.
+- ⚠️ Se il synth CH1 non è GM, le percussioni producono suoni arbitrari
+  (ma il test di routing resta valido).
+
+---
 <!-- knowledge-graph links -->
 [[STATUS]] [[01-ARCHITECTURE]] [[WORKLOG]]
