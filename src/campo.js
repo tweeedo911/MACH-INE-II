@@ -1261,8 +1261,10 @@ export function renderCampo(ctx, W, H) {
         const cpx = (_bioma.cellPx && _bioma.cellPx[role])
                   ?? defaultRoleCpx[role]
                   ?? _cellPx;
-        const fontSize = Math.max(8, cpx);
-        _offCtx.font = `${fontSize}px 'Courier New',monospace`;
+        // Font oversized 1.5× (offscreen è a bassa res, upscale pixelated sfuocava
+        // glyph rasterizzati alla dimensione nativa cella). Più pixel di sorgente = meno blur.
+        const fontSize = Math.max(12, Math.round(cpx * 1.5));
+        _offCtx.font = `bold ${fontSize}px 'Courier New',monospace`;
         _offCtx.textAlign = 'center';
         _offCtx.textBaseline = 'middle';
         // fillStyle settato 1× per ruolo, alpha modulata via globalAlpha

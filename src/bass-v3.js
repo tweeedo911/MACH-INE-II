@@ -381,9 +381,9 @@ function _tick() {
     if (worldState?.rupture?.stage === 'takeover') durMul *= 0.7;
     const dur = Math.round(stepMs * durMul);
 
-    // Timing humanize per-traccia (cap 4ms per non rompere il groove)
-    const tms = Math.min(track?.humanize?.timing ?? 0, 4);
-    _sendWithJitter(3, note, vel, dur, note / 127, vel / 127, tms);
+    // Bass sempre in griglia: il basso tiene il tempo, timing jitter disattivato
+    // (velocity humanize resta attiva via track?.humanize?.velocity)
+    _sendWithJitter(3, note, vel, dur, note / 127, vel / 127, 0);
     _lastNote = _step;
 
   // Ghost fill phase-aware: zero in germoglio (il basso è solo, deve essere pulito),
