@@ -14,8 +14,19 @@ import { clearAllLayers } from './layers.js';
 import { snapPalette } from './colors.js';
 import { WakeLockManager } from './wake-lock.js';
 // V3.9: palette unificata — import setPaletteMode/getPaletteMode rimosso
-import { setBiome } from './campo.js';
+import { setBiome, clearAll as clearCampo } from './campo.js';
 import { initCamera, updateCamera } from './camera.js';
+import { SeededRNG } from './perf-utils.js';
+
+// D5: ?seed=N URL param → window._seededRNG (opt-in, no Math.random monkey-patch).
+// Future modules can check `if (window._seededRNG) …` to use deterministic RNG.
+const _seedParam = new URLSearchParams(location.search).get('seed');
+if (_seedParam !== null) {
+  const parsed = parseInt(_seedParam, 10);
+  const seed = isNaN(parsed) ? Date.now() : parsed;
+  window._seededRNG = new SeededRNG(seed);
+  console.log(`[SEED] Using seeded RNG with seed=${seed}`);
+}
 
 // ── MACH:INE III modules ──
 import { worldState } from './world-state.js';
@@ -310,6 +321,16 @@ function startMidiClock() {
 // ── Main loop — solo render + audio + stato ──
 function loop(now) {
   if (!running) return;
+
+  // D2: tab-hidden guard. When the tab is in the background, browsers already
+  // throttle rAF to ~1Hz — but skipping updateAudio/MIDI/render is more explicit
+  // and avoids wasteful partial-frame work. Re-schedule so we pick up when the
+  // tab regains focus (rAF keeps firing occasionally even while hidden).
+  if (document.hidden) {
+    if (running) requestAnimationFrame(loop);
+    return;
+  }
+
   requestAnimationFrame(loop);
 
   const dt = lastTime ? Math.min((now - lastTime) / 1000, 0.05) : 0.016;
@@ -321,3 +342,80 @@ function loop(now) {
   updateCamera(dt);
   renderFrame(now, dt);
 }
+
+// ── D2: AudioContext auto-resume on focus / visibility change ──
+// Chrome suspends AudioContexts when the tab stays hidden long enough; without
+// this the whole suite is silent when the user returns.
+window.addEventListener('focus', () => {
+  if (window.audioCtx && window.audioCtx.state === 'suspended') {
+    window.audioCtx.resume().then(() => console.log('[AUDIO] resumed on focus'))
+                            .catch(() => {});
+  }
+});
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && running && window.audioCtx && window.audioCtx.state === 'suspended') {
+    window.audioCtx.resume().catch(() => {});
+  }
+});
+
+// ── D3-HUD: banner warnings (bottom-right) driven by midi/audio events ──
+// The #hud-warnings div is declared in index.html so it always exists by the
+// time these listeners run (we never dispatch before boot, but we guard anyway).
+const _hudState = { midi: false, audio: false };
+function _updateHud() {
+  const el = document.getElementById('hud-warnings');
+  if (!el) return;
+  const msgs = [];
+  if (_hudState.midi)  msgs.push('MIDI: no output');
+  if (_hudState.audio) msgs.push('AUDIO: off');
+  if (msgs.length === 0) {
+    el.textContent = '';
+    el.style.display = 'none';
+  } else {
+    el.textContent = msgs.join(' | ');
+    el.style.display = 'block';
+    el.style.color = '#f80';
+  }
+}
+window.addEventListener('midi-unavailable',  () => { _hudState.midi  = true;  _updateHud(); });
+window.addEventListener('midi-available',    () => { _hudState.midi  = false; _updateHud(); });
+window.addEventListener('audio-unavailable', () => { _hudState.audio = true;  _updateHud(); });
+window.addEventListener('audio-available',   () => { _hudState.audio = false; _updateHud(); });
+
+// ── D4: Shift+Z panic / nuclear reset ──
+// All-notes-off on every channel, clear visual field, zero all density counters,
+// flash HUD banner. Everything wrapped in try/catch so a single broken subsystem
+// can't prevent the rest of the reset.
+document.addEventListener('keydown', (e) => {
+  if (!running) return;
+  if (e.code !== 'KeyZ' || !e.shiftKey) return;
+  e.preventDefault();
+  console.log('[PANIC] Nuclear reset triggered');
+  try {
+    // sendMIDIAllNotesOff() already broadcasts CC123 on all channels internally.
+    try { sendMIDIAllNotesOff(); } catch (_) {}
+    try { if (typeof clearCampo === 'function') clearCampo(); } catch (_) {}
+    try {
+      if (worldState && worldState.density) {
+        for (const k in worldState.density) worldState.density[k] = 0;
+      }
+    } catch (_) {}
+    const hud = document.getElementById('hud-warnings');
+    if (hud) {
+      const prevText = hud.textContent;
+      const prevColor = hud.style.color;
+      const prevDisplay = hud.style.display;
+      hud.textContent = 'PANIC RESET';
+      hud.style.color = '#f00';
+      hud.style.display = 'block';
+      setTimeout(() => {
+        hud.textContent = prevText;
+        hud.style.color = prevColor || '#f80';
+        hud.style.display = prevDisplay || (prevText ? 'block' : 'none');
+        _updateHud();  // re-derive from state in case it changed during flash
+      }, CFG.RUNTIME_PANIC_HUD_MS || 2000);
+    }
+  } catch (err) {
+    console.error('[PANIC] partial reset:', err);
+  }
+});

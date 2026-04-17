@@ -198,6 +198,9 @@
   <span style="opacity:0.5;font-size:9px">ABILITA IL MICROFONO NEL BROWSER E RIPROVA</span>
 </div>
 
+<!-- D3: HUD warnings banner (bottom-right, populated by main.js listeners) -->
+<div id="hud-warnings" style="position:fixed;bottom:8px;right:8px;font:11px monospace;color:#f80;pointer-events:none;z-index:9999;background:rgba(0,0,0,0.5);padding:2px 6px;border-radius:2px;display:none;"></div>
+
 <script type="module" src="src/main.js"></script>
 <script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');</script>
 
