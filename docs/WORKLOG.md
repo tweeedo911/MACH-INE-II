@@ -6,6 +6,88 @@
 
 ---
 
+## 2026-04-17 (sessione 28) — Audit Opus 4.7 + fix multi-agent 4 cluster (v3.17.1 → v3.18.0-rc1-exp)
+
+**Obiettivo:** audit completo e onesto del progetto dal punto di vista di Opus 4.7.
+Trovare buchi/implementazioni/miglioramenti per rendere la performance davvero
+"indimenticabile" come obiettivo dichiarato. Poi piano multi-agent per fixare
+tutto, su branch sperimentale isolato per non rischiare.
+
+**Diagnosi (via 4 agenti critici paralleli):**
+1. **Musicale** — rupture.stage calcolato ma MAI LETTO dai 5 moduli (metadata morta);
+   cicli armonici prevedibili; humanize `±6` fisso; no SeededRNG; ENCORE senza inversione.
+2. **Visuale** — 7 biomi neutralizzati dal Bayer uniforme; rupture visivamente assente;
+   geologia RITORNO snapshotta solo ultima traccia (promessa cumulativa tradita);
+   glyph layer come "pannolino".
+3. **Runtime** — `noteTimestamps` memory creep (270K entry/45min); tab-background
+   note orfane; MIDI/audio fail silent; no panic reset.
+4. **Drammaturgia** — performer invisibile come compositore; stessa scaletta
+   deterministica ogni volta; il pubblico "capisce il sistema" prima del climax.
+
+**Piano eseguito (branch v3.18-experimental isolato in `/app-experimental/`):**
+- **Wave 0:** tag `v3.17.1-stable`, branch + worktree experimental, VERSION bump,
+  DECISIONS #028.
+- **Wave 1A/B/D in parallelo** (3 agenti coder):
+  - A musica: rupture.stage cablata in 4 moduli, humanize per-traccia 7 valori
+  - B visuale: `_geoMemory` Float32Array + RGB per geologia cumulativa;
+    linguaggi radicali MACCHINA/NEBBIA/TEMPESTA; rupture omen inversione α=0.2
+  - D runtime: ring buffer noteTimestamps (8192) + onsetTimestamps (256);
+    document.hidden guard + AudioContext resume; HUD warnings; Shift+Z panic;
+    `?seed=` URL param + SeededRNG; AllNotesOff lookahead 50ms
+- **Wave 1.5E** (perf-analyzer): audit trasversale — zero regressioni > 0.3ms/frame.
+  Ma rilevato bug critico: flag B2/B3 dichiarati ma mai usati nel render loop.
+- **Wave 1B-bis** (coder): cablaggio flag B2/B3 nel render pixel loop
+  (MACCHINA grid / TEMPESTA vector / NEBBIA voice radial / omen lerp integer).
+- **Wave 2C** (coder): drammaturgia:
+  - Nodo ternario post-TEMPESTA (tasti 1/2/3: default / phrygianHold / silenceThenAeolian 90s)
+  - Pre-suite 90s (`?presuite` URL o Shift+0)
+  - Hotkey performer: ←→ octave ±12, ↑↓ density ±10%, M melody mute 8bar, N bass mute 8bar
+  - Sub drone tattile NEBBIA/TESSUTO (ottava -2)
+  - skipPhase rimappato da ArrowKeys a `,`/`.` (**breaking change**)
+- **Wave 3R** (reviewer): audit finale — verdetto **GO-with-caveats**.
+  Zero bloccanti. 5 warning non critici. `docs/V3.18-AUDIT.md` creato.
+
+**Fatto (7 commit sopra baseline v3.17.1-stable):**
+
+| Commit | Wave | Descrizione |
+|---|---|---|
+| `a156342` | 1A | rupture wiring + humanize per-traccia |
+| `361e747` | 1B | geologia cumulativa + flag biomi + omen |
+| `5040125` | 1B-bis | cablaggio flag B2/B3 nel render loop |
+| `0164c32` | 1D.1 | ring buffer noteTimestamps + SeededRNG + PANIC lookahead |
+| `8ebd33f` | 1D.2 | tab-hidden + HUD + panic Shift+Z + seed URL + audio ring |
+| `ed71a7f` | 2C | nodo ternario + hotkey performer + pre-suite + sub tactile |
+| `22b06c1` | 3R | audit review + V3.18-AUDIT.md |
+
+**Totale:** +1001/-113 righe, 16 file toccati.
+
+**File toccati:**
+- `src/VERSION.js` (v3.18.0-rc1-exp)
+- `src/bass-v3.js`, `src/melody-v3.js`, `src/harmony.js`, `src/rhythm.js`, `src/tracks.js`
+- `src/campo.js`, `src/director3.js`, `src/world-state.js`
+- `src/main.js`, `src/midi.js`, `src/audio.js`, `src/perf-utils.js` (nuovo), `src/config.js`
+- `index.html` (HUD div)
+- `docs/DECISIONS.md` (#028), `docs/STATUS.md`, `docs/V3.18-AUDIT.md` (nuovo)
+
+**Decisioni prese:** #028 — Ramificazione v3.18-experimental per fix audit Opus 4.7.
+
+**Prossimo:** test live A/B v3.17.1-stable vs v3.18.0-rc1-exp. Dopo 1-2 test
+decidere GATE 3: merge su `machine-iii` / mantenere experimental separato /
+rollback. Vedi STATUS.md P0-P2.
+
+**Rollback garantito:** `git worktree remove ../app-experimental --force` +
+`git branch -D v3.18-experimental`. Tag `v3.17.1-stable` immutabile.
+
+**Lessons learned:**
+- Agenti coder paralleli su file disgiunti → funziona bene, evita conflitti git
+- Timeout agenti (stream idle) è frequente per prompt lunghi → committare io
+  il lavoro parziale + rilanciare agente più focalizzato
+- Perf-analyzer è essenziale post-wave: ha scoperto che B2/B3 erano stub senza
+  cablaggio, risparmiando un bug live potenzialmente silenzioso
+- Reviewer finale + V3.18-AUDIT.md persistente → traccia decisione per futuri
+
+---
+
 ## 2026-04-17 (sessione 27) — Clock/MIDI + worker zero-alloc + crispness + anti-tovaglia (v3.16.0 → v3.17.1)
 
 **Obiettivo:** indagare "rallentamenti e latenze strane tra clock MIDI e audio"
