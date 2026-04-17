@@ -19,10 +19,8 @@
 
     canvas {
       display: block;
-      /* v3.17: nearest-neighbor scaling — halftone Bayer resta crisp su retina/proiettore
-         invece di essere sfumato dal bilinear default del browser. */
       image-rendering: pixelated;
-      image-rendering: crisp-edges; /* fallback per Safari/Firefox legacy */
+      image-rendering: crisp-edges;
     }
 
     /* ── Start screen ── */
@@ -41,6 +39,12 @@
       color: #fff;
       margin-bottom: 48px;
     }
+    #start .ver {
+      font-size: 9px;
+      letter-spacing: 0.3em;
+      color: rgba(255,255,255,0.35);
+      margin-bottom: 16px;
+    }
     #start p {
       font-size: 10px;
       letter-spacing: 0.4em;
@@ -49,19 +53,112 @@
     }
     #start:hover p { color: rgba(255,255,255,0.7); }
 
-    /* ── HUD minimal ── */
-    #hud-minimal {
+    /* ── NAVIGATOR — dove sei (bottom-right, sempre visibile) ── */
+    #navigator {
+      display: none;
+      position: fixed;
+      bottom: 16px; right: 16px;
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      color: rgba(255,255,255,0.82);
+      background: rgba(0,0,0,0.7);
+      padding: 10px 14px;
+      border-radius: 3px;
+      border-left: 2px solid rgba(255,255,255,0.25);
+      pointer-events: none;
+      min-width: 240px;
+      line-height: 1.55;
+    }
+    #navigator .nv-track {
+      font-size: 15px;
+      letter-spacing: 0.22em;
+      color: #fff;
+      margin-bottom: 2px;
+    }
+    #navigator .nv-sub {
+      font-size: 10px;
+      color: rgba(255,255,255,0.55);
+      letter-spacing: 0.15em;
+      margin-bottom: 6px;
+    }
+    #navigator .nv-bar {
+      width: 100%;
+      height: 3px;
+      background: rgba(255,255,255,0.12);
+      margin: 4px 0 2px 0;
+    }
+    #navigator .nv-bar-fill {
+      height: 100%;
+      background: rgba(255,255,255,0.7);
+      width: 0%;
+    }
+    #navigator .nv-meta {
+      font-size: 10px;
+      color: rgba(255,255,255,0.55);
+      letter-spacing: 0.1em;
+    }
+    #navigator .nv-map {
+      font-size: 14px;
+      letter-spacing: 0.4em;
+      margin: 6px 0 2px 0;
+      color: rgba(255,255,255,0.35);
+    }
+    #navigator .nv-map .cur { color: #fff; }
+    #navigator .nv-map .done { color: rgba(255,255,255,0.6); }
+    #navigator .nv-state {
+      margin-top: 6px;
+      padding-top: 6px;
+      border-top: 1px solid rgba(255,255,255,0.1);
+      font-size: 10px;
+      color: rgba(200,220,180,0.75);
+      letter-spacing: 0.08em;
+    }
+    #navigator .nv-action {
+      margin-top: 4px;
+      font-size: 10px;
+      color: rgba(255,180,80,0.9);
+      letter-spacing: 0.08em;
+      min-height: 1.3em;
+    }
+
+    /* ── HOTKEY PANEL — cosa fare (bottom-left, sempre visibile) ── */
+    #hotkeys {
       display: none;
       position: fixed;
       bottom: 16px; left: 16px;
-      color: rgba(255,255,255,0.2);
-      font-size: 9px;
-      letter-spacing: 0.15em;
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 10px;
+      letter-spacing: 0.1em;
+      color: rgba(255,255,255,0.6);
+      background: rgba(0,0,0,0.65);
+      padding: 10px 14px;
+      border-radius: 3px;
+      border-left: 2px solid rgba(255,255,255,0.15);
       pointer-events: none;
-      white-space: pre;
+      line-height: 1.7;
+      min-width: 200px;
+    }
+    #hotkeys .hk-title {
+      font-size: 9px;
+      letter-spacing: 0.3em;
+      color: rgba(255,255,255,0.35);
+      margin-bottom: 6px;
+    }
+    #hotkeys .hk-row { white-space: pre; }
+    #hotkeys .hk-k {
+      display: inline-block;
+      width: 46px;
+      color: #fff;
+      font-weight: bold;
+    }
+    #hotkeys .hk-sep {
+      margin: 6px 0 4px 0;
+      height: 1px;
+      background: rgba(255,255,255,0.08);
     }
 
-    /* ── HUD debug ── */
+    /* ── HUD DEBUG (opzionale, toggle D) — top-right ── */
     #hud-debug {
       display: none;
       position: fixed;
@@ -78,6 +175,22 @@
       border-radius: 4px;
     }
 
+    /* ── HUD WARNINGS — top-left, conditional (MIDI/audio fail) ── */
+    #hud-warnings {
+      display: none;
+      position: fixed;
+      top: 16px; left: 16px;
+      font: 11px 'Courier New', monospace;
+      letter-spacing: 0.1em;
+      color: #f80;
+      pointer-events: none;
+      z-index: 9999;
+      background: rgba(60,0,0,0.6);
+      padding: 4px 10px;
+      border-radius: 2px;
+      border-left: 2px solid #f80;
+    }
+
     /* ── Error screen ── */
     #error {
       display: none;
@@ -91,67 +204,6 @@
       z-index: 20;
       text-align: center;
     }
-
-    /* ── Keys hint ── */
-    #keys-hint {
-      display: none;
-      position: fixed;
-      top: 16px; right: 16px;
-      color: rgba(255,255,255,0.12);
-      font-size: 8px;
-      letter-spacing: 0.2em;
-      pointer-events: none;
-      text-align: right;
-      line-height: 1.8;
-    }
-
-    /* ── Sequencer panel ── */
-    #seq-panel {
-      display: none;
-      position: fixed;
-      bottom: 24px; right: 24px;
-      font-family: 'Courier New', Courier, monospace;
-      font-size: 11px;
-      letter-spacing: 0.12em;
-      color: rgba(255,255,255,0.7);
-      background: rgba(0,0,0,0.68);
-      padding: 14px 18px;
-      border-radius: 3px;
-      border-left: 2px solid rgba(255,255,255,0.12);
-      pointer-events: none;
-      min-width: 270px;
-      line-height: 1.7;
-    }
-    #seq-panel .seq-act {
-      font-size: 15px;
-      letter-spacing: 0.28em;
-      color: #fff;
-      margin-bottom: 4px;
-    }
-    #seq-panel .seq-bar {
-      width: 100%;
-      height: 2px;
-      background: rgba(255,255,255,0.1);
-      margin: 7px 0;
-    }
-    #seq-panel .seq-fill {
-      height: 100%;
-      background: rgba(255,255,255,0.5);
-      transition: width 0.8s linear;
-    }
-    #seq-panel .seq-status {
-      font-size: 11px;
-    }
-    #seq-panel .seq-keys {
-      margin-top: 9px;
-      padding-top: 8px;
-      border-top: 1px solid rgba(255,255,255,0.07);
-      color: rgba(255,255,255,0.3);
-      font-size: 9px;
-      letter-spacing: 0.14em;
-      line-height: 1.9;
-      white-space: pre;
-    }
   </style>
 </head>
 <body>
@@ -160,57 +212,57 @@
 
 <div id="start">
   <h1>MACH:INE III</h1>
+  <div class="ver">v3.18.0-rc1-exp</div>
   <p>CLICK TO BEGIN</p>
 </div>
 
-<div id="hud-minimal"></div>
+<!-- ══ NAVIGATOR — "dove sei" ══ -->
+<div id="navigator">
+  <div class="nv-track">—</div>
+  <div class="nv-sub">—</div>
+  <div class="nv-bar"><div class="nv-bar-fill"></div></div>
+  <div class="nv-meta">—</div>
+  <div class="nv-map">○ ○ ○ ○ ○ ○ ○</div>
+  <div class="nv-state">—</div>
+  <div class="nv-action"></div>
+</div>
+
+<!-- ══ HOTKEYS — "cosa fare" ══ -->
+<div id="hotkeys">
+  <div class="hk-title">PERFORMER</div>
+  <div class="hk-row"><span class="hk-k">← →</span>OCTAVE ±12</div>
+  <div class="hk-row"><span class="hk-k">↑ ↓</span>DENSITY ±15%</div>
+  <div class="hk-row"><span class="hk-k">M</span>MUTE MELODY 8</div>
+  <div class="hk-row"><span class="hk-k">N</span>MUTE BASS 8</div>
+  <div class="hk-sep"></div>
+  <div class="hk-title">RITORNO (in TEMPESTA)</div>
+  <div class="hk-row"><span class="hk-k">1</span>default</div>
+  <div class="hk-row"><span class="hk-k">2</span>phrygian hold</div>
+  <div class="hk-row"><span class="hk-k">3</span>silence 90s</div>
+  <div class="hk-sep"></div>
+  <div class="hk-title">FLOW</div>
+  <div class="hk-row"><span class="hk-k">SPACE</span>play / pause</div>
+  <div class="hk-row"><span class="hk-k">, .</span>phase prev/next</div>
+  <div class="hk-row"><span class="hk-k">E</span>launch ENCORE</div>
+  <div class="hk-row"><span class="hk-k">0</span>pre-suite skip</div>
+  <div class="hk-row"><span class="hk-k">⇧Z</span>PANIC reset</div>
+  <div class="hk-sep"></div>
+  <div class="hk-title">VIEW</div>
+  <div class="hk-row"><span class="hk-k">K</span>hide/show UI</div>
+  <div class="hk-row"><span class="hk-k">D</span>debug HUD</div>
+  <div class="hk-row"><span class="hk-k">F</span>fullscreen</div>
+  <div class="hk-row"><span class="hk-k">P</span>projector</div>
+</div>
+
 <div id="hud-debug"></div>
-
-<div id="seq-panel">
-  <div class="seq-act">MACH:INE III</div>
-  <div class="seq-bar"><div class="seq-fill" style="width:0%"></div></div>
-  <div class="seq-status"></div>
-</div>
-
-<div id="keys-hint">
-  SPACE — PLAY/PAUSE<br>
-  <br>
-  H — HUD<br>
-  D — DEBUG<br>
-  F — FULLSCREEN<br>
-  R — REGEN DNA<br>
-  <br>
-  SHIFT+1 — NEBBIA<br>
-  SHIFT+2 — TESSUTO<br>
-  SHIFT+3 — SOLCO<br>
-  SHIFT+4 — RESPIRO<br>
-  SHIFT+5 — MACCHINA<br>
-  SHIFT+6 — TEMPESTA<br>
-  SHIFT+7 — RITORNO<br>
-  <br>
-  1-5 — FASE<br>
-  ← → — FASE ±1<br>
-  P — PROJECTOR
-</div>
+<div id="hud-warnings"></div>
 
 <div id="error">
   ACCESSO AL MICROFONO NEGATO<br><br>
   <span style="opacity:0.5;font-size:9px">ABILITA IL MICROFONO NEL BROWSER E RIPROVA</span>
 </div>
 
-<!-- D3: HUD warnings banner (bottom-right, populated by main.js listeners) -->
-<div id="hud-warnings" style="position:fixed;bottom:8px;right:8px;font:11px monospace;color:#f80;pointer-events:none;z-index:9999;background:rgba(0,0,0,0.5);padding:2px 6px;border-radius:2px;display:none;"></div>
-
 <script type="module" src="src/main.js"></script>
 <script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');</script>
-
-<script>
-  // Show keys hint briefly on start
-  document.getElementById('start').addEventListener('click', () => {
-    const hint = document.getElementById('keys-hint');
-    hint.style.display = 'block';
-    setTimeout(() => { hint.style.display = 'none'; }, 8000);
-  });
-</script>
 </body>
 </html>
