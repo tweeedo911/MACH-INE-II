@@ -881,5 +881,51 @@ più evidente, non nascosto più dal dither. MACCHINA, RITORNO, ENCORE OK.
   telaio potrebbe diventare troppo invisibile. Monitorare; alzare al 60% se serve.
 
 ---
+
+## #028 — Ramificazione v3.18-experimental per fix audit Opus 4.7
+
+**Data:** 2026-04-17
+**Contesto:** Audit completo della codebase (via Opus 4.7 con 4 agenti critici paralleli:
+musicale, visuale, runtime, drammaturgia) ha identificato 10 buchi strutturali che
+impediscono una performance "indimenticabile":
+1. `rupture.stage` calcolato in director3 ma mai letto dai 5 moduli musicali (metadata morta)
+2. Cicli armonici prevedibili dopo 1 min (loop trasparenti)
+3. `Math.random()` ovunque, no SeededRNG → promessa "unicità" non mantenuta
+4. Humanization piatta (velocity `±6` fisso per tutte le tracce)
+5. ENCORE Canon Machine senza inversione/retrogradazione frase nel plateau
+6. 7 biomi neutralizzati dal Bayer uniforme (distinguibilità reale debole)
+7. Rupture visivamente assente (omen/takeover non si vedono)
+8. Geologia RITORNO snapshotta solo l'ultima traccia (promessa cumulativa tradita)
+9. Performer invisibile come compositore (no gesti di agency visibili)
+10. Stessa scaletta deterministica, nessuna ramificazione narrativa
+
+Più 3 bombe runtime: `noteTimestamps` memory creep, tab-background note orfane,
+MIDI/audio fail silent senza HUD warning.
+
+**Scelta:** creare branch `v3.18-experimental` + worktree separato `app-experimental/`
+da `machine-iii` HEAD (commit `608c5e1`, tag `v3.17.1-stable`). Tutte le modifiche
+avvengono nel worktree. La branch `machine-iii` resta bit-perfect fino al GATE 3 di
+merge esplicito. Versione marcata `v3.18.0-rc1-exp` per evitare confusione.
+
+Implementazione a 4 cluster paralleli Wave 1 (A musicale + B visuale + D runtime +
+mandato perf dentro ogni cluster) → Wave 1.5 perf trasversale → Wave 2 C drammaturgia
+(dopo A) → Wave 3 review finale. Agenti Claude Code multipli per parallelismo.
+
+**Alternative scartate:**
+- Modificare direttamente `machine-iii` → rischio rottura live imminente
+- Branch senza worktree → non si può confrontare A/B live
+- Implementare solo top-3 senza piano strutturato → audit troppo ricco per spot fix
+- Rewrite monolitico dell'architettura visiva → viola "piccoli edit sicuri"
+
+**Conseguenze:**
+- ✅ v3.17.1-stable garantito: tag immutabile, rollback in 10 secondi
+- ✅ Parallelismo agenti: Wave 1 esecuzione in ~2h wall-clock invece di 6h seriale
+- ✅ GATE 3: decisione merge/mantieni-solo-experimental dopo test live
+- ✅ Nessuna modifica ad aree protette (clock worker, DJ crossfade, palette B)
+- ⚠️ Debt: se experimental non converge, archiviare come fossile metodologico
+- ⚠️ VERSION.js diverge: main `v3.17.1` vs experimental `v3.18.0-rc1-exp` —
+  convivenza pacifica finché sono su branch diversi
+
+---
 <!-- knowledge-graph links -->
 [[STATUS]] [[01-ARCHITECTURE]] [[WORKLOG]]
