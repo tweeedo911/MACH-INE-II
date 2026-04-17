@@ -17,6 +17,7 @@ import { WakeLockManager } from './wake-lock.js';
 import { setBiome, clearAll as clearCampo } from './campo.js';
 import { initCamera, updateCamera } from './camera.js';
 import { SeededRNG } from './perf-utils.js';
+import { toggleSoundcheck, updateSoundcheck, isSoundcheckActive } from './soundcheck.js';
 
 // D5: ?seed=N URL param → window._seededRNG (opt-in, no Math.random monkey-patch).
 // Future modules can check `if (window._seededRNG) …` to use deterministic RNG.
@@ -310,6 +311,17 @@ document.addEventListener('keydown', (e) => {
     return;
   }
 
+  // ── SOUNDCHECK toggle (T key) — loop 4 bar D dorian 90 BPM, tutti gli 8 canali ──
+  if (e.code === 'KeyT' && !e.shiftKey) {
+    e.preventDefault();
+    // Se il director è in play, mettilo in pausa prima di avviare il loop (evita overlap)
+    if (!isSoundcheckActive() && isDirector3Playing()) toggleDirector3();
+    // Start MIDI clock se non già partito
+    if (!_clockStarted) { sendMIDIStart(); startMidiClock(); _clockStarted = true; }
+    toggleSoundcheck();
+    return;
+  }
+
   // ── ENCORE scale switch (Q/W/R) — only during encore ──
   if (worldState.encoreMode) {
     if (e.code === 'KeyQ') { switchEncoreScale('halfWhole'); return; }
@@ -412,6 +424,14 @@ midiWorker.onmessage = ({ data: workerNow }) => {
     }
 
     if (dt === 0) return;  // primo tick, skip update
+
+    // Soundcheck loop: autonomo, scrive MIDI direttamente.
+    // Quando attivo blocca il director (il tasto T è un toggle esclusivo).
+    if (isSoundcheckActive()) {
+      updateSoundcheck(dt);
+      updateMIDIClock(worldState.bpm || 90);
+      return;
+    }
 
     // Director reads clock → updates worldState
     updateDirector3(dt);
