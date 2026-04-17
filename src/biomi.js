@@ -1696,6 +1696,93 @@ const ENCORE = {
   })(),
 };
 
+// ══════════════════════════════════════════════════════════════
+//  SOUNDCHECK — bioma di test per i livelli audio (v3.18)
+//  8 colonne verticali colorate, una per canale MIDI.
+//  Ogni nota riempie una barra dal basso, altezza proporzionale a vel.
+//  Fuori dalla suite: non ha phaseColors, decay medio, nessun fancy.
+// ══════════════════════════════════════════════════════════════
+const SOUNDCHECK = (() => {
+  const COL_W = 12;           // 96/8 = 12 celle per colonna
+  function bar(fields, role, col, vel127, h) {
+    const xStart = col * COL_W;
+    const xEnd = Math.min(h.CELLS_X, xStart + COL_W);
+    const velN = Math.max(0.1, vel127 / 127);
+    // Altezza con gamma + pavimento: barre sempre alte almeno 70% dello schermo,
+    // differenza di velocity visibile alla punta (sqrt enfatizza parte bassa vel).
+    const heightFactor = Math.max(0.70, Math.sqrt(velN));
+    const barH = Math.max(16, Math.floor(heightFactor * h.CELLS_Y));
+    const yTop = h.CELLS_Y - barH;
+    for (let y = yTop; y < h.CELLS_Y; y++) {
+      // intensità sfuma verso l'alto della barra
+      const intensity = 0.4 + ((y - yTop) / barH) * 0.5;
+      for (let x = xStart; x < xEnd; x++) {
+        h.depositPoint(fields[role], x, y, intensity);
+      }
+    }
+    // banda luminosa in cima alla barra (level meter top)
+    if (yTop >= 0 && yTop < h.CELLS_Y) {
+      for (let x = xStart + 1; x < xEnd - 1; x++) {
+        h.depositPoint(fields[role], x, yTop, 0.95);
+      }
+    }
+  }
+  return {
+    bg: [0, 0, 0],
+    colors: {
+      kick:       [255, 255, 255],  // col 0 — bianco
+      percussion: [170, 170, 170],  // col 1 — grigio
+      drone:      [ 70, 110, 220],  // col 2 — blu
+      bass:       [230, 190,  40],  // col 3 — giallo
+      chord:      [ 80, 210, 120],  // col 4 — verde
+      voice:      [230, 150,  80],  // col 5 — ambra
+      lead:       [ 80, 210, 230],  // col 6 — ciano
+      arp:        [225,  90, 190],  // col 7 — magenta
+    },
+    decay: {
+      kick: 0.93, percussion: 0.93, drone: 0.985,
+      bass: 0.95, chord: 0.965,  voice: 0.975,
+      lead: 0.97, arp: 0.95,
+    },
+    force: {
+      kick: 1, percussion: 1, drone: 1,
+      bass: 1, chord: 1, voice: 1,
+      lead: 1, arp: 1,
+    },
+    cellPx: { kick: 10, percussion: 10, drone: 10, bass: 10, chord: 10, voice: 10, lead: 10, arp: 10 },
+    depositFn: {
+      kick(f, p, n, v, h)       { bar(f, 'kick',       0, v, h); },
+      percussion(f, p, n, v, h) { bar(f, 'percussion', 1, v, h); },
+      drone(f, p, n, v, h)      { bar(f, 'drone',      2, v, h); },
+      bass(f, p, n, v, h)       { bar(f, 'bass',       3, v, h); },
+      chord(f, p, n, v, h)      { bar(f, 'chord',      4, v, h); },
+      voice(f, p, n, v, h)      { bar(f, 'voice',      5, v, h); },
+      lead(f, p, n, v, h)       { bar(f, 'lead',       6, v, h); },
+      arp(f, p, n, v, h)        { bar(f, 'arp',        7, v, h); },
+    },
+    // Audio reactive: pulsa la base di ogni colonna quando arriva audio dal
+    // BlackHole. Se le barre pulsano, audio entra nel browser correttamente.
+    // Se NON pulsano mentre suona: audio routing non funziona (mic permission
+    // o BlackHole non configurato come default input).
+    audioReact(fields, energy, h) {
+      if (energy < 0.03) return;
+      const ROLES_BY_COL = ['kick','percussion','drone','bass','chord','voice','lead','arp'];
+      const pulseH = 2 + Math.floor(energy * 8);  // 2..10 celle di pulse dalla base
+      const pulseF = 0.4 + energy * 0.6;          // intensità 0.4..1.0
+      for (let col = 0; col < 8; col++) {
+        const role = ROLES_BY_COL[col];
+        const xMid = col * 12 + 5;
+        for (let dy = 0; dy < pulseH; dy++) {
+          const y = h.CELLS_Y - 1 - dy;
+          for (let dx = 0; dx < 3; dx++) {
+            h.depositPoint(fields[role], xMid + dx, y, pulseF);
+          }
+        }
+      }
+    },
+  };
+})();
+
 export const BIOMI = {
   GENERIC,
   NEBBIA,
@@ -1706,6 +1793,7 @@ export const BIOMI = {
   TEMPESTA,
   RITORNO,
   ENCORE,
+  SOUNDCHECK,
 };
 
 // V3.9: palette unificata — PALETTE_B/A rimossa, colori consolidati inline

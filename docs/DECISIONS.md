@@ -881,5 +881,61 @@ più evidente, non nascosto più dal dither. MACCHINA, RITORNO, ENCORE OK.
   telaio potrebbe diventare troppo invisibile. Monitorare; alzare al 60% se serve.
 
 ---
+
+## #029 — Soundcheck loop autonomo (v3.17.2)
+
+**Data:** 2026-04-18 (sessione 27-bis)
+**Contesto:** Performance richiedono un soundcheck prima del live per testare
+livelli/routing di tutti i canali MIDI → synth → mixer → PA. La suite
+director3 non è adatta: ha arco narrativo, dinamica variabile, canali che
+entrano/escono nelle fasi. Serve una traccia tecnica che suona TUTTO
+INSIEME in loop, piacevole (non rumore), con visual test e reset pulito.
+
+**Scelta:**
+- **Modulo autonomo `src/soundcheck.js`**: sequencer interno (pattern
+  hardcoded per step), **clock condiviso** col worker MIDI (single source
+  of truth — evita drift tra MIDI Clock 0xF8 verso DAW e note del loop).
+  Scrive direttamente via `sendMIDINote + addMidiNote`, non passa dal
+  director3.
+- **Loop 8 bar D dorian 90 BPM** (~21.3s), tutti gli 8 canali attivi.
+  Pattern musicali piacevoli (Dm progression, non caos).
+- **Velocity cycle per bar**: normal/soft/loud/medium × 2 → il tecnico
+  sente come risponde ogni synth a dinamiche diverse, non solo medio.
+- **Drum kit GM completo su CH1**: hat closed/open/pedal, snare, ghost,
+  side stick, clap, toms (4), crash/crash2, ride/ride bell, china,
+  splash, tambourine, cowbell, bongos, congas (3), timbales, maracas,
+  wood blocks, claves. Distribuiti nei 8 bar per "sampler" audio.
+- **Bioma SOUNDCHECK**: 8 colonne verticali colorate (una per canale,
+  level-meter visivo), altezze sempre alte almeno 70% (sqrt gamma +
+  floor). `audioReact` pulsa la base di ogni colonna quando arriva
+  energy audio dal BlackHole → **test diretto del routing audio browser**.
+- **Hotkey `T`**: toggle esclusivo con director (AllNotesOff su start per
+  pulire note pending col lookahead; short-circuit nel worker handler
+  per non sovrapporre generatori).
+- **Stop T ripremuto = reset completo a NEBBIA inizio**: clearCampo +
+  setBiome NEBBIA + initDirector3 NEBBIA + initCamera. Stato identico
+  al boot → Space per ripartire dalla suite.
+
+**Alternative scartate:**
+- **Usare director3 con traccia SOUNDCHECK fake**: avrebbe ereditato
+  arco narrativo, phase logic, density shaping → non adatto a "tutto
+  insieme sempre". Modulo separato è più pulito.
+- **Clock dedicato per il soundcheck** (setInterval): drift rispetto al
+  MIDI Clock 0xF8 emesso verso il DAW. Il worker è l'unico timer stabile.
+- **Random generator di note**: non "piacevole", e manca la prevedibilità
+  utile per un tecnico (sento sempre la stessa cadenza, regolo).
+
+**Conseguenze:**
+- ✅ Tecnico può bilanciare volumi su tutti i canali in un loop
+  prevedibile e piacevole, senza dover lanciare la suite.
+- ✅ Visual test immediato: se le colonne pulsano → audio entra nel
+  browser (BlackHole OK); se non pulsano → routing da sistemare.
+- ✅ Reset T→T torna a stato boot → soundcheck non lascia residui.
+- ⚠️ Se il synth non è mappato GM, le percussioni su CH1 produrranno
+  suoni arbitrari. Il tecnico comunque verifica che CH1 riceva MIDI.
+- ⚠️ Latenza fissa 15ms del `NOTE_LOOKAHEAD_MS` si applica anche al
+  soundcheck (by design: mantiene sync clock↔note come nella suite).
+
+---
 <!-- knowledge-graph links -->
 [[STATUS]] [[01-ARCHITECTURE]] [[WORKLOG]]
