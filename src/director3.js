@@ -161,8 +161,11 @@ export function initDirector3(trackName = 'SOLCO', { seamless = false } = {}) {
   // Load track identity into worldState
   worldState.track = trackName;
   if (!_paused) sendNornsBiome(TRACK_ORDER.indexOf(trackName));  // → Norns: solo se in play
-  worldState.scale = _track.scale;
-  worldState.root = _track.root;
+  // Wave 2C: applica rootOffset (default 0) a scale + root, così TUTTI i moduli
+  // (voice/lead/arp/drone/kick) vedono la trasposizione senza doverla leggere singolarmente.
+  const _rootOff = worldState.rootOffset || 0;
+  worldState.scale = _rootOff === 0 ? _track.scale : _track.scale.map(n => n + _rootOff);
+  worldState.root = _track.root + _rootOff;
   worldState.bpm = _track.bpm;
   worldState.rhythmGrid = _track.rhythmGrid;
   // Source palette from Bible §12 trackPalettes; fallback to _track.palette
@@ -227,6 +230,15 @@ export function isDirector3Playing() {
 // 'default'              = comportamento baseline
 // 'phrygianHold'         = mantiene tonalità di TEMPESTA in RITORNO (no shift a A aeolian)
 // 'silenceThenAeolian'   = 90s di silenzio assoluto prima di entrare in RITORNO
+// Wave 2C: re-applica rootOffset alla scale/root correnti.
+// Chiamato da main.js dopo ←/→ hotkey così il cambio è udibile subito senza attendere cambio traccia.
+export function reapplyRootOffset() {
+  if (!_track) return;
+  const off = worldState.rootOffset || 0;
+  worldState.scale = off === 0 ? _track.scale : _track.scale.map(n => n + off);
+  worldState.root = _track.root + off;
+}
+
 export function setRitornoVariant(variant) {
   const valid = ['default', 'phrygianHold', 'silenceThenAeolian'];
   if (!valid.includes(variant)) return;
@@ -833,9 +845,10 @@ function _advanceTrack() {
       const _barMsForOffHold = Math.round((240 / prevBpm) * 1000);
       setTimeout(() => sendMIDIAllNotesOff(), Math.max(800, _barMsForOffHold + 200));
       initDirector3('RITORNO');
-      // Override: scale + root + modeHint di TEMPESTA
-      worldState.scale = tempestaTrack.scale;
-      worldState.root = tempestaTrack.root;
+      // Override: scale + root + modeHint di TEMPESTA (applica rootOffset)
+      const _offHold = worldState.rootOffset || 0;
+      worldState.scale = _offHold === 0 ? tempestaTrack.scale : tempestaTrack.scale.map(n => n + _offHold);
+      worldState.root = tempestaTrack.root + _offHold;
       _paused = false;
       // BPM ramp standard TEMPESTA→RITORNO (usa prevTrack TEMPESTA dalla tabella)
       const newBpm = _track.bpm || 60;

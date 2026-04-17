@@ -82,8 +82,8 @@ function _tick() {
   const beatMs   = (60 / bpm) * 1000;               // ms per quarter note
   const density  = worldState.density.harmony;       // 0–1
   const phase    = worldState.phase;
-  // Wave 2C: rootOffset (default 0 = nessuna transposizione)
-  const root     = worldState.root + (worldState.rootOffset || 0);
+  // rootOffset è già applicato in worldState.root da director3.reapplyRootOffset()
+  const root     = worldState.root;
   const [regLo, regHi] = worldState.register.chords; // e.g. [55, 72]
   const trackData = TRACKS[worldState.track];
 

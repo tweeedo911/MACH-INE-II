@@ -30,7 +30,7 @@ if (_seedParam !== null) {
 
 // ── MACH:INE III modules ──
 import { worldState } from './world-state.js';
-import { initDirector3, updateDirector3, skipPhase, jumpToPhase, jumpToTrack, toggleDirector3, isDirector3Playing, getDirector3Status, launchEncore, switchEncoreScale, setRitornoVariant, startPreSuite, endPreSuite, resetDramaturgyState } from './director3.js';
+import { initDirector3, updateDirector3, skipPhase, jumpToPhase, jumpToTrack, toggleDirector3, isDirector3Playing, getDirector3Status, launchEncore, switchEncoreScale, setRitornoVariant, startPreSuite, endPreSuite, resetDramaturgyState, reapplyRootOffset } from './director3.js';
 import { initRhythm, updateRhythm } from './rhythm.js';
 import { initHarmony, updateHarmony } from './harmony.js';
 import { initBass as initBassV1, updateBass as updateBassV1 } from './bass.js';
@@ -265,6 +265,8 @@ document.addEventListener('keydown', (e) => {
     e.preventDefault();
     const step = CFG.OCTAVE_OFFSET_STEP || 12;
     worldState.rootOffset = Math.max(-24, (worldState.rootOffset || 0) - step);
+    reapplyRootOffset();  // propaga a scale+root → TUTTI i moduli
+    sendMIDIAllNotesOff();  // evita note appese dal registro precedente
     const oct = Math.round(worldState.rootOffset / 12);
     flashGesture(`OCTAVE ${oct >= 0 ? '+' : ''}${oct}`);
     return;
@@ -273,6 +275,8 @@ document.addEventListener('keydown', (e) => {
     e.preventDefault();
     const step = CFG.OCTAVE_OFFSET_STEP || 12;
     worldState.rootOffset = Math.min(24, (worldState.rootOffset || 0) + step);
+    reapplyRootOffset();
+    sendMIDIAllNotesOff();
     const oct = Math.round(worldState.rootOffset / 12);
     flashGesture(`OCTAVE ${oct >= 0 ? '+' : ''}${oct}`);
     return;
