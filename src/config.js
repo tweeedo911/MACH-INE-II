@@ -60,6 +60,24 @@ export const CFG = {
   noteFlashDecay: 0.91,
   noteDensityWindowSec: 2,
 
+  // ── Runtime safety (Wave 1D) ──
+  // Ring buffer capacity for noteTimestamps (midi.js): ~8 min at 16 notes/s.
+  // Large enough for BPM detection and density windows; avoids unbounded growth
+  // across a 45-min set (previous pattern accumulated ~270K entries).
+  RUNTIME_NOTE_TS_CAPACITY: 8192,
+  // Ring buffer capacity for onsetTimestamps (audio.js). bpmMaxOnsets=40 is
+  // logical cap, 256 gives headroom + is power-of-two for modulo efficiency.
+  RUNTIME_ONSET_TS_CAPACITY: 256,
+  // Ring buffer capacity for fluxHistory (audio.js). fluxSmoothingWindow=30
+  // is logical cap; 64 is power-of-two safety margin.
+  RUNTIME_FLUX_HISTORY_CAPACITY: 64,
+  // HUD panic flash duration after Shift+Z reset
+  RUNTIME_PANIC_HUD_MS: 2000,
+  // Audio fail threshold — dispatch 'audio-unavailable' if ctx stays non-running >N ms
+  RUNTIME_AUDIO_FAIL_MS: 2000,
+  // Hidden tab MIDI safety — send AllNotesOff after N ms of continuous hidden state
+  RUNTIME_HIDDEN_MIDI_SAFETY_MS: 5000,
+
   // ── Dot-size ──
   dotSizeMin: 1,
   dotSizeMax: 16,
