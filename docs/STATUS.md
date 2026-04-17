@@ -1,17 +1,25 @@
 # STATUS — MACH:INE III (branch v3.18-experimental)
 
 > Snapshot vivo. Rigenerato a fine sessione. Punto di entrata di ogni nuova sessione.
-> **Last updated:** 2026-04-17 (sessione 28: audit Opus 4.7 + fix multi-agent 4 cluster + audit review Wave 3R)
+> **Last updated:** 2026-04-18 (sessione 28-bis: soundcheck loop portato dal branch stabile)
 
 ## Versione
 
-**v3.18.0-rc1-exp** — single source: `src/VERSION.js` (`APP_VERSION`)
+**v3.18.0-rc2-exp** — single source: `src/VERSION.js` (`APP_VERSION`)
 
 **ATTENZIONE:** versione sperimentale su branch isolato `v3.18-experimental`.
-Baseline stabile resta `v3.17.1` sul branch `machine-iii` (tag git `v3.17.1-stable` su `608c5e1`).
+Baseline stabile resta `v3.17.2` sul branch `machine-iii` (tag git `v3.17.1-stable` su `608c5e1`).
 Worktree separato in `/Users/Edo_1/MACH-INE II/app-experimental/`.
 
 Ripristino stabile in 10 secondi: `git worktree remove ../app-experimental --force` oppure usare direttamente `/app/`.
+
+## Novità rc2-exp (2026-04-18) — soundcheck loop
+
+Aggiunto modulo `src/soundcheck.js` + bioma SOUNDCHECK + hotkey `T`.
+Loop 8 bar D dorian 90 BPM, drum kit GM completo, 8 colonne level-meter
+colorate con audioReact, reset T→T a NEBBIA inizio. Ported dal branch
+stabile (4 commit: `dc31ef7`, `7032127`, `9d77da5`, `71d66fe`).
+Indipendente dai fix audit sessione 28 — nessun conflitto.
 
 ## Sessione 28 — Fix audit Opus 4.7 (6 commit + review)
 
