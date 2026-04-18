@@ -17,7 +17,7 @@ import { WakeLockManager } from './wake-lock.js';
 import { setBiome, clearAll as clearCampo } from './campo.js';
 import { initCamera, updateCamera } from './camera.js';
 import { SeededRNG } from './perf-utils.js';
-import { toggleSoundcheck, updateSoundcheck, isSoundcheckActive } from './soundcheck.js';
+import { toggleSoundcheck, updateSoundcheck, isSoundcheckActive, stopSoundcheck } from './soundcheck.js';
 
 // D5: ?seed=N URL param → window._seededRNG (opt-in, no Math.random monkey-patch).
 // Future modules can check `if (window._seededRNG) …` to use deterministic RNG.
@@ -73,9 +73,6 @@ const updateMelody = (...a) => {
 
 // ── Session recorder ──
 import { initRecorder, startRecording, stopRecording, isRecording, recordSnapshot, recordPhaseCheck, downloadSession, captureScreenshotNow } from './session-recorder.js';
-
-// ── Soundcheck loop (test livelli/suoni) ──
-import { toggleSoundcheck, updateSoundcheck, isSoundcheckActive, stopSoundcheck } from './soundcheck.js';
 
 // ── DOM refs ──
 const canvas = document.getElementById('c');
