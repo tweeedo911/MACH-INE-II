@@ -52,8 +52,39 @@ let rmsRing = [];
 let rmsRingHead = 0;
 let rmsRingSize = 0;
 
-// Onset timestamps for BPM
-let onsetTimestamps = [];
+// Onset timestamps for BPM (D1: ring buffer, same pattern as midi.js noteTimestamps).
+// Previous pattern was an unbounded array with O(n) .shift() every onset —
+// in a 45-min set it leaked GC pressure. Float32Array + head/count ring fixes that.
+const _ONSET_TS_CAPACITY = CFG.RUNTIME_ONSET_TS_CAPACITY || 256;
+const onsetTimestamps = new Float32Array(_ONSET_TS_CAPACITY);
+let _onsetTsHead = 0;   // next write index
+let _onsetTsCount = 0;  // valid entries (saturates at capacity)
+
+function _pushOnsetTimestamp(t) {
+  onsetTimestamps[_onsetTsHead] = t;
+  _onsetTsHead = (_onsetTsHead + 1) % _ONSET_TS_CAPACITY;
+  if (_onsetTsCount < _ONSET_TS_CAPACITY) _onsetTsCount++;
+}
+
+// Return the most-recent onset timestamp, or -1 if empty.
+function _lastOnsetTimestamp() {
+  if (_onsetTsCount === 0) return -1;
+  const idx = (_onsetTsHead - 1 + _ONSET_TS_CAPACITY) % _ONSET_TS_CAPACITY;
+  return onsetTimestamps[idx];
+}
+
+// Return up to N most-recent onsets, oldest→newest, capped at bpmMaxOnsets
+// (replicates the behaviour of the old sliding window used by computeBPM).
+function _recentOnsets() {
+  const cap = Math.min(CFG.bpmMaxOnsets, _onsetTsCount);
+  const out = new Array(cap);
+  for (let i = 0; i < cap; i++) {
+    // oldest first: start (cap-1) steps before the newest
+    const idx = (_onsetTsHead - cap + i + _ONSET_TS_CAPACITY) % _ONSET_TS_CAPACITY;
+    out[i] = onsetTimestamps[idx];
+  }
+  return out;
+}
 
 // Smoothed stereo correlation
 let smoothedCorrelation = 0;
@@ -61,6 +92,8 @@ let smoothedCorrelation = 0;
 // ── Init ──
 export async function initAudio() {
   audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  // D2: expose globally so main.js focus/visibility listeners can .resume() it.
+  try { window.audioCtx = audioCtx; } catch (_) {}
   CFG.sampleRate = audioCtx.sampleRate;
   nyquist = audioCtx.sampleRate / 2;
 
@@ -116,6 +149,33 @@ export async function initAudio() {
   return audioCtx;
 }
 
+// D3: audio-available / audio-unavailable HUD dispatcher. We track how long the
+// AudioContext has been in a non-'running' state; after RUNTIME_AUDIO_FAIL_MS
+// we dispatch 'audio-unavailable' (once). When it recovers we dispatch
+// 'audio-available'. One-shot edge detection — never fires on every frame.
+let _audioFailStartMs = 0;
+let _audioUnavailableFired = false;
+
+function _checkAudioHealth() {
+  if (!audioCtx) return;
+  const running = audioCtx.state === 'running';
+  const now = performance.now();
+  if (!running) {
+    if (_audioFailStartMs === 0) _audioFailStartMs = now;
+    const elapsed = now - _audioFailStartMs;
+    if (!_audioUnavailableFired && elapsed >= (CFG.RUNTIME_AUDIO_FAIL_MS || 2000)) {
+      _audioUnavailableFired = true;
+      try { window.dispatchEvent(new CustomEvent('audio-unavailable')); } catch (_) {}
+    }
+  } else {
+    _audioFailStartMs = 0;
+    if (_audioUnavailableFired) {
+      _audioUnavailableFired = false;
+      try { window.dispatchEvent(new CustomEvent('audio-available')); } catch (_) {}
+    }
+  }
+}
+
 // ── Per-frame update (called from render loop) ──
 export function updateAudio() {
   if (!analyserL) return;
@@ -130,6 +190,7 @@ export function updateAudio() {
   computeStereo();
   computeTrajectory();
   computeBPM();
+  _checkAudioHealth();
 }
 
 // ── Expose audioCtx for sample rate etc. ──
@@ -297,27 +358,23 @@ function computeBPM() {
   const now = performance.now() / 1000; // seconds
 
   // Skip if too close to last onset
-  if (onsetTimestamps.length > 0) {
-    const lastOnset = onsetTimestamps[onsetTimestamps.length - 1];
-    if (now - lastOnset < CFG.bpmMinInterval) return;
-  }
+  const last = _lastOnsetTimestamp();
+  if (last >= 0 && now - last < CFG.bpmMinInterval) return;
 
-  onsetTimestamps.push(now);
+  _pushOnsetTimestamp(now);
 
-  // Keep only recent onsets
-  if (onsetTimestamps.length > CFG.bpmMaxOnsets) {
-    onsetTimestamps.shift();
-  }
+  // Snapshot the last bpmMaxOnsets entries oldest→newest for BPM calc.
+  const recent = _recentOnsets();
 
-  if (onsetTimestamps.length < CFG.bpmMinOnsets) {
+  if (recent.length < CFG.bpmMinOnsets) {
     audio.bpm = 0;
     return;
   }
 
   // Compute intervals
   const intervals = [];
-  for (let i = 1; i < onsetTimestamps.length; i++) {
-    const interval = onsetTimestamps[i] - onsetTimestamps[i - 1];
+  for (let i = 1; i < recent.length; i++) {
+    const interval = recent[i] - recent[i - 1];
     if (interval >= CFG.bpmMinInterval && interval <= CFG.bpmMaxInterval) {
       intervals.push(interval);
     }

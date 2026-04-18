@@ -82,6 +82,7 @@ function _tick() {
   const beatMs   = (60 / bpm) * 1000;               // ms per quarter note
   const density  = worldState.density.harmony;       // 0–1
   const phase    = worldState.phase;
+  // rootOffset è già applicato in worldState.root da director3.reapplyRootOffset()
   const root     = worldState.root;
   const [regLo, regHi] = worldState.register.chords; // e.g. [55, 72]
   const trackData = TRACKS[worldState.track];
@@ -157,7 +158,9 @@ function _tick() {
   if (CFG.MUSIC_STRUCTURAL && _step % 4 === 0) {
     const drift = trackData?.droneDrift;
     const driftPeriod = drift?.periodBars ?? PITCH_DRIFT_PERIOD_DEFAULT;
-    const driftAmp    = drift?.amplitude  ?? PITCH_DRIFT_AMP_DEFAULT;
+    let driftAmp      = drift?.amplitude  ?? PITCH_DRIFT_AMP_DEFAULT;
+    // Rupture cablata: in takeover il drone diventa instabile (Kali Malone micro-intonazione)
+    if (worldState?.rupture?.stage === 'takeover') driftAmp *= 2.5;
     const periodSteps = driftPeriod * 16;
     _pitchDriftStep = (_pitchDriftStep + 4) % periodSteps;
     const phaseRad = (_pitchDriftStep / periodSteps) * Math.PI * 2;
@@ -188,6 +191,18 @@ function _tick() {
       const octVel = Math.min(Math.round(droneVel * 0.6), velCeil);
       sendMIDINote(CH_DRONE, rootOct, octVel, droneDur);
       addMidiNote(CH_DRONE, rootOct / 127, octVel / 127);
+    }
+
+    // ── Wave 2C: Sub drone tattile <40Hz ──
+    // Solo se track.subDroneTactile === true. Parallelo al drone: ottava -2, vel 20-30.
+    // MIDI note 24 (C1, ~32Hz). Non serve gate in register: è opt-in per track.
+    if (trackData?.subDroneTactile) {
+      const subNote = root - 24;
+      if (subNote >= 12) {  // safety: evita note < C0
+        const subVel = Math.min(Math.round(20 + density * 10), velCeil);
+        sendMIDINote(CH_DRONE, subNote, subVel, droneDur);
+        addMidiNote(CH_DRONE, subNote / 127, subVel / 127);
+      }
     }
   }
 

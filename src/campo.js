@@ -144,11 +144,17 @@ const _particles = { chord: [], arp: [], voice: [], lead: [] };
 let _shimmerX = null, _shimmerY = null, _shimmerD = null;
 let _centerXLUT = null, _centerYLUT = null;  // pixel centers per cella — pre-calc 1× per resize
 
-// ── Geologia per RITORNO ──
-// Snapshot dei field al momento dell'ingresso in RITORNO:
-// la geologia di 55 minuti visibile sotto il contenuto vivo.
-let _geoSnapshot = null;        // { role: Float32Array } — copia dei field
-let _geoSnapshotColors = null;  // { role: [r,g,b] } — colori del bioma al momento dello snap
+// ── Geologia cumulativa REALE per RITORNO (B1) ──
+// Memoria unica che attraversa tutta la suite. Al cambio traccia, la
+// memoria decade leggermente (0.92×) e il field corrente si fonde dentro
+// (il 35% del massimo tra i ruoli sopravvive) con il colore medio del
+// bioma uscente pesato per la densità. In RITORNO diventa substrato
+// visibile al 40%: il pubblico vede la storia dei 55 minuti precedenti.
+const _GEO_DECAY_ON_TRACK_CHANGE = 0.94;  // v3.18 fix: era 0.92 — memoria più persistente (7ª traccia pesa ≈0.68 vs 0.61)
+const _GEO_MERGE_FACTOR = 0.52;           // v3.18 fix: era 0.35 — deposito più forte per traccia
+let _geoMemory = null;     // Float32Array size=cellsX*cellsY  — densità fusa
+let _geoMemoryRGB = null;  // Float32Array size*3 — colore fuso (R,G,B in 0..255)
+let _biomaName = 'GENERIC';  // nome del bioma corrente (serve a render per B2.1)
 
 // Solidification layer A: silence frames per role
 const _silenceFrames = {};
@@ -310,13 +316,19 @@ const HELPERS = {
 
 // ── Init / resize ──
 function _ensureBuffers() {
-  if (_fields) return;
-  _fields = {};
-  _lastDeposit = {};
   const size = _cellsX * _cellsY;
-  for (const r of ROLES) {
-    _fields[r] = new Float32Array(size);
-    _lastDeposit[r] = new Uint16Array(size);  // frame dell'ultimo deposito
+  if (!_fields) {
+    _fields = {};
+    _lastDeposit = {};
+    for (const r of ROLES) {
+      _fields[r] = new Float32Array(size);
+      _lastDeposit[r] = new Uint16Array(size);  // frame dell'ultimo deposito
+    }
+  }
+  // B1: memoria geologica cumulativa — alloca una volta sola
+  if (!_geoMemory || _geoMemory.length !== size) {
+    _geoMemory = new Float32Array(size);
+    _geoMemoryRGB = new Float32Array(size * 3);
   }
 }
 
@@ -365,21 +377,69 @@ export function setBiome(trackName) {
     _morphOldDepositFn = _bioma.depositFn || null;
     _morphOldForce = _bioma.force ? { ..._bioma.force } : null;
     _morphTimer = 0;
+
+    // ── B1: hook memoria geologica cumulativa ──
+    // Il bioma USCENTE (quello vecchio) versa la sua memoria nell'accumulatore.
+    // La memoria esistente decade 8% per ogni track change: alla 7ª traccia
+    // (RITORNO) la prima (NEBBIA) pesa ≈0.92^6 = 0.61. Cumulativa ma pesata
+    // in favore delle tracce recenti — coerente con l'arco narrativo.
+    _updateGeoMemory();
   }
   _bioma = getBiome(trackName);
+  _biomaName = trackName;
   // non resettiamo i fields: il palimpsesto è il punto, il nuovo bioma
   // applica solo nuove forze sopra lo stato esistente
+}
 
-  // RITORNO: scatta snapshot geologia (la storia di tutti i biomi precedenti)
-  if (trackName === 'RITORNO' && _fields) {
-    _geoSnapshot = {};
-    _geoSnapshotColors = {};
-    const size = _cellsX * _cellsY;
-    for (const r of ROLES) {
-      _geoSnapshot[r] = new Float32Array(size);
-      _geoSnapshot[r].set(_fields[r]);
-      // colori del bioma USCENTE (morphOld) — la geologia ha i colori del passato
-      _geoSnapshotColors[r] = _morphOldColors ? [..._morphOldColors[r]] : [..._bioma.colors[r]];
+// B1: fonde il field corrente nella memoria geologica cumulativa.
+// Chiamata dal cambio traccia (setBiome), non per frame.
+function _updateGeoMemory() {
+  if (!_geoMemory || !_fields) return;
+  const size = _cellsX * _cellsY;
+  // Colore medio del bioma uscente pesato per i ruoli che hanno deposito visibile
+  // (evita di contaminare la memoria col colore di ruoli silenti).
+  // Precalcolo: somma dei ruoli × colore, normalizzato dopo per cella.
+  const colors = _bioma.colors;
+  for (let i = 0; i < size; i++) {
+    // density fusa: max tra i ruoli — qualsiasi ruolo attivo conta
+    let maxRole = 0;
+    let cR = 0, cG = 0, cB = 0, cW = 0;
+    for (let r = 0; r < ROLES.length; r++) {
+      const role = ROLES[r];
+      const v = _fields[role][i];
+      if (v > maxRole) maxRole = v;
+      if (v > 0.02) {
+        const col = colors[role];
+        if (col[0] || col[1] || col[2]) {
+          cR += col[0] * v; cG += col[1] * v; cB += col[2] * v; cW += v;
+        }
+      }
+    }
+    // Decay della memoria esistente
+    const oldD = _geoMemory[i] * _GEO_DECAY_ON_TRACK_CHANGE;
+    // Nuovo contributo: max(old, current × 0.35)
+    const newContrib = maxRole * _GEO_MERGE_FACTOR;
+    const fused = oldD > newContrib ? oldD : newContrib;
+    _geoMemory[i] = fused;
+
+    // RGB: blend tra RGB vecchio (decadente) e nuovo (dal bioma uscente)
+    const rgbBase = i * 3;
+    const oldR = _geoMemoryRGB[rgbBase]     * _GEO_DECAY_ON_TRACK_CHANGE;
+    const oldG = _geoMemoryRGB[rgbBase + 1] * _GEO_DECAY_ON_TRACK_CHANGE;
+    const oldB = _geoMemoryRGB[rgbBase + 2] * _GEO_DECAY_ON_TRACK_CHANGE;
+    if (cW > 0.05 && newContrib > oldD * 0.5) {
+      // Nuova traccia dominante: fondi colore vecchio con medio nuovo
+      const newR = cR / cW, newG = cG / cW, newB = cB / cW;
+      // Peso del nuovo proporzionale a quanto "pesa" rispetto al vecchio
+      const newWeight = newContrib / (newContrib + oldD + 0.001);
+      _geoMemoryRGB[rgbBase]     = oldR * (1 - newWeight) + newR * newWeight;
+      _geoMemoryRGB[rgbBase + 1] = oldG * (1 - newWeight) + newG * newWeight;
+      _geoMemoryRGB[rgbBase + 2] = oldB * (1 - newWeight) + newB * newWeight;
+    } else {
+      // Niente nuovo deposito significativo: solo decay
+      _geoMemoryRGB[rgbBase]     = oldR;
+      _geoMemoryRGB[rgbBase + 1] = oldG;
+      _geoMemoryRGB[rgbBase + 2] = oldB;
     }
   }
 }
@@ -395,6 +455,9 @@ export function clearAll() {
   _particles.arp.length = 0;
   _particles.voice.length = 0;
   _particles.lead.length = 0;
+  // B1: reset memoria geologica (start-set a pulito)
+  if (_geoMemory) _geoMemory.fill(0);
+  if (_geoMemoryRGB) _geoMemoryRGB.fill(0);
 }
 
 // Chiamata da render.js per ogni nota MIDI
@@ -778,46 +841,66 @@ export function renderCampo(ctx, W, H) {
 
   const defaultRoleCpx = CFG.VISUAL?.campo?.roleCellPx ?? {};
 
-  // ── Geologia RITORNO: render snapshot sotto il contenuto vivo ──
-  // I colori dello snapshot sbiadiscono al 40% — il passato è tenue
-  if (_geoSnapshot && _bioma.planetMask) {
-    const geoAlpha = 0.40;
-    for (const role of ZORDER) {
-      const snap = _geoSnapshot[role];
-      const [gsR, gsG, gsB] = _geoSnapshotColors[role] || [0, 0, 0];
-      if (gsR === 0 && gsG === 0 && gsB === 0) continue;
-      const sR = (gsR / 255) * geoAlpha;
-      const sG = (gsG / 255) * geoAlpha;
-      const sB = (gsB / 255) * geoAlpha;
-      const cpx = defaultRoleCpx[role] ?? _cellPx;
-      const halfCpx = Math.floor(cpx / 2);
-
-      for (let cy = 0; cy < _cellsY; cy++) {
-        for (let cx = 0; cx < _cellsX; cx++) {
-          const d = snap[cy * _cellsX + cx];
-          if (d < 0.01) continue;
-          const centerX = _centerXLUT[cx];
-          const centerY = _centerYLUT[cy];
-          const x0 = Math.max(0, centerX - halfCpx);
-          const y0 = Math.max(0, centerY - halfCpx);
-          const x1 = Math.min(_W, centerX - halfCpx + cpx);
-          const y1 = Math.min(_H, centerY - halfCpx + cpx);
-          const giR = (sR * 255 + 0.5) | 0;
-          const giG = (sG * 255 + 0.5) | 0;
-          const giB = (sB * 255 + 0.5) | 0;
-          for (let py = y0; py < y1; py++) {
-            for (let px = x0; px < x1; px++) {
-              if (d < bayer(px, py)) continue;
-              const pi = (py * _W + px) * 4;
-              data[pi]   = data[pi]   + ((giR * (255 - data[pi]))   >> 8) | 0;
-              data[pi+1] = data[pi+1] + ((giG * (255 - data[pi+1])) >> 8) | 0;
-              data[pi+2] = data[pi+2] + ((giB * (255 - data[pi+2])) >> 8) | 0;
-            }
+  // ── B1: Geologia cumulativa REALE — render memoria sotto il vivo ──
+  // In RITORNO, il pubblico vede sotto al bioma corrente l'accumulo
+  // di tutte le tracce precedenti (pesate: recenti più forti, antiche
+  // sbiadite). Un solo pass: il colore è già fuso nella memoria.
+  // Render al 40% di luminosità — tenue, è substrato non soggetto.
+  // NON sovrascrive: screen blend con il background già renderizzato.
+  if (_geoMemory && _bioma.planetMask) {
+    const geoAlpha = 0.58;  // v3.18 fix: era 0.40 — substrate più visibile in RITORNO
+    const cpx = defaultRoleCpx.drone ?? _cellPx;
+    const halfCpx = Math.floor(cpx / 2);
+    for (let cy = 0; cy < _cellsY; cy++) {
+      for (let cx = 0; cx < _cellsX; cx++) {
+        const cellIdx = cy * _cellsX + cx;
+        const d = _geoMemory[cellIdx];
+        if (d < 0.02) continue;  // v3.18 fix: era 0.05 — tracce antiche non filtrate prematuramente
+        const rgbBase = cellIdx * 3;
+        const giR = ((_geoMemoryRGB[rgbBase]     * geoAlpha) + 0.5) | 0;
+        const giG = ((_geoMemoryRGB[rgbBase + 1] * geoAlpha) + 0.5) | 0;
+        const giB = ((_geoMemoryRGB[rgbBase + 2] * geoAlpha) + 0.5) | 0;
+        if (giR === 0 && giG === 0 && giB === 0) continue;
+        const centerX = _centerXLUT[cx];
+        const centerY = _centerYLUT[cy];
+        const x0 = Math.max(0, centerX - halfCpx);
+        const y0 = Math.max(0, centerY - halfCpx);
+        const x1 = Math.min(_W, centerX - halfCpx + cpx);
+        const y1 = Math.min(_H, centerY - halfCpx + cpx);
+        const dBoost = d * 1.7;  // v3.18 fix: soglia Bayer più permissiva — 2/16 → ~5/16 pixel visibili
+        for (let py = y0; py < y1; py++) {
+          for (let px = x0; px < x1; px++) {
+            if (dBoost < bayer(px, py)) continue;
+            const pi = (py * _W + px) * 4;
+            // screen blend: max(curr, substrate) implicito — non sovrascrive
+            // pixel più luminosi (garanzia di correttezza, substrate sempre sotto)
+            data[pi]   = data[pi]   + ((giR * (255 - data[pi]))   >> 8) | 0;
+            data[pi+1] = data[pi+1] + ((giG * (255 - data[pi+1])) >> 8) | 0;
+            data[pi+2] = data[pi+2] + ((giB * (255 - data[pi+2])) >> 8) | 0;
           }
         }
       }
     }
   }
+
+  // ── B2: biome render mode — rompi la parità Bayer su 3 biomi chiave ──
+  // MACCHINA = griglia pura (threshold binario, no dither)
+  // NEBBIA voice = dither concentrico radiale (emanazione)
+  // TEMPESTA = dither vettoriale orientato (angolo tempo-modulato, evoca il vento)
+  const biomaRenderMode = _bioma.biomaRenderMode || null;
+  const isMacchina = _biomaName === 'MACCHINA' || biomaRenderMode === 'grid-pure';
+  // v3.18 fix: fallback sul nome come MACCHINA/TEMPESTA — biomaRenderMode non è mai
+  // settato in biomi.js, quindi il ramo era dead code (dither radiale NEBBIA voice mai attivo)
+  const isNebbiaRadial = _biomaName === 'NEBBIA' || biomaRenderMode === 'radial-voice';
+  const isTempestaVector = _biomaName === 'TEMPESTA' || biomaRenderMode === 'vector-dither';
+  // TEMPESTA: angolo lentamente rotante (1 giro ogni ~30s @ 60fps) — il vento gira
+  const tempestaAngle = isTempestaVector ? (_renderFrame * 0.0035) : 0;
+  const tCos = Math.cos(tempestaAngle);
+  const tSin = Math.sin(tempestaAngle);
+
+  // ── B3: rupture omen — inversione cromatica parziale (α=0.2) ──
+  // Pre-calcolo il flag: controllo nel loop pixel va solo se omen attivo.
+  const omenActive = worldState?.rupture?.stage === 'omen';
 
   // Z-order rendering — one pass per role with its own cellPx
   for (const role of ZORDER) {
@@ -915,14 +998,71 @@ export function renderCampo(ctx, W, H) {
         const iG = (aG * 255 + 0.5) | 0;
         const iB = (aB * 255 + 0.5) | 0;
 
-        for (let py = y0; py < y1; py++) {
-          for (let px = x0; px < x1; px++) {
-            if (density < bayer(px, py)) continue;
-            const pi = (py * _W + px) * 4;
-            // screen blend intero: d + src*(255-d)/255 ≈ d + (src*(255-d)+127)/255
-            data[pi]   = data[pi]   + ((iR * (255 - data[pi]))   >> 8) | 0;
-            data[pi+1] = data[pi+1] + ((iG * (255 - data[pi+1])) >> 8) | 0;
-            data[pi+2] = data[pi+2] + ((iB * (255 - data[pi+2])) >> 8) | 0;
+        // ── Biome render mode per-cella: seleziona strategia threshold ──
+        // 0 = bayer standard, 1 = MACCHINA binario 0.5, 2 = TEMPESTA proj,
+        // 3 = NEBBIA radiale (solo voice)
+        let thresholdMode = 0;
+        let nebbiaRadialThresh = 0;
+        if (isMacchina) {
+          thresholdMode = 1;
+        } else if (isTempestaVector) {
+          thresholdMode = 2;
+        } else if (isNebbiaRadial && role === 'voice') {
+          // Onda radiale concentrica dal centro del campo (costo: 1 sqrt+1 sin per cella voice)
+          const dxr = cx - (_cellsX >> 1);
+          const dyr = cy - (_cellsY >> 1);
+          const r = Math.sqrt(dxr * dxr + dyr * dyr);
+          nebbiaRadialThresh = Math.sin(r * 0.6) * 0.2 + 0.5; // 0.3..0.7
+          thresholdMode = 3;
+        }
+
+        if (thresholdMode === 1) {
+          // MACCHINA: griglia pura — threshold 0.5 costante, no dither
+          if (density < 0.5) continue; // intera cella sotto soglia → skip
+          for (let py = y0; py < y1; py++) {
+            for (let px = x0; px < x1; px++) {
+              const pi = (py * _W + px) * 4;
+              data[pi]   = data[pi]   + ((iR * (255 - data[pi]))   >> 8) | 0;
+              data[pi+1] = data[pi+1] + ((iG * (255 - data[pi+1])) >> 8) | 0;
+              data[pi+2] = data[pi+2] + ((iB * (255 - data[pi+2])) >> 8) | 0;
+            }
+          }
+        } else if (thresholdMode === 2) {
+          // TEMPESTA: Bayer proiettato sull'angolo tempestaAngle (vector-dither)
+          // Forma economica: proj solo asse X, py libero su cy-index
+          for (let py = y0; py < y1; py++) {
+            for (let px = x0; px < x1; px++) {
+              const proj = (px * tCos + py * tSin) | 0;
+              const bi = ((proj & 3) << 2) | (py & 3);
+              if (density < BAYER4N[bi]) continue;
+              const pi = (py * _W + px) * 4;
+              data[pi]   = data[pi]   + ((iR * (255 - data[pi]))   >> 8) | 0;
+              data[pi+1] = data[pi+1] + ((iG * (255 - data[pi+1])) >> 8) | 0;
+              data[pi+2] = data[pi+2] + ((iB * (255 - data[pi+2])) >> 8) | 0;
+            }
+          }
+        } else if (thresholdMode === 3) {
+          // NEBBIA voice: threshold radiale concentrico (onda costante per cella)
+          if (density < nebbiaRadialThresh) continue;
+          for (let py = y0; py < y1; py++) {
+            for (let px = x0; px < x1; px++) {
+              const pi = (py * _W + px) * 4;
+              data[pi]   = data[pi]   + ((iR * (255 - data[pi]))   >> 8) | 0;
+              data[pi+1] = data[pi+1] + ((iG * (255 - data[pi+1])) >> 8) | 0;
+              data[pi+2] = data[pi+2] + ((iB * (255 - data[pi+2])) >> 8) | 0;
+            }
+          }
+        } else {
+          // Default: Bayer standard con noise drift
+          for (let py = y0; py < y1; py++) {
+            for (let px = x0; px < x1; px++) {
+              if (density < bayer(px, py)) continue;
+              const pi = (py * _W + px) * 4;
+              // screen blend intero: d + src*(255-d)/255 ≈ d + (src*(255-d)+127)/255
+              data[pi]   = data[pi]   + ((iR * (255 - data[pi]))   >> 8) | 0;
+              data[pi+1] = data[pi+1] + ((iG * (255 - data[pi+1])) >> 8) | 0;
+              data[pi+2] = data[pi+2] + ((iB * (255 - data[pi+2])) >> 8) | 0;
+            }
           }
         }
       }
@@ -1076,6 +1216,19 @@ export function renderCampo(ctx, W, H) {
     worldState.encoreInvert = false;  // reset — dura 1 solo frame
   }
 
+  // ── Rupture omen: lerp cromatico verso inverso α=0.2 (presagio) ──
+  // Mescola ogni pixel con il suo inverso (204·c + 51·(255-c))>>8.
+  // Attivo solo durante lo stage 'omen' — ~0.2ms/frame, accettabile.
+  if (omenActive) {
+    const len = data.length;
+    for (let i = 0; i < len; i += 4) {
+      const r = data[i], g = data[i+1], b = data[i+2];
+      data[i]   = (r * 204 + (255 - r) * 51) >> 8;
+      data[i+1] = (g * 204 + (255 - g) * 51) >> 8;
+      data[i+2] = (b * 204 + (255 - b) * 51) >> 8;
+    }
+  }
+
   _offCtx.putImageData(_imgData, 0, 0);
 
   // ── Glyph layer: glifi ASCII sparse per ruoli con identità ──
@@ -1111,8 +1264,10 @@ export function renderCampo(ctx, W, H) {
         const cpx = (_bioma.cellPx && _bioma.cellPx[role])
                   ?? defaultRoleCpx[role]
                   ?? _cellPx;
-        const fontSize = Math.max(8, cpx);
-        _offCtx.font = `${fontSize}px 'Courier New',monospace`;
+        // Font oversized 1.5× (offscreen è a bassa res, upscale pixelated sfuocava
+        // glyph rasterizzati alla dimensione nativa cella). Più pixel di sorgente = meno blur.
+        const fontSize = Math.max(12, Math.round(cpx * 1.5));
+        _offCtx.font = `bold ${fontSize}px 'Courier New',monospace`;
         _offCtx.textAlign = 'center';
         _offCtx.textBaseline = 'middle';
         // fillStyle settato 1× per ruolo, alpha modulata via globalAlpha

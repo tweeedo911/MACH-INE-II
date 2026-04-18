@@ -60,6 +60,38 @@ export const CFG = {
   noteFlashDecay: 0.91,
   noteDensityWindowSec: 2,
 
+  // ── Runtime safety (Wave 1D) ──
+  // Ring buffer capacity for noteTimestamps (midi.js): ~8 min at 16 notes/s.
+  // Large enough for BPM detection and density windows; avoids unbounded growth
+  // across a 45-min set (previous pattern accumulated ~270K entries).
+  RUNTIME_NOTE_TS_CAPACITY: 8192,
+  // Ring buffer capacity for onsetTimestamps (audio.js). bpmMaxOnsets=40 is
+  // logical cap, 256 gives headroom + is power-of-two for modulo efficiency.
+  RUNTIME_ONSET_TS_CAPACITY: 256,
+  // Ring buffer capacity for fluxHistory (audio.js). fluxSmoothingWindow=30
+  // is logical cap; 64 is power-of-two safety margin.
+  RUNTIME_FLUX_HISTORY_CAPACITY: 64,
+  // HUD panic flash duration after Shift+Z reset
+  RUNTIME_PANIC_HUD_MS: 2000,
+
+  // ── Wave 2C: Drammaturgia ──
+  PRE_SUITE_DURATION_MS: 90000,       // 90s — pre-suite auto-skip se nessun tasto
+  PRE_SUITE_DRONE_NOTE:  36,          // C2 — drone molto basso
+  PRE_SUITE_DRONE_VEL:   25,          // velocity minima
+  PRE_SUITE_DRONE_MS:    4000,        // durata ogni nota drone (loop)
+  RITORNO_SILENCE_DURATION_MS: 90000, // 90s di silenzio assoluto per variante 3
+  MELODY_MUTE_BARS:      8,           // M key: 8 bar di silenzio melody
+  BASS_MUTE_BARS:        8,           // N key: 8 bar di silenzio bass
+  DENSITY_MULT_STEP:     0.15,        // ↑↓ step density override (0.1 era impercepibile a singola pressione)
+  DENSITY_MULT_MIN:      0.3,
+  DENSITY_MULT_MAX:      2.0,
+  OCTAVE_OFFSET_STEP:    12,          // ←→ step octave transpose
+  HUD_GESTURE_FLASH_MS:  1000,        // durata flash hotkey performer in HUD
+  // Audio fail threshold — dispatch 'audio-unavailable' if ctx stays non-running >N ms
+  RUNTIME_AUDIO_FAIL_MS: 2000,
+  // Hidden tab MIDI safety — send AllNotesOff after N ms of continuous hidden state
+  RUNTIME_HIDDEN_MIDI_SAFETY_MS: 5000,
+
   // ── Dot-size ──
   dotSizeMin: 1,
   dotSizeMax: 16,

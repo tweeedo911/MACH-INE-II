@@ -82,6 +82,15 @@ export const worldState = {
     phase: null,         // fase corrente — scritta da director3
   },
 
+  // ── Wave 2C: Drammaturgia — gesti performer ──
+  // Tutti i default sono "no-op": se nessuno li tocca, flow identico al baseline.
+  rootOffset:        0,      // semitoni aggiunti alla root (tipicamente ±12 per ottava)
+  densityMultiplier: 1.0,    // 0.3..2.0 — applicato a tutti i ruoli
+  meloMuteBars:      0,      // bar residui di mute melody (decrementato ogni bar)
+  bassMuteBars:      0,      // bar residui di mute bass (decrementato ogni bar)
+  ritornoVariant:    'default', // 'default' | 'phrygianHold' | 'silenceThenAeolian'
+  preSuiteActive:    false,  // true durante il pre-suite (drone CH2 minimo)
+
   // ── ENCORE mode ──
   encoreMode: false,       // true when ENCORE track is active
   encoreBrick: -1,         // -1 = inactive; 0=heartbeat, 1-8=escalation strati, 9=plateau

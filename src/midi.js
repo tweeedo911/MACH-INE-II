@@ -32,9 +32,41 @@ export const midi = {
 };
 
 // ── Internal ──
-let noteTimestamps = []; // for density calculation
+// D1: ring buffer for note timestamps. Previous pattern was an unbounded array
+// with O(n) .shift() on every frame — in a 45-min set it accumulated ~270K
+// entries and leaked GC pressure. Float32Array + head/count ring fixes that.
+const _NOTE_TS_CAPACITY = CFG.RUNTIME_NOTE_TS_CAPACITY;
+const noteTimestamps = new Float32Array(_NOTE_TS_CAPACITY);
+let _noteTsHead = 0;   // next write index
+let _noteTsCount = 0;  // valid entries (saturates at capacity)
+
+function _pushNoteTimestamp(t) {
+  noteTimestamps[_noteTsHead] = t;
+  _noteTsHead = (_noteTsHead + 1) % _NOTE_TS_CAPACITY;
+  if (_noteTsCount < _NOTE_TS_CAPACITY) _noteTsCount++;
+}
+
+// Count timestamps that are >= windowStart. Walks the ring from newest back
+// until we fall below the threshold. O(count in window) on average — for a
+// 2-second density window at 16 notes/s that's ~32 iterations. No allocation.
+function _countNoteTimestampsAfter(windowStart) {
+  if (_noteTsCount === 0) return 0;
+  let count = 0;
+  for (let i = 0; i < _noteTsCount; i++) {
+    const idx = (_noteTsHead - 1 - i + _NOTE_TS_CAPACITY) % _NOTE_TS_CAPACITY;
+    if (noteTimestamps[idx] < windowStart) break;
+    count++;
+  }
+  return count;
+}
+
 let W = window.innerWidth;
 let midiOut = null;
+
+// D3: log MIDI-out-unavailable once per connection loss, then silent. Re-armed
+// the moment we see midiOut alive again. Dispatches 'midi-unavailable' on the
+// first drop so the HUD can show a banner.
+let _midiOutWarnLogged = false;
 
 // ── Norns OSC bridge (WebSocket → norns-bridge.py → OSC) ──
 // DISATTIVATO: sessione 27, cleanup hot path. Il bridge allocava oggetti
@@ -92,8 +124,8 @@ function handleMIDIMessage(msg) {
     if (note < midi.pitchRange.low) midi.pitchRange.low = note;
     if (note > midi.pitchRange.high) midi.pitchRange.high = note;
 
-    // Record timestamp for density
-    noteTimestamps.push(performance.now() / 1000);
+    // Record timestamp for density (D1: ring buffer)
+    _pushNoteTimestamp(performance.now() / 1000);
 
     // Per-channel tracking (channels 0-7)
     if (ch < 8) {
@@ -124,13 +156,12 @@ export function updateMIDI() {
   const now = performance.now() / 1000;
   const windowStart = now - CFG.noteDensityWindowSec;
 
-  // Remove old timestamps
-  while (noteTimestamps.length > 0 && noteTimestamps[0] < windowStart) {
-    noteTimestamps.shift();
-  }
-  midi.noteDensity = noteTimestamps.length / CFG.noteDensityWindowSec;
+  // D1: density from ring buffer — count only entries in window, no shifts.
+  const notesInWindow = _countNoteTimestampsAfter(windowStart);
+  midi.noteDensity = notesInWindow / CFG.noteDensityWindowSec;
 
-  // Per-channel density
+  // Per-channel density (still array-based: per-channel rates are low enough
+  // that .shift() is not a GC concern — ~2 entries/sec per channel max).
   for (let c = 0; c < 8; c++) {
     const chData = midi.channels[c];
     while (chData.timestamps.length > 0 && chData.timestamps[0] < windowStart) {
@@ -149,7 +180,7 @@ export function updateMIDI() {
   }
 
   // Reset pitch range if no recent notes
-  if (noteTimestamps.length === 0) {
+  if (notesInWindow === 0) {
     midi.pitchRange.low = 127;
     midi.pitchRange.high = 0;
   }
@@ -161,7 +192,21 @@ export function updateMIDI() {
 // eliminando il drift del setTimeout sul main thread.
 export function sendMIDINote(ch, note, vel, durationMs = 200) {
   recordMIDI(ch, note, vel, durationMs);  // session recorder hook (no-op if not recording)
-  if (!midiOut) return;
+  if (!midiOut) {
+    // D3: log once per disconnection, tell HUD, stay silent until reconnect.
+    if (!_midiOutWarnLogged) {
+      console.warn('[MIDI] Output unavailable — notes dropped silently');
+      try { window.dispatchEvent(new CustomEvent('midi-unavailable')); } catch (_) {}
+      _midiOutWarnLogged = true;
+    }
+    return;
+  }
+  // D3: re-arm warn flag and dispatch 'midi-available' exactly once per recovery.
+  // Edge detection: only fire when we were previously in the warned state.
+  if (_midiOutWarnLogged) {
+    _midiOutWarnLogged = false;
+    try { window.dispatchEvent(new CustomEvent('midi-available')); } catch (_) {}
+  }
   const chByte = ch & 0x0F;
   const safeNote = Math.max(0, Math.min(127, note | 0));
   const safeVel = Math.max(0, Math.min(127, vel | 0));
@@ -173,10 +218,13 @@ export function sendMIDINote(ch, note, vel, durationMs = 200) {
   midiOut.send([0x80 | chByte, safeNote, 0], t + durationMs);
 }
 
+// D6: AllNotesOff must arrive AFTER any note-on already queued with
+// NOTE_LOOKAHEAD_MS (15ms). Schedule it 50ms out so note-on→note-off→panic
+// arrive in the correct order even under main-thread jitter.
+const PANIC_LOOKAHEAD_MS = 50;
 export function sendMIDIAllNotesOff() {
   if (!midiOut) return;
-  // Lookahead coerente: arriva dopo eventuali note schedulate +15ms
-  const t = performance.now() + NOTE_LOOKAHEAD_MS;
+  const t = performance.now() + PANIC_LOOKAHEAD_MS;
   for (let c = 0; c < 8; c++) midiOut.send([0xB0 | c, 123, 0], t);
 }
 
@@ -208,7 +256,9 @@ export function sendMIDIStart() {
 
 export function sendMIDIStop() {
   if (!midiOut) return;
-  midiOut.send([0xFC], performance.now() + NOTE_LOOKAHEAD_MS); // MIDI Stop
+  // D6: Stop lookahead > note lookahead — ensures no pending note-on lands
+  // AFTER the Stop on the receiving DAW/synth.
+  midiOut.send([0xFC], performance.now() + PANIC_LOOKAHEAD_MS); // MIDI Stop
   midiClockRunning = false;
   console.log('[MIDI CLOCK] STOP');
 }

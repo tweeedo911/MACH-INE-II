@@ -171,6 +171,9 @@ function _tick() {
   const snarePhase = worldState.encoreMode
     ? (worldState.encoreBrick >= 6)
     : (phase === 'densita' || phase === 'rottura');
+  // Rupture cablata: in takeover il ritmo si fa più nervoso (flam ×1.2 boost, cap +20%)
+  const isTakeover = worldState?.rupture?.stage === 'takeover';
+  const flamProb = isTakeover ? SNARE_FLAM_PROB * 1.2 : SNARE_FLAM_PROB;
   if (snareEnabled && snarePhase && density > 0.5) {
     const stepMs = (60 / worldState.bpm / 4) * 1000;
     const snareSteps = trackSnare?.steps ?? SNARE_BASE_STEPS;
@@ -200,7 +203,7 @@ function _tick() {
       }
 
       // Ghost flam: soft hit 1 step before the snare
-      if (allowFlam && _step === actualStep - 1 && Math.random() < SNARE_FLAM_PROB) {
+      if (allowFlam && _step === actualStep - 1 && Math.random() < flamProb) {
         const flamVel = Math.round(22 + Math.random() * 10);
         sendMIDINote(CH_PERC, SNARE, flamVel, stepMs * 0.4);
         addMidiNote(CH_PERC, SNARE / 127, flamVel / 127);
@@ -250,8 +253,10 @@ function _tick() {
 
   // ── CH1 GHOST ──
   // On empty steps (no kick, no hat), density > 0.6, 15% × density probability
+  // Rupture cablata: in takeover +20% ghost probability (max cap)
   if (!hasKick && !hatSent && density > 0.6) {
-    if (Math.random() < 0.15 * density) {
+    const ghostBase = isTakeover ? 0.18 : 0.15;
+    if (Math.random() < ghostBase * density) {
       const ghostNote = Math.random() < 0.5 ? HAT_PEDAL : CONGA_LO;
       const vel       = Math.round(20 + Math.random() * 15);  // 20–35, no ceiling clamp
       const stepMs    = (60 / worldState.bpm / 4) * 1000;
