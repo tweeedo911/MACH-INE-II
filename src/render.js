@@ -20,11 +20,15 @@ let canvas, ctx;
 let W, H;
 let globalTime = 0;
 let lastOnset = false;
-let hudMinimal, hudDebug, hudSeq;
-let _seqAct, _seqFill, _seqStatus, _seqKeys;
-let showHUD = true, showDebug = false;
+let hudDebug, hudNavigator;
+let _nvTrack, _nvSub, _nvBarFill, _nvMeta, _nvMap, _nvState, _nvAction;
+let _hotkeysPanel;
+let showUI = true;           // Navigator + Hotkeys (toggle K)
+let showDebug = false;       // HUD debug opzionale (toggle D)
 let frameCount = 0;
 let _projectorWin = null;
+
+const TRACK_ORDER_UI = ['NEBBIA', 'TESSUTO', 'SOLCO', 'RESPIRO', 'MACCHINA', 'TEMPESTA', 'RITORNO'];
 
 export function setProjectorWindow(win) { _projectorWin = win; }
 
@@ -46,15 +50,20 @@ export function resize() {
   // (W e H invariati, nessun riallocazione buffer)
 }
 
-export function setHUDElements(minimal, debug, seq) {
-  hudMinimal = minimal;
+// Signature retained for backward compat; first arg (legacy hudMinimal) ignored.
+// Nuovo: setHUDElements(navigator, debug, hotkeys)
+export function setHUDElements(navigator_, debug, hotkeys_) {
+  hudNavigator = navigator_;
   hudDebug = debug;
-  hudSeq = seq;
-  if (hudSeq) {
-    _seqAct    = hudSeq.querySelector('.seq-act');
-    _seqFill   = hudSeq.querySelector('.seq-fill');
-    _seqStatus = hudSeq.querySelector('.seq-status');
-    _seqKeys   = hudSeq.querySelector('.seq-keys');
+  _hotkeysPanel = hotkeys_;
+  if (hudNavigator) {
+    _nvTrack   = hudNavigator.querySelector('.nv-track');
+    _nvSub     = hudNavigator.querySelector('.nv-sub');
+    _nvBarFill = hudNavigator.querySelector('.nv-bar-fill');
+    _nvMeta    = hudNavigator.querySelector('.nv-meta');
+    _nvMap     = hudNavigator.querySelector('.nv-map');
+    _nvState   = hudNavigator.querySelector('.nv-state');
+    _nvAction  = hudNavigator.querySelector('.nv-action');
   }
 }
 
@@ -124,10 +133,10 @@ export function renderFrame(_now, dt) {
     globalTime,
   });
 
-  // HUD
+  // HUD: Navigator sempre aggiornato se visibile; Debug solo su richiesta
   if (frameCount % CFG.hudUpdateInterval === 0) {
-    if (showHUD)   updateHUDMinimal();
-    if (showDebug) { updateHUDDebug(); updateSeqPanel(); }
+    if (showUI)    updateNavigator();
+    if (showDebug) updateHUDDebug();
   }
 
   // Session recorder — pass full worldState snapshot for post-session review
@@ -154,14 +163,21 @@ export function renderFrame(_now, dt) {
 
 // ── Keyboard ──
 export function handleKey(code) {
+  // K toggla UI performer (Navigator + Hotkeys) — utile quando si vuole schermo pulito
+  if (code === 'KeyK') {
+    showUI = !showUI;
+    if (hudNavigator)  hudNavigator.style.display  = showUI ? 'block' : 'none';
+    if (_hotkeysPanel) _hotkeysPanel.style.display = showUI ? 'block' : 'none';
+  }
+  // H legacy: alias di K (manteniamo per compat col muscle memory)
   if (code === 'KeyH') {
-    showHUD = !showHUD;
-    if (hudMinimal) hudMinimal.style.display = showHUD ? 'block' : 'none';
+    showUI = !showUI;
+    if (hudNavigator)  hudNavigator.style.display  = showUI ? 'block' : 'none';
+    if (_hotkeysPanel) _hotkeysPanel.style.display = showUI ? 'block' : 'none';
   }
   if (code === 'KeyD') {
     showDebug = !showDebug;
     if (hudDebug) hudDebug.style.display = showDebug ? 'block' : 'none';
-    if (hudSeq)   hudSeq.style.display   = showDebug ? 'block' : 'none';
   }
   if (code === 'KeyF') {
     if (!document.fullscreenElement) document.documentElement.requestFullscreen();
@@ -183,38 +199,73 @@ function _visLabel() {
   return 'COMP';
 }
 
-// ── HUD Minimal ──
-function updateHUDMinimal() {
-  if (!hudMinimal) return;
-  const evCount = eventCount();
+// ── NAVIGATOR — "dove sei + cosa sta succedendo" ──
+// Pannello performer principale: traccia + fase + progress + mini-mappa suite + stato drammaturgia.
+function updateNavigator() {
+  if (!hudNavigator || !_nvTrack) return;
   const d3 = getDirector3Status();
   const playing = isDirector3Playing();
-  const icon = playing ? '▶' : '⏸';
+  const ws = worldState;
+
+  // Header: traccia + posizione ordinale
+  const trackName = d3.track || '—';
+  const idx = TRACK_ORDER_UI.indexOf(trackName);
+  const pos = idx >= 0 ? `${idx + 1}/7` : (ws.encoreMode ? 'ENCORE' : '—');
+
+  const playIcon = playing ? '▶' : '⏸';
+  _nvTrack.textContent = `${playIcon} ${trackName}  ${pos}`;
+
+  // Sub: fase + bpm
+  const phase = d3.phase || '—';
+  const bpm = ws.bpm ? `${ws.bpm}BPM` : 'ambient';
+  _nvSub.textContent = `${phase}  ·  ${bpm}`;
+
+  // Progress bar della fase
+  const pct = Math.round(phaseState.progress * 100);
+  _nvBarFill.style.width = `${pct}%`;
+
+  // Meta: bar X/Y + tempo totale + arc
   const min = Math.floor(d3.totalTime / 60);
   const sec = Math.floor(d3.totalTime % 60);
-  const time = `${min}:${sec < 10 ? '0' : ''}${sec}`;
-  const projActive = _projectorWin && !_projectorWin.closed;
-  const vis = _visLabel();
-  hudMinimal.textContent =
-    `${icon} ${d3.track || '—'}  ${d3.phase}  ${time}` +
-    (worldState.bpm ? `  ${worldState.bpm}BPM` : '') +
-    `  ev:${evCount}` +
-    (midi.connected ? `  MIDI:${midi.inputCount}` : '') +
-    `  G:${getAudioGain().toFixed(1)}` +
-    `  [${vis}]` +
-    (projActive ? '  PROJ' : '') +
-    (isRecording() ? '  ● REC' : '');
-}
+  const tStr = `${min}:${sec < 10 ? '0' : ''}${sec}`;
+  const barCur = Math.floor(phaseState.elapsed);
+  const barTot = Math.floor(phaseState.duration);
+  _nvMeta.textContent = `bar ${barCur}/${barTot}  ·  ${tStr}  ·  arc ${Math.round(d3.arc * 100)}%`;
 
-// ── Director panel ──
-function updateSeqPanel() {
-  if (!hudSeq) return;
-  const d3 = getDirector3Status();
-  const playing = isDirector3Playing();
-  const pct = Math.round(phaseState.progress * 100);
-  _seqAct.textContent    = d3.track || 'MACH:INE III';
-  _seqFill.style.width   = `${pct}%`;
-  _seqStatus.textContent = `${playing ? '▶' : '⏸'}  ${d3.phase}  ${pct}%  arc:${d3.arc.toFixed(2)}`;
+  // Mappa 7 biomi + ENCORE: ● corrente, ◉ passato, ○ futuro
+  let map = '';
+  for (let i = 0; i < TRACK_ORDER_UI.length; i++) {
+    if (ws.encoreMode) { map += '·'; }
+    else if (i === idx)       map += '●';
+    else if (i < idx)         map += '◉';
+    else                      map += '○';
+    if (i < TRACK_ORDER_UI.length - 1) map += ' ';
+  }
+  if (ws.encoreMode) map += '  [E]';
+  else               map += ws.encoreMode === false && idx === 6 ? '  [e]' : '  E?';
+  _nvMap.textContent = map;
+
+  // Stato drammaturgia: rootOffset, densityMultiplier, variante RITORNO
+  const oct = Math.round((ws.rootOffset || 0) / 12);
+  const octStr = oct === 0 ? 'OCT 0' : `OCT ${oct >= 0 ? '+' : ''}${oct}`;
+  const denPct = Math.round((ws.densityMultiplier || 1) * 100);
+  const denStr = denPct === 100 ? 'DEN 100%' : `DEN ${denPct}%`;
+  const rv = ws.ritornoVariant || 'default';
+  const rvStr = rv === 'default' ? 'RIT def' : (rv === 'phrygianHold' ? 'RIT phryg' : 'RIT silence');
+  const projTag = (_projectorWin && !_projectorWin.closed) ? '  PROJ' : '';
+  const recTag  = isRecording() ? '  ●REC' : '';
+  _nvState.textContent = `${octStr}  ·  ${denStr}  ·  ${rvStr}${projTag}${recTag}`;
+
+  // Action strip: mute attivi + rupture stage + firma
+  const parts = [];
+  if (ws.meloMuteBars > 0) parts.push(`MEL MUTE ${ws.meloMuteBars}bar`);
+  if (ws.bassMuteBars > 0) parts.push(`BASS MUTE ${ws.bassMuteBars}bar`);
+  if (ws.preSuiteActive)   parts.push('PRE-SUITE');
+  if (ws.rupture?.stage)   parts.push(`RUPT: ${ws.rupture.stage}`);
+  if (firma.gelo)          parts.push('GELO');
+  if (firma.convergenza)   parts.push('CONV');
+  if (firma.vuotoTotale)   parts.push('VUOTO');
+  _nvAction.textContent = parts.join('  ·  ');
 }
 
 // ── HUD Debug ──
@@ -270,12 +321,5 @@ function updateHUDDebug() {
     `DENSITY  R:${ws.density.rhythm.toFixed(2)} H:${ws.density.harmony.toFixed(2)} B:${ws.density.bass.toFixed(2)} M:${ws.density.melody.toFixed(2)} T:${ws.density.texture.toFixed(2)}\n` +
     `FIRMA    ${firma.gelo ? 'GELO' : ''}${firma.convergenza ? ' CONV' : ''}${firma.vuotoTotale ? ' VUOTO' : ''}${firma.densityCap < 1 ? ' CAP:' + firma.densityCap.toFixed(2) : ''}` +
     `${!firma.gelo && !firma.convergenza && !firma.vuotoTotale && firma.densityCap >= 1 ? '——' : ''}\n` +
-    `EV ${eventCount()}\n` +
-    `\n` +
-
-    `══ COMANDI ══\n` +
-    `SPAZIO play/pausa   Shift+1-7 traccia   1-5 fase   ←/→ fase\n` +
-    `Shift+C campo   Shift+G geo   G gelo   J conv   V vuoto\n` +
-    `H hud   D debug   F full   P proiettore   [/] gain\n` +
-    `Shift+L rec   Shift+D download   Shift+K screenshot\n`;
+    `EV ${eventCount()}`;
 }

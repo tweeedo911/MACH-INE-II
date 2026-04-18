@@ -682,14 +682,14 @@ const RESPIRO = {
     const phase = h.phase;
 
     // target base per fase — la membrana non è mai uniformemente piena
-    // v3.17.1: target ancora più bassi (v3.17 era ancora wallpaper) — la spatial
-    // ±0.44 ora fa zone chiare/scure vere, il baseTarget è solo un pavimento.
+    // v3.18: baseTarget ulteriormente abbassato + hard cutoff sotto 0.12 per
+    // creare zone MORTE vere (nero assoluto, non rumore di fondo Bayer).
     let baseTarget;
-    if (phase === 'germoglio')         baseTarget = 0.15 + pp * 0.15;  // 0.15→0.30
-    else if (phase === 'pulsazione')   baseTarget = 0.25 + pp * 0.10;  // 0.25→0.35
-    else if (phase === 'densita')      baseTarget = 0.35;               // piena con pori veri
-    else if (phase === 'rottura')      baseTarget = 0.35 - pp * 0.20;  // 0.35→0.15 — frattura apre
-    else /* dissoluzione */            baseTarget = 0.20 - pp * 0.12;  // 0.20→0.08
+    if (phase === 'germoglio')         baseTarget = 0.08 + pp * 0.12;  // 0.08→0.20
+    else if (phase === 'pulsazione')   baseTarget = 0.15 + pp * 0.08;  // 0.15→0.23
+    else if (phase === 'densita')      baseTarget = 0.22;               // era 0.35 (tovaglia)
+    else if (phase === 'rottura')      baseTarget = 0.22 - pp * 0.16;  // 0.22→0.06
+    else /* dissoluzione */            baseTarget = 0.12 - pp * 0.10;  // 0.12→0.02
 
     const heal = (0.004 + energy * 0.003) * (1 - ri * 0.85);
     const n = h.CELLS_X * h.CELLS_Y;
@@ -708,8 +708,14 @@ const RESPIRO = {
         + Math.sin(xN * 19.3 - yN * 13.7 - t * 0.7) * 0.06;// grana fine
       // audio modula l'ampiezza: più energia = più contrasto nella membrana
       const amp = 1 + energy * 0.5;
-      const target = Math.max(0, Math.min(1, baseTarget + spatial * amp));
-      if (fields.drone[i] < target) {
+      let target = Math.max(0, Math.min(1, baseTarget + spatial * amp));
+      // Hard cutoff: zone con target < 0.12 → morte (nero assoluto, niente Bayer dither di fondo)
+      // Rompe la percezione tovaglia: 35-45% dello schermo è vuoto vero, non "rumore a bassa intensità".
+      if (target < 0.12) target = 0;
+      if (target === 0) {
+        // Zone morte: fai decadere verso 0 (evita residui da phase precedente)
+        if (fields.drone[i] > 0) fields.drone[i] *= 0.92;
+      } else if (fields.drone[i] < target) {
         fields.drone[i] += heal;
         if (fields.drone[i] > target) fields.drone[i] = target;
       }

@@ -882,59 +882,98 @@ più evidente, non nascosto più dal dither. MACCHINA, RITORNO, ENCORE OK.
 
 ---
 
-## #029 — Soundcheck loop autonomo (v3.17.2)
+## #028 — Ramificazione v3.18-experimental per fix audit Opus 4.7
 
-**Data:** 2026-04-18 (sessione 27-bis)
-**Contesto:** Performance richiedono un soundcheck prima del live per testare
-livelli/routing di tutti i canali MIDI → synth → mixer → PA. La suite
-director3 non è adatta: ha arco narrativo, dinamica variabile, canali che
-entrano/escono nelle fasi. Serve una traccia tecnica che suona TUTTO
-INSIEME in loop, piacevole (non rumore), con visual test e reset pulito.
+**Data:** 2026-04-17
+**Contesto:** Audit completo della codebase (via Opus 4.7 con 4 agenti critici paralleli:
+musicale, visuale, runtime, drammaturgia) ha identificato 10 buchi strutturali che
+impediscono una performance "indimenticabile":
+1. `rupture.stage` calcolato in director3 ma mai letto dai 5 moduli musicali (metadata morta)
+2. Cicli armonici prevedibili dopo 1 min (loop trasparenti)
+3. `Math.random()` ovunque, no SeededRNG → promessa "unicità" non mantenuta
+4. Humanization piatta (velocity `±6` fisso per tutte le tracce)
+5. ENCORE Canon Machine senza inversione/retrogradazione frase nel plateau
+6. 7 biomi neutralizzati dal Bayer uniforme (distinguibilità reale debole)
+7. Rupture visivamente assente (omen/takeover non si vedono)
+8. Geologia RITORNO snapshotta solo l'ultima traccia (promessa cumulativa tradita)
+9. Performer invisibile come compositore (no gesti di agency visibili)
+10. Stessa scaletta deterministica, nessuna ramificazione narrativa
+
+Più 3 bombe runtime: `noteTimestamps` memory creep, tab-background note orfane,
+MIDI/audio fail silent senza HUD warning.
+
+**Scelta:** creare branch `v3.18-experimental` + worktree separato `app-experimental/`
+da `machine-iii` HEAD (commit `608c5e1`, tag `v3.17.1-stable`). Tutte le modifiche
+avvengono nel worktree. La branch `machine-iii` resta bit-perfect fino al GATE 3 di
+merge esplicito. Versione marcata `v3.18.0-rc1-exp` per evitare confusione.
+
+Implementazione a 4 cluster paralleli Wave 1 (A musicale + B visuale + D runtime +
+mandato perf dentro ogni cluster) → Wave 1.5 perf trasversale → Wave 2 C drammaturgia
+(dopo A) → Wave 3 review finale. Agenti Claude Code multipli per parallelismo.
+
+**Alternative scartate:**
+- Modificare direttamente `machine-iii` → rischio rottura live imminente
+- Branch senza worktree → non si può confrontare A/B live
+- Implementare solo top-3 senza piano strutturato → audit troppo ricco per spot fix
+- Rewrite monolitico dell'architettura visiva → viola "piccoli edit sicuri"
+
+**Conseguenze:**
+- ✅ v3.17.1-stable garantito: tag immutabile, rollback in 10 secondi
+- ✅ Parallelismo agenti: Wave 1 esecuzione in ~2h wall-clock invece di 6h seriale
+- ✅ GATE 3: decisione merge/mantieni-solo-experimental dopo test live
+- ✅ Nessuna modifica ad aree protette (clock worker, DJ crossfade, palette B)
+- ⚠️ Debt: se experimental non converge, archiviare come fossile metodologico
+- ⚠️ VERSION.js diverge: main `v3.17.1` vs experimental `v3.18.0-rc1-exp` —
+  convivenza pacifica finché sono su branch diversi
+
+---
+
+## #029 — Soundcheck loop autonomo (v3.18.0-rc2-exp)
+
+**Data:** 2026-04-18 (sessione 28-bis)
+**Contesto:** Il performer ha bisogno di un loop di test per il soundcheck
+pre-live che suoni tutti i canali MIDI insieme in modo piacevole e
+prevedibile, con visual test del routing audio e reset pulito. La suite
+director3 non è adatta (arco narrativo, canali che entrano/escono).
+
+Il modulo è stato sviluppato prima sul branch stabile `machine-iii`
+(v3.17.2) e poi portato qui per mantenere allineate le due versioni
+prima del GATE 3 live test.
 
 **Scelta:**
 - **Modulo autonomo `src/soundcheck.js`**: sequencer interno (pattern
-  hardcoded per step), **clock condiviso** col worker MIDI (single source
-  of truth — evita drift tra MIDI Clock 0xF8 verso DAW e note del loop).
-  Scrive direttamente via `sendMIDINote + addMidiNote`, non passa dal
-  director3.
-- **Loop 8 bar D dorian 90 BPM** (~21.3s), tutti gli 8 canali attivi.
-  Pattern musicali piacevoli (Dm progression, non caos).
-- **Velocity cycle per bar**: normal/soft/loud/medium × 2 → il tecnico
-  sente come risponde ogni synth a dinamiche diverse, non solo medio.
-- **Drum kit GM completo su CH1**: hat closed/open/pedal, snare, ghost,
-  side stick, clap, toms (4), crash/crash2, ride/ride bell, china,
-  splash, tambourine, cowbell, bongos, congas (3), timbales, maracas,
-  wood blocks, claves. Distribuiti nei 8 bar per "sampler" audio.
-- **Bioma SOUNDCHECK**: 8 colonne verticali colorate (una per canale,
-  level-meter visivo), altezze sempre alte almeno 70% (sqrt gamma +
-  floor). `audioReact` pulsa la base di ogni colonna quando arriva
-  energy audio dal BlackHole → **test diretto del routing audio browser**.
-- **Hotkey `T`**: toggle esclusivo con director (AllNotesOff su start per
-  pulire note pending col lookahead; short-circuit nel worker handler
-  per non sovrapporre generatori).
-- **Stop T ripremuto = reset completo a NEBBIA inizio**: clearCampo +
-  setBiome NEBBIA + initDirector3 NEBBIA + initCamera. Stato identico
-  al boot → Space per ripartire dalla suite.
+  hardcoded) + clock condiviso col worker MIDI (single source of truth
+  — evita drift col MIDI Clock 0xF8 verso DAW). Scrive direttamente via
+  `sendMIDINote + addMidiNote`.
+- **Loop 8 bar D dorian 90 BPM** (~21.3s), tutti gli 8 canali insieme.
+  Progressione Dm-G-Am-F-Dm-C-G-A con melodie/arpeggi variati.
+- **Velocity cycle per bar**: normal/soft/loud/medium × 2 → reference
+  dinamico per il mixer.
+- **Drum kit GM completo su CH1** distribuito nei 8 bar (base + cymbals
+  sampler + latin + woody + break+tambourine/cowbell).
+- **Bioma SOUNDCHECK**: 8 colonne level-meter colorate (una per canale),
+  `audioReact` pulsa la base con energy → test diretto del routing audio.
+- **Hotkey `T`** toggle esclusivo col director. Stop ripremuto →
+  reset completo a NEBBIA inizio (stato boot).
+
+**Compatibilità con i fix sessione 28:** soundcheck NON tocca
+director3/moduli/camera/rupture/dramaturgy. Convive con pre-suite
+(`?presuite`), panic (`Shift+Z`), octave transpose (frecce), density
+(`↑/↓`), mute (`M/N`), skipPhase (`,/.`), ritorno variant (`1/2/3`).
 
 **Alternative scartate:**
-- **Usare director3 con traccia SOUNDCHECK fake**: avrebbe ereditato
-  arco narrativo, phase logic, density shaping → non adatto a "tutto
-  insieme sempre". Modulo separato è più pulito.
-- **Clock dedicato per il soundcheck** (setInterval): drift rispetto al
-  MIDI Clock 0xF8 emesso verso il DAW. Il worker è l'unico timer stabile.
-- **Random generator di note**: non "piacevole", e manca la prevedibilità
-  utile per un tecnico (sento sempre la stessa cadenza, regolo).
+- Traccia SOUNDCHECK fake nel director: eredita arco narrativo.
+- Clock separato: drift col MIDI Clock emesso al DAW.
+- Random generator: manca prevedibilità utile al tecnico.
 
 **Conseguenze:**
-- ✅ Tecnico può bilanciare volumi su tutti i canali in un loop
-  prevedibile e piacevole, senza dover lanciare la suite.
-- ✅ Visual test immediato: se le colonne pulsano → audio entra nel
-  browser (BlackHole OK); se non pulsano → routing da sistemare.
-- ✅ Reset T→T torna a stato boot → soundcheck non lascia residui.
-- ⚠️ Se il synth non è mappato GM, le percussioni su CH1 produrranno
-  suoni arbitrari. Il tecnico comunque verifica che CH1 riceva MIDI.
-- ⚠️ Latenza fissa 15ms del `NOTE_LOOKAHEAD_MS` si applica anche al
-  soundcheck (by design: mantiene sync clock↔note come nella suite).
+- ✅ Tecnico soundcheck ha un loop piacevole e prevedibile per tutti
+  gli 8 canali.
+- ✅ Visual test (pulse colonne) diagnostica routing audio in 2 secondi.
+- ✅ Reset T→T garantisce stato boot → no residui dopo il soundcheck.
+- ⚠️ Latenza 15ms del `NOTE_LOOKAHEAD_MS` si applica anche al loop.
+- ⚠️ Se il synth CH1 non è GM, le percussioni producono suoni arbitrari
+  (ma il test di routing resta valido).
 
 ---
 <!-- knowledge-graph links -->

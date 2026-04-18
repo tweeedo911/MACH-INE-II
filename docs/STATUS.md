@@ -1,14 +1,40 @@
-# STATUS — MACH:INE III
+# STATUS — MACH:INE III (branch v3.18-experimental)
 
 > Snapshot vivo. Rigenerato a fine sessione. Punto di entrata di ogni nuova sessione.
-> **Last updated:** 2026-04-18 (sessione 27-bis: soundcheck loop con drum kit GM + audioReact + reset a NEBBIA)
+> **Last updated:** 2026-04-18 (sessione 28-bis: soundcheck loop portato dal branch stabile)
 
 ## Versione
 
-**v3.17.2** — single source: `src/VERSION.js` (`APP_VERSION`)
+**v3.18.0-rc2-exp** — single source: `src/VERSION.js` (`APP_VERSION`)
 
-Tag git: `v3.4.2` su `ccbbb13` (ultimo tag stabile).
-Branch attivo: `machine-iii`.
+**ATTENZIONE:** versione sperimentale su branch isolato `v3.18-experimental`.
+Baseline stabile resta `v3.17.2` sul branch `machine-iii` (tag git `v3.17.1-stable` su `608c5e1`).
+Worktree separato in `/Users/Edo_1/MACH-INE II/app-experimental/`.
+
+Ripristino stabile in 10 secondi: `git worktree remove ../app-experimental --force` oppure usare direttamente `/app/`.
+
+## Novità rc2-exp (2026-04-18) — soundcheck loop
+
+Aggiunto modulo `src/soundcheck.js` + bioma SOUNDCHECK + hotkey `T`.
+Loop 8 bar D dorian 90 BPM, drum kit GM completo, 8 colonne level-meter
+colorate con audioReact, reset T→T a NEBBIA inizio. Ported dal branch
+stabile (4 commit: `dc31ef7`, `7032127`, `9d77da5`, `71d66fe`).
+Indipendente dai fix audit sessione 28 — nessun conflitto.
+
+## Sessione 28 — Fix audit Opus 4.7 (6 commit + review)
+
+| Wave | Cluster | Commit | File |
+|---|---|---|---|
+| 1A | Musica: rupture cablata + humanize per-traccia | `a156342` | bass-v3, melody-v3, harmony, rhythm, tracks |
+| 1B | Visuale: geologia RITORNO cumulativa + flag biomi + omen | `361e747` | campo.js |
+| 1B-bis | Visuale: cablaggio flag B2/B3 nel render loop | `5040125` | campo.js |
+| 1D.1 | Runtime: ring buffer notes + SeededRNG + PANIC lookahead | `0164c32` | midi, config, perf-utils |
+| 1D.2 | Runtime: hidden guard + HUD + panic Shift+Z + seed URL + audio ring | `8ebd33f` | main, audio, midi, index.html |
+| 2C | Drammaturgia: nodo ternario + hotkey + pre-suite + sub tactile | `ed71a7f` | director3, main, harmony, bass-v3, tracks, world-state |
+| 3R | Review finale + docs/V3.18-AUDIT.md | `22b06c1` | docs/V3.18-AUDIT.md |
+
+**Verdetto Wave 3R:** GO-with-caveats. Zero issue bloccanti. 5 warning non critici.
+Report completo in `docs/V3.18-AUDIT.md`.
 
 ---
 
@@ -200,7 +226,6 @@ Pass post-Bayer: `fillText` sparse su celle ad alta densità. Configurabile per 
 | **v3.16.0 — Norns bridge no-op** | elimina `{type,note,vel}` alloc per nota CH2 + check WebSocket |
 | **v3.17.0 — Crispness pass**: CSS `image-rendering: pixelated` (index+projector), `_DRIFT_AMP` 0.12→0.05, glyph cycling 16f→64f, bloom thresh 0.45→0.55 | halftone Bayer netto su retina/proiettore, meno sfrigolio granuloso, glifi più stabili, alone solo su picchi |
 | **v3.17.1 — Anti-tovaglia**: SOLCO `maxDensity` drone/bass/chord, TESSUTO drone probabilistico 45% + bass width 25-50% + maxDensity, RESPIRO baseTarget ancora più basso + spatial ±0.44 non-separabile, `_DRIFT_AMP` 0.05→0.07 | SOLCO/TESSUTO/RESPIRO smettono di essere "wallpaper uniforme", campo respira con vuoti reali |
-| **v3.17.2 — Soundcheck loop**: nuovo modulo `src/soundcheck.js` + bioma SOUNDCHECK (8 colonne level-meter colorate, audioReact con pulse alla base), hotkey `T` toggle, loop 8 bar D dorian 90 BPM, drum kit GM completo su CH1, velocity cycle per test dinamico | tasto T per test livelli/suoni in soundcheck. Stop → reset completo a NEBBIA |
 
 ## Clock/MIDI sync (v3.16.0)
 
@@ -262,9 +287,59 @@ Pezzo opzionale post-suite, attivato con tasto `E`. Autocontenuto: non modifica 
 
 ---
 
-## Prossimo (priorità top→bottom)
+## Prossimo (priorità top→bottom) — v3.18 experimental
 
-### P0 — Test live v3.16.0 (clock/MIDI sync fix)
+### P0 — Test live A/B vs v3.17.1-stable
+
+Confronto diretto tra baseline stabile e experimental. Procedura:
+1. Avvia `/app/` (v3.17.1-stable) in Chrome fullscreen, fai 10 min di NEBBIA→TESSUTO→SOLCO
+2. Chiudi, avvia `/app-experimental/` (v3.18), ripeti stesse 10 min
+3. Confronta: clock lag, frame budget, percezione audio-visual
+
+**Verifica specifiche v3.18:**
+- **Rupture takeover**: SOLCO/TEMPESTA in takeover — bass gate più corto, arp ispessito, drone instabile, flam aumentato?
+- **Geologia RITORNO**: vedere la suite accumulata stratificata sotto il bioma corrente (substrate 40%)?
+- **MACCHINA grid pura**: niente dither Bayer, threshold 0.5 binario — riconoscibile?
+- **TEMPESTA vector**: pattern Bayer che ruota lento (~30s/giro)?
+- **NEBBIA voice radial**: voice particles con threshold concentrico — leggibile?
+- **Rupture omen invert**: inversione cromatica α=0.2 fullscreen negli omen?
+- **Humanize**: TEMPESTA ruvida (velocity ±12), NEBBIA fragile (±2) — percepibile?
+
+**Hotkey performer da testare:**
+- `←/→` — transpose ottava ±12 (range ±24)
+- `↑/↓` — density multiplier ±10% (range 0.3..2.0)
+- `M` — mute melody 8 bar
+- `N` — mute bass 8 bar
+- `1/2/3` durante TEMPESTA — variante RITORNO (default / phrygianHold / silenceThenAeolian 90s)
+- `0` o URL `?presuite` — pre-suite 90s
+- `Shift+Z` — nuclear panic reset
+- `,` `.` — skipPhase (ex ArrowKeys, spostate)
+
+### P1 — Decisione merge (GATE 3)
+
+Dopo 1-2 test live, decidere:
+- **OPZIONE A** — merge `v3.18-experimental` → `machine-iii` (produzione)
+- **OPZIONE B** — mantenere `v3.18-experimental` come preview branch separato per performance future, produzione resta su v3.17.1-stable
+- **OPZIONE C** — rollback completo (archivia branch in `.planning-archive/v3.18-experimental-fossile/`)
+
+### P2 — Calibrazione fine v3.18 (se GO)
+
+- Humanize timing 4ms TEMPESTA potrebbe essere troppo "loose" live — calibrare 2-3ms
+- Sub drone C1/D1 (ottava -2) — verificare voice budget synth e udibilità tattile
+- TEMPESTA vector senza noise drift — se alias visibile, aggiungere noise tocco
+- MACCHINA grid binario — se transizioni 0.5 creano pop, aggiungere 2-level dither minimo
+- B3 omen invert — se troppo aggressive, scalare α da 0.2 a 0.15
+
+### Bug/warning aperti (non bloccanti, da V3.18-AUDIT.md)
+
+- Mute bar decrement può accadere twice al cambio fase
+- `_recentOnsets()` alloca `new Array(≤40)` quando BPM cambia (rate bassa)
+- Pre-suite drone possibile sovrapposizione minima se dt drifta
+- B3 omen fullscreen pass ~0.2ms/frame non misurato live
+
+### P3 — Pre-v3.18 — rimandato da baseline v3.17.1 (P0 storico)
+
+### P0-hist — Test live v3.16.0 (clock/MIDI sync fix)
 
 Verificare con hardware attaccato (motivo originario della sessione 27):
 - **[CLOCK LAG]** in console Chrome: deve restare sotto 20ms avg/max anche

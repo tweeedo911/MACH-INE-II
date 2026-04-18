@@ -162,6 +162,9 @@ export const TRACKS = {
 
     droneDrift: { periodBars: 16, amplitude: 400 },  // dub: stabile, drift contenuto
 
+    // SOLCO: dub respira — humanize moderato, timing leggermente laid-back
+    humanize: { velocity: 7, timing: 3 },
+
     palette: { bg: '#282B26', dot: '#FE6B0D', accent: '#CDD71D' },
     visualRegime: { maxDensity: 0.50, minDotSize: 4, composition: 'ASIMMETRIA' },
   },
@@ -235,6 +238,12 @@ export const TRACKS = {
     chordOverlapMs: 1500,  // accordi sostenuti che si sovrappongono — unico tessuto armonico
 
     droneDrift: { periodBars: 48, amplitude: 1024 },  // respiro lento, ampio — il drone SI MUOVE
+
+    // NEBBIA: fragile — minima variazione velocity, timing perfetto (goccia pulita)
+    humanize: { velocity: 2, timing: 0 },
+
+    // Wave 2C: sub drone tattile <40Hz (ottava -2 parallelo a CH2 drone, vel 20-30)
+    subDroneTactile: true,
 
     palette: { bg: '#0A0A0A', dot: '#EFE6DE', accent: null },
     visualRegime: { maxDensity: 0.25, minDotSize: 10, composition: 'VUOTO' },
@@ -316,6 +325,12 @@ export const TRACKS = {
 
     droneDrift: { periodBars: 32, amplitude: 700 },  // inquietudine sottile
 
+    // TESSUTO: inquieto — velocity media, leggero timing jitter
+    humanize: { velocity: 5, timing: 2 },
+
+    // Wave 2C: sub drone tattile <40Hz (ottava -2 parallelo a CH2 drone, vel 20-30)
+    subDroneTactile: true,
+
     palette: { bg: '#20130D', dot: '#CDD71D', accent: '#EFE6DE' },
     visualRegime: { maxDensity: 0.45, minDotSize: 6, composition: 'GRIGLIA' },
   },
@@ -385,6 +400,9 @@ export const TRACKS = {
     chordOverlapMs: 1200,  // pad che si sovrappone — apertura
 
     droneDrift: { periodBars: 40, amplitude: 900 },  // apertura — drift ampio, lento
+
+    // RESPIRO: carezza — minima variazione, timing quasi perfetto
+    humanize: { velocity: 3, timing: 1 },
 
     palette: { bg: '#7BBA91', dot: '#20130D', accent: null },
     visualRegime: { maxDensity: 0.10, minDotSize: 8, composition: 'RESPIRO' },
@@ -478,6 +496,9 @@ export const TRACKS = {
     },
 
     droneDrift: { periodBars: 8, amplitude: 300 },   // meccanico: vibrazione rapida, piccola
+
+    // MACCHINA: meccanico ma non perfetto — velocity variabile, timing rigido
+    humanize: { velocity: 4, timing: 0 },
 
     palette: { bg: '#1A1A2E', dot: '#F8ED00', accent: '#DD3A44' },
     visualRegime: { maxDensity: 0.55, minDotSize: 2, composition: 'GRIGLIA' },
@@ -590,6 +611,9 @@ export const TRACKS = {
 
     droneDrift: { periodBars: 16, amplitude: 500 },
 
+    // TEMPESTA: ruvido — velocity molto variabile, timing umano scalciante
+    humanize: { velocity: 12, timing: 4 },
+
     palette: { bg: '#000000', dot: '#FFFFFF', accent: '#91010F' },
     visualRegime: { maxDensity: 0.70, minDotSize: 1, composition: 'DATA' },
   },
@@ -669,6 +693,9 @@ export const TRACKS = {
     },
 
     droneDrift: { periodBars: 36, amplitude: 600 },  // congedo: medio, respira lentamente
+
+    // RITORNO: esposto — velocity moderata, timing vulnerabile
+    humanize: { velocity: 4, timing: 2 },
 
     palette: { bg: '#0A0A0A', dot: '#9B8FCE', accent: '#EFE6DE' },
     visualRegime: { maxDensity: 0.30, minDotSize: 6, composition: 'DISSOLVENZA' },

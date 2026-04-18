@@ -6,52 +6,125 @@
 
 ---
 
-## 2026-04-18 (sessione 27-bis) — Soundcheck loop autonomo (v3.17.2)
+## 2026-04-18 (sessione 28-bis) — Soundcheck loop ported (v3.18.0-rc2-exp)
 
-**Obiettivo:** creare una traccia di test per il soundcheck pre-live che
-suoni tutti i canali insieme in loop, con visual test e reset pulito.
+**Obiettivo:** portare sul branch experimental il soundcheck loop sviluppato
+sul branch stabile (v3.17.2), mantenendo i due branch allineati sulla feature
+prima del test live che deciderà se v3.18 diventa definitiva.
 
 **Fatto:**
-- **[src/soundcheck.js]** nuovo modulo ~250 LOC, loop autonomo (sequencer
-  interno + clock condiviso col worker MIDI) di 8 bar in D dorian 90 BPM.
-  Drum kit GM completo su CH1 distribuito in 8 bar:
-  - bar 0 normal (ride 2-4), bar 1 soft (ghost+open hat+side stick),
-    bar 2 loud (clap+tom fill), bar 3 medium (crash+ghost+open hat)
-  - bar 4 cymbals sampler (ride/ride bell/china/splash/crash2)
-  - bar 5 latin (bongos H/L, congas 3x, timbales H/L, maracas 16th)
-  - bar 6 woody (wood block H/L, claves 4/4)
-  - bar 7 break+tambourine 8th+cowbell offbeat+pedal hat+tom fill
-  Velocity cycle per bar: normal/soft/loud/medium × 2 → dynamic reference.
-- **[src/biomi.js]** bioma SOUNDCHECK: 8 colonne verticali colorate
-  (bianco/grigio/blu/giallo/verde/ambra/ciano/magenta) level-meter per
-  canale, barre alte almeno 70% (sqrt gamma), punta luminosa. `audioReact`
-  pulsa la base di ogni colonna quando arriva audio dal BlackHole (test
-  routing audio browser).
-- **[src/main.js]** import soundcheck + hotkey `T` (esclusivo con director:
-  pausa il director se in play, AllNotesOff per pulire note lookahead
-  pending, short-circuit nel worker handler). Stop con T ripremuto →
-  reset completo a NEBBIA inizio (clearCampo + setBiome NEBBIA +
-  initDirector3 NEBBIA + initCamera) → stato identico al boot.
-- **[machine-launch.command]** banner aggiornato con tasto T.
-- **[VERSION.js]** v3.17.1 → v3.17.2
+- **4 commit su `v3.18-experimental`**:
+  - `dc31ef7` feat(soundcheck): scaffold base 4-bar
+  - `7032127` feat(soundcheck): loop 4-bar vario + percussioni GM + barre più alte
+  - `9d77da5` feat(soundcheck): loop 8 bar + drum kit GM completo + audioReact
+  - `71d66fe` feat(soundcheck): stop resetta a NEBBIA inizio
+- **[src/soundcheck.js]** nuovo — loop 8 bar D dorian 90 BPM, sequencer
+  interno + clock worker condiviso, drum kit GM su CH1 distribuito per bar
+  (normal/soft/loud/medium + cymbals/latin/woody/break).
+- **[src/biomi.js]** bioma SOUNDCHECK: 8 colonne level-meter con audioReact
+  (pulse base quando arriva energy dal BlackHole).
+- **[src/main.js]** import + hotkey `T` + hook worker handler con short-circuit.
+  Stop `T` ripremuto → reset completo a NEBBIA inizio (clearCampo +
+  setBiome + initDirector3 + initCamera).
+- **[VERSION.js]** v3.18.0-rc1-exp → v3.18.0-rc2-exp.
 
-**File toccati:**
-- Nuovi: `src/soundcheck.js`
-- Modificati: `src/biomi.js` (+bioma SOUNDCHECK ~70 LOC), `src/main.js`
-  (+hotkey T + hook worker), `src/VERSION.js`, `machine-launch.command`
-- Doc: `docs/DECISIONS.md` (#029), `docs/STATUS.md`, `docs/WORKLOG.md`
+**Nessun conflitto** con i fix della sessione 28 (Opus 4.7 audit). Soundcheck
+è feature indipendente: non tocca director3/rhythm/bass/melody/harmony/texture,
+non tocca camera né rupture. Compatibile con pre-suite, panic Shift+Z,
+octave transpose frecce, density ±.
 
-**Port su v3.18-experimental:** stessa feature committata su
-`v3.18-experimental` (commit `dc31ef7`, `7032127`, `9d77da5`, `71d66fe`)
-con bump versione → `v3.18.0-rc2-exp`.
-
-**Decisioni prese:** #029 — Soundcheck loop autonomo
+**Decisioni prese:** #029 — Soundcheck loop autonomo (stesso rationale del
+branch stabile, vedi DECISIONS.md).
 
 **Prossimo:**
-- Test live v3.17.2: verificare soundcheck → tutti i canali suonano,
-  barre pulsano con audio, reset T→T funziona pulito.
-- Test live v3.18-experimental con soundcheck: utente deciderà se v3.18
-  diventa definitiva (merge su machine-iii) o resta branch preview.
+- **TEST LIVE V3.18-EXPERIMENTAL** — l'utente farà il test live completo
+  per decidere se v3.18 va mergiata su `machine-iii` (diventa stabile)
+  o tenuta come branch preview. Il soundcheck è il primo passo del test
+  (verifica routing audio, volumi, visual).
+- Se v3.18 PASSA: merge a `machine-iii`, bump a `v3.18.0`, tag `v3.18.0-stable`.
+- Se v3.18 FAIL: `git worktree remove` + branch preservato come archivio.
+
+---
+
+## 2026-04-17 (sessione 28) — Audit Opus 4.7 + fix multi-agent 4 cluster (v3.17.1 → v3.18.0-rc1-exp)
+
+**Obiettivo:** audit completo e onesto del progetto dal punto di vista di Opus 4.7.
+Trovare buchi/implementazioni/miglioramenti per rendere la performance davvero
+"indimenticabile" come obiettivo dichiarato. Poi piano multi-agent per fixare
+tutto, su branch sperimentale isolato per non rischiare.
+
+**Diagnosi (via 4 agenti critici paralleli):**
+1. **Musicale** — rupture.stage calcolato ma MAI LETTO dai 5 moduli (metadata morta);
+   cicli armonici prevedibili; humanize `±6` fisso; no SeededRNG; ENCORE senza inversione.
+2. **Visuale** — 7 biomi neutralizzati dal Bayer uniforme; rupture visivamente assente;
+   geologia RITORNO snapshotta solo ultima traccia (promessa cumulativa tradita);
+   glyph layer come "pannolino".
+3. **Runtime** — `noteTimestamps` memory creep (270K entry/45min); tab-background
+   note orfane; MIDI/audio fail silent; no panic reset.
+4. **Drammaturgia** — performer invisibile come compositore; stessa scaletta
+   deterministica ogni volta; il pubblico "capisce il sistema" prima del climax.
+
+**Piano eseguito (branch v3.18-experimental isolato in `/app-experimental/`):**
+- **Wave 0:** tag `v3.17.1-stable`, branch + worktree experimental, VERSION bump,
+  DECISIONS #028.
+- **Wave 1A/B/D in parallelo** (3 agenti coder):
+  - A musica: rupture.stage cablata in 4 moduli, humanize per-traccia 7 valori
+  - B visuale: `_geoMemory` Float32Array + RGB per geologia cumulativa;
+    linguaggi radicali MACCHINA/NEBBIA/TEMPESTA; rupture omen inversione α=0.2
+  - D runtime: ring buffer noteTimestamps (8192) + onsetTimestamps (256);
+    document.hidden guard + AudioContext resume; HUD warnings; Shift+Z panic;
+    `?seed=` URL param + SeededRNG; AllNotesOff lookahead 50ms
+- **Wave 1.5E** (perf-analyzer): audit trasversale — zero regressioni > 0.3ms/frame.
+  Ma rilevato bug critico: flag B2/B3 dichiarati ma mai usati nel render loop.
+- **Wave 1B-bis** (coder): cablaggio flag B2/B3 nel render pixel loop
+  (MACCHINA grid / TEMPESTA vector / NEBBIA voice radial / omen lerp integer).
+- **Wave 2C** (coder): drammaturgia:
+  - Nodo ternario post-TEMPESTA (tasti 1/2/3: default / phrygianHold / silenceThenAeolian 90s)
+  - Pre-suite 90s (`?presuite` URL o Shift+0)
+  - Hotkey performer: ←→ octave ±12, ↑↓ density ±10%, M melody mute 8bar, N bass mute 8bar
+  - Sub drone tattile NEBBIA/TESSUTO (ottava -2)
+  - skipPhase rimappato da ArrowKeys a `,`/`.` (**breaking change**)
+- **Wave 3R** (reviewer): audit finale — verdetto **GO-with-caveats**.
+  Zero bloccanti. 5 warning non critici. `docs/V3.18-AUDIT.md` creato.
+
+**Fatto (7 commit sopra baseline v3.17.1-stable):**
+
+| Commit | Wave | Descrizione |
+|---|---|---|
+| `a156342` | 1A | rupture wiring + humanize per-traccia |
+| `361e747` | 1B | geologia cumulativa + flag biomi + omen |
+| `5040125` | 1B-bis | cablaggio flag B2/B3 nel render loop |
+| `0164c32` | 1D.1 | ring buffer noteTimestamps + SeededRNG + PANIC lookahead |
+| `8ebd33f` | 1D.2 | tab-hidden + HUD + panic Shift+Z + seed URL + audio ring |
+| `ed71a7f` | 2C | nodo ternario + hotkey performer + pre-suite + sub tactile |
+| `22b06c1` | 3R | audit review + V3.18-AUDIT.md |
+
+**Totale:** +1001/-113 righe, 16 file toccati.
+
+**File toccati:**
+- `src/VERSION.js` (v3.18.0-rc1-exp)
+- `src/bass-v3.js`, `src/melody-v3.js`, `src/harmony.js`, `src/rhythm.js`, `src/tracks.js`
+- `src/campo.js`, `src/director3.js`, `src/world-state.js`
+- `src/main.js`, `src/midi.js`, `src/audio.js`, `src/perf-utils.js` (nuovo), `src/config.js`
+- `index.html` (HUD div)
+- `docs/DECISIONS.md` (#028), `docs/STATUS.md`, `docs/V3.18-AUDIT.md` (nuovo)
+
+**Decisioni prese:** #028 — Ramificazione v3.18-experimental per fix audit Opus 4.7.
+
+**Prossimo:** test live A/B v3.17.1-stable vs v3.18.0-rc1-exp. Dopo 1-2 test
+decidere GATE 3: merge su `machine-iii` / mantenere experimental separato /
+rollback. Vedi STATUS.md P0-P2.
+
+**Rollback garantito:** `git worktree remove ../app-experimental --force` +
+`git branch -D v3.18-experimental`. Tag `v3.17.1-stable` immutabile.
+
+**Lessons learned:**
+- Agenti coder paralleli su file disgiunti → funziona bene, evita conflitti git
+- Timeout agenti (stream idle) è frequente per prompt lunghi → committare io
+  il lavoro parziale + rilanciare agente più focalizzato
+- Perf-analyzer è essenziale post-wave: ha scoperto che B2/B3 erano stub senza
+  cablaggio, risparmiando un bug live potenzialmente silenzioso
+- Reviewer finale + V3.18-AUDIT.md persistente → traccia decisione per futuri
 
 ---
 
