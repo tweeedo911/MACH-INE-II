@@ -150,8 +150,8 @@ let _centerXLUT = null, _centerYLUT = null;  // pixel centers per cella — pre-
 // (il 35% del massimo tra i ruoli sopravvive) con il colore medio del
 // bioma uscente pesato per la densità. In RITORNO diventa substrato
 // visibile al 40%: il pubblico vede la storia dei 55 minuti precedenti.
-const _GEO_DECAY_ON_TRACK_CHANGE = 0.92;
-const _GEO_MERGE_FACTOR = 0.35;
+const _GEO_DECAY_ON_TRACK_CHANGE = 0.94;  // v3.18 fix: era 0.92 — memoria più persistente (7ª traccia pesa ≈0.68 vs 0.61)
+const _GEO_MERGE_FACTOR = 0.52;           // v3.18 fix: era 0.35 — deposito più forte per traccia
 let _geoMemory = null;     // Float32Array size=cellsX*cellsY  — densità fusa
 let _geoMemoryRGB = null;  // Float32Array size*3 — colore fuso (R,G,B in 0..255)
 let _biomaName = 'GENERIC';  // nome del bioma corrente (serve a render per B2.1)
@@ -848,14 +848,14 @@ export function renderCampo(ctx, W, H) {
   // Render al 40% di luminosità — tenue, è substrato non soggetto.
   // NON sovrascrive: screen blend con il background già renderizzato.
   if (_geoMemory && _bioma.planetMask) {
-    const geoAlpha = 0.40;
+    const geoAlpha = 0.58;  // v3.18 fix: era 0.40 — substrate più visibile in RITORNO
     const cpx = defaultRoleCpx.drone ?? _cellPx;
     const halfCpx = Math.floor(cpx / 2);
     for (let cy = 0; cy < _cellsY; cy++) {
       for (let cx = 0; cx < _cellsX; cx++) {
         const cellIdx = cy * _cellsX + cx;
         const d = _geoMemory[cellIdx];
-        if (d < 0.05) continue;
+        if (d < 0.02) continue;  // v3.18 fix: era 0.05 — tracce antiche non filtrate prematuramente
         const rgbBase = cellIdx * 3;
         const giR = ((_geoMemoryRGB[rgbBase]     * geoAlpha) + 0.5) | 0;
         const giG = ((_geoMemoryRGB[rgbBase + 1] * geoAlpha) + 0.5) | 0;
@@ -867,9 +867,10 @@ export function renderCampo(ctx, W, H) {
         const y0 = Math.max(0, centerY - halfCpx);
         const x1 = Math.min(_W, centerX - halfCpx + cpx);
         const y1 = Math.min(_H, centerY - halfCpx + cpx);
+        const dBoost = d * 1.7;  // v3.18 fix: soglia Bayer più permissiva — 2/16 → ~5/16 pixel visibili
         for (let py = y0; py < y1; py++) {
           for (let px = x0; px < x1; px++) {
-            if (d < bayer(px, py)) continue;
+            if (dBoost < bayer(px, py)) continue;
             const pi = (py * _W + px) * 4;
             // screen blend: max(curr, substrate) implicito — non sovrascrive
             // pixel più luminosi (garanzia di correttezza, substrate sempre sotto)
@@ -888,7 +889,9 @@ export function renderCampo(ctx, W, H) {
   // TEMPESTA = dither vettoriale orientato (angolo tempo-modulato, evoca il vento)
   const biomaRenderMode = _bioma.biomaRenderMode || null;
   const isMacchina = _biomaName === 'MACCHINA' || biomaRenderMode === 'grid-pure';
-  const isNebbiaRadial = biomaRenderMode === 'radial-voice';
+  // v3.18 fix: fallback sul nome come MACCHINA/TEMPESTA — biomaRenderMode non è mai
+  // settato in biomi.js, quindi il ramo era dead code (dither radiale NEBBIA voice mai attivo)
+  const isNebbiaRadial = _biomaName === 'NEBBIA' || biomaRenderMode === 'radial-voice';
   const isTempestaVector = _biomaName === 'TEMPESTA' || biomaRenderMode === 'vector-dither';
   // TEMPESTA: angolo lentamente rotante (1 giro ogni ~30s @ 60fps) — il vento gira
   const tempestaAngle = isTempestaVector ? (_renderFrame * 0.0035) : 0;
