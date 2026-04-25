@@ -1,12 +1,42 @@
-# STATUS — MACH:INE III (branch machine-iii, v3.20.0-rc2)
+# STATUS — MACH:INE III (branch machine-iii, v3.20.0-rc3)
 
 > Snapshot vivo. Rigenerato a fine sessione. Punto di entrata di ogni nuova sessione.
-> **Last updated:** 2026-04-25 (sessione 32: SC audio engine Wave A+B — drone enrich + kick/bass/chord)
+> **Last updated:** 2026-04-25 (sessione 32: SC audio engine Wave A+B+C completa — 10 ruoli × 7 biomi)
 
 ## Versione
 
-**v3.20.0-rc2** — single source: `src/VERSION.js` (`APP_VERSION`). SC audio engine Wave A+B.
+**v3.20.0-rc3** — single source: `src/VERSION.js` (`APP_VERSION`). SC audio engine
+**suite completa**: 10 ruoli (drone/kick/bass/chord/voice/lead/arp/hat/openhat/snare/conga)
+× 7 biomi. Pronto per calibrazione live.
 Wave 1 musicale completa (v3.19.0-rc2). Baseline live `v3.18.0` (tag su `cda67a8`).
+
+## Novità v3.20.0-rc3 (sessione 32, 2026-04-25) — Wave C SC
+
+Chiusura suite SC. Wave A (drone) + B (kick/bass/chord) + C (voice/lead/arp/perc) =
+8 ch MIDI completi via SC, MIDI parallelo additivo. Vedi `DECISIONS.md` #035.
+
+**7 nuovi SynthDef:**
+- `voice.scd` — body Tri+Pulse + vibrato + BPF formant + breath noise.
+- `lead.scd` — Saw+Pulse → RLPF → tanh drive → ADSR.
+- `arp.scd` — Tri+Saw → RLPF → perc envelope (attack stretto).
+- `hat.scd` / `openhat.scd` — HPF+BPF noise, decay differenziato.
+- `snare.scd` — body sin 180 + BPF noise → tanh + outer killEnv.
+- `conga.scd` — sin con pitch sweep esp. (note MIDI → freq).
+
+**Perc multiplex** (ch 1): `_percRoleFromNote(note)` in midi.js mappa convenzione GM
+→ role: 38=snare, 42=openhat, 41/45/48=conga, default=hat.
+
+**Preset 7×10:**
+- voice: NEBBIA fragile, TEMPESTA espressivo, RITORNO esposto, TESSUTO amp:0 (lead prende).
+- lead: SOLCO amp:0 (groove solo), TEMPESTA drive 0.6 (distorto), RESPIRO drive 0 (pulito).
+- arp: MACCHINA protagonist secco (release 0.08), RITORNO dying (cutoff 1000), assenti
+  in NEBBIA/TESSUTO/RESPIRO.
+- hat: MACCHINA tight 16th (0.04), TEMPESTA 8th (0.06).
+- openhat: solo TESSUTO/SOLCO/TEMPESTA/RITORNO; MACCHINA closed-only.
+- snare: SOLCO amp:0 (dub no snare); altrove decay per traccia.
+- conga: solo TEMPESTA (sincopato step 3,11,13).
+
+## Novità v3.20.0-rc2 (sessione 32) — Drone enrichment + Wave B
 
 ## Novità v3.20.0-rc2 (sessione 32, 2026-04-25) — Drone enrichment + Wave B
 

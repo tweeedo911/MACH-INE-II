@@ -8,10 +8,21 @@ import { recordMIDI } from './session-recorder.js';
 import { humanizeMs } from './composition-toolkit.js';
 import { sendSCNote } from './sc-out.js';
 
-// v3.20-rc2 Wave B: ch → SC role mapping. ch 0 kick, 3 bass, 4 chord (Wave B).
-// Wave C aggiungerà 5 voice, 6 lead, 7 arp, 1 perc. Ch 2 drone non ha note one-shot
-// (gestito via biome morphing persistente).
-const SC_ROLE_BY_CH = ['kick', null, null, 'bass', 'chord', null, null, null];
+// v3.20-rc3 Wave A+B+C: ch → SC role mapping completo.
+// ch 0 kick, ch 1 perc (multiplexato per note number), ch 2 drone (biome morphing, skip),
+// ch 3 bass, ch 4 chord, ch 5 voice, ch 6 lead, ch 7 arp.
+const SC_ROLE_BY_CH = ['kick', '_perc', null, 'bass', 'chord', 'voice', 'lead', 'arp'];
+
+// Perc multiplex (ch 1): note number → SC role.
+// Drum kit GM convention usata da rhythm.js:
+//   36 = HAT_CLOSED, 38 = SNARE, 41 = floor tom (scatter→conga), 42 = HAT_OPEN,
+//   45/48 = CONGA_HI/LO, 46 = HAT_PEDAL.
+function _percRoleFromNote(note) {
+  if (note === 38) return 'snare';
+  if (note === 42) return 'openhat';
+  if (note === 45 || note === 48 || note === 41) return 'conga';
+  return 'hat';  // default: closed hat (36, 46, ecc.)
+}
 
 // ── MIDI role channels (0-indexed internally) ──
 // Ch 0=KICK, Ch 1=PERC, Ch 2=DRONE, Ch 3=BASS, Ch 4=CHORDS, Ch 5=VOICE, Ch 6=LEAD, Ch 7=ARP
@@ -247,10 +258,11 @@ export function sendMIDINote(ch, note, vel, durationMs = 200) {
   midiOut.send([0x90 | chByte, safeNote, safeVel], t);
   midiOut.send([0x80 | chByte, safeNote, 0], t + durationMs);
 
-  // v3.20-rc2 Wave B — invio SC parallelo per ch mappati (kick/bass/chord).
-  // Drum kit (ch 1) e voice/lead/arp (5/6/7) restano MIDI-only finché Wave C.
-  // Drone (ch 2) gestito separatamente via biome morphing persistente, no note one-shot.
-  const role = SC_ROLE_BY_CH[chByte];
+  // v3.20-rc3 Wave A+B+C — invio SC parallelo per tutti i ruoli mappati.
+  // Drone (ch 2) gestito da biome morphing persistente, niente note one-shot.
+  // Perc (ch 1) multiplexato per note number (snare/openhat/conga/hat).
+  let role = SC_ROLE_BY_CH[chByte];
+  if (role === '_perc') role = _percRoleFromNote(safeNote);
   if (role) {
     const freq = 440 * Math.pow(2, (safeNote - 69) / 12);
     const amp = (safeVel / 127) * 0.6;  // max 0.6 — evita clipping con stack accordi
