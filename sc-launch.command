@@ -26,6 +26,9 @@ cleanup() {
     [ -n "${TAIL_PID}" ]   && kill "${TAIL_PID}"   2>/dev/null
     [ -n "${SC_PID}" ]     && kill "${SC_PID}"     2>/dev/null
     [ -n "${BRIDGE_PID}" ] && kill "${BRIDGE_PID}" 2>/dev/null
+    # IMPORTANTE: scsynth è separato da sclang. Senza s.quit resta orphan.
+    pkill -9 scsynth 2>/dev/null
+    pkill -9 sclang 2>/dev/null
     wait 2>/dev/null
     exit 0
 }

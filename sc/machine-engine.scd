@@ -46,23 +46,25 @@ s.waitForBoot({
 
     // ── Helper: applica phase curve sopra il preset bioma ──
     // Multiplier su amp/cutoff/drift dipendenti da phase + progress (0→1 dentro fase).
+    // ATTENZIONE: niente `^nil` dentro Function blocks (causa ReturnException
+    // e silenzia il synth). Usa nested if al posto di early return.
     applyDronePhase = { |phaseSym, prog|
-        var curve = ~phaseCurves[phaseSym];
-        var preset, droneParams;
-        if(curve.isNil or: { currentBiome.isNil }) { ^nil };
-        preset = ~biomePresets[currentBiome];
-        if(preset.isNil) { ^nil };
-        droneParams = preset[\drone];
-        if(droneParams.isNil) { ^nil };
-
-        // amp finale = ampScale × bioma master (0.5 default — il bioma non parla a piena voce)
-        droneSynth.set(\amp, curve[\amp] * 0.5);
-        // cutoff scalato per fase
-        droneSynth.set(\cutoff, droneParams[\cutoff] * curve[\cutoffScale]);
-        // drift scalato per fase
-        droneSynth.set(\driftAmp, droneParams[\driftAmp] * curve[\driftScale]);
-        // reverb additivo (dissoluzione +0.25)
-        droneSynth.set(\reverbMix, (droneParams[\reverbMix] + curve[\reverbAdd]).clip(0, 1));
+        var curve, preset, droneParams, finalAmp;
+        curve = ~phaseCurves[phaseSym];
+        if(curve.notNil and: { currentBiome.notNil }) {
+            preset = ~biomePresets[currentBiome];
+            if(preset.notNil) {
+                droneParams = preset[\drone];
+                if(droneParams.notNil) {
+                    finalAmp = curve[\amp] * 0.5;
+                    droneSynth.set(\amp, finalAmp);
+                    droneSynth.set(\cutoff, droneParams[\cutoff] * curve[\cutoffScale]);
+                    droneSynth.set(\driftAmp, droneParams[\driftAmp] * curve[\driftScale]);
+                    droneSynth.set(\reverbMix, (droneParams[\reverbMix] + curve[\reverbAdd]).clip(0, 1));
+                    ("[machine-engine] phase → " ++ phaseSym ++ " (amp=" ++ finalAmp.round(0.01) ++ ")").postln;
+                };
+            };
+        };
     };
 
     // ── OSC handlers ──

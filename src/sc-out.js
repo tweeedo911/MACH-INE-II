@@ -125,3 +125,14 @@ function _send(address, args) {
     setSCEnabled(true);
   }
 }
+
+// ── Debug helper: expose API on window for devtools console ──
+// Usage in browser console:
+//   __sc.setSCEnabled(true)
+//   __sc.sendSCBiome('NEBBIA')          // applica preset timbrico
+//   __sc.sendSCPhase('densita', 0.5)    // applica phase curve (amp/cutoff/...)
+//   __sc.panicSC()                      // silenzia drone
+// Per testare audio SC senza partire la suite (Space): chiama biome+phase a mano.
+if (typeof window !== 'undefined') {
+  window.__sc = { setSCEnabled, isSCEnabled, sendSCBiome, sendSCPhase, sendSCNote, panicSC };
+}
