@@ -22,9 +22,24 @@ s.waitForBoot({
     s.sync;
     "[machine-engine] SynthDef loaded".postln;
 
+    // ── Master limiter SynthDef: pass-through su bus 0 con Limiter prima di Out ──
+    // Anti-clipping per stack denso (TEMPESTA densità: drone + kick + bass + chord +
+    // voice + lead + hat + conga simultanei). ReplaceOut riscrive in posto sul main bus.
+    SynthDef(\machineLimiter, { |out = 0|
+        var sig = In.ar(out, 2);
+        sig = Limiter.ar(sig, 0.95, 0.005);
+        ReplaceOut.ar(out, sig);
+    }).add;
+    s.sync;
+
     // Singleton drone — sempre attivo, gate=1, amp=0 finché bioma non set.
     droneSynth = Synth(\machineDrone, [\amp, 0, \gate, 1], target: s);
     "[machine-engine] drone synth instantiated (gate=1, amp=0 — silent until /biome/set)".postln;
+
+    // Master limiter in coda al group (addToTail). Tutti i synth scrivono su out 0,
+    // il limiter intercetta e applica Limiter prima dell'output finale.
+    Synth.tail(s, \machineLimiter, [\out, 0]);
+    "[machine-engine] master limiter active (0.95 ceiling)".postln;
 
     // Bridge listens on UDP 57122 per replies.
     browserAddr = NetAddr.new("127.0.0.1", 57122);
@@ -115,12 +130,16 @@ s.waitForBoot({
     // Drone (\drone) è gestito a parte con biome morphing persistente, niente note one-shot.
     [\kick, \bass, \chord, \voice, \lead, \arp, \hat, \openhat, \snare, \conga].do { |role|
         OSCdef(("note_" ++ role.asString).asSymbol, { |msg|
-            var freq, msgAmp, dur, args, preset, presetParams, ampMute;
+            var freq, msgAmp, dur, args, preset, presetParams, ampMute, phaseAmpScale, finalAmp;
             freq = msg[1] ? 220;
             msgAmp = msg[2] ? 0.3;
             dur = msg[3] ? 0.2;
-            args = [\freq, freq, \amp, msgAmp, \dur, dur];
             ampMute = false;
+            // FIX bug architetturale: phase curve amp scale applicata anche ai one-shot.
+            // Senza, in germoglio drum colpiscono a piena forza mentre il drone è piano.
+            phaseAmpScale = (~phaseCurves[currentPhase] !? { |c| c[\amp] }) ? 1.0;
+            finalAmp = msgAmp * phaseAmpScale;
+            args = [\freq, freq, \amp, finalAmp, \dur, dur];
             if(currentBiome.notNil) {
                 preset = ~biomePresets[currentBiome];
                 if(preset.notNil) {
@@ -137,7 +156,16 @@ s.waitForBoot({
                     };
                 };
             };
-            if(ampMute.not) { Synth(role, args) };
+            if(ampMute.not) {
+                Synth(role, args);
+                // Diagnostic log throttled: solo se SC_VERBOSE settato (default off, abilita
+                // da console SC: ~scVerbose = true; per debug, false; per silenziare).
+                if(~scVerbose == true) {
+                    ("[SC] " ++ role ++ " freq=" ++ freq.round(1)
+                        ++ " amp=" ++ finalAmp.round(0.01)
+                        ++ " bioma=" ++ currentBiome).postln;
+                };
+            } { if(~scVerbose == true) { ("[SC] " ++ role ++ " MUTED bioma=" ++ currentBiome).postln } };
         }, "/synth/" ++ role.asString ++ "/note");
     };
 
