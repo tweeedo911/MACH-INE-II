@@ -131,8 +131,38 @@ function _send(address, args) {
 //   __sc.setSCEnabled(true)
 //   __sc.sendSCBiome('NEBBIA')          // applica preset timbrico
 //   __sc.sendSCPhase('densita', 0.5)    // applica phase curve (amp/cutoff/...)
+//   __sc.testSuite()                    // round automatico dei 10 ruoli sul bioma corrente
 //   __sc.panicSC()                      // silenzia drone
 // Per testare audio SC senza partire la suite (Space): chiama biome+phase a mano.
+
+// Test suite: triggera un colpo per ogni ruolo (con freq sensata) per debug volume + funzionamento.
+// Gli amp:0 dei ruoli silenziati per il bioma corrente non producono suono (skip lato SC).
+async function testSuite(biome = null) {
+  if (biome) sendSCBiome(biome);
+  await new Promise(r => setTimeout(r, 200));
+  sendSCPhase('densita', 0.5);
+  await new Promise(r => setTimeout(r, 200));
+
+  const cases = [
+    { role: 'kick',    freq: 50,  dur: 0.5 },
+    { role: 'bass',    freq: 110, dur: 0.4 },
+    { role: 'chord',   freq: 220, dur: 1.5 },
+    { role: 'voice',   freq: 440, dur: 0.8 },
+    { role: 'lead',    freq: 660, dur: 0.4 },
+    { role: 'arp',     freq: 523, dur: 0.15 },
+    { role: 'hat',     freq: 9000, dur: 0.06 },
+    { role: 'openhat', freq: 8000, dur: 0.3 },
+    { role: 'snare',   freq: 180, dur: 0.2 },
+    { role: 'conga',   freq: 130, dur: 0.2 },
+  ];
+  for (const c of cases) {
+    console.log('[SC test]', c.role, biome || '(current)');
+    sendSCNote(c.role, c.freq, 0.55, c.dur);
+    await new Promise(r => setTimeout(r, 700));
+  }
+  console.log('[SC test] complete — se un ruolo non ha suonato è perché il preset bioma ha amp:0 per lui (es. NEBBIA kick).');
+}
+
 if (typeof window !== 'undefined') {
-  window.__sc = { setSCEnabled, isSCEnabled, sendSCBiome, sendSCPhase, sendSCNote, panicSC };
+  window.__sc = { setSCEnabled, isSCEnabled, sendSCBiome, sendSCPhase, sendSCNote, panicSC, testSuite };
 }
