@@ -5,6 +5,7 @@
 
 import { CFG } from './config.js';
 import { recordMIDI } from './session-recorder.js';
+import { humanizeMs } from './composition-toolkit.js';
 
 // ── MIDI role channels (0-indexed internally) ──
 // Ch 0=KICK, Ch 1=PERC, Ch 2=DRONE, Ch 3=BASS, Ch 4=CHORDS, Ch 5=VOICE, Ch 6=LEAD, Ch 7=ARP
@@ -91,6 +92,22 @@ const CLOCK_LOOKAHEAD = 100; // schedule ticks up to 100ms ahead — 2× margin 
 // del main thread (5-10ms) e < della soglia percettiva (~20ms).
 // Sessione 27: introdotto per eliminare il drift clock↔note con hw attaccato.
 const NOTE_LOOKAHEAD_MS = 15;
+
+// ── v3.19 Wave 1A: per-track timing feel ──
+// _trackFeelMs: offset costante in ms applicato a TUTTE le note (drum incluso).
+//   Negative → push (in pocket / ahead of beat: MACCHINA, TEMPESTA)
+//   Positive → laid-back (TESSUTO, SOLCO, RITORNO).
+//   Spostiamo il groove rispetto al MIDI clock: il "feel" diventa identità per traccia.
+// _trackJitterSigma: deviazione standard del jitter gaussiano in ms.
+//   Applicato SOLO ai canali espressivi (>=2): drum kit (0/1) resta in griglia rigida.
+//   Rende il timing umano sui ch musicali senza compromettere il polso.
+let _trackFeelMs = 0;
+let _trackJitterSigma = 0;
+
+export function setTrackTiming({ feel = 0, jitter = 0 } = {}) {
+  _trackFeelMs = feel;
+  _trackJitterSigma = jitter;
+}
 
 // Keep canvas width in sync
 export function setCanvasWidth(width) {
@@ -213,7 +230,14 @@ export function sendMIDINote(ch, note, vel, durationMs = 200) {
   // Lookahead scheduling: tutte le note viaggiano con lo stesso buffer del clock.
   // Assorbe jitter del main thread (fino a NOTE_LOOKAHEAD_MS) senza drift tra
   // clock MIDI (hardware-timed) e note. Sessione 27.
-  const t = performance.now() + NOTE_LOOKAHEAD_MS;
+  // v3.19 Wave 1A: offset feel (sistematico) + jitter gaussiano per ch espressivi.
+  // Drum kit (ch 0/1) prende solo il feel sistematico — la griglia ritmica resta
+  // rigida ma il groove può spostarsi in pocket / laid-back per traccia.
+  const isDrum = (ch === 0 || ch === 1);
+  const jitter = isDrum ? 0 : humanizeMs(_trackJitterSigma);
+  const baseT = performance.now() + NOTE_LOOKAHEAD_MS + _trackFeelMs + jitter;
+  // Clamp: lo scheduler non accetta timestamp nel passato (perde la nota).
+  const t = baseT < performance.now() + 1 ? performance.now() + 1 : baseT;
   midiOut.send([0x90 | chByte, safeNote, safeVel], t);
   midiOut.send([0x80 | chByte, safeNote, 0], t + durationMs);
 }

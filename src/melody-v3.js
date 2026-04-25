@@ -22,6 +22,7 @@ import { sendMIDINote } from './midi.js';
 import { addMidiNote } from './field.js';
 import { TRACKS } from './tracks.js';
 import { advanceCanonVoice } from './encore-canon.js';
+import { ease, breathMultiplier } from './composition-toolkit.js';
 
 // ── Channel assignments ──
 const CH_VOICE = 5;
@@ -563,7 +564,11 @@ function _tick() {
         const arc = _contourArc(phrasePos, _voiceContour);
         _phraseIdx++;
 
-        const rawVel = VOICE_VEL_BASE + density * VOICE_VEL_RANGE * (0.6 + 0.4 * arc);
+        // v3.19 Wave 1C: shapedDensity applica curva di easing per traccia (NEBBIA easeOut
+        // = carezza, MACCHINA/TEMPESTA easeIn = esplodono con la densità).
+        const curveType = track?.velocityCurve ?? 'easeInOut';
+        const shapedDensity = ease(density, curveType);
+        const rawVel = VOICE_VEL_BASE + shapedDensity * VOICE_VEL_RANGE * (0.6 + 0.4 * arc);
         const hvel = track?.humanize?.velocity ?? VOICE_HUMANIZE;
         const humanize = Math.round((Math.random() * 2 - 1) * hvel);
         const vel = Math.min(Math.max(Math.round(rawVel + humanize), VOICE_VEL_FLOOR), velCeil);
@@ -674,7 +679,10 @@ function _tick() {
       const arc = _contourArc(phrasePos, _leadContour);
       _leadPhraseIdx++;
 
-      const rawVel = VOICE_VEL_BASE + density * VOICE_VEL_RANGE * (0.55 + 0.45 * arc);
+      // v3.19 Wave 1C: shapedDensity per curva di traccia (Lead solo: TESSUTO easeInOut)
+      const curveTypeL = track?.velocityCurve ?? 'easeInOut';
+      const shapedDensityL = ease(density, curveTypeL);
+      const rawVel = VOICE_VEL_BASE + shapedDensityL * VOICE_VEL_RANGE * (0.55 + 0.45 * arc);
       // Lead: humanize più contenuto del voice (scale 0.5×), fallback ±2
       const hvel = (track?.humanize?.velocity ?? 2) * 0.5;
       const humanize = Math.round((Math.random() * 2 - 1) * hvel);
@@ -766,7 +774,12 @@ function _tick() {
         const accentMul = (_step % 4 === 0) ? 1.15 : 0.9;
         // V3.11: nota di passaggio suona più piano
         const passingMul = (arpNote !== _arpPattern[(_arpIdx + _arpPattern.length - 1) % _arpPattern.length]) ? 1.0 : 1.0;
-        const rawArpVel = (ARP_VEL_BASE + density * ARP_VEL_RANGE) * arpVelMul * duckMul * accentMul;
+        // v3.19 Wave 1B/C: breath multiplier (16-bar respiro) + curva traccia su density.
+        // L'arp ostinato non ha frase → bar-level breath dà l'arco dinamico mancante.
+        const breath = breathMultiplier(_bar, 16);
+        const curveTypeA = track?.velocityCurve ?? 'easeInOut';
+        const shapedDensityA = ease(density, curveTypeA);
+        const rawArpVel = (ARP_VEL_BASE + shapedDensityA * ARP_VEL_RANGE) * arpVelMul * duckMul * accentMul * breath;
         // Arp: humanize più contenuto (scale 0.6× del track humanize), fallback ±3
         const arpHvel = (track?.humanize?.velocity ?? ARP_HUMANIZE) * 0.6;
         const arpHumanize = Math.round((Math.random() * 2 - 1) * arpHvel);
