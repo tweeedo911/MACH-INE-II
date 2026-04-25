@@ -1269,5 +1269,78 @@ se l'utente non ha DAW/IAC, sente solo il drone isolato (single-layer, manca mov
 - ⚠️ Wave C voice/lead/arp/perc ancora MIDI-only, suite SC parziale fino a Wave C.
 
 ---
+
+## #035 — Wave C SC: voice + lead + arp + perc kit (v3.20.0-rc3)
+
+**Data:** 2026-04-25
+**Contesto:**
+Suite SC completa. Wave A (drone) + Wave B (kick/bass/chord) chiudevano 4/8 ch.
+Wave C aggiunge i 4 ch melodici/percussivi rimanenti: voice (CH5), lead (CH6),
+arp (CH7), perc multiplex (CH1 → hat/openhat/snare/conga per note number).
+
+**Scelta — 7 nuovi SynthDef:**
+- `voice.scd` — body Tri+Pulse 1.005 detune con vibrato + BPF formant + breath noise.
+  Carattere: vocale, espressivo. Per traccia: vibratoRate, vibratoDepth, breathAmp,
+  formant, attack, release.
+- `lead.scd` — Saw + Pulse 1.003 → RLPF → tanh drive → ADSR. Carattere: melodico, può
+  distorcere. Per traccia: drive, cutoff, attack/decay/sustain/release.
+- `arp.scd` — Tri+Saw → RLPF → perc envelope. Carattere: ritmico, breve. Per traccia:
+  mixTri/mixSaw, cutoff, attack, release.
+- `hat.scd` — HPF 7000 noise + BPF 9000. Decay corto (closed hat).
+- `openhat.scd` — HPF 6500 noise + BPF 8000. Decay lungo (open hat dance step 6/14
+  TEMPESTA).
+- `snare.scd` — body SinOsc 180Hz + BPF 3500 noise → tanh + outer killEnv.
+- `conga.scd` — SinOsc con pitch sweep esp. (note MIDI determina pitch via freq).
+
+**Perc multiplex** (ch 1):
+- `midi.js`: `_percRoleFromNote(note)` mappa nota → role: 38=snare, 42=openhat,
+  41/45/48=conga, default=hat. Convenzione GM usata da rhythm.js.
+- `SC_ROLE_BY_CH = ['kick', '_perc', null, 'bass', 'chord', 'voice', 'lead', 'arp']`.
+  '_perc' è sentinel: triggera resolveTramite `_percRoleFromNote`. ch 2 drone null
+  (no note one-shot).
+
+**Preset bioma esteso a 10 ruoli per ognuno dei 7 biomi:**
+- voice: NEBBIA fragile (vibrato lento, breath alto, attack lungo), TESSUTO amp:0
+  (voice tace, lead protagonista), TEMPESTA espressiva (vibrato veloce, depth 0.015),
+  RITORNO esposta (breath 0.12, attack medio, release lungo).
+- lead: SOLCO amp:0 (groove parla da solo), TEMPESTA distorto (drive 0.6),
+  MACCHINA response breve (drive 0.3, decay corto), RESPIRO eco pulito (drive 0).
+- arp: NEBBIA/TESSUTO/RESPIRO amp:0 (assenti); MACCHINA protagonist (mixSaw 0.8,
+  cutoff 2000, release 0.08 secco), RITORNO dying (cutoff 1000, release 0.20 sfumato).
+- hat: NEBBIA/RESPIRO amp:0; MACCHINA tight (decay 0.04), TEMPESTA 8th (0.06).
+- openhat: solo TESSUTO/SOLCO/TEMPESTA/RITORNO. MACCHINA disabled (16th pieni
+  closed-only). NEBBIA/RESPIRO amp:0.
+- snare: SOLCO amp:0 (dub: no snare). NEBBIA/RESPIRO amp:0.
+- conga: solo TEMPESTA (sincopato step 3,11,13). Altri amp:0.
+
+**Engine OSC handler attivo per tutti i 10 ruoli** (era stub per voice/lead/arp/perc):
+pattern preset-merge-Synth uniforme.
+
+**Alternative scartate:**
+- **Hat unificato con `\open` flag** (closed/open via param invece di 2 SynthDef):
+  scartato per chiarezza — preset diversi per bioma più leggibili.
+- **Conga senza freq** (ignorato come hat): conga *usa* freq dal note MIDI per il
+  pitch del body. Mantengo coerenza freq=Hz dal browser.
+- **Voice come oscillator+noise senza formant filter**: il BPF al 1.5×freq+formant
+  è quello che rende il timbro "vocale" (analogamente al singing voice). Senza
+  resta synth pad generico.
+
+**Conseguenze:**
+- ✅ Suite SC completa: 10 ruoli × 7 biomi attivi.
+- ✅ Identità per traccia coerente con `tracks.js`: voice fragile in NEBBIA, hocket
+  TEMPESTA via voice + lead drive 0.6, MACCHINA arp protagonist sec.
+- ✅ Perc multiplex: hat/openhat/snare/conga differenziati per nota MIDI senza
+  refactor di rhythm.js.
+- ✅ Preset bioma è la singola fonte di tuning timbrico — il sound design vive lì.
+- ⚠️ Calibrazione live necessaria su tutti i livelli relativi (voice in TEMPESTA
+  contro lead hocket = test critico).
+- ⚠️ Voice formant 0.3-0.6 da affinare ad orecchio — può suonare "gracile" se
+  troppo basso o "metallic" se troppo alto.
+- ⚠️ Snare body SinOsc 180Hz fissato — non scala con la nota MIDI. Per ora non
+  è un problema (rhythm.js manda sempre nota 38 → ma il body suona sempre 180).
+- ⚠️ Stack di voci simultaneo in TEMPESTA (drone+kick+bass+chord+voice+lead+
+  hat+conga) può clippare. Calibrazione master attesa.
+
+---
 <!-- knowledge-graph links -->
 [[STATUS]] [[01-ARCHITECTURE]] [[WORKLOG]]

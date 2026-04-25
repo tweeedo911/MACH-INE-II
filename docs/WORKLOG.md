@@ -6,6 +6,101 @@
 
 ---
 
+## 2026-04-25 (sessione 32, parte 3) — Wave C SC: voice + lead + arp + perc (v3.20.0-rc3)
+
+### Obiettivo
+Chiudere la suite SC. Dopo Wave A+B (drone + kick/bass/chord) restavano voice/lead/arp/perc
+da implementare per copertura totale degli 8 ch MIDI. Utente: "procedi wave c poi calibriamo
+insieme".
+
+### Fatto
+
+**7 nuovi SynthDef:**
+- `app/sc/synths/voice.scd` — body LFTri + Pulse 1.005 → BPF formant filter (1.5×freq +
+  formant offset) + BPF breath noise. Vibrato modula freq con SinOsc.kr. ASR envelope.
+- `app/sc/synths/lead.scd` — Saw + Pulse 1.003 → RLPF → tanh drive → ADSR
+  (attack/decay/sustain/release). Drive variabile (TEMPESTA distorto vs RESPIRO pulito).
+- `app/sc/synths/arp.scd` — Tri+Saw → RLPF → Env.perc(attack, dur+release). Attack stretto
+  per default (0.005), release modulabile per bioma.
+- `app/sc/synths/hat.scd` — HPF 7000 + BPF 9000 noise + Env.perc decay 0.05.
+- `app/sc/synths/openhat.scd` — HPF 6500 + BPF 8000 + decay 0.25 (più caldo, più lungo).
+- `app/sc/synths/snare.scd` — SinOsc 180Hz body env perc 0.08 + BPF 3500 noise env perc
+  variabile + tanh + outer killEnv (cleanup pulito senza clic finale).
+- `app/sc/synths/conga.scd` — SinOsc con pitch sweep esp. (sweepFactor variabile per traccia).
+
+**Perc multiplex (ch 1):** `_percRoleFromNote(note)` in midi.js. Convenzione GM da rhythm.js:
+- 38 → snare
+- 42 → openhat
+- 41/45/48 → conga
+- default (36/46/...) → hat closed
+
+**SC_ROLE_BY_CH aggiornato:**
+```js
+['kick', '_perc', null, 'bass', 'chord', 'voice', 'lead', 'arp']
+```
+'_perc' sentinel triggera la lookup per note number. ch 2 drone null (biome morphing).
+
+**Preset bioma esteso (7 biomi × 10 ruoli):**
+- voice: NEBBIA fragile (vibrato 4Hz depth 0.005, breath 0.15, attack 0.3, release 1.0),
+  TESSUTO amp:0, SOLCO naturale, RESPIRO cantabile, MACCHINA meccanica (vibrato 6Hz depth
+  0.005, attack 0.005), TEMPESTA espressiva (vibrato 6Hz depth 0.015), RITORNO esposta.
+- lead: NEBBIA eco (drive 0.05), TESSUTO solo (drive 0.1), SOLCO amp:0, RESPIRO eco pulito
+  (drive 0), MACCHINA response (drive 0.3, decay 0.10), TEMPESTA hocket distorto (drive 0.6),
+  RITORNO eco soft (drive 0.05, attack 0.1).
+- arp: SOLCO accompany, MACCHINA protagonist (mixSaw 0.8, cutoff 2000, release 0.08 secco),
+  TEMPESTA texture, RITORNO dying (cutoff 1000); NEBBIA/TESSUTO/RESPIRO amp:0.
+- hat/openhat/snare/conga: per bioma con decay/bpFreq specifici. SOLCO no snare (dub).
+  Conga solo TEMPESTA. MACCHINA no openhat (16th pieni closed).
+
+**Engine OSC handler attivo** per tutti i 10 ruoli (era stub per voice/lead/arp/perc).
+Pattern uniforme preset-merge-Synth.
+
+**Bump versione:** v3.20.0-rc2 → v3.20.0-rc3.
+
+### File toccati
+- **Nuovi (7):** `app/sc/synths/voice.scd`, `lead.scd`, `arp.scd`, `hat.scd`, `openhat.scd`,
+  `snare.scd`, `conga.scd`.
+- **Riscritti:** `app/sc/biome-presets.scd` (7 biomi × 10 ruoli, ~170 LOC).
+- **Modificati:** `app/sc/machine-engine.scd` (+5 LOC: carica 7 synth + handler unificato),
+  `app/src/midi.js` (+15 LOC: SC_ROLE_BY_CH completo + _percRoleFromNote),
+  `app/src/VERSION.js` → v3.20.0-rc3.
+
+### Decisioni prese
+Vedi `DECISIONS.md` #035.
+
+### Prossima sessione — punto di ripartenza
+
+**CALIBRAZIONE LIVE INSIEME** — utente aspetta a co-calibrare. Punti che probabilmente
+emergeranno (top-down per criticità):
+
+1. **Levels relativi**: stack TEMPESTA densità (drone+kick+bass+chord+voice+lead+hat+
+   conga simultanei) può clippare. Possibili leve:
+   - Master multiplier: oggi `* amp` finale per Synth, posso aggiungere `~masterGain` su
+     bus group SC per attenuare globale.
+   - Bias amp×0.6 in midi.js → 0.45 se troppo forte, 0.75 se troppo debole.
+   - Per-role amp scale nel preset (es. drone amp curve già 0.5×phaseCurve).
+2. **Voice formant**: range 0.3-0.6 calibrato a tavolino. Ad orecchio può suonare "gracile"
+   o "metallic". Calibrare per traccia.
+3. **TEMPESTA bass drive 0.7 + drone drive 0.6**: saturation cumulata. Possibile riduzione
+   bass drive 0.5 o drone 0.4.
+4. **Hat noise**: HPF/BPF freq tarate "a sensazione". Possibile fine-tune per timbro
+   (MACCHINA più metallico, SOLCO più caldo).
+5. **Snare body 180Hz fissato**: non scala con freq. Se note MIDI snare cambia (rare ma
+   possibile), il pitch resta. Da decidere se mantenere fisso (snare ha pitch caratteristico)
+   o leggere freq.
+6. **Conga sweep**: TEMPESTA usa note 48 → 130Hz default. Verificare attacco e tail.
+7. **Voice TEMPESTA hocket** (voice + lead alternati): test critico — i due ruoli devono
+   suonare "una voce sola" non due strumenti diversi.
+
+### Bug/warning aperti
+
+- ⚠️ Suite SC non testata live (10 ruoli × 7 biomi = 70 combinazioni timbriche da validare).
+- ⚠️ Possibile clipping su stack TEMPESTA densità — soluzione master limiter SC se serve.
+- ⚠️ Voice ha BPF dependent on freq (1.5×freq + formant). Per note alte il BPF può
+  superare Nyquist. Già clippato a 6000 max ma verificare comportamento su lead range.
+
+---
+
 ## 2026-04-25 (sessione 32, parte 2) — Drone enrichment + Wave B SC (v3.20.0-rc2)
 
 ### Obiettivo

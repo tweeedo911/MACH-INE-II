@@ -10,8 +10,8 @@ s.waitForBoot({
 
     synthsPath = PathName.new(thisProcess.nowExecutingPath).parentPath ++ "synths/";
 
-    // Carica SynthDef (Wave A: drone, Wave B: + kick/bass/chord).
-    [\drone, \kick, \bass, \chord].do { |n|
+    // Carica SynthDef (Wave A: drone, Wave B: + kick/bass/chord, Wave C: + voice/lead/arp/hat/openhat/snare/conga).
+    [\drone, \kick, \bass, \chord, \voice, \lead, \arp, \hat, \openhat, \snare, \conga].do { |n|
         var file = synthsPath ++ n.asString ++ ".scd";
         if(File.exists(file)) { file.load } { ("missing synth: " ++ file).postln };
     };
@@ -109,10 +109,11 @@ s.waitForBoot({
         browserAddr.sendMsg("/log", "panic: cleared + drone re-instantiated");
     }, "/panic");
 
-    // /synth/<name>/note freq amp dur — Wave B: kick/bass/chord attivi, voice/lead/arp/perc stub.
-    // Pattern: legge preset bioma per role, merga con freq/amp/dur dal browser, instanzia Synth.
-    // Se il preset ha amp:0, il ruolo è silenziato per quel bioma (es. NEBBIA kick=0).
-    [\kick, \bass, \chord].do { |role|
+    // /synth/<role>/note freq amp dur — tutti i 10 ruoli attivi (Wave A+B+C).
+    // Pattern: legge preset bioma per role, merga con freq/amp/dur dal browser,
+    // instanzia Synth. Se preset ha amp:0 → ruolo silenziato per quel bioma (skip).
+    // Drone (\drone) è gestito a parte con biome morphing persistente, niente note one-shot.
+    [\kick, \bass, \chord, \voice, \lead, \arp, \hat, \openhat, \snare, \conga].do { |role|
         OSCdef(("note_" ++ role.asString).asSymbol, { |msg|
             var freq, msgAmp, dur, args, preset, presetParams, ampMute;
             freq = msg[1] ? 220;
@@ -125,9 +126,7 @@ s.waitForBoot({
                 if(preset.notNil) {
                     presetParams = preset[role];
                     if(presetParams.notNil) {
-                        // Bioma silenzia il ruolo? (es. NEBBIA kick amp=0)
                         if((presetParams[\amp] ? 1) <= 0.001) { ampMute = true };
-                        // Merga param timbrici, ma freq/amp/dur dal browser prevalgono.
                         if(ampMute.not) {
                             presetParams.keysValuesDo { |k, v|
                                 if((k != \freq) and: { (k != \amp) and: { k != \dur } }) {
@@ -139,13 +138,6 @@ s.waitForBoot({
                 };
             };
             if(ampMute.not) { Synth(role, args) };
-        }, "/synth/" ++ role.asString ++ "/note");
-    };
-
-    // Wave C — voice/lead/arp/perc: stub (silenziato finché SynthDef non ci sono).
-    [\voice, \lead, \arp, \perc].do { |role|
-        OSCdef(("note_" ++ role.asString).asSymbol, { |msg|
-            // no-op
         }, "/synth/" ++ role.asString ++ "/note");
     };
 
