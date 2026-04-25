@@ -1,12 +1,22 @@
-# STATUS — MACH:INE III (branch machine-iii, v3.19.0-rc1)
+# STATUS — MACH:INE III (branch machine-iii, v3.19.0-rc2)
 
 > Snapshot vivo. Rigenerato a fine sessione. Punto di entrata di ogni nuova sessione.
-> **Last updated:** 2026-04-25 (sessione 31: Wave 1 upgrade musicale — feel + curve + arc)
+> **Last updated:** 2026-04-25 (sessione 31: Wave 1 completa — feel + curve + arc + ghost + euclidei)
 
 ## Versione
 
-**v3.19.0-rc1** — single source: `src/VERSION.js` (`APP_VERSION`). Da soundcheck → stable.
-Baseline precedente `v3.18.0` (tag su `cda67a8`).
+**v3.19.0-rc2** — single source: `src/VERSION.js` (`APP_VERSION`). Da soundcheck → stable.
+Wave 1 completa (1A-E). Baseline precedente `v3.18.0` (tag su `cda67a8`).
+
+## Novità v3.19.0-rc2 (sessione 31, 2026-04-25) — Wave 1D + 1E
+
+- **1D — Chord ghost phase-aware:** `phaseGhostScale(phase)` esteso al ghost di
+  chordGrid (TESSUTO, TEMPESTA). Germoglio off, densità ×1.5, dissoluzione 0.3.
+- **1E — Hat euclidei evolutivi:** `euclidean(K,N)` + `euclideanEvolve(K1,K2,N,prog)`
+  in toolkit. Tracce SOLCO + TESSUTO ora usano `hatEuclideanByPhase` invece del
+  default. SOLCO acquisisce E(5,16)/E(7,16) tresillo cubano in densità. Cache per
+  bar in rhythm.js (rigenerato a boundary di bar). MACCHINA/TEMPESTA mantengono
+  hatPatterns hardcoded (identità preservata).
 
 ## Novità v3.19.0-rc1 (sessione 31, 2026-04-25) — Wave 1 upgrade musicale
 

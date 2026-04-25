@@ -10,7 +10,7 @@ import { sendMIDINote, sendMIDIPitchBend } from './midi.js';
 import { addMidiNote } from './field.js';
 import { TRACKS } from './tracks.js';
 import { advanceCanonVoice } from './encore-canon.js';
-import { ease, progressionArc } from './composition-toolkit.js';
+import { ease, progressionArc, phaseGhostScale } from './composition-toolkit.js';
 
 // ── Channel assignments ──
 const CH_DRONE  = 2;  // CH2 = DRONE (sustained harmonic root)
@@ -264,7 +264,10 @@ function _tick() {
   if (chordGrid) {
     // ── Rhythmic chords: staccato hits on grid pattern ──
     // V3.11: ghost hit — probabilità di suonare l'accordo piano su step vuoti adiacenti
-    const ghostProb = trackData?.chordGridGhostProb ?? 0;
+    // v3.19 Wave 1D: ghost phase-aware. Germoglio 0 (chord da solo, niente ghost),
+    // densità ×1.5 (groove pieno), dissoluzione 0.3 (si sfilaccia). Stesso pattern bass-v3.
+    const baseGhostProb = trackData?.chordGridGhostProb ?? 0;
+    const ghostProb = baseGhostProb * phaseGhostScale(phase);
     const isGhost = !chordGrid[_step] && ghostProb > 0 && Math.random() < ghostProb;
 
     if (chordGrid[_step] || isGhost) {

@@ -1092,5 +1092,63 @@ ma 3 punti di "scontatezza" identificati nella diagnosi:
 - ⚠️ Bass non in scope Wave 1 — la firma timbrica CH3 resta lineare. Da fare in Wave 2.
 
 ---
+
+## #032 — Wave 1D + 1E: chord ghost phase-aware + hat euclidei evolutivi (v3.19.0-rc2)
+
+**Data:** 2026-04-25
+**Contesto:**
+Continuazione Wave 1 dopo rc1 (vedi #031). Aggiunte le due tasselle rimanenti del piano
+originale: ghost probability phase-aware esteso a chord (oggi solo bass-v3 lo aveva)
+e ritmica euclidea evolutiva sui layer secondari (hat) per le tracce che oggi usano
+il default sparso (SOLCO, TESSUTO).
+
+**Scelta:**
+- **1D — Chord ghost phase-aware** (`harmony.js` + `composition-toolkit.js`):
+  - Nuovo helper `phaseGhostScale(phase)` nel toolkit, generalizza il pattern già usato
+    da bass-v3 (germoglio 0, pulsazione 0.5, densità 1.5, rottura 1.2, dissoluzione 0.3).
+  - Applicato al `chordGridGhostProb` di TESSUTO (0.08) e TEMPESTA (0.06): il ghost
+    cresce e cala con la fase, seguendo la narrativa anziché restare costante.
+  - Germoglio: ghost off (chord da solo, non si infila niente sotto).
+  - Densità: ×1.5 (groove pieno, accordi extra "respirano" la quadrata).
+- **1E — Hat euclidei evolutivi** (`rhythm.js` + `tracks.js` + `composition-toolkit.js`):
+  - Toolkit aggiunge `euclidean(K, N)` (Toussaint distribuzione) e `euclideanEvolve(K1, K2, N, progress)`
+    (interpolazione probabilistica fra due densità euclidee).
+  - SOLCO: `hatEuclideanByPhase` con E(2,16)→E(3,16) pulsazione, E(5,16)→E(7,16) densità
+    (tresillo cubano), E(7,16)→E(9,16) rottura, E(2,16)→E(0,16) dissoluzione.
+    Pattern dub asimmetrico classico, finalmente al posto del default sparso v3.18.
+  - TESSUTO: idem ma più rado (max E(5,16) in rottura). Hat che vela senza riempire,
+    coerente con "qualcosa emerge".
+  - rhythm.js: `_resolveHatPattern(trackDef, phase)` legge `hatEuclideanByPhase` se
+    presente. Cache per bar (`_hatEvolved`, `_hatEvolvedBar`, `_hatEvolvedKey`):
+    rigenerato a ogni boundary di bar o cambio fase/track. Entro un bar il pattern
+    resta stabile (no instabilità intra-bar che trasformerebbe il hat in noise random).
+  - MACCHINA / TEMPESTA mantengono `hatPatterns` hardcoded (identità "macchina ferma"
+    e "dance picco" vanno preservate, l'evolutivo è solo per chi oggi usava il default).
+
+**Alternative scartate:**
+- **Estendere hatEuclidean a MACCHINA:** scartato. MACCHINA con 16th pieni È la sua
+  identità ("macchina ferma"). L'evolutivo erode la rigidità voluta.
+- **Conga euclidei:** scartato Wave 1. Conga di TEMPESTA è già ben curata (sincopata
+  per fase). L'evolutivo aggiungerebbe casualità senza beneficio.
+- **Cache pattern intra-step:** scartato — chiamare `euclideanEvolve` per ogni step
+  cambierebbe il pattern 16 volte per bar = noise random, non ritmo.
+- **Ghost phase scale anche su rhythm.js kick ghost:** lasciato per dopo. Il kick
+  ghost CH1 è già gated da `density > 0.6` + `isTakeover` boost — il pattern fase-aware
+  è implicitamente coperto dalle densità per fase.
+
+**Conseguenze:**
+- ✅ SOLCO finalmente ha hat dub asimmetrico (E(5,16) tresillo) anziché default sparso.
+- ✅ TESSUTO acquisisce texture inquieta euclidea, coerente con "qualcosa emerge".
+- ✅ Pattern "vivo, non loop fisso": i hit ambigui spostano posizione per bar in fase
+  evolutiva (pulsazione/densità in/out con K1≠K2).
+- ✅ Cache per bar = costo trascurabile (1 alloc Array(16) per bar).
+- ✅ Diff piccolo: 4 file toccati, 3 modifiche logiche.
+- ⚠️ E(5,16) tresillo classico ha downbeat su step 0 — verifica che il kick di SOLCO
+  (step 0) non si scontri timbricamente col hat (step 0 entrambi). Se sì → rotare hat di 1.
+- ⚠️ Riallineamento hat tra bar consecutivi con K1≠K2 = micro-glitch di 1-2 hit per bar.
+  È la feature voluta ("vivo"), ma se al test ad orecchio sembra "errore" → set K1=K2 nelle
+  fasi stabili (densità, pulsazione tarda).
+
+---
 <!-- knowledge-graph links -->
 [[STATUS]] [[01-ARCHITECTURE]] [[WORKLOG]]
