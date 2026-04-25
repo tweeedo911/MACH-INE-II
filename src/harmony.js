@@ -10,6 +10,7 @@ import { sendMIDINote, sendMIDIPitchBend } from './midi.js';
 import { addMidiNote } from './field.js';
 import { TRACKS } from './tracks.js';
 import { advanceCanonVoice } from './encore-canon.js';
+import { ease, progressionArc } from './composition-toolkit.js';
 
 // ── Channel assignments ──
 const CH_DRONE  = 2;  // CH2 = DRONE (sustained harmonic root)
@@ -269,7 +270,12 @@ function _tick() {
     if (chordGrid[_step] || isGhost) {
       const stepMs = (60 / bpm / 4) * 1000;
       const chordDur = Math.round(stepMs * (isGhost ? 1.5 : 2.5));  // ghost più corto
-      const baseVel = Math.round((isGhost ? 22 : 40) + density * (isGhost ? 15 : 35));
+      // v3.19 Wave 1B/C: progression arc (4/8-chord cycle) + curva di traccia su density.
+      // L'accordo non è più piatto: il ciclo armonico ha arco dinamico (II=peak, IV=ans).
+      const arcMul = isGhost ? 1.0 : progressionArc(_chordIdx, trackData.chords.length);
+      const curveTypeC = trackData?.velocityCurve ?? 'easeInOut';
+      const shapedDensityC = ease(density, curveTypeC);
+      const baseVel = Math.round(((isGhost ? 22 : 40) + shapedDensityC * (isGhost ? 15 : 35)) * arcMul);
 
       chord.forEach(note => {
         const humanize = Math.round((Math.random() * 6) - 3);
@@ -286,7 +292,11 @@ function _tick() {
     if (_step === 0 && _bar === _lastChordBar) {
       const overlapMs = trackData?.chordOverlapMs ?? 500;  // V3.5: per-track overlap (Burial warmth)
       const chordDur = Math.round(beatMs * 4 * barsPerChord + overlapMs);
-      const baseVel = Math.round(35 + density * 30);
+      // v3.19 Wave 1B/C: arc del ciclo armonico + curva di traccia.
+      const arcMulS = progressionArc(_chordIdx, trackData.chords.length);
+      const curveTypeS = trackData?.velocityCurve ?? 'easeInOut';
+      const shapedDensityS = ease(density, curveTypeS);
+      const baseVel = Math.round((35 + shapedDensityS * 30) * arcMulS);
 
       chord.forEach(note => {
         const humanize = Math.round((Math.random() * 6) - 3);

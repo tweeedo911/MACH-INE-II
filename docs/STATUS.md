@@ -1,25 +1,62 @@
-# STATUS — MACH:INE III (branch v3.18-experimental)
+# STATUS — MACH:INE III (branch machine-iii, v3.19.0-rc1)
 
 > Snapshot vivo. Rigenerato a fine sessione. Punto di entrata di ogni nuova sessione.
-> **Last updated:** 2026-04-18 (sessione 28-bis: soundcheck loop portato dal branch stabile)
+> **Last updated:** 2026-04-25 (sessione 31: Wave 1 upgrade musicale — feel + curve + arc)
 
 ## Versione
 
-**v3.18.0-rc2-exp** — single source: `src/VERSION.js` (`APP_VERSION`)
+**v3.19.0-rc1** — single source: `src/VERSION.js` (`APP_VERSION`). Da soundcheck → stable.
+Baseline precedente `v3.18.0` (tag su `cda67a8`).
 
-**ATTENZIONE:** versione sperimentale su branch isolato `v3.18-experimental`.
-Baseline stabile resta `v3.17.2` sul branch `machine-iii` (tag git `v3.17.1-stable` su `608c5e1`).
-Worktree separato in `/Users/Edo_1/MACH-INE II/app-experimental/`.
+## Novità v3.19.0-rc1 (sessione 31, 2026-04-25) — Wave 1 upgrade musicale
 
-Ripristino stabile in 10 secondi: `git worktree remove ../app-experimental --force` oppure usare direttamente `/app/`.
+Risposta richiesta utente "musicalmente più avanzato, meno scontato". Wave 1 = ritmica
++ espressione (basso costo / payoff immediato). Vedi `DECISIONS.md` #031.
 
-## Novità rc2-exp (2026-04-18) — soundcheck loop
+- **1A — Microtiming feel per traccia:** `humanize.feel` (ms) + jitter sistematico via
+  `setTrackTiming` in midi.js. Ogni traccia ha identità temporale distinta:
+  - SOLCO +5, TESSUTO +6, RITORNO +4 (laid-back)
+  - MACCHINA -3, TEMPESTA -4 (push)
+  - NEBBIA / RESPIRO / ENCORE 0 (centrati)
+  Drum kit ch 0/1 = solo feel (no jitter, polso rigido). Ch >=2 = feel + jitter gaussiano.
+- **1B — Progression arc + breath multiplier:**
+  - `progressionArc(idx, count)` su chord (rhythmic + sustained): ciclo armonico ora ha
+    arco dinamico question→peak→answer→close (es. 4-chord [0.88, 1.0, 0.96, 0.80]).
+  - `breathMultiplier(bar, 16)` su arp ostinato: respira ogni 16 bar (lift-off / full / dip).
+- **1C — Velocity curve per traccia:** `track.velocityCurve` (`easeIn` / `easeOut` /
+  `easeInOut`). NEBBIA/RESPIRO/RITORNO carezza; MACCHINA/TEMPESTA esplodono;
+  SOLCO/TESSUTO/ENCORE bilanciati. Pattern `shapedDensity = ease(density, curveType)`
+  sostituisce `density` raw in voice/lead/arp/chord vel mapping.
+- **Toolkit dedicato:** `src/composition-toolkit.js` (subset runtime) — `ease`, `velocityCurve`,
+  `humanizeMs`, `breathMultiplier`, `progressionArc`. Estendibile per Wave 2.
 
-Aggiunto modulo `src/soundcheck.js` + bioma SOUNDCHECK + hotkey `T`.
-Loop 8 bar D dorian 90 BPM, drum kit GM completo, 8 colonne level-meter
-colorate con audioReact, reset T→T a NEBBIA inizio. Ported dal branch
-stabile (4 commit: `dc31ef7`, `7032127`, `9d77da5`, `71d66fe`).
-Indipendente dai fix audit sessione 28 — nessun conflitto.
+## Novità v3.18.0 (sessione 29, 2026-04-18) — merge + fix visuali
+
+Branch principale `machine-iii` ora include tutto il lavoro v3.18. Worktree
+experimental `/Users/Edo_1/MACH-INE II/app-experimental/` lasciato come backup
+(rimovibile post test live con `git worktree remove ../app-experimental`).
+
+## Novità v3.18.0 (sessione 29, 2026-04-18) — merge + fix visuali
+
+- **Fix NEBBIA:** `campo.js:891` dead code risolto. `isNebbiaRadial` ora usa fallback
+  `_biomaName === 'NEBBIA'` come MACCHINA/TEMPESTA. Dither radiale concentrico su voice
+  finalmente attivo in live (era progettato ma mai cablato).
+- **Fix RITORNO:** geologia cumulativa percettivamente amplificata. 4 tuning numerici in
+  `campo.js`: MERGE 0.35→0.52, DECAY 0.92→0.94, alpha 0.40→0.58, gate `d*1.7`, threshold
+  cella 0.05→0.02. Pixel visibili del substrate da ~2/16 a ~5/16.
+- **Merge** v3.18-experimental → machine-iii (`95b54b4`), bump stable v3.18.0 (`cda67a8`).
+  Commit del fix: `165023c`. Tag `v3.18.0`.
+- **Launcher definitivo**: `/Users/Edo_1/MACH-INE II/machine-launch.command` (doppio-click
+  Finder o CLI) + wrapper `app/launch.sh`. HUD hotkey v3.18 completa (performer ←/→/↑/↓/M/N,
+  nodo ternario 1/2/3 in TEMPESTA, pre-suite Shift+0, PANIC Shift+Z, soundcheck T, firma G/J/V).
+  Flag CLI: `--presuite`, `--seed N`, `--norns`, `--no-browser`.
+
+## Debiti visivi noti (non bloccanti)
+
+- `rupture.stage === 'infiltration'` (20-50% durata rottura) — invisibile sul field
+- `rupture.stage === 'residue'` (80-100% durata) — solo `comp-griglia`, nessuna eco sul field
+- 3 biomi (SOLCO / TESSUTO / RESPIRO) senza linguaggio radicale Bayer-breaking (solo
+  MACCHINA grid / NEBBIA radial / TEMPESTA vector sono radicali)
 
 ## Sessione 28 — Fix audit Opus 4.7 (6 commit + review)
 
@@ -287,42 +324,100 @@ Pezzo opzionale post-suite, attivato con tasto `E`. Autocontenuto: non modifica 
 
 ---
 
-## Prossimo (priorità top→bottom) — v3.18 experimental
+## Prossimo (priorità top→bottom) — v3.19.0-rc1 → stable
 
-### P0 — Test live A/B vs v3.17.1-stable
+### P0 — Test live Wave 1 (v3.19.0-rc1)
 
-Confronto diretto tra baseline stabile e experimental. Procedura:
-1. Avvia `/app/` (v3.17.1-stable) in Chrome fullscreen, fai 10 min di NEBBIA→TESSUTO→SOLCO
-2. Chiudi, avvia `/app-experimental/` (v3.18), ripeti stesse 10 min
-3. Confronta: clock lag, frame budget, percezione audio-visual
+Soundcheck `T` + suite breve per validare le 3 modifiche musicali della Wave 1:
 
-**Verifica specifiche v3.18:**
-- **Rupture takeover**: SOLCO/TEMPESTA in takeover — bass gate più corto, arp ispessito, drone instabile, flam aumentato?
-- **Geologia RITORNO**: vedere la suite accumulata stratificata sotto il bioma corrente (substrate 40%)?
+**1A Microtiming feel (timing identitario per traccia):**
+- TEMPESTA -4ms / MACCHINA -3ms percepibile come "push avanti al beat"?
+- SOLCO +5ms / TESSUTO +6ms percepibili come "laid-back / sospeso"?
+- Drum kit (ch 0/1) deve restare in griglia rigida (solo feel, no jitter).
+- Listening test con DAW per quantificare lo shift relativo al MIDI clock.
+
+**1B Progression arc + arp breath:**
+- L'arpeggio ostinato di MACCHINA respira ogni 16 bar (lift-off → full → dip)?
+- Il ciclo armonico (4 accordi) ha l'arco dinamico question-peak-answer-close
+  (II accordo più forte, IV accordo più debole)?
+- Verificare TESSUTO chordGrid (rhythmic) + SOLCO/RESPIRO sustained.
+
+**1C Velocity curve per traccia:**
+- NEBBIA / RESPIRO / RITORNO `easeOut`: carezza che entra dolce / scende dolce.
+- MACCHINA / TEMPESTA `easeIn`: dinamica esplode con densità.
+- ⚠️ Verificare che germoglio MACCHINA/TEMPESTA non sia troppo debole (easeIn può
+  schiacciare velocity sotto density < 0.3). Se inudibile: scalare exponent 2→1.5.
+
+### P1 — Wave 1D + 1E (rc2 candidato)
+
+Se Wave 1A-C regge il soundcheck:
+- **1D Ghost probability phase-aware ovunque:** estendere il pattern di bass-v3 a
+  melody-v3 (arp/voice/lead) e harmony (chord ghost cresce con phase).
+- **1E Hat/conga euclideo evolutivo:** `euclideanEvolve(K1, K2, N, prog)` per layer
+  secondari (hat/conga). Kick/bass restano in 4/4 — regola potenze di 2.
+- Bump v3.19.0 stable + tag se tutto regge.
+
+### P2 — Wave 2 upgrade musicale (post v3.19 stable)
+
+Cuore della proposta originale (vedi storico chat sessione 31):
+- Markov 2° ordine per voice/lead/arp (memoria locale, frasi meno random walk).
+- Note magnetiche per traccia (1-3 pitch polo che attraggono la frase).
+- Heterophony voice↔lead (stessa frase con micro-varianti).
+
+### P3 — Test live v3.18.0 (precedente baseline, validare ancora)
+
+Avvia con `./machine-launch.command` (o doppio-click da Finder) e verifica:
+
+**Fix sessione 29 (critici da confermare):**
+- **NEBBIA voice radial** ora attivo — dither concentrico radiale leggibile sui voice particles?
+- **RITORNO geologia** — vedere 6 tracce precedenti stratificate come substrate colorato (non
+  solo l'ultima)? Soprattutto durante dissoluzione planetMask=0 sul contorno.
+
+### P0-archived — Test live v3.18.0 come principale
+
+Avvia con `./machine-launch.command` (o doppio-click da Finder) e verifica:
+
+**Fix sessione 29 (critici da confermare):**
+- **NEBBIA voice radial** ora attivo — dither concentrico radiale leggibile sui voice particles?
+- **RITORNO geologia** — vedere 6 tracce precedenti stratificate come substrate colorato (non
+  solo l'ultima)? Soprattutto durante dissoluzione planetMask=0 sul contorno.
+
+**Feature v3.18 (da test audit Wave 3R, ora da confermare live):**
+- **Rupture takeover**: SOLCO/TEMPESTA — bass gate corto, arp ispessito, drone instabile, flam aumentato?
 - **MACCHINA grid pura**: niente dither Bayer, threshold 0.5 binario — riconoscibile?
 - **TEMPESTA vector**: pattern Bayer che ruota lento (~30s/giro)?
-- **NEBBIA voice radial**: voice particles con threshold concentrico — leggibile?
-- **Rupture omen invert**: inversione cromatica α=0.2 fullscreen negli omen?
-- **Humanize**: TEMPESTA ruvida (velocity ±12), NEBBIA fragile (±2) — percepibile?
+- **Rupture omen invert**: inversione cromatica α=0.2 fullscreen?
+- **Humanize**: TEMPESTA ruvida (±12 vel), NEBBIA fragile (±2) — percepibile?
 
-**Hotkey performer da testare:**
-- `←/→` — transpose ottava ±12 (range ±24)
-- `↑/↓` — density multiplier ±10% (range 0.3..2.0)
-- `M` — mute melody 8 bar
-- `N` — mute bass 8 bar
-- `1/2/3` durante TEMPESTA — variante RITORNO (default / phrygianHold / silenceThenAeolian 90s)
-- `0` o URL `?presuite` — pre-suite 90s
-- `Shift+Z` — nuclear panic reset
-- `,` `.` — skipPhase (ex ArrowKeys, spostate)
+**Hotkey performer da calibrare:**
+- `←/→` octave ±12 (clamp ±24), `↑/↓` density ±10% (clamp 0.3..2.0)
+- `M` melody mute 8 bar, `N` bass mute 8 bar
+- `1/2/3` durante TEMPESTA → variante RITORNO (default / phrygianHold / silenceThenAeolian 90s)
+- `0` skip pre-suite, `Shift+0` start pre-suite (o URL `?presuite`)
+- `Shift+Z` panic reset (AllNotesOff + campo + drammaturgia)
+- `,` `.` skipPhase (ex frecce)
 
-### P1 — Decisione merge (GATE 3)
+### P1 — Chiudere debiti visivi (design debt)
 
-Dopo 1-2 test live, decidere:
-- **OPZIONE A** — merge `v3.18-experimental` → `machine-iii` (produzione)
-- **OPZIONE B** — mantenere `v3.18-experimental` come preview branch separato per performance future, produzione resta su v3.17.1-stable
-- **OPZIONE C** — rollback completo (archivia branch in `.planning-archive/v3.18-experimental-fossile/`)
+Non bloccanti per il live v3.18.0, ma identificati in sessione 29 come "manca qualcosa":
 
-### P2 — Calibrazione fine v3.18 (se GO)
+1. **Rupture stages `infiltration` + `residue` invisibili sul field** (80% della durata
+   rottura muta visivamente). Serve un'eco sul campo — non solo in `comp-negativo`/
+   `comp-griglia` che sono overlay. Proposta: modulazione densità/colore field in
+   `campo.js` per stage rupture.
+2. **3 biomi senza linguaggio radicale**: SOLCO / TESSUTO / RESPIRO restano al Bayer
+   standard v3.17.1. L'audit Wave 1B ha toccato solo MACCHINA/NEBBIA/TEMPESTA.
+   Proposta: estendere il pattern `biomaRenderMode` o condizione `_biomaName` con
+   linguaggi distintivi (scanline SOLCO / flowing TESSUTO / breathing RESPIRO).
+
+### P2 — Push origin + rimozione worktree
+
+Dopo conferma test live:
+- `git push origin machine-iii` (71 commit avanti) + `git push origin v3.18.0` (tag)
+- `git worktree remove ../app-experimental` (backup non più necessario)
+- `git branch -D v3.18-experimental` (branch mergiato)
+
+### P3 — Calibrazione fine v3.18 (post test live)
 
 - Humanize timing 4ms TEMPESTA potrebbe essere troppo "loose" live — calibrare 2-3ms
 - Sub drone C1/D1 (ottava -2) — verificare voice budget synth e udibilità tattile

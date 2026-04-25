@@ -976,5 +976,121 @@ director3/moduli/camera/rupture/dramaturgy. Convive con pre-suite
   (ma il test di routing resta valido).
 
 ---
+
+## #030 — Merge v3.18.0 stable + fix NEBBIA/RITORNO + launcher definitivo
+
+**Data:** 2026-04-18
+**Contesto:**
+Audit visuale sistematico di v3.18-experimental ha rivelato:
+1. `campo.js:891` `isNebbiaRadial = biomaRenderMode === 'radial-voice'` — dead code
+   (`biomaRenderMode` mai settato in biomi.js). Stesso pattern del bug Wave 1B-bis già
+   scoperto dal perf-audit, ne era rimasto uno. Feature NEBBIA voice radiale non si
+   attivava mai.
+2. Geologia cumulativa RITORNO percettivamente vuota: `MERGE 0.35 × alpha 0.40 + Bayer
+   gate stretto` → solo ~2/16 pixel visibili per traccia recente, tracce antiche
+   completamente invisibili. L'audit aveva centrato le costanti a valori troppo
+   conservativi rispetto al Bayer dithering reale.
+3. Post-fix, decisione merge: utente autorizza merge su branch principale.
+
+**Scelta:**
+- **Fix 1 NEBBIA:** aggiungere fallback `_biomaName === 'NEBBIA'` come MACCHINA/TEMPESTA (1 riga).
+- **Fix 2 RITORNO:** 4 tweak numerici (MERGE 0.52, DECAY 0.94, alpha 0.58, gate `d*1.7`,
+  soglia cella 0.02). Zero cambi architetturali. Pixel visibili da ~2/16 a ~5/16.
+- **Merge** v3.18-experimental → machine-iii con `--no-ff` (preserva storia feature).
+  Conflitti risolti: VERSION theirs, docs theirs, biomi.js a mano preservando commenti
+  compositivi v3.17.2 + corpo soundcheck evoluto v3.18.
+- **Bump** VERSION a `v3.18.0` stable. Tag `v3.18.0` su HEAD.
+- **Launcher definitivo:** `/Users/Edo_1/MACH-INE II/machine-launch.command` unificato.
+  HUD hotkey v3.18 completa. Flag CLI `--presuite`, `--seed N`, `--norns`, `--no-browser`.
+
+**Alternative scartate:**
+- **NEBBIA:** settare `biomaRenderMode: 'radial-voice'` in biomi.js (più invasivo,
+  introduce dualità con _biomaName, meno coerente con MACCHINA/TEMPESTA).
+- **RITORNO:** redesign dell'architettura geologia (overkill, i numeri erano la causa).
+- **Merge:** rebase invece di merge --no-ff (perderebbe tracciabilità Wave 1A/1B/1D/2C/3R).
+- **Launcher:** start-all.sh come unico (richiede sshpass non standard macOS, use-case
+  minoritario; lasciato come complemento).
+
+**Conseguenze:**
+- ✅ `machine-iii` ora porta v3.18.0 stable. Tag creato.
+- ✅ NEBBIA voice renderizza con dither radiale concentrico (feature audit-promised).
+- ✅ RITORNO substrate visibile con profondità storica percepibile.
+- ✅ Launcher unico definitivo con HUD aggiornata. Cleanup robusto su CTRL+C.
+- ⚠️ Debiti visivi non chiusi (design debt, non bloccanti):
+  - Rupture stages `infiltration` (20-50%) e `residue` (80-100%) invisibili sul field.
+  - SOLCO / TESSUTO / RESPIRO restano al Bayer standard v3.17.1.
+- ⚠️ `origin/machine-iii` indietro di 71 commit — push richiede conferma utente.
+- ⚠️ Worktree `app-experimental/` presente come backup (rimovibile post test live).
+
+---
+
+## #031 — Wave 1 upgrade musicale: timing feel + velocityCurve + progressionArc (v3.19.0-rc1)
+
+**Data:** 2026-04-25
+**Contesto:**
+Utente richiede upgrade musicale per rendere MACH:INE meno scontato, più sperimentale —
+focus su melodie e ritmica ma non solo. Sistema attuale (v3.18.0) già ricco
+(humanize per traccia, prime-length loop voice/lead, contour pesati, rupture cablato),
+ma 3 punti di "scontatezza" identificati nella diagnosi:
+1. Tracce hanno stesso "feel" temporale rispetto al MIDI clock — nessuna identità di groove
+   pocket vs laid-back per traccia. Il `humanize.timing` ms era definito ma non applicato
+   da nessun modulo (zero match grep). Codice morto.
+2. Mapping `density → velocity` lineare in voice/lead/arp/chord. Nessuna firma timbrica
+   per traccia su come la dinamica risponde alla densità (NEBBIA carezza vs MACCHINA
+   spike sono uguali a livello di curva).
+3. Arp ostinato senza arco dinamico (solo accent step%4) e progressione armonica piatta
+   (ogni accordo del ciclo allo stesso peso).
+
+**Scelta — Wave 1 (rc1):**
+- **1A — Microtiming feel + jitter sistematico** (`midi.js` + `tracks.js` + `director3.js`):
+  - Aggiunto `humanize.feel` (ms) per ogni traccia: NEBBIA/RESPIRO/ENCORE 0, SOLCO +5,
+    TESSUTO +6, RITORNO +4 (laid-back), MACCHINA -3, TEMPESTA -4 (push).
+  - `setTrackTiming({feel, jitter})` esposto da midi.js; `sendMIDINote` applica feel a
+    tutti i ch + jitter gaussiano (`humanizeMs(sigma)`) SOLO ai ch espressivi (>=2).
+    Drum kit (ch 0/1) resta in griglia rigida — il polso non balla, ma il groove si
+    sposta in pocket per traccia.
+  - Hook in `initDirector3()` dopo set track: legge `_track.humanize.{feel,timing}`.
+  - Clamp scheduler-safe: timestamp mai sotto `now+1ms`.
+- **1B — Progression arc + breath multiplier** (`harmony.js` + `melody-v3.js`):
+  - `progressionArc(chordIdx, count)` per cicli a 4 e 8 accordi: question→peak→answer→close
+    (es. 4-chord [0.88, 1.0, 0.96, 0.80]). Applicato sia a chord rhythmic (chordGrid) che
+    sustained. Il ciclo armonico ora ha arco dinamico, non più piatto.
+  - `breathMultiplier(bar, 16)` su arp ostinato: lift-off 0.78 → full 1.0 → dip 0.55 (ultime
+    2 bar). L'arp respira in cicli di 16 bar invece di rimanere costante.
+- **1C — Velocity curve per traccia** (`tracks.js` + `melody-v3.js` + `harmony.js`):
+  - Nuovo campo `track.velocityCurve`: NEBBIA/RESPIRO/RITORNO 'easeOut' (carezza),
+    SOLCO/TESSUTO/ENCORE 'easeInOut' (bilanciato), MACCHINA/TEMPESTA 'easeIn' (esplodono).
+  - Pattern di applicazione: `shapedDensity = ease(density, curveType)` sostituisce
+    `density` raw nel mapping `vel = base + density*range`. Diff minimo, applicato a
+    voice/lead/arp/chord. Bass non toccato (Wave 1 si concentra su melodia/armonia).
+- **Toolkit dedicato:** `src/composition-toolkit.js` con sottoinsieme runtime
+  (`ease`, `velocityCurve`, `humanizeMs`, `breathMultiplier`, `progressionArc`).
+  Importato dai moduli musicali. Toolkit completo del design-time resta in
+  `.claude/skills/composition-depth/scripts/composition-utils.js`.
+
+**Alternative scartate:**
+- **Bass curve in 1C:** scelto di non toccare bass (cycle extension v3 + skip/duration
+  phase-aware già ricco). Eventualmente in Wave 2 con Markov 2° ordine.
+- **Frasi non quadrate:** scartato per regola "potenze di 2" della struttura portante.
+  Sperimentazione su lunghezze irrazionali rinviata a Wave 2 e confinata a layer secondari.
+- **Feel applicato come delay setTimeout:** scartato — il MIDI scheduler hardware-timed
+  via `send(timestamp)` è già strutturato per offset, niente setTimeout extra.
+- **Jitter su drum kit:** scartato — il polso ritmico è il timekeeper, deve restare
+  rigido. Solo feel (offset costante) sposta drum.
+
+**Conseguenze:**
+- ✅ Ogni traccia ha identità temporale distinta (pocket / laid-back) percepibile al
+  primo soundcheck con hardware o monitoring.
+- ✅ Curve dinamiche per traccia: NEBBIA entra dolce, MACCHINA esplode con la densità,
+  TEMPESTA scalcia. La firma timbrica si nota anche a parità di density.
+- ✅ Arp e accordi non più piatti: respiro + arc del ciclo armonico.
+- ✅ Diff piccolo: 6 file toccati, ~80 righe nette. Toolkit estendibile per Wave 2.
+- ⚠️ Da calibrare live: feel ms TEMPESTA -4 potrebbe essere troppo aggressivo. Listening
+  test con DAW per quantificare lo shift percepito.
+- ⚠️ velocityCurve easeIn su MACCHINA/TEMPESTA può rendere germoglio TROPPO debole
+  (esponenziale sotto density 0.3). Verificare che pulsazione/densita compensino.
+- ⚠️ Bass non in scope Wave 1 — la firma timbrica CH3 resta lineare. Da fare in Wave 2.
+
+---
 <!-- knowledge-graph links -->
 [[STATUS]] [[01-ARCHITECTURE]] [[WORKLOG]]

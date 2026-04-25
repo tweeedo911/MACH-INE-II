@@ -163,7 +163,10 @@ export const TRACKS = {
     droneDrift: { periodBars: 16, amplitude: 400 },  // dub: stabile, drift contenuto
 
     // SOLCO: dub respira — humanize moderato, timing leggermente laid-back
-    humanize: { velocity: 7, timing: 3 },
+    // v3.19 Wave 1A: feel +5ms = dub pocket dietro al beat, identità "weed"
+    // velocityCurve easeInOut: dinamica bilanciata, dub respira simmetrico
+    humanize: { velocity: 7, timing: 3, feel: 5 },
+    velocityCurve: 'easeInOut',
 
     palette: { bg: '#282B26', dot: '#FE6B0D', accent: '#CDD71D' },
     visualRegime: { maxDensity: 0.50, minDotSize: 4, composition: 'ASIMMETRIA' },
@@ -240,7 +243,9 @@ export const TRACKS = {
     droneDrift: { periodBars: 48, amplitude: 1024 },  // respiro lento, ampio — il drone SI MUOVE
 
     // NEBBIA: fragile — minima variazione velocity, timing perfetto (goccia pulita)
-    humanize: { velocity: 2, timing: 0 },
+    // v3.19 Wave 1A: feel 0 (no rhythm anyway), velocityCurve easeOut = carezza che entra dolce
+    humanize: { velocity: 2, timing: 0, feel: 0 },
+    velocityCurve: 'easeOut',
 
     // Wave 2C: sub drone tattile <40Hz (ottava -2 parallelo a CH2 drone, vel 20-30)
     subDroneTactile: true,
@@ -326,7 +331,9 @@ export const TRACKS = {
     droneDrift: { periodBars: 32, amplitude: 700 },  // inquietudine sottile
 
     // TESSUTO: inquieto — velocity media, leggero timing jitter
-    humanize: { velocity: 5, timing: 2 },
+    // v3.19 Wave 1A: feel +6ms = sospeso laid-back che fa "appendere" il groove
+    humanize: { velocity: 5, timing: 2, feel: 6 },
+    velocityCurve: 'easeInOut',
 
     // Wave 2C: sub drone tattile <40Hz (ottava -2 parallelo a CH2 drone, vel 20-30)
     subDroneTactile: true,
@@ -402,7 +409,9 @@ export const TRACKS = {
     droneDrift: { periodBars: 40, amplitude: 900 },  // apertura — drift ampio, lento
 
     // RESPIRO: carezza — minima variazione, timing quasi perfetto
-    humanize: { velocity: 3, timing: 1 },
+    // v3.19 Wave 1A: feel 0 (centrato, pausa senza tendenza), velocityCurve easeOut
+    humanize: { velocity: 3, timing: 1, feel: 0 },
+    velocityCurve: 'easeOut',
 
     palette: { bg: '#7BBA91', dot: '#20130D', accent: null },
     visualRegime: { maxDensity: 0.10, minDotSize: 8, composition: 'RESPIRO' },
@@ -498,7 +507,10 @@ export const TRACKS = {
     droneDrift: { periodBars: 8, amplitude: 300 },   // meccanico: vibrazione rapida, piccola
 
     // MACCHINA: meccanico ma non perfetto — velocity variabile, timing rigido
-    humanize: { velocity: 4, timing: 0 },
+    // v3.19 Wave 1A: feel -3ms = leggero push avanti al beat (in-pocket aggressivo).
+    // velocityCurve easeIn: dinamica esplode con densità (dynamics ostinato meccanico)
+    humanize: { velocity: 4, timing: 0, feel: -3 },
+    velocityCurve: 'easeIn',
 
     palette: { bg: '#1A1A2E', dot: '#F8ED00', accent: '#DD3A44' },
     visualRegime: { maxDensity: 0.55, minDotSize: 2, composition: 'GRIGLIA' },
@@ -612,7 +624,10 @@ export const TRACKS = {
     droneDrift: { periodBars: 16, amplitude: 500 },
 
     // TEMPESTA: ruvido — velocity molto variabile, timing umano scalciante
-    humanize: { velocity: 12, timing: 4 },
+    // v3.19 Wave 1A: feel -4ms = pushed dance, esplode in avanti.
+    // velocityCurve easeIn: salita esponenziale, il picco deve esplodere.
+    humanize: { velocity: 12, timing: 4, feel: -4 },
+    velocityCurve: 'easeIn',
 
     palette: { bg: '#000000', dot: '#FFFFFF', accent: '#91010F' },
     visualRegime: { maxDensity: 0.70, minDotSize: 1, composition: 'DATA' },
@@ -695,7 +710,10 @@ export const TRACKS = {
     droneDrift: { periodBars: 36, amplitude: 600 },  // congedo: medio, respira lentamente
 
     // RITORNO: esposto — velocity moderata, timing vulnerabile
-    humanize: { velocity: 4, timing: 2 },
+    // v3.19 Wave 1A: feel +4ms = laid-back nostalgico, congedo che si trattiene.
+    // velocityCurve easeOut: parte intensa, scende dolce — il commiato vulnerabile.
+    humanize: { velocity: 4, timing: 2, feel: 4 },
+    velocityCurve: 'easeOut',
 
     palette: { bg: '#0A0A0A', dot: '#9B8FCE', accent: '#EFE6DE' },
     visualRegime: { maxDensity: 0.30, minDotSize: 6, composition: 'DISSOLVENZA' },
@@ -725,6 +743,10 @@ export const TRACKS = {
       melody:  90,
       texture: 40,
     },
+
+    // v3.19 Wave 1A: feel 0 (canon machine = tempo metrico rigido), velocityCurve easeInOut
+    humanize: { velocity: 4, timing: 0, feel: 0 },
+    velocityCurve: 'easeInOut',
 
     // Rhythm: unchanged from v1 — polimetric kick/hat/snare
     rhythmGrid: [1,0,0,0, 1,0,0,0, 1,0,0,0, 1,0,0,0],

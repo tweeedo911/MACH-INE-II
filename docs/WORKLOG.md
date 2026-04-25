@@ -6,6 +6,175 @@
 
 ---
 
+## 2026-04-25 (sessione 31) — Wave 1 upgrade musicale: feel + curve + arc (v3.19.0-rc1)
+
+### Obiettivo
+Utente richiede upgrade musicale: melodie e ritmica meno scontate, più sperimentali —
+ma "non solo". Diagnosi sistema attuale (v3.18.0) → 3 punti di prevedibilità, 5 direzioni
+proposte (RITMICA / MELODIA / ARMONIA / INTERAZIONE / ESPRESSIONE). Utente approva
+piano Wave 1 = ritmica + espressione (basso costo, payoff immediato a soundcheck).
+
+### Fatto
+
+**Toolkit** — nuovo `src/composition-toolkit.js` (sottoinsieme runtime):
+`ease`, `velocityCurve`, `humanizeMs`, `breathMultiplier`, `progressionArc`. Importato
+dai moduli musicali. Toolkit completo del design-time resta in `.claude/skills/...`.
+
+**Wave 1A — Microtiming feel + jitter sistematico:**
+- `tracks.js`: aggiunto `humanize.feel` (ms) per 8 tracce + ENCORE.
+  - NEBBIA 0, RESPIRO 0, ENCORE 0 (centrati / no rhythm)
+  - SOLCO +5, TESSUTO +6, RITORNO +4 (laid-back per identità)
+  - MACCHINA -3, TEMPESTA -4 (push, in pocket)
+- `midi.js`: nuovo `setTrackTiming({feel, jitter})` + integrazione in `sendMIDINote`.
+  Drum kit (ch 0/1) prende solo il feel sistematico, no jitter (polso rigido).
+  Ch espressivi (>=2) ricevono feel + jitter gaussiano via `humanizeMs(sigma)`.
+  Clamp scheduler-safe: `t = max(baseT, now+1ms)`.
+- `director3.js`: import `setTrackTiming` + chiamata in `initDirector3()` dopo load track.
+
+**Wave 1B — Progression arc + breath multiplier:**
+- `harmony.js`: `progressionArc(_chordIdx, chords.length)` applicato a chord rhythmic
+  (chordGrid + ghost) + chord sustained. Ciclo armonico ora ha arco dinamico
+  (es. 4-chord [0.88, 1.0, 0.96, 0.80]: question→peak→answer→close).
+- `melody-v3.js`: `breathMultiplier(_bar, 16)` su arp ostinato. Arp respira ogni 16 bar
+  (lift-off 0.78 → full 1.0 → dip 0.55 nelle ultime 2 bar).
+
+**Wave 1C — Velocity curve per traccia:**
+- `tracks.js`: nuovo campo `velocityCurve` per ogni traccia:
+  - NEBBIA / RESPIRO / RITORNO: `easeOut` (carezza, parte intensa scende dolce)
+  - SOLCO / TESSUTO / ENCORE: `easeInOut` (bilanciato)
+  - MACCHINA / TEMPESTA: `easeIn` (esponenziale, esplode con la densità)
+- `melody-v3.js` + `harmony.js`: pattern `shapedDensity = ease(density, curveType)`
+  sostituisce `density` raw nel mapping `vel = base + density * range`. Applicato a
+  voice / lead / arp / chord (rhythmic + sustained). Bass non toccato.
+
+**Bump versione:** `VERSION.js` v3.18.0 → v3.19.0-rc1.
+
+### File toccati
+- **Nuovo:** `src/composition-toolkit.js` (50 LOC, ES module).
+- **Modificati:** `src/midi.js` (+25 LOC: setTrackTiming + applicazione in sendMIDINote),
+  `src/tracks.js` (+24 LOC: feel + velocityCurve per 8 tracce), `src/director3.js`
+  (+8 LOC: hook setTrackTiming), `src/melody-v3.js` (+15 LOC: shapedDensity voice/lead/arp,
+  breath arp), `src/harmony.js` (+12 LOC: arc + shapedDensity chord).
+- **Versione:** `src/VERSION.js` → v3.19.0-rc1.
+
+### Decisioni prese
+Vedi `DECISIONS.md` #031 — Wave 1 upgrade musicale.
+
+### Prossima sessione — punto di ripartenza
+1. **Test live v3.19.0-rc1** (priorità top): soundcheck T per ascoltare il feel pocket
+   vs laid-back per traccia. Verificare che TEMPESTA -4ms non sia troppo aggressivo,
+   MACCHINA easeIn non renda germoglio impercettibile, NEBBIA easeOut non risulti
+   "spenta" in fase germoglio. Calibrazione fine se necessaria.
+2. **Wave 1D (rc2 candidato):** ghost probability phase-aware ovunque (oggi solo bass-v3).
+   Estendere a melody-v3 (arp/voice/lead) e harmony (chord ghost cresce con phase).
+3. **Wave 1E (rc2):** hat/conga euclideo evolutivo per fase (`euclideanEvolve(K1,K2,N,prog)`).
+   Layer secondari, kick/bass restano in 4/4.
+4. Se Wave 1 regge il soundcheck → bump stable v3.19.0 + tag.
+5. **Wave 2** (post-stable): Markov 2° ordine + magnetic notes + heterophony voice/lead
+   (cuore della proposta originale). Effort medio, riscrittura mirata di melody-v3.
+
+### Bug/warning aperti (non bloccanti)
+- velocityCurve `easeIn` su MACCHINA/TEMPESTA può abbassare TROPPO la velocity in
+  fase germoglio (density < 0.3). Se in soundcheck l'arp di MACCHINA germoglio è
+  inudibile, scalare exponent in `ease()` da 2 a 1.5 oppure usare `easeInOut`.
+- Feel ms TEMPESTA -4ms: è 2× il jitter sigma (4ms). Sotto stress di scheduler il
+  totale può schiacciarsi contro il floor di NOTE_LOOKAHEAD_MS (15-12=3ms residui).
+  Monitor `[CLOCK LAG]` deve restare sotto 10ms per non sbalzarsi sul push.
+
+---
+
+## 2026-04-18 (sessione 29) — Debug visuale + fix NEBBIA/RITORNO + merge v3.18.0 stable + launcher definitivo
+
+### Obiettivo
+Audit visuale di v3.18-experimental per capire "cosa manca". Mergere v3.18 come principale.
+Launcher unico definitivo per avvio live.
+
+### Fatto
+**Fase 1 — Debug visuale sistematico (Phase 1 systematic-debugging).**
+Identificati 3 buchi visuali, di cui 1 bug reale + 1 perceptual + 1 design debt:
+
+1. **BUG NEBBIA radial dead code** (`campo.js:891`):
+   `isNebbiaRadial = biomaRenderMode === 'radial-voice'` ma `biomaRenderMode` non era
+   mai settato in `biomi.js` (zero occorrenze su tutto src/). MACCHINA/TEMPESTA sopravvivevano
+   grazie al fallback `_biomaName === 'X'`, NEBBIA no → `thresholdMode=3` (dither radiale
+   concentrico su voice) non si attivava mai. Stesso pattern del bug perf-audit Wave 1B-bis.
+   **Fix:** aggiunto fallback `_biomaName === 'NEBBIA'` (1 riga).
+
+2. **RITORNO geologia cumulativa percettivamente vuota:**
+   `_GEO_MERGE_FACTOR=0.35` × `geoAlpha=0.40` + Bayer gate `d < bayer(px,py)` → solo
+   ~2/16 pixel visibili per traccia recente, tracce antiche completamente invisibili.
+   L'audit aveva centrato le costanti a valori troppo conservativi.
+   **Fix bilanciato (4 tweaks numerici, zero cambi architetturali):**
+     * `_GEO_MERGE_FACTOR`: 0.35 → 0.52 (deposito più forte per traccia)
+     * `_GEO_DECAY_ON_TRACK_CHANGE`: 0.92 → 0.94 (memoria più persistente: 7ª pesa ≈0.68 vs 0.61)
+     * `geoAlpha`: 0.40 → 0.58 (substrate più brillante)
+     * Cella threshold: 0.05 → 0.02 (tracce antiche non filtrate prematuramente)
+     * Bayer gate permissivo: `dBoost = d*1.7` (2/16 → ~5/16 pixel)
+
+3. **Design debts rimanenti (non toccati, segnalati all'utente):**
+   - Rupture stages `infiltration` + `residue` invisibili sul field (80% della rottura muta)
+   - 3 biomi (SOLCO/TESSUTO/RESPIRO) senza linguaggi radicali Bayer-breaking
+
+Commit `165023c`: `fix(visual): NEBBIA radial cablato + RITORNO geologia amplificata`
+
+**Fase 2 — Merge v3.18-experimental → machine-iii.**
+Conflitti risolti:
+- `VERSION.js` → theirs (v3.18)
+- `docs/{DECISIONS,STATUS,WORKLOG}.md` → theirs (superset)
+- `src/biomi.js` → risolto a mano mantenendo commenti compositivi HEAD (v3.17.2)
+  + corpo soundcheck evoluto v3.18
+
+Merge commit `95b54b4`. Bump versione a stable `v3.18.0` (commit `cda67a8`).
+Tag `v3.18.0` creato.
+
+**Fase 3 — Launcher definitivo.**
+File canonico: `/Users/Edo_1/MACH-INE II/machine-launch.command`
+(fuori da git, doppio-click da Finder o `./machine-launch.command` da CLI)
+Wrapper: `app/launch.sh` (redirige al canonico).
+
+HUD completa aggiornata per v3.18:
+- Performer: ←/→ octave ±12, ↑/↓ density ±10%, M/N mute 8bar
+- Pre-suite: Shift+0 start, 0 skip
+- Nodo ternario TEMPESTA: 1/2/3 (default/phrygianHold/silenceThenAeolian)
+- Skip fase: `,`/`.` (ex frecce)
+- PANIC: Shift+Z (reset totale + AllNotesOff + drammaturgia reset)
+- Soundcheck: T (loop 8bar D dorian + drum kit GM)
+- Firma: G/J/V (gelo/convergenza/vuotoTotale)
+
+Flag CLI opzionali:
+- `--presuite` apre con `?presuite` (drone C2 90s → NEBBIA)
+- `--seed N` apre con `?seed=N` (SeededRNG deterministico)
+- `--norns` avvia anche bridge WebSocket→OSC (`machine-drone/norns-bridge.py`)
+- `--no-browser` server headless
+
+Smoke test OK: HTTP/1.0 200 su `http://localhost:8282`. Cleanup CTRL+C chiude
+server + bridge. `start-all.sh` e `start.sh` precedenti lasciati intatti per casi
+use-case specifici (sync SC Norns via sshpass).
+
+### File toccati
+- **Modificati:** `src/campo.js` (NEBBIA + RITORNO geologia), `src/VERSION.js` (3.18.0 stable)
+  + merge files: `src/{audio,bass-v3,biomi,config,director3,harmony,main,melody-v3,midi,render,rhythm,tracks,world-state}.js`, `src/soundcheck.js`, `index.html`, `docs/{DECISIONS,STATUS,WORKLOG}.md`
+- **Nuovi (via merge):** `docs/V3.18-AUDIT.md`, `src/perf-utils.js`
+- **Nuovi (launcher):** `machine-launch.command` (root, fuori app/)
+- **Riscritti:** `app/launch.sh` (ora wrapper minimo)
+
+### Decisioni prese
+Vedi `DECISIONS.md` #030 — Merge v3.18.0 + fix visuale + launcher definitivo.
+
+### Prossima sessione — punto di ripartenza
+1. **Test live v3.18.0** come principale (10 raccomandazioni in `docs/V3.18-AUDIT.md`):
+   baseline sanity A/B, pre-suite, nodo ternario, hotkey performer, panic, tab-hidden,
+   geologia RITORNO amplificata, biomi radicali (NEBBIA ora attivo!), memory/GC 10min.
+2. **Debt visivo da valutare post-test:**
+   - Dare segno visivo a `rupture.stage === 'infiltration'` (20-50% durata rottura, ora muta)
+   - Dare segno visivo a `rupture.stage === 'residue'` (80-100% durata, solo comp-griglia)
+   - 3 biomi senza linguaggio radicale: SOLCO / TESSUTO / RESPIRO
+3. **Eventuale rimozione worktree experimental** (`git worktree remove ../app-experimental`)
+   dopo conferma test live OK.
+4. **Push origin** (71 commit avanti su `machine-iii` + tag `v3.18.0`) — richiede conferma utente.
+
+---
+
 ## 2026-04-18 (sessione 28-bis) — Soundcheck loop ported (v3.18.0-rc2-exp)
 
 **Obiettivo:** portare sul branch experimental il soundcheck loop sviluppato

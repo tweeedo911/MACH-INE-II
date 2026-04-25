@@ -10,7 +10,7 @@ import { worldState, phaseState } from './world-state.js';
 import { TRACKS, PHASE_DENSITY, PHASE_ENERGY, TRACK_ORDER, ENCORE_SCALES } from './tracks.js';
 import { audio } from './audio.js';
 import { state } from './state.js';
-import { sendMIDIAllNotesOff, sendMIDINote, sendNornsBiome, sendNornsDroneStart, sendNornsDroneStop } from './midi.js';
+import { sendMIDIAllNotesOff, sendMIDINote, sendNornsBiome, sendNornsDroneStart, sendNornsDroneStop, setTrackTiming } from './midi.js';
 import { sendOrchestraTrack, sendOrchestraPhase } from './orchestra-out.js';
 import { addMidiNote } from './field.js';
 import { initRhythm } from './rhythm.js';
@@ -161,6 +161,13 @@ export function initDirector3(trackName = 'SOLCO', { seamless = false } = {}) {
   // Load track identity into worldState
   worldState.track = trackName;
   if (!_paused) sendNornsBiome(TRACK_ORDER.indexOf(trackName));  // → Norns: solo se in play
+
+  // v3.19 Wave 1A — applica timing feel della traccia (offset costante + jitter sigma).
+  // feel sposta TUTTO il groove rispetto al MIDI clock; jitter umanizza i ch espressivi (>=2).
+  setTrackTiming({
+    feel: _track.humanize?.feel ?? 0,
+    jitter: _track.humanize?.timing ?? 0,
+  });
   // Wave 2C: applica rootOffset (default 0) a scale + root, così TUTTI i moduli
   // (voice/lead/arp/drone/kick) vedono la trasposizione senza doverla leggere singolarmente.
   const _rootOff = worldState.rootOffset || 0;
