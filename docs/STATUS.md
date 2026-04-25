@@ -1,12 +1,39 @@
-# STATUS — MACH:INE III (branch machine-iii, v3.20.0-rc1)
+# STATUS — MACH:INE III (branch machine-iii, v3.20.0-rc2)
 
 > Snapshot vivo. Rigenerato a fine sessione. Punto di entrata di ogni nuova sessione.
-> **Last updated:** 2026-04-25 (sessione 32: SC audio engine Wave A — drone biome morphing)
+> **Last updated:** 2026-04-25 (sessione 32: SC audio engine Wave A+B — drone enrich + kick/bass/chord)
 
 ## Versione
 
-**v3.20.0-rc1** — single source: `src/VERSION.js` (`APP_VERSION`). SC audio engine Wave A.
-Wave 1 musicale completa (rc2 v3.19.0). Baseline live `v3.18.0` (tag su `cda67a8`).
+**v3.20.0-rc2** — single source: `src/VERSION.js` (`APP_VERSION`). SC audio engine Wave A+B.
+Wave 1 musicale completa (v3.19.0-rc2). Baseline live `v3.18.0` (tag su `cda67a8`).
+
+## Novità v3.20.0-rc2 (sessione 32, 2026-04-25) — Drone enrichment + Wave B
+
+Dopo smoke test rc1 (utente: "synth molto semplici"), enrichment del drone + Wave B con
+kick/bass/chord one-shot in SC. Vedi `DECISIONS.md` #034.
+
+**Drone enrichment:**
+- 5 nuovi parametri al SynthDef \machineDrone: `subAmp`, `shimmerAmp`, `shimmerRate`,
+  `filterLfoRate`, `filterLfoAmount`. Tutti su Lag3.
+- NEBBIA shimmer 0.4 (scintille), RESPIRO shimmer 0.5 + filter LFO 0.30 (apertura lenta),
+  TEMPESTA sub 0.6 + shimmer 0.3 (drammatico), SOLCO sub 0.5 (dub heavy), RITORNO sub 0.3
+  + shimmer 0.5 (lavanda).
+- Reverb più aperto, movimento timbrico continuo.
+
+**Wave B — kick + bass + chord SynthDef one-shot:**
+- `app/sc/synths/kick.scd` — body sweep + click + tanh. SOLCO dub decay 0.7, MACCHINA 909
+  click 0.6, TEMPESTA 808 sub.
+- `app/sc/synths/bass.scd` — Pulse + sub Sin → RLPF → tanh. SOLCO sub-bass dub, MACCHINA
+  pump aggressivo, TEMPESTA reese distorto.
+- `app/sc/synths/chord.scd` — Tri + Saw detuneate → RLPF → ASR. NEBBIA pad arioso, TESSUTO
+  stab staccato, RESPIRO pad pulito, RITORNO soft pad.
+- `biome-presets.scd`: 7 biomi × 4 ruoli (drone/kick/bass/chord). NEBBIA/RESPIRO kick:amp=0
+  (silenziati per quel bioma).
+- `midi.js` hook: `sendMIDINote()` invia in parallelo a SC per ch 0/3/4 (kick/bass/chord).
+  ch 1 perc + ch 5/6/7 melodic restano MIDI-only fino a Wave C.
+
+## Novità v3.20.0-rc1 (sessione 32, 2026-04-25) — SC audio engine Wave A
 
 ## Novità v3.20.0-rc1 (sessione 32, 2026-04-25) — SC audio engine Wave A
 

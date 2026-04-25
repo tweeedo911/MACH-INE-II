@@ -10,8 +10,8 @@ s.waitForBoot({
 
     synthsPath = PathName.new(thisProcess.nowExecutingPath).parentPath ++ "synths/";
 
-    // Carica SynthDef (Wave A: solo drone).
-    [\drone].do { |n|
+    // Carica SynthDef (Wave A: drone, Wave B: + kick/bass/chord).
+    [\drone, \kick, \bass, \chord].do { |n|
         var file = synthsPath ++ n.asString ++ ".scd";
         if(File.exists(file)) { file.load } { ("missing synth: " ++ file).postln };
     };
@@ -109,12 +109,44 @@ s.waitForBoot({
         browserAddr.sendMsg("/log", "panic: cleared + drone re-instantiated");
     }, "/panic");
 
-    // /synth/<name>/note freq amp dur — slot per Wave B (kick/bass/chord/voice/lead/arp/perc).
-    // No-op stub finché non aggiungiamo i SynthDef one-shot.
-    [\kick, \perc, \bass, \chord, \voice, \lead, \arp].do { |n|
-        OSCdef(("note_" ++ n.asString).asSymbol, { |msg|
-            // Wave A: stub. Wave B: Synth(n, [\freq, msg[1], \amp, msg[2], \dur, msg[3]]);
-        }, "/synth/" ++ n.asString ++ "/note");
+    // /synth/<name>/note freq amp dur — Wave B: kick/bass/chord attivi, voice/lead/arp/perc stub.
+    // Pattern: legge preset bioma per role, merga con freq/amp/dur dal browser, instanzia Synth.
+    // Se il preset ha amp:0, il ruolo è silenziato per quel bioma (es. NEBBIA kick=0).
+    [\kick, \bass, \chord].do { |role|
+        OSCdef(("note_" ++ role.asString).asSymbol, { |msg|
+            var freq, msgAmp, dur, args, preset, presetParams, ampMute;
+            freq = msg[1] ? 220;
+            msgAmp = msg[2] ? 0.3;
+            dur = msg[3] ? 0.2;
+            args = [\freq, freq, \amp, msgAmp, \dur, dur];
+            ampMute = false;
+            if(currentBiome.notNil) {
+                preset = ~biomePresets[currentBiome];
+                if(preset.notNil) {
+                    presetParams = preset[role];
+                    if(presetParams.notNil) {
+                        // Bioma silenzia il ruolo? (es. NEBBIA kick amp=0)
+                        if((presetParams[\amp] ? 1) <= 0.001) { ampMute = true };
+                        // Merga param timbrici, ma freq/amp/dur dal browser prevalgono.
+                        if(ampMute.not) {
+                            presetParams.keysValuesDo { |k, v|
+                                if((k != \freq) and: { (k != \amp) and: { k != \dur } }) {
+                                    args = args ++ [k, v];
+                                };
+                            };
+                        };
+                    };
+                };
+            };
+            if(ampMute.not) { Synth(role, args) };
+        }, "/synth/" ++ role.asString ++ "/note");
+    };
+
+    // Wave C — voice/lead/arp/perc: stub (silenziato finché SynthDef non ci sono).
+    [\voice, \lead, \arp, \perc].do { |role|
+        OSCdef(("note_" ++ role.asString).asSymbol, { |msg|
+            // no-op
+        }, "/synth/" ++ role.asString ++ "/note");
     };
 
     "[machine-engine] OSC handlers registered — ready.".postln;

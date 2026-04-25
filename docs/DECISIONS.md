@@ -1220,5 +1220,54 @@ Inventario di partenza:
   iniziale sia davvero 0 (no leak) e che il /panic reinstanziazione non glitchi.
 
 ---
+
+## #034 — Wave B SC + drone enrichment (v3.20.0-rc2)
+
+**Data:** 2026-04-25
+**Contesto:**
+Smoke test rc1: utente sente audio (drone) ma "synth molto semplice come tipo di suono".
+Diagnosi: in Wave A solo drone CH2 va a SC, gli altri ch escono MIDI verso hardware esterno —
+se l'utente non ha DAW/IAC, sente solo il drone isolato (single-layer, manca movimento timbrico).
+
+**Scelta — drone enrichment + Wave B insieme:**
+
+**1. Drone enrichment** (`drone.scd` + `biome-presets.scd`):
+- 5 nuovi parametri: `subAmp` (sub-octave SinOsc -12 sem), `shimmerAmp` (octave-up SinOsc +12
+  modulato da LFO 0.4-1.0), `shimmerRate` (Hz), `filterLfoRate`, `filterLfoAmount`. Tutti su Lag3.
+- Preset bioma riassegnati: NEBBIA shimmer 0.4 (scintille), RESPIRO shimmer 0.5 + filter LFO
+  0.30 (apertura lenta), TEMPESTA sub 0.6 + shimmer 0.3 (drammatico), SOLCO sub 0.5 (dub heavy),
+  RITORNO sub 0.3 + shimmer 0.5 (lavanda con luce alta), MACCHINA sub 0.4 no LFO (rigido).
+
+**2. Wave B — kick + bass + chord one-shot:**
+- 3 nuovi SynthDef: `kick.scd` (body sweep + click + tanh), `bass.scd` (Pulse + sub Sin →
+  RLPF → tanh), `chord.scd` (Tri+Saw detuneate → RLPF → ASR).
+- Preset 7 biomi × 4 ruoli. Esempi: SOLCO bass cutoff 400 + drive 0.3 + mixSub 0.7 (dub),
+  MACCHINA bass cutoff 1200 drive 0.4 (pump), TEMPESTA bass drive 0.7 (reese).
+  NEBBIA/RESPIRO kick:amp=0 (silenziati per quel bioma).
+- `machine-engine.scd`: OSC handler `/synth/<role>/note` ora attivo (era stub). Pattern:
+  legge preset bioma, merga con freq/amp/dur dal browser, instanzia Synth. Skip se preset amp=0.
+- `midi.js` hook: `sendMIDINote()` chiama `sendSCNote()` per ch 0/3/4 (kick/bass/chord).
+  Conversione note→Hz, vel→amp (×0.6 anti-clipping), durationMs→s. Ch 1/5/6/7 → Wave C.
+
+**Alternative scartate:**
+- State server via Bus + In.kr nei SynthDef one-shot — pattern preset-args al Synth() più
+  semplice e debuggabile.
+- Lag3 morphing su one-shot — non applicabile, le note durano 0.2-1s.
+- velocityCurve ri-applicata in SC — già curvata in JS (Wave 1C), preset SC riceve msgAmp curvato.
+
+**Conseguenze:**
+- ✅ Drone "respira" con sub + shimmer + slow filter LFO. Movimento timbrico continuo che
+  era assente in rc1.
+- ✅ Kick/bass/chord ora suonano via SC con timbri-bioma distinti. Suite SC è udibile.
+- ✅ MIDI continua additivo — monitoring locale + DAW remoto in parallelo.
+- ✅ Pattern preset-state-merge generalizzabile per Wave C (voice/lead/arp/perc) — niente
+  refactor architetturale.
+- ⚠️ Da calibrare: livelli relativi (clipping su stack chord+bass+kick+drone simultanei?).
+- ⚠️ Drone shimmer NEBBIA/RESPIRO: se troppo "celestiale" rispetto all'ambient minimal,
+  scalare 0.5→0.3.
+- ⚠️ TEMPESTA bass drive 0.7 + drone drive 0.6 = saturation accumulata.
+- ⚠️ Wave C voice/lead/arp/perc ancora MIDI-only, suite SC parziale fino a Wave C.
+
+---
 <!-- knowledge-graph links -->
 [[STATUS]] [[01-ARCHITECTURE]] [[WORKLOG]]

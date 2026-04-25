@@ -30,6 +30,12 @@ SynthDef(\machineDrone, { |out = 0,
     controlLag = 0.1,
     cutoffLagTime = 0.1,
     hzLagTime = 0.1,
+    // ── v3.20-rc2 enrichment: sub + shimmer + slow filter LFO ──
+    subAmp = 0,            // sub-octave SinOsc (-12 semitoni). Dà "peso" sotto al fondamentale.
+    shimmerAmp = 0,        // octave-up SinOsc (+12 sem) modulato da LFO ampio. "Luce" alta.
+    shimmerRate = 0.18,    // Hz, modula amp shimmer (NEBBIA "scintille", RITORNO "vetro")
+    filterLfoRate = 0.05,  // Hz, oscillazione lenta del cutoff
+    filterLfoAmount = 0,   // 0..1, ampiezza modulazione cutoff (0 = statico)
     gate = 1|
 
     var lHz, lAmp, lMixTri, lMixSaw, lMixPul, lMixSin;
@@ -37,6 +43,7 @@ SynthDef(\machineDrone, { |out = 0,
     var lRevMix, lRevRoom, lNoiseAmp, lNoiseBPF, lBreathAmp;
     var lDriftAmp, lDriftRate;
     var lBreathRate, lPulseWidth, lPwmRate, lPwmDepth;
+    var lSubAmp, lShimmerAmp, lShimmerRate, lFilterLfoRate, lFilterLfoAmount;
     var driftLFO, driftRatio, driftedHz;
     var detuneRatio, detuneRatio2, sinDetuneHz;
     var triA, triB, tri;
@@ -45,6 +52,7 @@ SynthDef(\machineDrone, { |out = 0,
     var pulA, pulB, pul;
     var sinA, sinB, sin;
     var bpNoise, breathLFO, breath;
+    var subSig, shimmerSig, shimmerLfo, filterLfo, modCutoff;
     var env;
     var sig, dry, wet;
 
@@ -71,6 +79,12 @@ SynthDef(\machineDrone, { |out = 0,
     lPwmDepth   = Lag3.kr(pwmDepth, morphLag);
     lDriftAmp = Lag3.kr(driftAmp, controlLag);
     lDriftRate = Lag3.kr(driftRate, morphLag);
+    // ── enrichment lag ──
+    lSubAmp           = Lag3.kr(subAmp, morphLag);
+    lShimmerAmp       = Lag3.kr(shimmerAmp, morphLag);
+    lShimmerRate      = Lag3.kr(shimmerRate, morphLag);
+    lFilterLfoRate    = Lag3.kr(filterLfoRate, morphLag);
+    lFilterLfoAmount  = Lag3.kr(filterLfoAmount, morphLag);
 
     // ── drift LFO (cents to ratio) ──
     driftLFO = SinOsc.kr(lDriftRate);
@@ -112,10 +126,23 @@ SynthDef(\machineDrone, { |out = 0,
     breathLFO = SinOsc.kr(lBreathRate).range(0.3, 1.0);
     breath = BPF.ar(PinkNoise.ar, 2000, 0.3) * lBreathAmp * breathLFO;
 
-    sig = tri + saw + pul + sin + bpNoise + breath;
+    // ── sub-octave layer: SinOsc -12 sem, dà "peso" sotto al fondamentale ──
+    subSig = SinOsc.ar(driftedHz * 0.5) * lSubAmp * 0.7;
+
+    // ── shimmer layer: SinOsc +12 sem modulato da LFO ampio. Dà "luce alta" ──
+    // Modulazione amp con sin lento crea il classico "scintillio celestiale"
+    shimmerLfo = SinOsc.kr(lShimmerRate).range(0.4, 1.0);
+    shimmerSig = SinOsc.ar(driftedHz * 2) * lShimmerAmp * shimmerLfo * 0.4;
+
+    sig = tri + saw + pul + sin + bpNoise + breath + subSig + shimmerSig;
+
+    // ── slow filter LFO: cutoff oscilla ±filterLfoAmount × cutoff su filterLfoRate Hz ──
+    // Aggiunge "movimento timbrico" lento, percepibile come pad che si apre/chiude piano.
+    filterLfo = SinOsc.kr(lFilterLfoRate);
+    modCutoff = lCutoff * (1 + (filterLfo * lFilterLfoAmount * 0.5));
 
     // ── filter ──
-    sig = RLPF.ar(sig, lCutoff.clip(20, 18000), (1 - lQ).clip(0.05, 1));
+    sig = RLPF.ar(sig, modCutoff.clip(20, 18000), (1 - lQ).clip(0.05, 1));
 
     // ── tanh soft clip drive ──
     sig = Select.ar((lDrive > 0.001).asInteger, [

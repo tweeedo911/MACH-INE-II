@@ -6,7 +6,89 @@
 
 ---
 
-## 2026-04-25 (sessione 32) — SC audio engine Wave A: drone biome morphing live (v3.20.0-rc1)
+## 2026-04-25 (sessione 32, parte 2) — Drone enrichment + Wave B SC (v3.20.0-rc2)
+
+### Obiettivo
+Smoke test rc1: utente sente audio ma "synth molto semplici". Diagnosi: in Wave A solo
+drone CH2 va a SC, gli altri ch via MIDI esterno (silenti se non c'è DAW/IAC routing).
+Plus: drone single-layer manca movimento. Soluzione: drone enrichment + Wave B con
+kick/bass/chord SynthDef one-shot.
+
+### Fatto
+
+**Bug fix preliminari (commit 03391f6):**
+- Bug critico in `machine-engine.scd`: `^nil` early return dentro Function block causava
+  ReturnException → applyDronePhase silenziava drone. Refactor con nested if + log diagnostico.
+- Cleanup orphan: `pkill scsynth + sclang` esplicito in launcher (sclang esce senza s.quit
+  → scsynth resta orphan e continua a suonare).
+- Debug: `window.__sc` esposto su browser per test manuali da console.
+
+**Drone enrichment (commit pendente):**
+- 5 nuovi parametri al SynthDef: subAmp (sub-octave SinOsc -12 sem), shimmerAmp (octave-up
+  SinOsc +12 modulato da LFO 0.4-1.0), shimmerRate (Hz), filterLfoRate (Hz), filterLfoAmount.
+  Tutti su Lag3.
+- biome-presets.scd: ogni bioma ha valori specifici. NEBBIA shimmer 0.4 + sub 0.2 (scintille
+  ambient), RESPIRO shimmer 0.5 + filter LFO 0.30 (apertura lenta), TEMPESTA sub 0.6 +
+  shimmer 0.3 (drammatico), SOLCO sub 0.5 (dub heavy), RITORNO sub 0.3 + shimmer 0.5
+  (lavanda con luce alta), MACCHINA sub 0.4 no LFO (rigido), TESSUTO sub 0.3.
+
+**Wave B — kick + bass + chord:**
+- `app/sc/synths/kick.scd` — body SinOsc con pitch sweep esponenziale (freq×sweepFactor →
+  freq, sweepTime 40ms) + HPF noise click + tanh saturation. Param per traccia: click amount,
+  decay length, sweepFactor.
+- `app/sc/synths/bass.scd` — Pulse(freq, 0.4) + SinOsc(freq×0.5) sub → RLPF → tanh.
+  Param: cutoff, drive, mixSub/mixPulse, decay, q.
+- `app/sc/synths/chord.scd` — Tri+Saw a coppie detuneate (±7 cents) → RLPF → ASR envelope.
+  Param: mixTri/mixSaw, cutoff, attack, release, detuneCents.
+- `biome-presets.scd`: 7 biomi × 4 ruoli (drone/kick/bass/chord). NEBBIA/RESPIRO kick:amp=0
+  (silenziati). Bass per traccia: SOLCO sub-bass dub (cutoff 400, drive 0.3, mixSub 0.7),
+  MACCHINA pump (cutoff 1200, drive 0.4), TEMPESTA reese (cutoff 1500, drive 0.7), ecc.
+- `machine-engine.scd`: carica i 3 nuovi synth, OSC handler `/synth/<role>/note` ora attivo
+  (era stub). Pattern: legge `~biomePresets[currentBiome][role]`, merga con freq/amp/dur
+  dal browser, instanzia `Synth(role, args)`. Se preset ha `\amp:0` → skip (silenziato).
+- `app/src/midi.js`: import `sendSCNote` da sc-out. Mappatura `SC_ROLE_BY_CH = ['kick',
+  null, null, 'bass', 'chord', null, null, null]`. In `sendMIDINote()` dopo MIDI send,
+  conversione note→Hz + vel→amp (×0.6 max anti-clipping) + durationMs→s, chiamata
+  `sendSCNote(role, freq, amp, dur)`. Drum ch 1 e melodic ch 5/6/7 → null (Wave C).
+
+**Bump versione:** v3.20.0-rc1 → v3.20.0-rc2.
+
+### File toccati
+- **Modificati:** `app/sc/synths/drone.scd` (+25 LOC: enrichment params + sub/shimmer/filterLfo),
+  `app/sc/biome-presets.scd` (riscritto: 7×4 ruoli), `app/sc/machine-engine.scd` (+30 LOC:
+  carica synth + OSC handler note attivo), `app/src/midi.js` (+15 LOC: SC hook),
+  `app/src/VERSION.js` → v3.20.0-rc2.
+- **Nuovi:** `app/sc/synths/kick.scd`, `app/sc/synths/bass.scd`, `app/sc/synths/chord.scd`.
+
+### Decisioni prese
+Vedi `DECISIONS.md` #034.
+
+### Prossima sessione — punto di ripartenza
+1. **Test live v3.20.0-rc2**: ripartire `machine-all.command`, ascoltare:
+   - Drone più ricco (sub + shimmer + slow filter LFO percepibili)
+   - Kick / bass / chord via SC con timbro per bioma (SOLCO dub vs MACCHINA pump vs
+     TEMPESTA reese — distinguibili?)
+   - Levels: nessun clipping su stack chord 4-note + bass + kick + drone simultanei
+   - Test manuale da console: `__sc.sendSCBiome('SOLCO')` + simula nota:
+     `__sc.sendSCNote('bass', 110, 0.5, 0.4)` (110Hz = A2)
+2. **Wave C** (post-test): voice + lead + arp + perc SynthDef.
+   - voice: formant + vibrato + breath (NEBBIA "voce sintetica" / RITORNO "esposto")
+   - lead: melodic con drive variabile (TEMPESTA distorto / RESPIRO pulito)
+   - arp: attack stretto + release modulabile (MACCHINA denso / RITORNO morente)
+   - perc: multiplex per nota MIDI (hat=36, snare=38, openHat=42, conga=48...)
+3. **Calibrazione live**: livelli relativi drone vs ruoli one-shot, EQ, master limiter.
+
+### Bug/warning aperti
+- ⚠️ Wave B non testato live (richiede sc-launch attivo). Smoke test al primo run.
+- ⚠️ amp×0.6 max sul vel/127 mapping potrebbe essere troppo basso per voice live —
+  calibrare. O troppo alto su stack 4-note chord — verificare.
+- ⚠️ Drone enrichment shimmer su NEBBIA/RESPIRO: se troppo "celestiale" rispetto al
+  carattere ambient minimal, scalare 0.5→0.3.
+- ⚠️ TEMPESTA bass drive 0.7 + drone drive 0.6 = doppia saturation. Verificare clipping.
+
+---
+
+## 2026-04-25 (sessione 32, parte 1) — SC audio engine Wave A: drone biome morphing live (v3.20.0-rc1)
 
 ### Obiettivo
 Utente richiede sistema audio SuperCollider dedicato a MACH:INE III, mirato e coerente al

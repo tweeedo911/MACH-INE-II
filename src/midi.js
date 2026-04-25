@@ -6,6 +6,12 @@
 import { CFG } from './config.js';
 import { recordMIDI } from './session-recorder.js';
 import { humanizeMs } from './composition-toolkit.js';
+import { sendSCNote } from './sc-out.js';
+
+// v3.20-rc2 Wave B: ch → SC role mapping. ch 0 kick, 3 bass, 4 chord (Wave B).
+// Wave C aggiungerà 5 voice, 6 lead, 7 arp, 1 perc. Ch 2 drone non ha note one-shot
+// (gestito via biome morphing persistente).
+const SC_ROLE_BY_CH = ['kick', null, null, 'bass', 'chord', null, null, null];
 
 // ── MIDI role channels (0-indexed internally) ──
 // Ch 0=KICK, Ch 1=PERC, Ch 2=DRONE, Ch 3=BASS, Ch 4=CHORDS, Ch 5=VOICE, Ch 6=LEAD, Ch 7=ARP
@@ -240,6 +246,17 @@ export function sendMIDINote(ch, note, vel, durationMs = 200) {
   const t = baseT < performance.now() + 1 ? performance.now() + 1 : baseT;
   midiOut.send([0x90 | chByte, safeNote, safeVel], t);
   midiOut.send([0x80 | chByte, safeNote, 0], t + durationMs);
+
+  // v3.20-rc2 Wave B — invio SC parallelo per ch mappati (kick/bass/chord).
+  // Drum kit (ch 1) e voice/lead/arp (5/6/7) restano MIDI-only finché Wave C.
+  // Drone (ch 2) gestito separatamente via biome morphing persistente, no note one-shot.
+  const role = SC_ROLE_BY_CH[chByte];
+  if (role) {
+    const freq = 440 * Math.pow(2, (safeNote - 69) / 12);
+    const amp = (safeVel / 127) * 0.6;  // max 0.6 — evita clipping con stack accordi
+    const dur = durationMs / 1000;
+    sendSCNote(role, freq, amp, dur);
+  }
 }
 
 // D6: AllNotesOff must arrive AFTER any note-on already queued with
