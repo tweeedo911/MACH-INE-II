@@ -1,0 +1,17 @@
+{
+  "name": "machine-sc-bridge",
+  "version": "0.1.0",
+  "description": "MACH:INE III WebSocket ↔ OSC bridge for live SC audio engine",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "node machine-sc-bridge.js"
+  },
+  "dependencies": {
+    "osc": "^2.4.4",
+    "ws": "^8.16.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

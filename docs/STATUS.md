@@ -1,14 +1,42 @@
-# STATUS — MACH:INE III (branch machine-iii, v3.19.0-rc2)
+# STATUS — MACH:INE III (branch machine-iii, v3.20.0-rc1)
 
 > Snapshot vivo. Rigenerato a fine sessione. Punto di entrata di ogni nuova sessione.
-> **Last updated:** 2026-04-25 (sessione 31: Wave 1 completa — feel + curve + arc + ghost + euclidei)
+> **Last updated:** 2026-04-25 (sessione 32: SC audio engine Wave A — drone biome morphing)
 
 ## Versione
 
-**v3.19.0-rc2** — single source: `src/VERSION.js` (`APP_VERSION`). Da soundcheck → stable.
-Wave 1 completa (1A-E). Baseline precedente `v3.18.0` (tag su `cda67a8`).
+**v3.20.0-rc1** — single source: `src/VERSION.js` (`APP_VERSION`). SC audio engine Wave A.
+Wave 1 musicale completa (rc2 v3.19.0). Baseline live `v3.18.0` (tag su `cda67a8`).
 
-## Novità v3.19.0-rc2 (sessione 31, 2026-04-25) — Wave 1D + 1E
+## Novità v3.20.0-rc1 (sessione 32, 2026-04-25) — SC audio engine Wave A
+
+Sistema audio SuperCollider dedicato a MACH:INE III, **mirato e coerente** (non porting da
+album-gen). Filosofia "orchestra ereditaria del bioma": 8 SynthDef-base parametrizzati,
+bioma = stato persistente del server con Lag3 18s morphing. Vedi `DECISIONS.md` #033.
+
+**Wave A — drone soltanto:**
+- `app/sc/synths/drone.scd` — port standalone di Engine_MachineDrone (Norns).
+  4 oscillatori + drift LFO + breath/PWM/noise + RLPF + drive + reverb, tutto su Lag3.
+- `app/sc/biome-presets.scd` — 7 timbri MACH (NEBBIA tri+sin pulita, TESSUTO saw caldo,
+  SOLCO tri+saw drive, RESPIRO sin breath, MACCHINA pulse PWM+noise, TEMPESTA saw triplo
+  drive, RITORNO mix riverberato) + `phaseCurves` (amp/cutoff/drift/reverb per fase).
+- `app/sc/machine-engine.scd` — boot, drone singleton, OSC handlers `/biome/set`,
+  `/phase/set`, `/panic`.
+- `app/bridge/machine-sc-bridge.js` — WS↔OSC bridge (porte 9877/57122 distinte da album-gen).
+- `app/src/sc-out.js` — WS client, hook in director3 (biome+phase) e main (panic).
+  Auto-enable via `?sc=1` URL o `CFG.SC_ENABLED=true`.
+- `app/sc-launch.command` — boot sclang + bridge. Doppio-click o CLI.
+
+**Workflow live (Wave A):**
+1. `./machine-launch.command` (come prima — http + browser).
+2. (opzionale) `./sc-launch.command` (boot sclang + bridge).
+3. Apri `http://localhost:8282/?sc=1` per abilitare SC. Drone CH2 ora suona via SC
+   con i timbri-bioma di machine-drone, in parallelo al MIDI esterno.
+4. Shift+Z = panic includes SC drone amp=0.
+
+## Novità v3.19.0 (sessione 31, 2026-04-25) — Wave 1 musicale
+
+### Wave 1D + 1E (precedente, in v3.19.0-rc2)
 
 - **1D — Chord ghost phase-aware:** `phaseGhostScale(phase)` esteso al ghost di
   chordGrid (TESSUTO, TEMPESTA). Germoglio off, densità ×1.5, dissoluzione 0.3.
@@ -18,7 +46,7 @@ Wave 1 completa (1A-E). Baseline precedente `v3.18.0` (tag su `cda67a8`).
   bar in rhythm.js (rigenerato a boundary di bar). MACCHINA/TEMPESTA mantengono
   hatPatterns hardcoded (identità preservata).
 
-## Novità v3.19.0-rc1 (sessione 31, 2026-04-25) — Wave 1 upgrade musicale
+### Wave 1A-C (in v3.19.0-rc1)
 
 Risposta richiesta utente "musicalmente più avanzato, meno scontato". Wave 1 = ritmica
 + espressione (basso costo / payoff immediato). Vedi `DECISIONS.md` #031.
@@ -334,9 +362,21 @@ Pezzo opzionale post-suite, attivato con tasto `E`. Autocontenuto: non modifica 
 
 ---
 
-## Prossimo (priorità top→bottom) — v3.19.0-rc1 → stable
+## Prossimo (priorità top→bottom) — v3.20.0-rc1 → stable
 
-### P0 — Test live Wave 1 (v3.19.0-rc1)
+### P0 — Smoke test SC Wave A (v3.20.0-rc1)
+
+1. Verifica installazione: `SuperCollider.app` in `/Applications`, `node` 20+.
+2. Doppio-click `./sc-launch.command` (in parallelo a `./machine-launch.command`).
+3. Apri browser su `http://localhost:8282/?sc=1` — vedere `[SC] connected to bridge` in console.
+4. Avvia suite (Space) — il drone deve suonare via SC, cambiando timbro su ogni
+   transizione di traccia (NEBBIA→TESSUTO→...→RITORNO).
+5. Verifica morph fase: in NEBBIA germoglio amp=0.30×0.5=0.15 (basso); in pulsazione
+   amp=0.60×0.5=0.30; in dissoluzione amp=0.15×0.5=0.075 + reverb +0.25.
+6. Shift+Z = drone amp=0 (silenzio immediato), libera tutti i synth.
+7. Latenza: localhost loopback dovrebbe restare <5ms (no glitch percepibili).
+
+### P1 — Test live Wave 1 musicale (v3.19.0-rc2)
 
 Soundcheck `T` + suite breve per validare le 3 modifiche musicali della Wave 1:
 

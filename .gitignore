@@ -43,3 +43,8 @@ docs/_ULTRAPLAN-PROMPT.md
 
 # Planning archive (metadata GSD locale)
 .planning-archive/
+
+# v3.20 SC audio engine — artefatti runtime (node_modules + log)
+bridge/node_modules/
+bridge/package-lock.json
+.run-sc/
