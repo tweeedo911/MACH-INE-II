@@ -20,6 +20,10 @@ export const CFG = {
   //   bass cycle extension, Burial stumble, degradation arc, pitch drift
   MUSIC_EXPERIMENT: true,
   MUSIC_STRUCTURAL: true,
+  // ── v3.20 Wave A: SC audio engine (drone biome morphing).
+  // Default off: MIDI è il primary output. Abilitare via toggle runtime
+  // o URL `?sc=1` quando il SC bridge + sclang sono attivi (sc-launch.command).
+  SC_ENABLED: false,
   // ── Audio analyser ──
   fftSize: 2048,
   smoothing: 0.82,

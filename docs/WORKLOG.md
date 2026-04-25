@@ -6,6 +6,77 @@
 
 ---
 
+## 2026-04-25 (sessione 32) — SC audio engine Wave A: drone biome morphing live (v3.20.0-rc1)
+
+### Obiettivo
+Utente richiede sistema audio SuperCollider dedicato a MACH:INE III, mirato e coerente al
+progetto (non porting da album-gen). MIDI parallelo. Le lezioni utili torneranno per album-gen.
+
+### Filosofia decisa
+"Orchestra ereditaria del bioma" — 8 SynthDef-base parametrizzati fortemente, **bioma =
+stato persistente del server** con Lag3 18s morphing (modello copiato da Engine_MachineDrone
+Norns). Non 56 SynthDef diversi, ma 1 SynthDef per ruolo + tabella preset 7 biomi che
+morpha tutti i parametri al cambio.
+
+### Fatto
+
+**Infrastruttura SC:**
+- `app/sc/synths/drone.scd` — port di Engine_MachineDrone (Norns) come SynthDef standalone.
+- `app/sc/biome-presets.scd` — `~biomePresets[\BIOMA][\drone]` con i 7 timbri MACH (portati
+  da machine-drone biomes.lua) + `~phaseCurves` (amp/cutoff/drift/reverb per fase).
+- `app/sc/machine-engine.scd` — boot, drone singleton (gate=1, amp=0), OSC handlers
+  `/biome/set`, `/phase/set`, `/panic`. Stub `/synth/<role>/note` (Wave B).
+- `app/sc/osc-map.md` — contract v0.1 frozen.
+
+**Bridge:**
+- `app/bridge/machine-sc-bridge.js` — fork di album-gen/bridge. WS 9877, OSC 57120 sclang,
+  UDP listen 57122 (album-gen 57121: no collisione se entrambi attivi).
+- `app/bridge/package.json` — deps `osc` + `ws`.
+
+**Hook lato JS:**
+- `app/src/sc-out.js` — WS client con auto-reconnect. API setSCEnabled, sendSCBiome,
+  sendSCPhase, sendSCNote (stub), panicSC. No-op silenzioso se WS down.
+- `app/src/config.js` — nuovo toggle `CFG.SC_ENABLED` (default false).
+- `app/src/director3.js` — `sendSCBiome(track)` in `initDirector3()`, `sendSCPhase(name, 0)`
+  al cambio fase, `sendSCPhase(name, progress)` throttled 250ms.
+- `app/src/main.js` — `panicSC()` dentro Shift+Z.
+
+**Launcher:**
+- `app/sc-launch.command` — boot sclang + bridge. NON avvia http (gestito da
+  machine-launch.command). Auto npm install. Streaming logs via tail -F.
+
+**Bump versione:** v3.19.0-rc2 → v3.20.0-rc1.
+
+### File toccati
+- **Nuovi (10):** `app/sc/synths/drone.scd`, `app/sc/biome-presets.scd`, `app/sc/machine-engine.scd`,
+  `app/sc/osc-map.md`, `app/bridge/machine-sc-bridge.js`, `app/bridge/package.json`,
+  `app/src/sc-out.js`, `app/sc-launch.command`.
+- **Modificati (4):** `app/src/config.js` (+5 LOC), `app/src/director3.js` (+25 LOC),
+  `app/src/main.js` (+2 LOC), `app/src/VERSION.js` → v3.20.0-rc1.
+
+### Decisioni prese
+Vedi `DECISIONS.md` #033.
+
+### Prossima sessione — punto di ripartenza
+1. **Smoke test SC Wave A** (vedi STATUS P0): verifica boot SC + bridge, morphing drone tra
+   biomi/fasi, panic, latenza localhost.
+2. **Wave B**: aggiungere SynthDef one-shot per kick + bass + chord. Mappare `/synth/<role>/note`
+   da stub a Synth(role, [\freq, \amp, \dur]). Estendere biome-presets con preset per ognuno.
+3. **Wave C**: voice + lead + arp + perc. Suite completa via SC.
+4. **Wave D**: calibrazione live + tuning preset 7 biomi × 8 ruoli.
+5. **Lessons → album-gen**: il pattern `state-driven Lag3 morphing` può dare ad album-gen
+   l'evoluzione timbrica di brano (oggi nota-per-nota).
+
+### Bug/warning aperti
+- ⚠️ SC non testato live in questa sessione (richiede SuperCollider.app installato).
+- ⚠️ Drone singleton sempre attivo (gate=1, amp=0 inizialmente). Verificare in smoke test
+  che il livello iniziale sia davvero silente (no leak).
+- ⚠️ Latenza localhost: contract dichiara <5ms, da verificare al primo run con audio output reale.
+- ⚠️ `panicSC()` reinstanzia il synth dopo `freeAll`. Verificare che non glitchi al ripristino
+  (gate=1 → segnale parte da zero, dovrebbe essere clean grazie all'env asr).
+
+---
+
 ## 2026-04-25 (sessione 31, parte 2) — Wave 1D + 1E: chord ghost phase-aware + hat euclidei (v3.19.0-rc2)
 
 ### Obiettivo

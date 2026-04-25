@@ -1150,5 +1150,75 @@ il default sparso (SOLCO, TESSUTO).
   fasi stabili (densità, pulsazione tarda).
 
 ---
+
+## #033 — SC audio engine Wave A: drone biome morphing live (v3.20.0-rc1)
+
+**Data:** 2026-04-25
+**Contesto:**
+Utente richiede sistema audio SC dedicato a MACH:INE III, **mirato e coerente** al progetto
+(non porting generico da album-gen). MIDI deve restare disponibile in parallelo. Le lezioni
+torneranno utili per album-gen.
+
+Inventario di partenza:
+- `album-gen/sc/` ha 9 SynthDef generici + engine + bridge OSC + osc-map (frozen v0.1)
+- `machine-drone/lib/` ha **timbri-bioma già calibrati** per drone CH2 (7 biomi × 25 parametri)
+  via Engine_MachineDrone CroneEngine (Norns)
+- `app/src/` non ha output SC: 8 ch MIDI vanno a WebMIDI esterno
+
+**Scelta:**
+- **Filosofia "orchestra ereditaria del bioma"**: non 56 SynthDef diversi (8 ruoli × 7 biomi),
+  ma 8 SynthDef-base parametrizzati fortemente. Il bioma è **stato persistente del server**
+  (Lag3 18s morphing), non parametro per nota. Modello copiato da Engine_MachineDrone Norns.
+- **Wave A = drone soltanto**:
+  - `app/sc/synths/drone.scd` — port standalone di Engine_MachineDrone (no CroneEngine,
+    no addCommand). Stesso SynthDef: 4 oscillatori (tri/saw/pul/sin) + drift LFO + breath/PWM/noise
+    + RLPF + drive + reverb. Tutti i controlli su Lag3.
+  - `app/sc/biome-presets.scd` — IdentityDictionary con i 7 timbri di machine-drone biomes.lua
+    portati come dati. `~biomePresets[\BIOMA][\drone]` + `~phaseCurves[phase]`
+    (multipliers amp/cutoff/drift/reverb).
+  - `app/sc/machine-engine.scd` — boot: carica synth, instanzia drone singleton (gate=1, amp=0
+    finché /biome/set arriva), registra OSC handlers `/biome/set`, `/phase/set`, `/panic`.
+- **Trasporto**:
+  - `app/bridge/machine-sc-bridge.js` — fork di album-gen/bridge/osc-bridge.js. Porte distinte
+    (WS 9877 vs 9876, UDP listen 57122 vs 57121) per non collidere se entrambi attivi.
+  - `app/bridge/package.json` — deps `osc` + `ws` (stessa stack album-gen).
+- **Hook lato JS**:
+  - `app/src/sc-out.js` — WS client. API: `setSCEnabled`, `sendSCBiome(name)`, `sendSCPhase(name, prog)`,
+    `sendSCNote(role, freq, amp, dur)` (stub Wave A), `panicSC()`. No-op silenzioso se WS down.
+  - Auto-enable via `?sc=1` URL param o `CFG.SC_ENABLED`.
+  - `director3.js`: `sendSCBiome(track)` in `initDirector3()`, `sendSCPhase(name, 0)` su cambio
+    fase, `sendSCPhase(name, progress)` ogni 250ms (throttle, Lag3 lato SC è 18s).
+  - `main.js`: `panicSC()` dentro Shift+Z.
+- **Launcher**: `app/sc-launch.command` — boot sclang + bridge. NON avvia http (gestito da
+  machine-launch.command). Porte 9877/57120/57122. Auto npm install.
+
+**Alternative scartate:**
+- **Approccio A (riusa album-gen/sc)**: scartato per requisito "mirato e coerente".
+  I 9 synth di album-gen sono generici, non incarnano i biomi.
+- **Approccio B (synth bioma-specifici hardcoded, 8×7=56)**: scartato per esplosione di sup.
+  Lag3 morphing fra preset = identità mantenuta + transizioni continue.
+- **Note bioma per nota** (`/synth/bass/note freq amp dur biome phase`): scartato. Stato server
+  via OSCdef + Lag3 = transizioni più smooth, meno bandwidth, modello già provato in MachineDrone.
+- **MIDI sostituito da SC**: scartato (esplicito). Toggle `CFG.SC_ENABLED`, default off, MIDI primary.
+- **Drone unificato con machine-drone Norns**: scartato — Norns resta hardware standalone,
+  i parametri vengono portati come dati (preset table) non come dipendenza runtime.
+- **Album-gen unificato con app/sc**: rinviato. Quando Wave B/C saranno solide si valuterà
+  un dir `shared/sc-core/` con synth comuni + override per progetto.
+
+**Conseguenze:**
+- ✅ Infrastruttura completa: engine, bridge, client JS, launcher, contract OSC documentato.
+- ✅ Drone risponde ai 7 biomi MACH con i timbri già calibrati di machine-drone.
+- ✅ Lag3 18s = transizioni inter-bioma percepite come "respiro", non come patch change.
+- ✅ Phase curve: amp/cutoff/drift/reverb morphano dentro la fase corrente.
+- ✅ MIDI continua a uscire identico — SC è puramente additivo (drone live udibile dove
+  prima il drone CH2 andava solo via MIDI a synth esterni).
+- ✅ Wave A è il *foundation*: Wave B (kick/bass/chord one-shot) + Wave C (voice/lead/arp/perc)
+  estendono lo stesso pattern senza ridisegnare nulla.
+- ⚠️ SC non testato live (richiede SuperCollider.app + npm install). Smoke test del primo
+  utilizzo necessario (SC stabilità, latenza locale, livello drone vs MIDI synth).
+- ⚠️ Drone singleton sempre attivo (gate=1) — finché amp=0 è muto. Verificare che il livello
+  iniziale sia davvero 0 (no leak) e che il /panic reinstanziazione non glitchi.
+
+---
 <!-- knowledge-graph links -->
 [[STATUS]] [[01-ARCHITECTURE]] [[WORKLOG]]

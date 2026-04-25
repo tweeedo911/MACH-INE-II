@@ -11,6 +11,7 @@ import { TRACKS, PHASE_DENSITY, PHASE_ENERGY, TRACK_ORDER, ENCORE_SCALES } from 
 import { audio } from './audio.js';
 import { state } from './state.js';
 import { sendMIDIAllNotesOff, sendMIDINote, sendNornsBiome, sendNornsDroneStart, sendNornsDroneStop, setTrackTiming } from './midi.js';
+import { sendSCBiome, sendSCPhase } from './sc-out.js';
 import { sendOrchestraTrack, sendOrchestraPhase } from './orchestra-out.js';
 import { addMidiNote } from './field.js';
 import { initRhythm } from './rhythm.js';
@@ -98,6 +99,11 @@ let _silenceAcc       = 0;
 // Track ultimo bar per decrementare meloMuteBars/bassMuteBars una volta per bar
 let _lastMuteBarChecked = -1;
 
+// v3.20 Wave A — throttle SC phase progress update (no spam ogni frame).
+// Lag3 lato SC è 18s, basta inviare ogni ~250ms per il morph continuo.
+let _scLastPhaseSent = 0;
+const SC_PHASE_THROTTLE_MS = 250;
+
 // ── ENCORE v2.3: Canon Machine — 9 brick, coda melodica finale ──
 const ENCORE_BRICK_NAMES = [
   'heartbeat',          // 0: kick + polvere percussiva, BPM 60→132
@@ -168,6 +174,12 @@ export function initDirector3(trackName = 'SOLCO', { seamless = false } = {}) {
     feel: _track.humanize?.feel ?? 0,
     jitter: _track.humanize?.timing ?? 0,
   });
+
+  // v3.20 Wave A — SC biome morphing. No-op se SC_ENABLED=false o bridge non connesso.
+  // Riapplica anche la phase corrente lato SC (start germoglio progress=0).
+  sendSCBiome(trackName);
+  sendSCPhase(PHASE_ORDER[0], 0);
+  _scLastPhaseSent = performance.now();
   // Wave 2C: applica rootOffset (default 0) a scale + root, così TUTTI i moduli
   // (voice/lead/arp/drone/kick) vedono la trasposizione senza doverla leggere singolarmente.
   const _rootOff = worldState.rootOffset || 0;
@@ -721,6 +733,9 @@ export function updateDirector3(dt) {
       _applyPhase();
       console.log(`[DIR3] Phase: ${PHASE_ORDER[_phaseIdx]} (arc: ${worldState.arc.toFixed(2)})`);
       sendOrchestraPhase(PHASE_ORDER[_phaseIdx]);  // SC orchestra (no-op se disabilitata)
+      // v3.20 Wave A — SC phase change (apply phase curve to drone)
+      sendSCPhase(PHASE_ORDER[_phaseIdx], 0);
+      _scLastPhaseSent = performance.now();
     } else {
       // Dissoluzione finished — advance to next track
       _advanceTrack();
@@ -731,6 +746,14 @@ export function updateDirector3(dt) {
   phaseState.elapsed = _phaseBars;
   phaseState.duration = phaseDurBars;
   phaseState.progress = phaseDurBars > 0 ? Math.min(1, _phaseBars / phaseDurBars) : 0;
+
+  // v3.20 Wave A — emit phase progress lato SC ogni ~250ms (throttle, no-op se disabled).
+  // Il drone morpha amp/cutoff/drift/reverb continuamente dentro la fase.
+  const _scNow = performance.now();
+  if (_scNow - _scLastPhaseSent >= SC_PHASE_THROTTLE_MS) {
+    sendSCPhase(phaseName, phaseState.progress);
+    _scLastPhaseSent = _scNow;
+  }
 
   // Bar progress: position within current bar (0→1) — for scan lines, visual sync
   worldState.barProgress = barDuration > 0 ? Math.min(1, _barAcc / barDuration) : 0;

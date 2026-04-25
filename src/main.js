@@ -7,6 +7,7 @@ import { APP_VERSION } from './VERSION.js';
 import { CFG } from './config.js';
 import { initAudio, updateAudio, setAudioGain, getAudioGain } from './audio.js';
 import { initMIDI, updateMIDI, sendMIDIStart, sendMIDIStop, updateMIDIClock, sendMIDIAllNotesOff } from './midi.js';
+import { panicSC, setSCEnabled, isSCEnabled } from './sc-out.js';
 import { state, updateState } from './state.js';
 import { initRender, renderFrame, resize, setHUDElements, handleKey, setProjectorWindow } from './render.js';
 import { resetEvents } from './event-register.js';
@@ -530,6 +531,7 @@ document.addEventListener('keydown', (e) => {
   try {
     // sendMIDIAllNotesOff() already broadcasts CC123 on all channels internally.
     try { sendMIDIAllNotesOff(); } catch (_) {}
+    try { panicSC(); } catch (_) {}  // v3.20 Wave A: SC drone amp=0 + freeAll
     try { if (typeof clearCampo === 'function') clearCampo(); } catch (_) {}
     try {
       if (worldState && worldState.density) {
