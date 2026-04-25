@@ -5,10 +5,11 @@
 // ═══════════════════════════════════════════════════════════
 
 import { CFG } from './config.js';
-import { worldState } from './world-state.js';
+import { worldState, phaseState } from './world-state.js';
 import { sendMIDINote } from './midi.js';
 import { addMidiNote } from './field.js';
 import { TRACKS } from './tracks.js';
+import { euclideanEvolve } from './composition-toolkit.js';
 
 // V3: helper — return random late delay in ms based on current degradation jitter.
 // Returns 0 (immediate) when degradation is inactive.
@@ -61,6 +62,31 @@ const SNARE_FLAM_PROB = 0.10;      // 10% chance of ghost flam 1 step before
 let _step = 0;        // mirror of worldState.globalStep, used by _tick()
 let _stepAcc = 0;     // accumulator for step timing (master)
 let _bar = 0;         // mirror of worldState.globalBar
+
+// v3.19 Wave 1E: cache pattern hat euclideo evolutivo per bar.
+// Rigenerato a ogni bar boundary o cambio fase/track — entro 1 bar resta stabile,
+// così i 16 step del bar suonano lo stesso pattern (no instabilità intra-bar).
+let _hatEvolved = null;
+let _hatEvolvedBar = -1;
+let _hatEvolvedKey = '';
+
+function _resolveHatPattern(trackDef, phase) {
+  const evolveCfg = trackDef?.hatEuclideanByPhase?.[phase];
+  if (evolveCfg) {
+    const key = `${worldState.track}|${phase}`;
+    if (_bar !== _hatEvolvedBar || key !== _hatEvolvedKey) {
+      const { K1, K2, N } = evolveCfg;
+      const prog = phaseState?.progress ?? 0;
+      _hatEvolved = euclideanEvolve(K1, K2, N, prog);
+      _hatEvolvedBar = _bar;
+      _hatEvolvedKey = key;
+    }
+    return _hatEvolved;
+  }
+  // Fallback: pattern hardcoded per traccia (MACCHINA/TEMPESTA) o default.
+  const customHat = trackDef.hatPatterns && trackDef.hatPatterns[phase];
+  return customHat || HAT_PATTERNS[phase] || HAT_PATTERNS.germoglio;
+}
 
 export function initRhythm(seamless = false) {
   _step = 0;
@@ -139,8 +165,8 @@ function _tick() {
     hatPat = trackDef.encoreHatPattern;
   } else if (!worldState.encoreMode) {
     hatStep = _step;
-    const customHat = trackDef.hatPatterns && trackDef.hatPatterns[phase];
-    hatPat = customHat || HAT_PATTERNS[phase] || HAT_PATTERNS.germoglio;
+    // v3.19 Wave 1E: euclideo evolutivo se trackDef ha hatEuclideanByPhase, altrimenti fallback.
+    hatPat = _resolveHatPattern(trackDef, phase);
   } else {
     // ENCORE brick < 2: no hat yet
     hatStep = 0;

@@ -168,6 +168,17 @@ export const TRACKS = {
     humanize: { velocity: 7, timing: 3, feel: 5 },
     velocityCurve: 'easeInOut',
 
+    // v3.19 Wave 1E: hat euclideo evolutivo — dub asimmetrico (E(5,16)/E(7,16) classici).
+    // Germoglio silenzio, densità tresillo cubano, rottura densificazione, dissoluzione svanisce.
+    // Le posizioni dei hit "ambigui" si spostano per bar → pattern vivo, non loop fisso.
+    hatEuclideanByPhase: {
+      germoglio:    { K1: 0, K2: 0,  N: 16 },
+      pulsazione:   { K1: 2, K2: 3,  N: 16 },
+      densita:      { K1: 5, K2: 7,  N: 16 },
+      rottura:      { K1: 7, K2: 9,  N: 16 },
+      dissoluzione: { K1: 2, K2: 0,  N: 16 },
+    },
+
     palette: { bg: '#282B26', dot: '#FE6B0D', accent: '#CDD71D' },
     visualRegime: { maxDensity: 0.50, minDotSize: 4, composition: 'ASIMMETRIA' },
   },
@@ -334,6 +345,16 @@ export const TRACKS = {
     // v3.19 Wave 1A: feel +6ms = sospeso laid-back che fa "appendere" il groove
     humanize: { velocity: 5, timing: 2, feel: 6 },
     velocityCurve: 'easeInOut',
+
+    // v3.19 Wave 1E: hat euclideo evolutivo — sparso, asimmetrico, groove inquieto.
+    // Densità minore di SOLCO: TESSUTO è "qualcosa emerge", il hat vela non riempie.
+    hatEuclideanByPhase: {
+      germoglio:    { K1: 0, K2: 0, N: 16 },
+      pulsazione:   { K1: 2, K2: 2, N: 16 },
+      densita:      { K1: 3, K2: 5, N: 16 },
+      rottura:      { K1: 5, K2: 5, N: 16 },
+      dissoluzione: { K1: 1, K2: 0, N: 16 },
+    },
 
     // Wave 2C: sub drone tattile <40Hz (ottava -2 parallelo a CH2 drone, vel 20-30)
     subDroneTactile: true,

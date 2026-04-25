@@ -6,7 +6,69 @@
 
 ---
 
-## 2026-04-25 (sessione 31) — Wave 1 upgrade musicale: feel + curve + arc (v3.19.0-rc1)
+## 2026-04-25 (sessione 31, parte 2) — Wave 1D + 1E: chord ghost phase-aware + hat euclidei (v3.19.0-rc2)
+
+### Obiettivo
+Completare Wave 1 dopo rc1 (commit 9cc7883): aggiungere ghost probability phase-aware
+sul chord (oggi solo bass-v3 lo aveva) e ritmica euclidea evolutiva sui hat delle tracce
+che oggi usano il default sparso (SOLCO, TESSUTO).
+
+### Fatto
+
+**Wave 1D — Chord ghost phase-aware:**
+- `composition-toolkit.js`: nuovo helper `phaseGhostScale(phase)` (generalizza pattern
+  già usato in bass-v3 ghostFill).
+- `harmony.js`: applicato a `chordGridGhostProb` (TESSUTO 0.08, TEMPESTA 0.06). Ghost
+  cresce/cala con narrativa anziché costante. Germoglio 0, densità ×1.5, dissoluzione 0.3.
+
+**Wave 1E — Hat euclidei evolutivi:**
+- `composition-toolkit.js`: aggiunti `euclidean(K, N)` (Toussaint) e
+  `euclideanEvolve(K1, K2, N, progress)` (interpolazione probabilistica fra due densità).
+- `tracks.js`: SOLCO + TESSUTO ottengono `hatEuclideanByPhase`.
+  - SOLCO: E(2,16)→E(3,16) puls, E(5,16)→E(7,16) densità (tresillo cubano), E(7,16)→E(9,16)
+    rott, E(2,16)→E(0,16) dissol.
+  - TESSUTO: max E(5,16) rottura, più rado (hat vela senza riempire).
+- `rhythm.js`: `_resolveHatPattern(trackDef, phase)` legge `hatEuclideanByPhase` se presente.
+  Cache per bar (`_hatEvolved`, `_hatEvolvedBar`, `_hatEvolvedKey`): rigenerato a boundary
+  di bar o cambio fase/track. Entro 1 bar il pattern resta stabile.
+- MACCHINA / TEMPESTA mantengono `hatPatterns` hardcoded (identità preservata).
+
+**Bump versione:** v3.19.0-rc1 → v3.19.0-rc2.
+
+### File toccati
+- **Modificati:** `src/composition-toolkit.js` (+45 LOC: phaseGhostScale + euclidean +
+  euclideanEvolve), `src/harmony.js` (+5 LOC: phaseGhostScale su chord ghost),
+  `src/rhythm.js` (+30 LOC: _resolveHatPattern + cache + hook), `src/tracks.js`
+  (+22 LOC: hatEuclideanByPhase per SOLCO + TESSUTO).
+- **Versione:** `src/VERSION.js` → v3.19.0-rc2.
+- **Docs:** STATUS.md (sezione novità rc2), WORKLOG (questa entry), DECISIONS #032.
+
+### Decisioni prese
+Vedi `DECISIONS.md` #032.
+
+### Prossima sessione — punto di ripartenza
+1. **Test live v3.19.0-rc2** completo: soundcheck T + suite breve. Validare:
+   - Wave 1A: feel pocket vs laid-back per traccia
+   - Wave 1B: arpeggio respira, ciclo armonico ha arco
+   - Wave 1C: NEBBIA easeOut carezza, MACCHINA easeIn esplode
+   - Wave 1D: chord ghost cresce con phase
+   - Wave 1E: SOLCO E(5,16) tresillo dub, TESSUTO hat sparso inquieto
+2. Se tutto regge → bump stable v3.19.0 + tag.
+3. **Calibrazioni note:**
+   - Verifica che SOLCO hat step 0 non collida col kick step 0 — se sì rotare di 1.
+   - Verifica che velocityCurve easeIn MACCHINA/TEMPESTA germoglio non sia inudibile.
+   - Monitor [CLOCK LAG] — feel push -4ms TEMPESTA + jitter 4ms = floor 3-7ms.
+4. **Wave 2** (post-stable): Markov 2° ordine + magnetic notes + heterophony voice/lead.
+
+### Bug/warning aperti (da rc1)
+- Tutti i warning di rc1 ancora applicabili (vedi entry sotto).
+- ⚠️ rc2: hat E(5,16) e E(7,16) (SOLCO densità) hanno entrambi step 0 attivo — collisione
+  con kick step 0 (NEBBIA E2 / SOLCO D2). Timbricamente potrebbe creare un "click" sul
+  downbeat. Calibrazione: se fastidioso, rotare hat di +1 step.
+
+---
+
+## 2026-04-25 (sessione 31, parte 1) — Wave 1A-C: feel + curve + arc (v3.19.0-rc1)
 
 ### Obiettivo
 Utente richiede upgrade musicale: melodie e ritmica meno scontate, più sperimentali —
