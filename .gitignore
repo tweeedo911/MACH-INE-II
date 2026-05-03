@@ -38,6 +38,10 @@ analisi machine ii/FRAME-*.png
 # Symlink a memoria Claude locale
 docs/memory
 
+# Obsidian workspace state (UI locale, non knowledge)
+.obsidian/workspace*.json
+.obsidian/cache
+
 # Prompt interni (non parte del progetto)
 docs/_ULTRAPLAN-PROMPT.md
 
