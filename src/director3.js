@@ -16,25 +16,9 @@ import { sendOrchestraTrack, sendOrchestraPhase } from './orchestra-out.js';
 import { addMidiNote } from './field.js';
 import { initRhythm } from './rhythm.js';
 import { initHarmony } from './harmony.js';
-import { initBass as initBassV1 } from './bass.js';
-import { initBass as initBassV2 } from './bass-v2.js';
-import { initBass as initBassV3 } from './bass-v3.js';
-import { initMelody as initMelodyV1 } from './melody.js';
-import { initMelody as initMelodyV2 } from './melody-v2.js';
-import { initMelody as initMelodyV3 } from './melody-v3.js';
+import { initBass } from './bass-v3.js';
+import { initMelody } from './melody-v3.js';
 import { initTexture } from './texture.js';
-
-// V2/V3 toggle: STRUCTURAL takes priority over EXPERIMENT for bass/melody init
-const initBass = () => {
-  if (CFG.MUSIC_STRUCTURAL) return initBassV3();
-  if (CFG.MUSIC_EXPERIMENT) return initBassV2();
-  return initBassV1();
-};
-const initMelody = () => {
-  if (CFG.MUSIC_STRUCTURAL) return initMelodyV3();
-  if (CFG.MUSIC_EXPERIMENT) return initMelodyV2();
-  return initMelodyV1();
-};
 
 // ── V3.5: BPM ramp state ──
 // Interpolates BPM over N bars when track changes. Per-transition durations
