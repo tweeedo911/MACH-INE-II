@@ -6,6 +6,74 @@
 
 ---
 
+## 2026-04-25 (sessione 32, parte 4) — Audit fix architetturali (commit 58b262e)
+
+### Obiettivo
+Utente: "fai un check generale che tutto funzioni, non sentivo drum. manca ancora qualcosa
+nel sistema?". Audit completo del sistema SC + identificazione gap reali.
+
+### Diagnosi
+**"Non sentivo drum"**: probabile causa = test in NEBBIA (preset kick/hat/snare/conga
+amp:0 by design, ambient). SOLCO/MACCHINA/TEMPESTA hanno drum udibili.
+
+**Audit identifica 4 gap reali:**
+1. **Phase curve NON applicata ai one-shot**: il drone scala amp con phase (germoglio
+   ×0.30, densità ×1.0) ma kick/bass/voice/lead/arp/hat/snare/conga colpiscono sempre
+   a piena ampiezza → asimmetria sonora.
+2. **Niente master limiter**: stack TEMPESTA densità (10 voci simultanee) può clippare.
+3. **Nessun diagnostic test**: validazione dei 10 ruoli solo nota-per-nota manuale.
+4. **Nessun log OSC ricezione**: difficile capire se le chiamate arrivano davvero.
+
+### Fatto
+1. **Phase scale sui one-shot** (`machine-engine.scd`): l'OSCdef note handler ora legge
+   `~phaseCurves[currentPhase][\amp]` e moltiplica `msgAmp` per quello scale prima di
+   instanziare il Synth. Coerenza fade in/out fra drone sustained e ruoli one-shot.
+2. **Master limiter** (`machine-engine.scd`): SynthDef `\machineLimiter` pass-through
+   su bus 0, instanziato `Synth.tail(s, ...)`. `Limiter.ar(sig, 0.95, 0.005)` +
+   `ReplaceOut.ar(out, sig)`. Anti-clipping per stack denso.
+3. **`__sc.testSuite('BIOMA')`** (`sc-out.js`): round automatico 10 ruoli con freq
+   sensate (kick 50, bass 110, chord 220, voice 440, lead 660, arp 523, hat 9000,
+   openhat 8000, snare 180, conga 130), gap 700ms tra ruoli, log per ogni triggered.
+4. **Verbose log OSC** (`machine-engine.scd`): se `~scVerbose == true`, log
+   `[SC] kick freq=50 amp=0.40 bioma=SOLCO` per ogni nota one-shot. Default false.
+
+### File toccati
+- **Modificati:** `app/sc/machine-engine.scd` (+15 LOC: limiter SynthDef + tail
+  instantiation + phase scale fix + verbose log), `app/src/sc-out.js` (+30 LOC:
+  testSuite async function).
+
+### Decisioni prese
+Vedi `DECISIONS.md` #036.
+
+### Punto di ripartenza — sessione successiva (dedicata sound design)
+
+Utente esplicito: "faremo sessione dedicata ad affinare il sound design".
+
+**Workflow atteso:**
+1. Test prelimnare: `machine-all.command` + `__sc.testSuite('SOLCO')` → kick/snare/hat
+   udibili? livelli relativi OK?
+2. Suite completa Shift+1..7: ascoltare i 7 biomi, identificare cosa funziona/non
+   funziona ad orecchio.
+3. Tuning preset bioma per ruolo (10 × 7 punti calibrabili).
+4. **Audio-reactive lato SC** (livello 3 evoluzione mai implementato): drone cutoff
+   respira con audio.rms, bass drive cresce con audio.onset, ecc. Browser invia
+   `/audio/energy <rms> <onset>` throttled 50ms, SC handler aggiorna parametri su Lag breve.
+5. Eventuale **HUD SC in browser**: indicatore connection + bioma + phase + ruoli attivi.
+6. **Sound-lab** (file aperto utente: `/Users/Edo_1/sound-lab/.../spec.md`): valutare
+   environment isolato per affinare i synth prima di portarli in MACH:INE III.
+
+### Bug/warning aperti
+- ⚠️ Voice formant range 0.3-0.6 da affinare ad orecchio.
+- ⚠️ TEMPESTA bass drive 0.7 + drone drive 0.6 = saturation cumulata; master limiter
+  ora salva da clipping ma il timbro rimane "carico" — calibrazione attesa.
+- ⚠️ Drum kit HPF/BPF freq tarate a tavolino (hat 7000/9000, openhat 6500/8000,
+  snare 3500): tunabili in preset bioma per timbro per traccia.
+- ⚠️ Snare body SinOsc 180Hz fissato (non scala con freq): semantica voluta.
+- ⚠️ Audio-reactive non implementato: il sistema "evolve" solo per cambi bioma/phase
+  discreti, non in continuo con il flusso audio. Da fare in sessione dedicata.
+
+---
+
 ## 2026-04-25 (sessione 32, parte 3) — Wave C SC: voice + lead + arp + perc (v3.20.0-rc3)
 
 ### Obiettivo
