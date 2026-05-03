@@ -1,7 +1,11 @@
-# STATUS — MACH:INE III (branch machine-iii, v3.20.0-rc3)
+# STATUS — MACH:INE III (branch machine-iii, v3.20.0-rc3 + audit fixes)
 
 > Snapshot vivo. Rigenerato a fine sessione. Punto di entrata di ogni nuova sessione.
-> **Last updated:** 2026-04-25 (sessione 32: SC audio engine Wave A+B+C completa — 10 ruoli × 7 biomi)
+> **Last updated:** 2026-04-25 (sessione 32: SC audio engine + audit fix architetturali)
+>
+> **Stato:** suite SC completa (10 ruoli × 7 biomi) + 4 fix architetturali (phase scale
+> one-shot, master limiter, testSuite, verbose log). Pronto per **sessione dedicata
+> sound design** (calibrazione live + audio-reactive).
 
 ## Versione
 
@@ -9,6 +13,25 @@
 **suite completa**: 10 ruoli (drone/kick/bass/chord/voice/lead/arp/hat/openhat/snare/conga)
 × 7 biomi. Pronto per calibrazione live.
 Wave 1 musicale completa (v3.19.0-rc2). Baseline live `v3.18.0` (tag su `cda67a8`).
+
+## Audit fixes (sessione 32, parte 4 — commit 58b262e) — pre-calibrazione
+
+4 fix architetturali identificati con audit completo dopo smoke test rc3:
+
+1. **Phase curve sui one-shot** (bug grosso): drone faceva fade germoglio (amp×0.30) →
+   densità (×1.0), ma kick/bass/voice/lead/arp/hat/snare/conga colpivano sempre a piena
+   ampiezza. Asimmetria sonora corretta — ora i one-shot scalano `msgAmp × phaseCurves[
+   currentPhase].amp`.
+2. **Master limiter**: SynthDef `\machineLimiter` pass-through su bus 0, instanziato
+   `addToTail`. `Limiter.ar(sig, 0.95, 0.005)` + `ReplaceOut.ar(out, sig)`. Anti-clipping
+   per stack TEMPESTA densità (10 voci simultanee).
+3. **`__sc.testSuite('BIOMA')`**: round automatico 10 ruoli con freq sensate, gap 700ms,
+   log per ogni triggered. Diagnostica veloce livelli + funzionamento.
+4. **Verbose log OSC**: lato SC `~scVerbose = true` stampa `[SC] kick freq=50 amp=0.40
+   bioma=SOLCO` per ogni nota one-shot. Default false (silente).
+
+Diagnosi "non sentivo drum": era in NEBBIA (preset kick/hat/snare/conga amp:0 by design,
+ambient). SOLCO/MACCHINA/TEMPESTA hanno drum udibili.
 
 ## Novità v3.20.0-rc3 (sessione 32, 2026-04-25) — Wave C SC
 
@@ -419,7 +442,47 @@ Pezzo opzionale post-suite, attivato con tasto `E`. Autocontenuto: non modifica 
 
 ---
 
-## Prossimo (priorità top→bottom) — v3.20.0-rc1 → stable
+## Prossimo (priorità top→bottom) — sessione successiva
+
+### P0 — Sessione dedicata sound design (richiesta esplicita utente)
+
+Calibrazione live + arricchimento sistema. Ordine atteso:
+
+1. **Test prelimnare**: `machine-all.command` + `__sc.testSuite('SOLCO')` per validare
+   che kick/snare/hat suonino. Poi suite completa Shift+1..7 per ascoltare i 7 biomi.
+2. **Calibrazione livelli relativi** ad orecchio:
+   - Voice formant per traccia (gracile vs metallic — range 0.3-0.6 oggi)
+   - TEMPESTA bass drive 0.7 + drone drive 0.6 (saturation cumulata?)
+   - Stack densità (master limiter ora regge 0.95 ceiling — verificare clipping reale)
+   - Drum kit BPF/decay tunabili in preset
+3. **Audio-reactive lato SC** (livello 3 evoluzione mai implementato):
+   - Drone cutoff respira con `audio.rms` (real-time, controlLag breve)
+   - Bass drive cresce con `audio.onset` (peak)
+   - Lead drive scala con phase rottura intensity
+   - Browser: `sendSCEnergy(rms, onset)` throttled 50ms via OSC `/audio/energy`
+   - SC: handler aggiorna `~audioEnergy` letto come modulazione su Lag breve
+4. **HUD SC in browser**: indicatore connection + bioma corrente + phase + ruoli attivi.
+5. **Sound-lab integration** (file aperto utente: `/Users/Edo_1/sound-lab/...spec.md`):
+   se vuole un environment isolato per affinare i synth prima di cambiamenti diretti
+   in MACH:INE III, valutare in sessione apposita.
+
+### P1 — Wave 2 musicale (rinviato post-sound-design)
+
+Cuore della proposta originale "più sperimentale":
+- **Markov 2° ordine** per voice/lead/arp (frasi con memoria locale)
+- **Note magnetiche** per traccia (gravità modale: 1-3 pitch polo)
+- **Heterophony voice↔lead** (stessa frase con micro-varianti)
+
+### P2 — Push origin
+
+`machine-iii` ha 78+ commit avanti su origin. Push richiede conferma esplicita.
+
+### P3 — Test live precedenti baseline
+
+Wave 1 musicale (v3.19.0-rc2): feel + velocityCurve + arc + ghost + euclidei.
+Mai validato live in produzione perché abbiamo accelerato su SC.
+
+### P0-archived — v3.20.0-rc1 → stable
 
 ### P0 — Smoke test SC Wave A (v3.20.0-rc1)
 

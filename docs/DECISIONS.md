@@ -1342,5 +1342,48 @@ pattern preset-merge-Synth uniforme.
   hat+conga) può clippare. Calibrazione master attesa.
 
 ---
+
+## #036 — Audit fix SC: phase scale + master limiter + diagnostic + verbose log (commit 58b262e)
+
+**Data:** 2026-04-25
+**Contesto:**
+Smoke test rc3, utente: "non sentivo drum, manca ancora qualcosa nel sistema?". Audit
+completo identifica 4 gap reali (vedi WORKLOG sessione 32 parte 4).
+
+**Scelta:**
+1. **Phase curve sui one-shot** — fix bug architetturale: l'amp dei drum/voice/lead/arp
+   ora scala con `phaseCurves[currentPhase][\amp]` (germoglio ×0.30 → densità ×1.0),
+   coerentemente al drone sustained. Senza, il fade era asimmetrico.
+2. **Master limiter** — anti-clipping per stack densità: SynthDef `\machineLimiter`
+   pass-through su bus 0 con Limiter.ar(0.95, 0.005), instanziato `Synth.tail`. Pattern
+   standard SC con ReplaceOut.
+3. **`__sc.testSuite(biome)`** in sc-out.js: diagnostic round automatico 10 ruoli con
+   freq sensate, gap 700ms, log per ognuno. Validazione veloce funzionamento + livelli.
+4. **Verbose log OSC** lato SC: `~scVerbose == true` stampa per ogni nota one-shot
+   ricevuta. Diagnostica quando si sospetta che le chiamate non arrivino.
+
+**Alternative scartate:**
+- **Phase curve come modulazione SC-side via Bus**: scartato — semplicità di passare
+  il fattore moltiplicativo alla creazione del Synth (gli one-shot hanno durata 0.2-1s,
+  Bus modulation è overkill).
+- **Limiter per-Synth**: scartato — un solo `\machineLimiter` su master bus è più
+  efficiente e cattura tutte le voci.
+- **testSuite come OSC interno SC** (es. `/test/suite`): scartato — esposizione su
+  `window.__sc` rende il debug accessibile da devtools senza touch lato SC.
+- **Verbose log always-on**: scartato — flooding di stdout in suite live. Default off
+  con flag che si abilita on-demand.
+
+**Conseguenze:**
+- ✅ Coerenza dinamica fade germoglio↔densità tra drone e tutti i ruoli one-shot.
+- ✅ Sicurezza anti-clipping (master ceiling 0.95).
+- ✅ Diagnostica veloce: `__sc.testSuite('SOLCO')` da console = 7 secondi, 10 ruoli,
+   feedback immediato livelli relativi.
+- ✅ Pattern preset-merge-Synth invariato — niente refactor.
+- ⚠️ Phase scale `×0.30` in germoglio rende drum molto piani — voluto, ma potrebbe
+  essere troppo silenzioso al primo ascolto. Calibrare se necessario in sound design.
+- ⚠️ Master limiter Limiter.ar standard, no soft compression. Per stack rumoroso
+  pesante valutare upgrade a Compander/MasteringChain in sessione audio.
+
+---
 <!-- knowledge-graph links -->
 [[STATUS]] [[01-ARCHITECTURE]] [[WORKLOG]]
