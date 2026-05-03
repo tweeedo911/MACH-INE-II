@@ -35,12 +35,8 @@ import { worldState } from './world-state.js';
 import { initDirector3, updateDirector3, skipPhase, jumpToPhase, jumpToTrack, toggleDirector3, isDirector3Playing, getDirector3Status, launchEncore, switchEncoreScale, setRitornoVariant, startPreSuite, endPreSuite, resetDramaturgyState, reapplyRootOffset } from './director3.js';
 import { initRhythm, updateRhythm } from './rhythm.js';
 import { initHarmony, updateHarmony } from './harmony.js';
-import { initBass as initBassV1, updateBass as updateBassV1 } from './bass.js';
-import { initBass as initBassV2, updateBass as updateBassV2 } from './bass-v2.js';
-import { initBass as initBassV3, updateBass as updateBassV3 } from './bass-v3.js';
-import { initMelody as initMelodyV1, updateMelody as updateMelodyV1 } from './melody.js';
-import { initMelody as initMelodyV2, updateMelody as updateMelodyV2 } from './melody-v2.js';
-import { initMelody as initMelodyV3, updateMelody as updateMelodyV3 } from './melody-v3.js';
+import { initBass, updateBass } from './bass-v3.js';
+import { initMelody, updateMelody } from './melody-v3.js';
 import { initTexture, updateTexture } from './texture.js';
 
 // ── Modalità LOW per hardware lento: ?low nell'URL ──
@@ -49,28 +45,6 @@ if (location.search.includes('low')) {
   CFG.VISUAL.campo.cellsY = 36;
   console.log('[III] LOW mode: griglia 64×36');
 }
-
-// ── A/B/C selector — STRUCTURAL takes priority over EXPERIMENT for bass/melody ──
-const initBass = (...a) => {
-  if (CFG.MUSIC_STRUCTURAL) return initBassV3(...a);
-  if (CFG.MUSIC_EXPERIMENT) return initBassV2(...a);
-  return initBassV1(...a);
-};
-const updateBass = (...a) => {
-  if (CFG.MUSIC_STRUCTURAL) return updateBassV3(...a);
-  if (CFG.MUSIC_EXPERIMENT) return updateBassV2(...a);
-  return updateBassV1(...a);
-};
-const initMelody = (...a) => {
-  if (CFG.MUSIC_STRUCTURAL) return initMelodyV3(...a);
-  if (CFG.MUSIC_EXPERIMENT) return initMelodyV2(...a);
-  return initMelodyV1(...a);
-};
-const updateMelody = (...a) => {
-  if (CFG.MUSIC_STRUCTURAL) return updateMelodyV3(...a);
-  if (CFG.MUSIC_EXPERIMENT) return updateMelodyV2(...a);
-  return updateMelodyV1(...a);
-};
 
 // ── Session recorder ──
 import { initRecorder, startRecording, stopRecording, isRecording, recordSnapshot, recordPhaseCheck, downloadSession, captureScreenshotNow } from './session-recorder.js';
