@@ -1,5 +1,29 @@
 # CLAUDE.md — MACH:INE III
 
+## ⚡ Session start (READ FIRST)
+
+1. `~/Brain/QUICK_INDEX.md` — global session-start (se non già fatto)
+2. `_brain/Home.md` — knowledge curato MACH:INE III
+3. `docs/STATUS.md` — live snapshot (versione, moduli attivi, prossimi step P0-P4)
+4. Ultima entry `docs/WORKLOG.md` — cosa è successo l'ultima volta
+
+Tutto il resto on-demand via routing in `docs/06-AGENTS.md` o tabella `~/Brain/QUICK_INDEX.md`.
+
+## Step 0 — task-router (skill globale)
+
+Per task multi-step o non ovvio: invoca PRIMA `task-router` skill (`~/.claude/skills/task-router/`). Decide skill + modalità in 2 righe.
+
+## Skill esterne integrate (auto-invocabili)
+
+| Trigger | Skill |
+|---|---|
+| "debug compositore", "viz state Director3", "timeline scrubbabile" | `d3-viz` |
+| "smoke test pre-live", "test pre-set", "regression UX live" | `playwright-skill-ext` |
+| "show notes interattive", "presentazione live HTML" | `frontend-slides-ext` |
+| "favicon / OG image / social card per show page" | `web-asset-generator-ext` |
+
+---
+
 ## Progetto
 **MACH:INE III** — sistema generativo live per performance di collaborazione umano-AI.
 L'AI compone in tempo reale una suite continua di 45-60 minuti; il musicista interpreta
@@ -8,7 +32,7 @@ i segnali MIDI generati su synth modulare, hardware e VST.
 Non è un visualizer: la musica è l'ambiente, la macchina propone, il performer interpreta.
 
 ## Versione
-**v3.9.0** — single source of truth: `src/VERSION.js` (`APP_VERSION`).
+**v3.20.0-rc3** — single source of truth: `src/VERSION.js` (`APP_VERSION`).
 
 ## Stack
 - JavaScript ES modules nativi (zero dipendenze, zero build)
@@ -83,6 +107,21 @@ app/
 - `docs/04-RULES.md` — versioning, commit, code style, working mode
 - `docs/05-ROADMAP.md` — visione strategica milestone (non backlog operativo: quello vive in STATUS)
 - `docs/06-AGENTS.md` — skill mapping, routing subagenti, anti-pattern
+
+**Knowledge curato (`_brain/`, vault Obsidian):**
+- `_brain/Home.md` — entry point brain locale
+- `_brain/decisions/` — decisioni durevoli (cristallizzate da DECISIONS.md)
+- `_brain/learnings/` — pattern emersi
+- `_brain/firmas/`, `_brain/tracks/` — note operative famiglie/gesti
+- `_brain/sessions/` — retro sessioni live importanti
+
+**Cross-project knowledge:** `~/Brain/10_projects/MACH-INE-III.md` + `~/Brain/40_references/` per pattern riusabili.
+
+**Differenza `docs/` vs `_brain/`:**
+- `docs/` = live spec, aggiornato continuamente, append-only per WORKLOG/DECISIONS
+- `_brain/` = knowledge cristallizzato, navigabile via wikilink, cross-session
+
+**Quando promuovere da `docs/DECISIONS.md` a `_brain/decisions/`:** quando una decisione è stata stabile per ≥2 milestone e si è dimostrata corretta.
 
 ## Skill specializzate (`.claude/skills/`)
 Le skill contengono conoscenza profonda + script utility. Leggi `SKILL.md` prima di lavorare.
