@@ -43,7 +43,7 @@ docs/memory
 .obsidian/cache
 
 # Prompt interni (non parte del progetto)
-docs/_ULTRAPLAN-PROMPT.md
+**/_ULTRAPLAN-PROMPT.md
 
 # Planning archive (metadata GSD locale)
 .planning-archive/
