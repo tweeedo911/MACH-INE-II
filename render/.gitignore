@@ -1,0 +1,9 @@
+# Output audio/midi del render — pesanti, non versionati
+*.wav
+*.aiff
+*.osctmp
+album-v1/
+album-midi/
+_nrt*
+nrt-*.wav
+album-nrt-*.wav

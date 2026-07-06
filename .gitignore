@@ -52,3 +52,15 @@ docs/memory
 bridge/node_modules/
 bridge/package-lock.json
 .run-sc/
+
+# Render outputs (regenerable, huge)
+render/**/*.jpg
+render/**/*.jpeg
+render/**/*.wav
+render/**/*.aif
+render/**/*.aiff
+render/**/*.flac
+render/**/*.mp3
+render/**/*.mp4
+render/**/*.mov
+.DS_Store

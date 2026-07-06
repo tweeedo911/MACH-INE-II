@@ -1,0 +1,9 @@
+{
+  "name": "machine-iii-visual-render",
+  "private": true,
+  "type": "module",
+  "description": "Offline frame render del visual engine MACH:INE III (Playwright headless → PNG → ffmpeg video)",
+  "dependencies": {
+    "playwright": "^1.61.0"
+  }
+}

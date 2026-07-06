@@ -13,9 +13,10 @@ SynthDef(\arp, { |out = 0,
     cutoff = 2000,
     q = 0.15,
     attack = 0.005,
-    release = 0.10|
+    release = 0.10,
+    pan = 0, revSend = 0, revBus = 0|
 
-    var tri, saw, sig, env;
+    var tri, saw, sig, sparkle, env, pos;
 
     tri = LFTri.ar(freq) * mixTri;
     saw = Saw.ar(freq) * mixSaw;
@@ -26,6 +27,10 @@ SynthDef(\arp, { |out = 0,
         Env.perc(attack, dur.max(0.05) + release, 1, -3),
         doneAction: 2
     );
-    sig = sig * amp * env;
-    Out.ar(out, sig ! 2);
+    // shimmer: 2ª armonica con transiente brevissimo = scintillio in alto, mai pesante
+    sparkle = SinOsc.ar(freq * 2) * EnvGen.kr(Env.perc(0.001, (dur.max(0.05) * 0.6), 1, -6)) * 0.10;
+    sig = (sig + sparkle) * amp * env;
+    pos = Pan2.ar(sig, pan, 1.41421356);  // 1.414 → at pan=0 each ch = sig (identico a sig!2, backward-compat)
+    Out.ar(out, pos);
+    Out.ar(revBus, pos * revSend);        // wet send (stereo); revSend=0 default → silenzio, nessun effetto
 }).add;

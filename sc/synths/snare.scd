@@ -9,22 +9,31 @@ SynthDef(\snare, { |out = 0,
     dur = 0.2,
     decay = 0.18,
     body = 0.5,
-    snap = 0.7|
+    snap = 0.7,
+    pan = 0, revSend = 0, revBus = 0|
 
-    var bodyOsc, bodyEnv, noise, noiseEnv, sig, killEnv;
+    var bodyOsc, bodyEnv, noiseSrc, noiseLo, noiseHi, noiseEnv, snapEnv, sig, killEnv, pos;
 
-    bodyOsc = SinOsc.ar(180);
-    bodyEnv = EnvGen.kr(Env.perc(0.001, 0.08, 1, -4));
-    bodyOsc = bodyOsc * bodyEnv * body;
+    // corpo tonale: due sinusoidi (fondamentale + armonica) con leggero pitch drop = "thwack"
+    bodyEnv = EnvGen.kr(Env.perc(0.001, 0.09, 1, -4));
+    bodyOsc = (SinOsc.ar(EnvGen.kr(Env([260, 180], [0.03], -4)))
+        + (SinOsc.ar(330) * 0.4)) * bodyEnv * body;
 
-    noise = BPF.ar(WhiteNoise.ar, 3500, 0.7);
+    noiseSrc = WhiteNoise.ar;
+    // due bande di rumore: bassa (corpo del rullante) + alta (snap/aria)
+    noiseLo = BPF.ar(noiseSrc, 2200, 0.6) * 0.7;
+    noiseHi = HPF.ar(noiseSrc, 5500) * 0.6;
     noiseEnv = EnvGen.kr(Env.perc(0.001, decay, 1, -3));
-    noise = noise * noiseEnv * snap;
+    snapEnv  = EnvGen.kr(Env.perc(0.0005, (decay * 0.5).max(0.03), 1, -6));  // snap più rapido
+    noiseLo = noiseLo * noiseEnv;
+    noiseHi = noiseHi * snapEnv;
 
-    sig = (bodyOsc + noise).tanh;
+    sig = (bodyOsc + ((noiseLo + noiseHi) * snap)).tanh;
 
     // Outer killEnv per liberare il synth dopo il decay (no clic finale)
     killEnv = EnvGen.kr(Env([1, 1, 0], [decay + 0.02, 0.005]), doneAction: 2);
     sig = sig * amp * killEnv;
-    Out.ar(out, sig ! 2);
+    pos = Pan2.ar(sig, pan, 1.41421356);  // 1.414 → at pan=0 each ch = sig (identico a sig!2, backward-compat)
+    Out.ar(out, pos);
+    Out.ar(revBus, pos * revSend);        // wet send (stereo); revSend=0 default → silenzio, nessun effetto
 }).add;

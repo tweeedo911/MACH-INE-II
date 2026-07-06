@@ -6,6 +6,50 @@
 
 ---
 
+## 2026-06-18 (sessione 35, album-1) — Pipeline di render audio offline per "il disco"
+
+### Obiettivo
+Goal utente: versione definitiva di MACH:INE III *da pubblicare come disco*, musica+visual al
+massimo, in autonomia. Roadmap in `docs/ALBUM-PLAN.md` (north star persistente).
+
+### Fatto (Phase 0 — pipeline render, abilitatore)
+- **Verificato tooling headless**: `sclang` gira da `/Applications/SuperCollider.app/...` (SC 3.14.1),
+  ffmpeg presente. Tutto il percorso "disco" è producibile in autonomia (nessun performer/browser).
+- **`app/render/`**: pipeline completa SC headless → WAV → master.
+  - `render-audio.scd` — carica gli 11 synthdef veri + biome-presets + un MASTER BUS v1
+    (HPF + tilt EQ + glue comp + sat + limiter), replica uno score (biome/phase/note) e
+    registra WAV stereo. Replica ESATTA della logica `machine-engine` (preset merge + phase amp scale).
+  - `score-test.scd` (validazione), `render.sh` (runner+watchdog), `master.sh` (ffmpeg loudnorm+limit),
+    `analyze.sh` (LUFS/peak/silence).
+  - Validato: test 18.6s → audio reale -13.6 LUFS, tutti gli 11 synth + 2 biomi + phase + master. Master OK.
+- **`app/render/harness/`** — **score generator headless deterministico**:
+  - `shim.mjs` (browser-globals; `performance.now()`=tempo simulato), `field-stub-loader.mjs`
+    (stubba il visual dispatcher `field.js` — unico aggancio visivo dei moduli musicali),
+    `register-loader.mjs`, `generate-score.mjs`.
+  - Gira director3 + 5 moduli in fast-time, cattura le note via `session-recorder` (recordMIDI è
+    chiamato incondizionatamente in `sendMIDINote`), e scrive `score.scd`.
+  - **Risultato**: intera suite generata in **4.5s wall-clock** (≈2092s simulati, ~470× realtime),
+    20.331 eventi MIDI → 19.809 eventi score, tutti i 7 biomi. Arco coerente nascita→tempesta→ritorno.
+- **Render album completo v1** lanciato in background (realtime, ~35 min) → `album-draft-v1.wav`
+  (primo draft ascoltabile coi synth attuali).
+
+### File toccati
+`docs/ALBUM-PLAN.md` (nuovo), `render/render-audio.scd|score-test.scd|render.sh|master.sh|analyze.sh`,
+`render/harness/{shim,field-stub-loader,register-loader,generate-score}.mjs`. Nessun file `src/`/`sc/` modificato.
+
+### Decisioni
+- Mandato interpretato come: (1) sistema elevato a qualità da disco + (2) album audio renderizzato
+  offline via SC (la macchina suona sé stessa) + visual album. Vedi `ALBUM-PLAN.md`.
+- Congelare i "take" come `score.scd` e iterare il sound design contro di essi (no determinismo cross-run necessario).
+- Vincolo onesto: non posso ascoltare → loop render→analisi oggettiva + checkpoint di audition utente.
+
+### Prossimo
+- Render NRT (faster-than-realtime, no audio device) per iterazione veloce + qualità senza dropout.
+- Split per-traccia (timeline biomi nota). Unificare logica handler live/render.
+- Phase 1 sound design (master bus pro + arricchimento synth per-bioma).
+
+---
+
 ## 2026-04-25 (sessione 32, parte 5) — Errore di processo: sistema SC parallelo creato per errore
 
 ### Obiettivo (dichiarato)
